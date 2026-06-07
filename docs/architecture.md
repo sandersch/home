@@ -48,9 +48,9 @@ their keep.
 ```
 /              100 GB   ext4    OS
 /var           150 GB   ext4    container images + k3s state (image layers dominate)
-/opt           400 GB   btrfs   ALL low-latency app state (snapshots + zstd)
+/opt           250 GB   btrfs   ALL low-latency app state (snapshots + zstd)
 /frigate/cache  50 GB   ext4    Frigate temp/buffer only (high-write, throwaway)
-~100 GB         —       —       unallocated (future partitions, no repartition needed)
+~250 GB         —       —       unallocated (future partitions, no repartition needed)
 ```
 
 Rationale for the splits:
@@ -64,7 +64,7 @@ Rationale for the splits:
 - **`/frigate/cache` ext4, separate** — pure throughput, no snapshots wanted, kept
   off btrfs so high-write churn doesn't interact with snapshot bookkeeping. Frigate's
   DB lives on `/opt` (snapshotted), only its cache/buffer lives here.
-- **~100 GB unallocated** — headroom to add a partition later (e.g. if Immich's local
+- **~250 GB unallocated** — headroom to add a partition later (e.g. if Immich's local
   cache grows) without repartitioning.
 
 ## Networking

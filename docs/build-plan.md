@@ -11,10 +11,10 @@ Legend: 🔧 manual one-time · ⚙️ scripted · 📦 GitOps (git commit). ⚑
 
 ## Phase 0 — OS baseline 🔧
 
-**0.1 Install Ubuntu 24.04 LTS** (server, no GUI). During partitioning, create the
+**0.1 Install Ubuntu 26.04 LTS** (server, no GUI). During partitioning, create the
 layout from [architecture.md](./architecture.md#filesystem-and-partitioning):
-`/` 100 GB ext4 · `/var` 150 GB ext4 · `/opt` 400 GB btrfs · `/frigate/cache` 50 GB
-ext4 · ~100 GB unallocated. Create a non-root sudo user; disable root SSH login.
+`/` 100 GB ext4 · `/var` 150 GB ext4 · `/opt` 250 GB btrfs · `/frigate/cache` 50 GB
+ext4 · ~250 GB unallocated. Create a non-root sudo user; disable root SSH login.
 
 **0.2 Static networking (NIC1 first).** Set NIC1 to a static IP via Netplan before
 anything else so the address can't shift mid-bootstrap. Confirm interface names with
