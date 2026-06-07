@@ -171,7 +171,7 @@ default for `flux bootstrap github`; it's passed explicitly here so the intent i
 obvious and a future edit can't silently flip it to public:
 ```bash
 flux bootstrap github \
-  --owner=sandersch --repository=homelab-v2 \
+  --owner=sandersch --repository=home \
   --branch=main --path=clusters/ms01 --personal --private
 ```
 
