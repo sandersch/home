@@ -78,10 +78,12 @@ Dual-NIC design separating trusted traffic from cameras.
 
 > Confirm actual interface names on the box (`ip link`) before writing Netplan.
 
-**Camera isolation (nftables, host-level).** Forwarding policy drops camera→internet
-and camera→LAN, while allowing LAN→camera. Cameras can only reach the Frigate pod;
-they have no path to the internet. This must be validated before cameras go live
-(ping `8.8.8.8` and a LAN host from the camera segment — both must fail).
+**Camera isolation (nftables, host-level).** Forward policy drop blocks cameras from
+initiating any connection — to the internet or to the LAN. Frigate runs with
+`hostNetwork: true`, so its RTSP connections to cameras originate from the host's NIC2
+address (`10.10.0.1`) and never pass through the forward chain; no LAN→camera forwarding
+rule is needed or wanted. This must be validated before cameras go live (ping `8.8.8.8`
+and a LAN host from the camera segment — both must fail).
 
 **Camera DHCP (dnsmasq, host-level).** `dnsmasq` runs as a host systemd service bound
 to NIC2, serving DHCP on `10.10.0.0/24`. It lives with networking (Phase 1) rather

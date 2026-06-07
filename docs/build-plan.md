@@ -244,8 +244,10 @@ Then, in parallel once VPN is validated:
 PVC; `/opt/plex` metadata. ⚑ Run a 1080p transcode and confirm GPU use with
 `intel_gpu_top` on the host.
 
-**4c — Frigate** (critical/non-evictable). Coral USB hostPath; cameras on the NIC2
-segment; DB on `/opt/frigate`, cache on `/frigate/cache`, recordings on NAS. ⚑ Verify
+**4c — Frigate** (critical/non-evictable). `hostNetwork: true` so RTSP connections to
+cameras originate from the host (source IP `10.10.0.1`) without passing through the
+forward chain — this is what makes the nftables camera isolation work. Coral USB
+hostPath; DB on `/opt/frigate`, cache on `/frigate/cache`, recordings on NAS. ⚑ Verify
 cameras remain unreachable from the internet.
 
 **4d — remaining stack.** Radarr/Sonarr/Prowlarr (behind VPN, pointing at the Gluetun
