@@ -129,10 +129,12 @@ block k3s from starting.
 
 App state is provisioned with a `no-provisioner` **`local-nvme` StorageClass**
 (`WaitForFirstConsumer`, `reclaimPolicy: Retain`) plus a per-app `PersistentVolume`
-pointing at `/opt/<app>/...` with `nodeAffinity` pinned to `ms01`, bound by a
-`PersistentVolumeClaim`. An `initContainer` runs `mkdir -p` so the directory is
-created on first deploy — meaning **adding storage for a new app is a pure git
-change**, no SSH. Concrete YAML is in
+that uses a **`hostPath` volume with `type: DirectoryOrCreate`** pointing at
+`/opt/<app>/...`, with `nodeAffinity` pinned to `ms01`, bound by a
+`PersistentVolumeClaim`. `DirectoryOrCreate` makes the kubelet create the directory
+on first mount — meaning **adding storage for a new app is a pure git change**, no
+SSH. (A `local:` PV can't do this: its path must already exist or the mount fails
+before any init container could create it.) Concrete YAML is in
 [build-plan.md → Storage pattern](./build-plan.md#storage-pattern).
 
 ## Cluster platform

@@ -296,7 +296,7 @@ spec:
   accessModes: [ReadWriteOnce]
   persistentVolumeReclaimPolicy: Retain
   storageClassName: local-nvme
-  local: { path: /opt/<app>/config }
+  hostPath: { path: /opt/<app>/config, type: DirectoryOrCreate }
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -314,16 +314,12 @@ spec:
 ```
 
 ```yaml
-# In the Deployment: create the dir on first run, set limits + priority
+# In the Deployment: set limits + priority. The PV's DirectoryOrCreate makes the
+# dir on first mount, so no init container / mkdir is needed.
 spec:
   template:
     spec:
       priorityClassName: homelab-standard      # or homelab-critical
-      initContainers:
-        - name: init-dirs
-          image: busybox
-          command: ["sh","-c","mkdir -p /data/opt/<app>/config"]
-          volumeMounts: [{ name: opt, mountPath: /data/opt }]
       containers:
         - name: <app>
           # image, env (SOPS secrets), ports ...
@@ -334,8 +330,6 @@ spec:
       volumes:
         - name: config
           persistentVolumeClaim: { claimName: <app>-config-pvc }
-        - name: opt
-          hostPath: { path: /opt }
 ```
 
 ## Gluetun + SABnzbd pattern

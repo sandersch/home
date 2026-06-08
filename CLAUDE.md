@@ -96,8 +96,9 @@ Standard Flux layout. `flux bootstrap` creates `clusters/ms01/flux-system`.
   Frigate and Home Assistant are `homelab-critical` (non-evictable); most else is
   `homelab-standard`; backups are best-effort.
 - **App state uses the `local-nvme` StorageClass** via a per-app PV + PVC pointing
-  at `/opt/<app>/...`. An `initContainer` creates the directory so adding storage
-  for a new app is a pure git change (no SSH). Pattern in
+  at `/opt/<app>/...`. The PV is a `hostPath` volume with `type: DirectoryOrCreate`,
+  so the kubelet creates the directory on first mount and adding storage for a new
+  app is a pure git change (no SSH). Pattern in
   [build-plan.md → Storage pattern](./docs/build-plan.md#storage-pattern).
 - **Secrets are SOPS-encrypted before commit**, always. The repo is private, but
   treat encryption as mandatory anyway — private is a safety net, not a license to
