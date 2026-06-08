@@ -75,20 +75,21 @@ wildcard support with a throwaway hostname before relying on it.
 
 ## Phase 1 — networking isolation 🔧
 
-**1.1 Camera isolation (nftables).** Drop camera→internet and camera→LAN; allow
-LAN→camera.
+**1.1 Camera isolation (nftables).** Drop all camera-initiated traffic. No LAN→camera
+forwarding rule is needed: Frigate runs with `hostNetwork: true`, so its RTSP connections
+originate from the host on NIC2 and never enter the forward chain.
 ```
 # /etc/nftables.conf (excerpt)
 table inet camera_isolation {
   chain forward {
     type filter hook forward priority 0; policy drop;
-    iifname "enp2s0" oifname "enp1s0" drop      # camera -> LAN/internet: blocked
-    iifname "enp1s0" oifname "enp2s0" accept     # LAN -> camera: allowed
+    iifname "enp2s0" drop    # cameras cannot initiate connections to anything
   }
 }
 ```
 Enable nftables. ⚑ From a device on the camera segment, confirm you **cannot** ping
-`8.8.8.8` or any `192.168.1.0/24` host.
+`8.8.8.8` or any `192.168.1.0/24` host. LAN→camera access (e.g. camera web UI) must
+go via the node itself (SSH port-forward or a temporary rule).
 
 **1.2 Camera DHCP (dnsmasq).** Bind dnsmasq to NIC2 and serve `10.10.0.0/24`
 (host-level service, not a pod). Give cameras stable leases so Frigate can target
