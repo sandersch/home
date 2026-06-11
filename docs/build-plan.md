@@ -68,7 +68,7 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="18d1", ATTRS{idProduct}=="9302", MODE="0666"
 `sudo udevadm control --reload-rules && sudo udevadm trigger`. (The Coral enumerates
 under two IDs — before and after its firmware loads.)
 
-**0.7 Router DNS.** Add the wildcard record `*.home.lan → 192.168.1.10`. Test true
+**0.7 Router DNS.** Add the wildcard record `*.worm.run → 192.168.1.10`. Test true
 wildcard support with a throwaway hostname before relying on it.
 
 ---
@@ -114,8 +114,8 @@ proceeding — Plex and Frigate both depend on it.
 ```bash
 curl -sfL https://get.k3s.io | sh -s - \
   --disable traefik --disable servicelb \
-  --node-label kubernetes.io/hostname=ms01
-kubectl get nodes            # ms01 Ready
+  --node-label kubernetes.io/hostname=minis
+kubectl get nodes            # minis Ready
 ```
 
 **2.2 MetalLB** — stable LoadBalancer IP (the node's static IP) so the wildcard target
@@ -130,10 +130,10 @@ spec: { addresses: ["192.168.1.10/32"] }   # outside the DHCP range
 **2.3 ingress-nginx** and **2.4 cert-manager** (Helm during bootstrap; convert to
 HelmReleases under `infrastructure/controllers/` once Flux owns the cluster). Create a
 **Let's Encrypt DNS-01 ClusterIssuer** (provider API creds via a SOPS secret) so even
-internal `*.home.lan` services get real certs.
+internal `*.worm.run` services get real certs.
 
 **2.5 Tailscale operator** — LAN + Tailnet access; configure **split DNS** in the
-Tailscale admin console so `*.home.lan` resolves over the tunnel. OAuth creds come from
+Tailscale admin console so `*.worm.run` resolves over the tunnel. OAuth creds come from
 a SOPS secret. Add a kubeconfig context on the laptop pointing at the node's Tailscale
 IP on `:6443`.
 
@@ -173,11 +173,11 @@ obvious and a future edit can't silently flip it to public:
 ```bash
 flux bootstrap github \
   --owner=sandersch --repository=home \
-  --branch=main --path=clusters/ms01 --personal --private
+  --branch=main --path=clusters/minis --personal --private
 ```
 
 **3.5 Commit the repo skeleton** — see [structure in CLAUDE.md](../CLAUDE.md#repository-structure):
-`clusters/ms01/{infrastructure.yaml,apps.yaml}`, `infrastructure/{controllers,configs,monitoring}`,
+`clusters/minis/{infrastructure.yaml,apps.yaml}`, `infrastructure/{controllers,configs,monitoring}`,
 `apps/{media,frigate,home-assistant}`. `apps.yaml` should `dependsOn` the
 infrastructure Kustomization.
 
@@ -201,7 +201,7 @@ decrypts at apply time.
 
 Do **not** start Phase 3.5/4 until all of these are green:
 
-- [ ] `kubectl get nodes` → `ms01 Ready`
+- [ ] `kubectl get nodes` → `minis Ready`
 - [ ] ingress-nginx + cert-manager pods Running; ClusterIssuer Ready
 - [ ] `flux get kustomizations` → all Reconciled
 - [ ] NFS mounts readable from a test pod
@@ -209,7 +209,7 @@ Do **not** start Phase 3.5/4 until all of these are green:
 - [ ] Coral device visible in a privileged test pod
 - [ ] Camera segment **cannot** reach internet or LAN (ping test)
 - [ ] dnsmasq issues a camera lease in range
-- [ ] Tailscale operator connected; `*.home.lan` resolves over the Tailnet
+- [ ] Tailscale operator connected; `*.worm.run` resolves over the Tailnet
 - [ ] SOPS decrypt works (reconcile a Kustomization containing an encrypted Secret)
 - [ ] NUT active and reporting battery status
 
@@ -301,7 +301,7 @@ spec:
     required:
       nodeSelectorTerms:
         - matchExpressions:
-            - { key: kubernetes.io/hostname, operator: In, values: [ms01] }
+            - { key: kubernetes.io/hostname, operator: In, values: [minis] }
 ---
 # apps/<ns>/<app>/pvc.yaml
 apiVersion: v1

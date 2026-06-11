@@ -32,7 +32,7 @@ sqlite3 com.plexapp.plugins.library.blobs.db  "VACUUM;"
 links, ACLs, and xattrs that Plex relies on:
 ```bash
 rsync -aHAX --info=progress2 \
-  "<Plex data dir>/" user@ms01:/opt/plex/config/
+  "<Plex data dir>/" user@minis:/opt/plex/config/
 ```
 
 **3. Fix ownership** to match the container UID/GID (LinuxServer images default to
@@ -62,9 +62,9 @@ or `/config` if already containerized.
 
 **1. Copy each config dir** (same attribute-preserving rsync):
 ```bash
-rsync -aHAX --info=progress2 ~/.config/radarr/   user@ms01:/opt/radarr/config/
-rsync -aHAX --info=progress2 ~/.config/sonarr/   user@ms01:/opt/sonarr/config/
-rsync -aHAX --info=progress2 ~/.config/prowlarr/ user@ms01:/opt/prowlarr/config/
+rsync -aHAX --info=progress2 ~/.config/radarr/   user@minis:/opt/radarr/config/
+rsync -aHAX --info=progress2 ~/.config/sonarr/   user@minis:/opt/sonarr/config/
+rsync -aHAX --info=progress2 ~/.config/prowlarr/ user@minis:/opt/prowlarr/config/
 sudo chown -R 1000:1000 /opt/radarr /opt/sonarr /opt/prowlarr
 ```
 

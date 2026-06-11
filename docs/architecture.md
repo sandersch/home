@@ -92,7 +92,7 @@ state. (An earlier sketch put it in a pod; host-level is the cleaner, more relia
 choice for DHCP on a physical NIC.) Cameras get stable leases so Frigate can target
 them at known addresses.
 
-**Internal DNS (router).** A single wildcard record `*.home.lan → 192.168.1.10` points
+**Internal DNS (router).** A single wildcard record `*.worm.run → 192.168.1.10` points
 all service hostnames at the node; ingress-nginx routes by `Host` header. Adding a
 service needs no new DNS record, just an Ingress manifest. Confirm the router supports
 *true wildcard* records (most capable routers do; some consumer ones only allow
@@ -130,7 +130,7 @@ block k3s from starting.
 App state is provisioned with a `no-provisioner` **`local-nvme` StorageClass**
 (`WaitForFirstConsumer`, `reclaimPolicy: Retain`) plus a per-app `PersistentVolume`
 that uses a **`hostPath` volume with `type: DirectoryOrCreate`** pointing at
-`/opt/<app>/...`, with `nodeAffinity` pinned to `ms01`, bound by a
+`/opt/<app>/...`, with `nodeAffinity` pinned to `minis`, bound by a
 `PersistentVolumeClaim`. `DirectoryOrCreate` makes the kubelet create the directory
 on first mount — meaning **adding storage for a new app is a pure git change**, no
 SSH. (A `local:` PV can't do this: its path must already exist or the mount fails
@@ -158,7 +158,7 @@ kubeconfig context pointing at the node's Tailscale IP.
 
 - The **Tailscale operator** runs in-cluster; services are reachable on the LAN and,
   remotely, to devices on the Tailnet. **Split DNS** is configured in the Tailscale
-  admin console so `*.home.lan` resolves correctly over the tunnel — remote access
+  admin console so `*.worm.run` resolves correctly over the tunnel — remote access
   looks identical to local.
 - For a small household this is strictly better than public Plex: put both people's
   personal devices on the Tailnet once and get full remote streaming with zero inbound

@@ -8,7 +8,7 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 ## Stack at a glance
 
 - **Platform:** Ubuntu 26.04 · k3s · Flux CD · MetalLB · ingress-nginx · cert-manager
-- **Access:** LAN + Tailnet only (nothing public) · `*.home.lan` via router wildcard DNS
+- **Access:** LAN + Tailnet only (nothing public) · `*.worm.run` via router wildcard DNS
 - **Workloads:** Plex (Quick Sync), Frigate (Coral), Radarr/Sonarr/Prowlarr/SABnzbd
   (behind a Mullvad/Gluetun VPN), Overseerr, RomM, Home Assistant
 - **Observability:** Prometheus · Grafana · Alertmanager · Loki · ntfy push alerts
@@ -19,7 +19,7 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 ```
 CLAUDE.md          project context, decisions, conventions (start here)
 docs/              architecture, build plan, migration runbook, operations
-clusters/ms01/     Flux entrypoint (flux-system + Kustomizations)
+clusters/minis/    Flux entrypoint (flux-system + Kustomizations)
 infrastructure/    controllers, cluster configs, monitoring
 apps/              media, frigate, home-assistant
 ```

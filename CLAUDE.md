@@ -42,7 +42,7 @@ decision is wrong, raise it rather than silently diverging.
 | Secrets | **SOPS + age** | Flux-native decryption; no extra controller |
 | Ingress | ingress-nginx + MetalLB | Stable LB IP; hostname routing |
 | TLS | cert-manager + Let's Encrypt **DNS-01** | Real certs even for internal-only services |
-| DNS (internal) | Router wildcard `*.home.lan` → node IP | One record; ingress routes by host |
+| DNS (internal) | Router wildcard `*.worm.run` → node IP | One record; ingress routes by host |
 | DNS (cameras) | **dnsmasq** host service on NIC2 subnet | DHCP for the isolated camera segment |
 | Remote access | **Tailnet + LAN only**, nothing public | Zero inbound exposure; Funnel for Plex later if needed |
 | VPN (downloads) | **Mullvad** via **Gluetun**, WireGuard | Strong privacy track record; provider is swappable |
@@ -56,7 +56,7 @@ k3s etcd snapshots, a possible second node, Tailscale Funnel for Plex, Immich.
 
 ## Repository structure
 
-Standard Flux layout. `flux bootstrap` creates `clusters/ms01/flux-system`.
+Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 
 ```
 .
@@ -67,7 +67,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/ms01/flux-system`.
 │   ├── migration-runbook.md
 │   └── operations.md
 ├── clusters/
-│   └── ms01/
+│   └── minis/
 │       ├── flux-system/       # created by `flux bootstrap`; do not hand-edit
 │       ├── infrastructure.yaml# Kustomization → ../../infrastructure
 │       └── apps.yaml          # Kustomization → ../../apps (dependsOn infra)
