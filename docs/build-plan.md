@@ -35,7 +35,7 @@ network:
       nameservers: { addresses: [172.17.1.1] }
       dhcp4: false
     enp2s0:                      # NIC2 — camera segment
-      addresses: [10.10.0.1/24]
+      addresses: [192.168.104.1/24]
       dhcp4: false
 ```
 `sudo netplan apply` and confirm both interfaces are up.
@@ -97,15 +97,15 @@ Enable nftables. ⚑ From a device on the camera segment, confirm you **cannot**
 `8.8.8.8` or any `172.17.1.0/24` host. LAN→camera access (e.g. camera web UI) must
 go via the node itself (SSH port-forward or a temporary rule).
 
-**1.2 Camera DHCP (dnsmasq).** Bind dnsmasq to NIC2 and serve `10.10.0.0/24`
+**1.2 Camera DHCP (dnsmasq).** Bind dnsmasq to NIC2 and serve `192.168.104.0/24`
 (host-level service, not a pod). Give cameras stable leases so Frigate can target
 known addresses.
 ```
 # /etc/dnsmasq.d/cameras.conf (excerpt)
 interface=enp2s0
 bind-interfaces
-dhcp-range=10.10.0.50,10.10.0.200,12h
-# dhcp-host=AA:BB:CC:DD:EE:FF,10.10.0.51   # pin per-camera as needed
+dhcp-range=192.168.104.50,192.168.104.200,12h
+# dhcp-host=AA:BB:CC:DD:EE:FF,192.168.104.51   # pin per-camera as needed
 ```
 ⚑ Confirm a camera receives a lease in range.
 
@@ -273,7 +273,7 @@ hostPath to `/mnt/media` (NFS mounted on host by fstab in Phase 0.4); `/opt/plex
 metadata. ⚑ Run a 1080p transcode and confirm GPU use with `intel_gpu_top` on the host.
 
 **4c — Frigate** (critical/non-evictable). `hostNetwork: true` so RTSP connections to
-cameras originate from the host (source IP `10.10.0.1`) without passing through the
+cameras originate from the host (source IP `192.168.104.1`) without passing through the
 forward chain — this is what makes the nftables camera isolation work. Coral USB
 hostPath; DB on `/opt/frigate`, cache on a `topolvm-scratch` PVC (50 Gi ext4 LV),
 recordings via hostPath to `/mnt/frigate`. ⚑ Verify
