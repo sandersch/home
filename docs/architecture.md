@@ -36,22 +36,26 @@ The 10Gb SFP+ backplane exists but is **not** a current requirement; 2.5GbE is
 sufficient for active workloads. Don't build for 10G yet — that's premature
 optimization per priority 5.
 
-## Filesystem and partitioning
+## Filesystem and volume layout
 
-Raw GPT partitions, **no LVM**. LVM was considered (familiar, growable) but adds an
-abstraction layer that partly overlaps btrfs' own volume management; for this mix the
-friction isn't worth it. ZFS was rejected (wants dedicated ARC RAM, no native Ubuntu
-kernel integration, value is in multi-disk integrity we don't have). The chosen
-layout pairs ext4 (boring, reliable) with btrfs only where snapshots/compression earn
-their keep.
+**LVM under everything**: one PV/VG spanning the NVMe (after ESP + `/boot`), manual
+LVs for the OS filesystems, and the VG's free space handed to **TopoLVM** for
+dynamically provisioned scratch volumes. An earlier revision of this design rejected
+LVM as overlapping btrfs' volume management; that call was reversed — the partition
+count and up-front sizing bets it forced (two dedicated scratch partitions plus a
+guess at headroom placement) outweighed the abstraction overlap. With one VG, every
+filesystem is growable online and leftover space is generic headroom rather than a
+bet on which mount will need it. ZFS remains rejected (wants dedicated ARC RAM, no
+native Ubuntu kernel integration, value is in multi-disk integrity we don't have).
+ext4 stays the default (boring, reliable); btrfs only where snapshots/compression
+earn their keep.
 
 ```
-/              100 GB   ext4    OS
-/var           150 GB   ext4    container images + k3s state (image layers dominate)
-/opt           250 GB   btrfs   ALL low-latency app state (snapshots + zstd)
-/frigate/cache  50 GB   ext4    Frigate temp/buffer only (high-write, throwaway)
-/sabnzbd/incomplete 50 GB ext4  SABnzbd staging only (large-file, constant-write, unpack-in-place)
-~200 GB         —       —       unallocated (future partitions, no repartition needed)
+ESP + /boot              —      (outside LVM)
+vg0/root   100 GB  ext4  /      OS
+vg0/var    150 GB  ext4  /var   container images + k3s state (image layers dominate)
+vg0/opt    250 GB  btrfs /opt   ALL low-latency app state (snapshots + zstd)
+vg0 free  ~450 GB  —     —      TopoLVM device-class: scratch PVCs + lvextend headroom
 ```
 
 Rationale for the splits:
@@ -59,20 +63,24 @@ Rationale for the splits:
 - **`/var` 150 GB** — container image layers for ~10 apps plus k3s/etcd state and
   logs. Generous so it's never a worry; 120 GB would also be fine with periodic
   `crictl rmi --prune`.
-- **`/opt` btrfs** — the one filesystem that benefits from snapshots (roll back
-  before app upgrades) and zstd compression (the SQLite-heavy small-write workloads
-  of Plex/Frigate/*arr/HA). This is where all valuable app state lives. SABnzbd
-  *config* lives here; the incomplete staging dir does not.
-- **`/frigate/cache` ext4, separate** — pure throughput, no snapshots wanted, kept
-  off btrfs so high-write churn doesn't interact with snapshot bookkeeping. Frigate's
-  DB lives on `/opt` (snapshotted), only its cache/buffer lives here.
-- **`/sabnzbd/incomplete` ext4, separate** — same rationale as `/frigate/cache`:
-  large NZBs being downloaded and unpacked in-place are high-write, fully regenerable,
-  and snapshot-worthless. Keeping them on btrfs would pollute `/opt` snapshot bookkeeping
-  and consume snapshot space for data you'd never want to restore. SABnzbd's config
-  (database, history, settings) remains on `/opt/sabnzbd` and is snapshotted normally.
-- **~200 GB unallocated** — headroom to add a partition later (e.g. if Immich's local
-  cache grows) without repartitioning.
+- **`/opt` btrfs, manual LV — deliberately *not* TopoLVM-managed** — the one
+  filesystem that benefits from snapshots (roll back before app upgrades) and zstd
+  compression (the SQLite-heavy small-write workloads of Plex/Frigate/*arr/HA).
+  This is where all valuable app state lives. TopoLVM's snapshot story (thin pools
+  + CSI VolumeSnapshots) would be a downgrade: thin-pool exhaustion errors every LV
+  in the pool, and per-app LVs lose compression and the one-command subvolume
+  rollback. SABnzbd *config* lives here; the incomplete staging dir does not.
+- **Scratch via TopoLVM (thick LVs, no thin pool)** — high-write, fully regenerable,
+  snapshot-worthless data: Frigate's cache/buffer and SABnzbd's incomplete staging
+  dir (large NZBs downloaded and unpacked in place), each an ext4 LV provisioned
+  from VG free space by a PVC. The LV boundary is a kernel-enforced per-PVC cap —
+  a runaway download queue cannot eat the headroom Frigate's cache needs during a
+  NAS outage — and `allowVolumeExpansion` makes growing one an online PVC edit,
+  i.e. a git commit. Kept off btrfs so the churn doesn't pollute `/opt` snapshot
+  bookkeeping. Frigate's DB and SABnzbd's config stay on `/opt` (snapshotted).
+- **~450 GB VG free space** — generic headroom: new scratch PVCs (e.g. a future
+  Immich cache) or `lvextend` of any manual LV, no repartitioning. Set TopoLVM's
+  `spare-gb` so dynamic PVCs can't squeeze out planned growth of the manual LVs.
 
 ## Networking
 
@@ -118,11 +126,11 @@ The rule: **latency-sensitive state on local NVMe; bulk/regenerable data on NAS.
 | Plex | Metadata/DB (~100 GB) | `/opt/plex` | btrfs (NVMe) |
 | Plex | Media library | NAS | NFS |
 | Frigate | DB + config | `/opt/frigate` | btrfs (NVMe) |
-| Frigate | Cache / temp | `/frigate/cache` | ext4 (NVMe) |
+| Frigate | Cache / temp | `topolvm-scratch` PVC | ext4 LV (NVMe) |
 | Frigate | Recordings/clips | NAS | NFS |
 | Radarr/Sonarr/Prowlarr | Config + SQLite | `/opt/<app>` | btrfs (NVMe) |
 | SABnzbd | Config + DB | `/opt/sabnzbd` | btrfs (NVMe) |
-| SABnzbd | Incomplete (staging) | `/sabnzbd/incomplete` | ext4 (NVMe) |
+| SABnzbd | Incomplete (staging) | `topolvm-scratch` PVC | ext4 LV (NVMe) |
 | SABnzbd | Complete (handoff) | NAS | NFS |
 | Overseerr | Request DB | `/opt/overseerr` | btrfs (NVMe) |
 | RomM | DB/metadata | `/opt/romm` | btrfs (NVMe) |
@@ -143,7 +151,15 @@ that uses a **`hostPath` volume with `type: DirectoryOrCreate`** pointing at
 `PersistentVolumeClaim`. `DirectoryOrCreate` makes the kubelet create the directory
 on first mount — meaning **adding storage for a new app is a pure git change**, no
 SSH. (A `local:` PV can't do this: its path must already exist or the mount fails
-before any init container could create it.) Concrete YAML is in
+before any init container could create it.)
+
+Scratch data uses the **`topolvm-scratch` StorageClass** (`provisioner: topolvm.io`,
+`WaitForFirstConsumer`, `allowVolumeExpansion: true`, non-default) instead: a PVC
+alone provisions a thick ext4 LV from `vg0` free space — no PV manifest, and unlike
+hostPath the requested size is kernel-enforced. TopoLVM runs as a HelmRelease in
+`infrastructure/controllers/` (lvmd embedded in the node DaemonSet, not a host
+systemd unit, so it stays in git); it sits only in the provisioning path — mounted
+LVs keep working if the controller is down. Concrete YAML for both patterns is in
 [build-plan.md → Storage pattern](./build-plan.md#storage-pattern).
 
 ## Cluster platform

@@ -47,7 +47,7 @@ decision is wrong, raise it rather than silently diverging.
 | Remote access | **Tailnet + LAN only**, nothing public | Zero inbound exposure; Funnel for Plex later if needed |
 | VPN (downloads) | **Mullvad** via **Gluetun**, WireGuard | Strong privacy track record; provider is swappable |
 | Media server | **Plex** (lifetime pass) | Wife-acceptance + existing 100 GB metadata |
-| Storage (local) | ext4 + btrfs, **no LVM** | btrfs snapshots on `/opt`; ext4 elsewhere |
+| Storage (local) | **LVM under everything**; btrfs on `/opt`; **TopoLVM** for scratch | One VG: manual LVs for OS + `/opt` (btrfs snapshots + zstd); TopoLVM provisions enforced, resizable ext4 scratch LVs (Frigate cache, SABnzbd staging) from VG free space. Supersedes the earlier "no LVM" call — partition count + up-front sizing anxiety outweighed the abstraction overlap |
 | Backups | **Restic** → NAS nightly + **Backblaze B2** weekly | Cheap, deduplicating, offsite copy |
 | Alerting | **ntfy** (self-hosted) → phone push | Free, self-hosted, simple |
 
@@ -73,7 +73,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │       └── apps.yaml          # Kustomization → ../../apps (dependsOn infra)
 ├── infrastructure/
 │   ├── controllers/           # HelmRepos + HelmReleases: metallb, ingress-nginx,
-│   │                          #   cert-manager, tailscale-operator
+│   │                          #   cert-manager, tailscale-operator, topolvm
 │   ├── configs/               # ClusterIssuer, MetalLB pool, StorageClass,
 │   │                          #   PriorityClasses, cluster-wide config
 │   └── monitoring/            # kube-prometheus-stack, Loki, ntfy, nut-exporter
@@ -100,7 +100,9 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 - **App state uses the `local-nvme` StorageClass** via a per-app PV + PVC pointing
   at `/opt/<app>/...`. The PV is a `hostPath` volume with `type: DirectoryOrCreate`,
   so the kubelet creates the directory on first mount and adding storage for a new
-  app is a pure git change (no SSH). Pattern in
+  app is a pure git change (no SSH). **Scratch data uses the `topolvm-scratch`
+  StorageClass** instead — a PVC alone dynamically provisions an enforced,
+  resizable ext4 LV from VG free space (no PV manifest). Pattern in
   [build-plan.md → Storage pattern](./docs/build-plan.md#storage-pattern).
 - **Secrets are SOPS-encrypted before commit**, always. The repo is private, but
   treat encryption as mandatory anyway — private is a safety net, not a license to
@@ -111,7 +113,8 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
   manager).
 - **Latency-sensitive state on local NVMe; bulk data on NAS.** Plex metadata,
   Frigate DB, app configs → `/opt` (btrfs). Media, ROMs, recordings, Immich
-  originals → NAS NFS. Frigate cache → `/frigate/cache` (ext4, throwaway).
+  originals → NAS NFS. Scratch (Frigate cache, SABnzbd staging) →
+  `topolvm-scratch` PVCs (ext4 LVs, enforced, throwaway).
 - **Helm charts** are referenced via `HelmRepository` + `HelmRelease` CRDs (Flux),
   not installed imperatively, except during the documented Phase 2 bootstrap.
 

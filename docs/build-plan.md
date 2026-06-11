@@ -12,10 +12,13 @@ Legend: 🔧 manual one-time · ⚙️ scripted · 📦 GitOps (git commit). ⚑
 ## Phase 0 — OS baseline 🔧
 
 **0.1 Install Ubuntu 26.04 LTS** (server, no GUI). During partitioning, create the
-layout from [architecture.md](./architecture.md#filesystem-and-partitioning):
-`/` 100 GB ext4 · `/var` 150 GB ext4 · `/opt` 250 GB btrfs · `/frigate/cache` 50 GB
-ext4 · `/sabnzbd/incomplete` 50 GB ext4 · ~200 GB unallocated. Create a non-root sudo
-user; disable root SSH login.
+layout from [architecture.md](./architecture.md#filesystem-and-volume-layout):
+ESP + `/boot` outside LVM, then a single LVM PV on the rest of the disk → VG `vg0`
+with LVs `root` 100 GB ext4 (`/`) · `var` 150 GB ext4 (`/var`) · `opt` 250 GB btrfs
+(`/opt`) · ~450 GB left **unallocated in the VG**. Do *not* pre-create filesystems
+for Frigate cache or SABnzbd staging — those are TopoLVM-provisioned PVCs in
+Phase 4, carved from the VG free space. Create a non-root sudo user; disable root
+SSH login.
 
 **0.2 Static networking (NIC1 first).** Set NIC1 to a static IP via Netplan before
 anything else so the address can't shift mid-bootstrap. Confirm interface names with
@@ -197,7 +200,11 @@ flux bootstrap github \
 **3.5 Commit the repo skeleton** — see [structure in CLAUDE.md](../CLAUDE.md#repository-structure):
 `clusters/minis/{infrastructure.yaml,apps.yaml}`, `infrastructure/{controllers,configs,monitoring}`,
 `apps/{media,frigate,home-assistant}`. `apps.yaml` should `dependsOn` the
-infrastructure Kustomization.
+infrastructure Kustomization. Include the **TopoLVM HelmRelease** in
+`infrastructure/controllers/` (lvmd embedded in the node DaemonSet, device-class →
+`vg0`, a `spare-gb` reserve) and the `topolvm-scratch` StorageClass in
+`infrastructure/configs/` — Phase 4's scratch PVCs need them, and the `dependsOn`
+ordering guarantees they exist first.
 
 **3.6 Enable SOPS decryption** on the Flux Kustomizations:
 ```yaml
@@ -268,8 +275,8 @@ metadata. ⚑ Run a 1080p transcode and confirm GPU use with `intel_gpu_top` on 
 **4c — Frigate** (critical/non-evictable). `hostNetwork: true` so RTSP connections to
 cameras originate from the host (source IP `10.10.0.1`) without passing through the
 forward chain — this is what makes the nftables camera isolation work. Coral USB
-hostPath; DB on `/opt/frigate`, cache on `/frigate/cache`, recordings via hostPath to
-`/mnt/frigate`. ⚑ Verify
+hostPath; DB on `/opt/frigate`, cache on a `topolvm-scratch` PVC (50 Gi ext4 LV),
+recordings via hostPath to `/mnt/frigate`. ⚑ Verify
 cameras remain unreachable from the internet.
 
 **4d — remaining stack.** Overseerr (pointed at the *arrs via the Gluetun Service),
@@ -296,8 +303,10 @@ Zigbee/Z-Wave USB stick via hostPath, like the Coral).
 
 ## Storage pattern
 
-The reusable shape for any stateful app. Adding a new app = copy this, change names —
-no SSH, directory auto-created.
+Two reusable shapes: **app state** (snapshotted `/opt` subdirectory, static
+hostPath PV + PVC) and **scratch** (TopoLVM-provisioned ext4 LV, PVC only).
+Adding a new app = copy the right one, change names — no SSH; the app-state
+directory is auto-created, the scratch LV is provisioned on schedule.
 
 ```yaml
 # infrastructure/configs/storageclass.yaml — once, cluster-wide
@@ -320,6 +329,17 @@ metadata:
 provisioner: rancher.io/local-path
 reclaimPolicy: Delete
 volumeBindingMode: WaitForFirstConsumer
+---
+# Scratch class — TopoLVM provisions a thick ext4 LV from vg0 free space per PVC.
+# The LV is a kernel-enforced size cap (unlike hostPath); growing it is a PVC edit.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata: { name: topolvm-scratch }
+provisioner: topolvm.io
+parameters: { "csi.storage.k8s.io/fstype": "ext4" }
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+allowVolumeExpansion: true
 ---
 # apps/<ns>/<app>/pv.yaml
 apiVersion: v1
@@ -349,6 +369,18 @@ spec:
   accessModes: [ReadWriteOnce]
   volumeName: <app>-config-pv           # pins this PVC to the matching PV by name
   resources: { requests: { storage: 5Gi } }
+---
+# Scratch variant (frigate-cache, sabnzbd-incomplete, future Immich cache):
+# no PV manifest and no claimRef/volumeName pinning — TopoLVM creates the LV
+# when the pod first schedules. reclaimPolicy Delete is correct: the data is
+# regenerable and the space returns to vg0 when the PVC is deleted.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: sabnzbd-incomplete-pvc, namespace: media }
+spec:
+  storageClassName: topolvm-scratch
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 50Gi } }
 ```
 
 ```yaml
@@ -398,7 +430,7 @@ spec:
           # no special networking — inherits gluetun's namespace (as do the *arrs)
           volumeMounts:
             - { name: sabnzbd-config, mountPath: /config }      # /opt/sabnzbd (btrfs NVMe)
-            - { name: sabnzbd-incomplete, mountPath: /incomplete } # /sabnzbd/incomplete (ext4 NVMe)
+            - { name: sabnzbd-incomplete, mountPath: /incomplete } # topolvm-scratch PVC (ext4 LV)
             - { name: downloads, mountPath: /downloads }         # NAS NFS
         - name: prowlarr                         # localhost:9696
           image: lscr.io/linuxserver/prowlarr
@@ -419,8 +451,8 @@ spec:
         - { name: prowlarr-config,  persistentVolumeClaim: { claimName: prowlarr-config-pvc } }
         - { name: radarr-config,    persistentVolumeClaim: { claimName: radarr-config-pvc } }
         - { name: sonarr-config,    persistentVolumeClaim: { claimName: sonarr-config-pvc } }
-        # NVMe staging partition — high-write, not snapshotted (see architecture.md)
-        - { name: sabnzbd-incomplete, hostPath: { path: /sabnzbd/incomplete, type: DirectoryOrCreate } }
+        # TopoLVM scratch LV — size-enforced, high-write, not snapshotted (see architecture.md)
+        - { name: sabnzbd-incomplete, persistentVolumeClaim: { claimName: sabnzbd-incomplete-pvc } }
         # NAS paths — NFS mounted on host via fstab (Phase 0.4); pods use hostPath, no NFS PVC
         - { name: media,     hostPath: { path: /mnt/media,           type: Directory } }
       # Every container sets its own requests/limits per the allocation table.
