@@ -78,12 +78,7 @@ Dual-NIC design separating trusted traffic from cameras.
 
 > Confirm actual interface names on the box (`ip link`) before writing Netplan.
 
-**Camera isolation (nftables, host-level).** Forward policy drop blocks cameras from
-initiating any connection — to the internet or to the LAN. Frigate runs with
-`hostNetwork: true`, so its RTSP connections to cameras originate from the host's NIC2
-address (`10.10.0.1`) and never pass through the forward chain; no LAN→camera forwarding
-rule is needed or wanted. This must be validated before cameras go live (ping `8.8.8.8`
-and a LAN host from the camera segment — both must fail).
+**Camera isolation (nftables, host-level).** The `camera_isolation` table uses `policy accept` with two explicit drop rules: `iifname "enp2s0" drop` blocks camera-initiated connections (camera→internet, camera→LAN), and `oifname "enp2s0" drop` blocks forwarded LAN→camera traffic (access to camera web UIs must go via the host, e.g. SSH port-forward). `policy accept` is intentional — `policy drop` would break k3s pod networking, because every hook chain (this one and k3s's own iptables-nft chains) is evaluated independently for each packet, and a drop verdict in any chain is final even when another chain accepts. Frigate runs with `hostNetwork: true`, so its RTSP connections to cameras originate from the host's NIC2 address (`10.10.0.1`) and never pass through the forward chain. Validate before cameras go live: ping `8.8.8.8` and a LAN host from the camera segment — both must fail.
 
 **Camera DHCP (dnsmasq, host-level).** `dnsmasq` runs as a host systemd service bound
 to NIC2, serving DHCP on `10.10.0.0/24`. It lives with networking (Phase 1) rather

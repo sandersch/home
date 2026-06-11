@@ -82,8 +82,9 @@ originate from the host on NIC2 and never enter the forward chain.
 # /etc/nftables.conf (excerpt)
 table inet camera_isolation {
   chain forward {
-    type filter hook forward priority 0; policy drop;
+    type filter hook forward priority 0; policy accept;
     iifname "enp2s0" drop    # cameras cannot initiate connections to anything
+    oifname "enp2s0" drop    # LAN→camera forwarding blocked; access via host only
   }
 }
 ```
