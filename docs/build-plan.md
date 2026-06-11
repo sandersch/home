@@ -30,9 +30,9 @@ network:
   version: 2
   ethernets:
     enp1s0:                      # NIC1 — verify name
-      addresses: [192.168.1.10/24]
-      routes: [{ to: default, via: 192.168.1.1 }]
-      nameservers: { addresses: [192.168.1.1] }
+      addresses: [172.17.1.5/24]
+      routes: [{ to: default, via: 172.17.1.1 }]
+      nameservers: { addresses: [172.17.1.1] }
       dhcp4: false
     enp2s0:                      # NIC2 — camera segment
       addresses: [10.10.0.1/24]
@@ -72,8 +72,8 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="18d1", ATTRS{idProduct}=="9302", MODE="0666"
 `sudo udevadm control --reload-rules && sudo udevadm trigger`. (The Coral enumerates
 under two IDs — before and after its firmware loads.)
 
-**0.7 Router DNS.** Add the wildcard record `*.worm.run → 192.168.1.11` (the MetalLB
-ingress IP from Phase 2.2, **not** the node's own `192.168.1.10`). Test true
+**0.7 Router DNS.** Add the wildcard record `*.worm.run → 172.17.1.10` (the MetalLB
+ingress IP from Phase 2.2, **not** the node's own `172.17.1.5`). Test true
 wildcard support with a throwaway hostname before relying on it.
 
 ---
@@ -94,7 +94,7 @@ table inet camera_isolation {
 }
 ```
 Enable nftables. ⚑ From a device on the camera segment, confirm you **cannot** ping
-`8.8.8.8` or any `192.168.1.0/24` host. LAN→camera access (e.g. camera web UI) must
+`8.8.8.8` or any `172.17.1.0/24` host. LAN→camera access (e.g. camera web UI) must
 go via the node itself (SSH port-forward or a temporary rule).
 
 **1.2 Camera DHCP (dnsmasq).** Bind dnsmasq to NIC2 and serve `10.10.0.0/24`
@@ -124,14 +124,14 @@ curl -sfL https://get.k3s.io | sh -s - \
 kubectl get nodes            # minis Ready
 ```
 
-**2.2 MetalLB** — a stable LoadBalancer IP (`192.168.1.11`, distinct from the node's own
-`192.168.1.10`) so the wildcard target is fixed. MetalLB must own its pool addresses, so
+**2.2 MetalLB** — a stable LoadBalancer IP (`172.17.1.10`, distinct from the node's own
+`172.17.1.5`) so the wildcard target is fixed. MetalLB must own its pool addresses, so
 the pool cannot reuse the node IP the kernel already answers ARP for.
 ```yaml
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata: { name: homelab-pool, namespace: metallb-system }
-spec: { addresses: ["192.168.1.11/32"] }   # MetalLB owns this; ≠ node IP (.10), outside the DHCP range
+spec: { addresses: ["172.17.1.10/32"] }   # MetalLB owns this; ≠ node IP (.5), outside the DHCP range
 ```
 
 **2.3 ingress-nginx** and **2.4 cert-manager** (Helm during bootstrap; convert to
@@ -423,7 +423,7 @@ spec:
           # VPN_SERVICE_PROVIDER=mullvad, VPN_TYPE=wireguard,
           # WIREGUARD_PRIVATE_KEY=..., SERVER_COUNTRIES=...
           # FIREWALL_INPUT_PORTS=8080,9696,7878,8989     # inbound: UIs, Overseerr
-          # FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,192.168.1.0/24
+          # FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,172.17.1.0/24
           #   (k3s pod + Service CIDRs, LAN — keeps cluster DNS/NAS/Plex reachable)
         - name: sabnzbd                          # localhost:8080
           image: lscr.io/linuxserver/sabnzbd
