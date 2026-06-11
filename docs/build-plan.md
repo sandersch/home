@@ -55,9 +55,9 @@ If IOMMU is needed for passthrough, add `intel_iommu=on` to the kernel cmdline.
 
 **0.4 NFS mounts.** Add to `/etc/fstab`, then `sudo mount -a` and verify:
 ```
-nas.lan:/media    /mnt/media    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
-nas.lan:/frigate  /mnt/frigate  nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
-nas.lan:/roms     /mnt/roms     nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
+media.nfs.service.matrix:/mnt/media    /mnt/media    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
+frigate.nfs.service.matrix:/mnt/frigate  /mnt/frigate  nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
+games.nfs.service.matrix:/mnt/games   /mnt/games    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
 ```
 `nofail` is essential — a NAS outage at boot must not block k3s.
 
@@ -112,7 +112,7 @@ dhcp-range=192.168.104.50,192.168.104.200,12h
 ```
 ⚑ Confirm a camera receives a lease in range.
 
-**1.3 NAS throughput.** ⚑ `iperf3 -c nas.lan` should show ~2.3 Gbps. Diagnose before
+**1.3 NAS throughput.** ⚑ `iperf3 -c media.nfs.service.matrix` should show ~2.3 Gbps. Diagnose before
 proceeding — Plex and Frigate both depend on it.
 
 ---
