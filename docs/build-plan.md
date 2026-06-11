@@ -307,6 +307,19 @@ provisioner: kubernetes.io/no-provisioner
 volumeBindingMode: WaitForFirstConsumer
 reclaimPolicy: Retain
 ---
+# Strips the default annotation from k3s's built-in local-path StorageClass.
+# Without any default, PVCs that omit storageClassName stay Pending rather than
+# silently landing on /var/lib/rancher/k3s/storage.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: local-path
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+---
 # apps/<ns>/<app>/pv.yaml
 apiVersion: v1
 kind: PersistentVolume
