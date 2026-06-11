@@ -132,13 +132,27 @@ spec: { addresses: ["192.168.1.11/32"] }   # MetalLB owns this; ≠ node IP (.10
 
 **2.3 ingress-nginx** and **2.4 cert-manager** (Helm during bootstrap; convert to
 HelmReleases under `infrastructure/controllers/` once Flux owns the cluster). Create a
-**Let's Encrypt DNS-01 ClusterIssuer** (provider API creds via a SOPS secret) so even
-internal `*.worm.run` services get real certs.
+**Let's Encrypt DNS-01 ClusterIssuer** with provider API credentials. SOPS does not
+exist yet — create the Secret imperatively:
+```bash
+kubectl create secret generic cert-manager-dns-creds \
+  --namespace cert-manager \
+  --from-literal=api-token=<YOUR_TOKEN>
+```
+When converting cert-manager to a HelmRelease in Phase 3, write the Secret manifest,
+`sops --encrypt --in-place` it, and commit — Flux will decrypt it at apply time.
 
 **2.5 Tailscale operator** — LAN + Tailnet access; configure **split DNS** in the
-Tailscale admin console so `*.worm.run` resolves over the tunnel. OAuth creds come from
-a SOPS secret. Add a kubeconfig context on the laptop pointing at the node's Tailscale
-IP on `:6443`.
+Tailscale admin console so `*.worm.run` resolves over the tunnel. OAuth creds are
+likewise created imperatively during bootstrap (SOPS does not exist yet):
+```bash
+kubectl create secret generic tailscale-oauth \
+  --namespace tailscale \
+  --from-literal=client-id=<ID> \
+  --from-literal=client-secret=<SECRET>
+```
+Encrypt and commit the Secret manifest when converting to a HelmRelease in Phase 3.
+Add a kubeconfig context on the laptop pointing at the node's Tailscale IP on `:6443`.
 
 **2.6 PriorityClasses** — apply `homelab-critical` and `homelab-standard` (see
 [architecture.md → Resource allocation](./architecture.md#resource-allocation)). These
