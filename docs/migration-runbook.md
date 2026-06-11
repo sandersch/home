@@ -72,19 +72,21 @@ sudo chown -R 1000:1000 /opt/radarr /opt/sonarr /opt/prowlarr
 (`<DataFolder>`). Each app fixes the path on first start; if anything misbehaves,
 confirm `<DataFolder>` matches the in-container path (`/config`) before starting.
 
-**3. Rewrite inter-app URLs.** Old setups use `localhost`/host IPs; in k3s these become
-cluster-internal Service DNS. Easiest to update in each app's web UI after start (not
-by editing SQLite):
+**3. Verify inter-app URLs.** The whole download stack (SABnzbd + *arrs) shares the
+Gluetun pod's network namespace, so the *arr↔SABnzbd/Prowlarr URLs stay `localhost`
+and usually migrate as-is; only callers outside the pod (Overseerr) need new targets.
+Update in each app's web UI after start (not by editing SQLite):
 
-| Connection | Old | New (cluster DNS) |
+| Connection | Old | New |
 |---|---|---|
-| Radarr/Sonarr → download client | `localhost:8080` | `http://gluetun.media.svc.cluster.local:8080` |
-| Radarr/Sonarr → Prowlarr | `localhost:9696` | `http://prowlarr.media.svc.cluster.local:9696` |
-| Overseerr → Radarr | `localhost:7878` | `http://radarr.media.svc.cluster.local:7878` |
-| Overseerr → Sonarr | `localhost:8989` | `http://sonarr.media.svc.cluster.local:8989` |
+| Radarr/Sonarr → download client | `localhost:8080` | `localhost:8080` — unchanged (same pod netns) |
+| Radarr/Sonarr → Prowlarr | `localhost:9696` | `localhost:9696` — unchanged (same pod netns) |
+| Overseerr → Radarr | `localhost:7878` | `http://gluetun.media.svc.cluster.local:7878` |
+| Overseerr → Sonarr | `localhost:8989` | `http://gluetun.media.svc.cluster.local:8989` |
 
-> SABnzbd is reached at the **Gluetun** Service address (it shares Gluetun's network
-> namespace), not a SABnzbd-named Service.
+> From outside the pod, every download-stack app (SABnzbd and the *arrs) is reached
+> at the **Gluetun** Service address on the app's port — there are no per-app
+> Services for the download stack.
 
 ---
 
@@ -105,7 +107,8 @@ for any Zigbee/Z-Wave USB stick.
 2. **Bring up new pods with NAS media mounts read-only initially.** Validate: Plex
    sees the full library and metadata; Quick Sync transcode works; *arr apps show
    their history; a test download flows end-to-end Prowlarr → Radarr → SABnzbd.
-3. **Rewrite inter-app URLs** in each *arr UI; re-validate the test download.
+3. **Verify inter-app URLs** (intra-pod ones stay `localhost`; update Overseerr's
+   Radarr/Sonarr targets); re-validate the test download.
 4. **Cutover:** switch DNS / point Overseerr at the new stack; flip NAS mounts to
    read-write; **do a final rsync** to capture any config changes made through the UI
    during validation (new indexers, quality profiles — these live in the old SQLite

@@ -78,8 +78,8 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   │                          #   PriorityClasses, cluster-wide config
 │   └── monitoring/            # kube-prometheus-stack, Loki, ntfy, nut-exporter
 └── apps/
-    ├── media/                 # namespace + Plex, gluetun+sabnzbd, *arr,
-    │                          #   overseerr, romm
+    ├── media/                 # namespace + Plex, download pod (gluetun+
+    │                          #   sabnzbd+*arr), overseerr, romm
     ├── frigate/
     └── home-assistant/
 ```
@@ -88,8 +88,10 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 
 - **One namespace per concern**: `media`, `frigate`, `home-assistant`, plus the
   infra namespaces (`flux-system`, `metallb-system`, `cert-manager`,
-  `ingress-nginx`, `tailscale`, `monitoring`). Intra-stack calls use cluster DNS,
-  e.g. `http://prowlarr.media.svc.cluster.local:9696`.
+  `ingress-nginx`, `tailscale`, `monitoring`). Cross-pod calls use cluster DNS,
+  e.g. `http://gluetun.media.svc.cluster.local:7878` (Overseerr → Radarr). The
+  download stack (SABnzbd + *arr) shares the Gluetun pod's network namespace and
+  talks over `localhost:<port>`.
 - **Every workload pod sets resource `requests`/`limits` and a `priorityClassName`.**
   Tiers and exact values are in
   [architecture.md → Resource allocation](./docs/architecture.md#resource-allocation).

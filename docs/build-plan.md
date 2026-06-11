@@ -236,9 +236,11 @@ procedure (VACUUM, rsync flags, service-URL rewrites, cutover, rollback) is in
 
 GitOps from here. Every pod sets resource requests/limits + a priorityClassName.
 
-**4a — Gluetun + Mullvad (deploy first).** Gateway pod in `media`, SABnzbd as a
-sidecar in the same pod. ⚑ Confirm the SABnzbd container's egress IP equals the VPN
-exit IP before wiring the *arr apps to it. Pattern below.
+**4a — download pod: Gluetun + Mullvad + SABnzbd + *arr (deploy first).** One pod in
+`media`: Gluetun plus SABnzbd, Prowlarr, Radarr, and Sonarr sharing its network
+namespace. Intra-stack calls are `localhost:<port>`; everything outside the pod uses
+the Gluetun Service. ⚑ Confirm the egress IP from inside the pod equals the VPN exit
+IP before configuring indexers/downloads. Pattern below.
 
 Then, in parallel once VPN is validated:
 
@@ -252,9 +254,9 @@ forward chain — this is what makes the nftables camera isolation work. Coral U
 hostPath; DB on `/opt/frigate`, cache on `/frigate/cache`, recordings on NAS. ⚑ Verify
 cameras remain unreachable from the internet.
 
-**4d — remaining stack.** Radarr/Sonarr/Prowlarr (behind VPN, pointing at the Gluetun
-Service), Overseerr, RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf
-discovery; plus any Zigbee/Z-Wave USB stick via hostPath, like the Coral).
+**4d — remaining stack.** Overseerr (pointed at the *arrs via the Gluetun Service),
+RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery; plus any
+Zigbee/Z-Wave USB stick via hostPath, like the Coral).
 
 ---
 
@@ -333,10 +335,13 @@ spec:
           persistentVolumeClaim: { claimName: <app>-config-pvc }
 ```
 
-## Gluetun + SABnzbd pattern
+## Download pod pattern (Gluetun + SABnzbd + *arr)
 
-SABnzbd shares Gluetun's network namespace (one pod, two containers); the kill switch
-protects egress; *arr apps target the Gluetun Service.
+SABnzbd, Prowlarr, Radarr, and Sonarr share Gluetun's network namespace (one pod,
+five containers): all WAN egress rides the tunnel and the kill switch protects it;
+intra-stack calls are `localhost:<port>`; callers outside the pod (Overseerr,
+browsers) use the Gluetun Service at the app's port. **Both firewall env vars below
+are required** — outbound subnets alone does not allow inbound UI/API traffic.
 
 ```yaml
 spec:
@@ -350,16 +355,36 @@ spec:
           envFrom: [{ secretRef: { name: gluetun-mullvad } }]   # SOPS-encrypted
           # VPN_SERVICE_PROVIDER=mullvad, VPN_TYPE=wireguard,
           # WIREGUARD_PRIVATE_KEY=..., SERVER_COUNTRIES=...
-        - name: sabnzbd
+          # FIREWALL_INPUT_PORTS=8080,9696,7878,8989     # inbound: UIs, Overseerr
+          # FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,192.168.1.0/24
+          #   (k3s pod + Service CIDRs, LAN — keeps cluster DNS/NAS/Plex reachable)
+        - name: sabnzbd                          # localhost:8080
           image: lscr.io/linuxserver/sabnzbd
-          # no special networking — inherits gluetun's namespace
+          # no special networking — inherits gluetun's namespace (as do the *arrs)
           volumeMounts:
-            - { name: config, mountPath: /config }      # /opt/sabnzbd  (NVMe)
-            - { name: downloads, mountPath: /downloads }  # NAS NFS
-      # volumes: config PVC (local-nvme) + downloads (NFS) ...
+            - { name: sabnzbd-config, mountPath: /config }   # /opt/sabnzbd (NVMe)
+            - { name: downloads, mountPath: /downloads }     # NAS NFS
+        - name: prowlarr                         # localhost:9696
+          image: lscr.io/linuxserver/prowlarr
+          volumeMounts: [{ name: prowlarr-config, mountPath: /config }]
+        - name: radarr                           # localhost:7878
+          image: lscr.io/linuxserver/radarr
+          volumeMounts:
+            - { name: radarr-config, mountPath: /config }
+            - { name: media, mountPath: /media }             # NAS NFS
+        - name: sonarr                           # localhost:8989
+          image: lscr.io/linuxserver/sonarr
+          volumeMounts:
+            - { name: sonarr-config, mountPath: /config }
+            - { name: media, mountPath: /media }
+      # volumes: per-app config PVCs (local-nvme) + downloads/media (NFS).
+      # Every container sets its own requests/limits per the allocation table.
 ```
-To switch provider later (e.g. Proton), change the env in `gluetun-mullvad` and
-restart — nothing else changes.
+Accepted caveats: any image bump or manifest change to **any** container recreates
+the whole pod and re-establishes the tunnel (the stack is briefly down together);
+the app containers' public DNS lookups go via cluster DNS over the node's WAN
+(lookups only — the traffic itself is tunneled). To switch provider later (e.g.
+Proton), change the env in `gluetun-mullvad` and restart — nothing else changes.
 
 ## Plex Quick Sync pattern (notes)
 

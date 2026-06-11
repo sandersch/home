@@ -190,25 +190,41 @@ is just a few env-var changes and a pod restart. Gigabit internet is not a const
 WireGuard retains ~80%+ of line rate, and download traffic is capped by indexer/server
 speed well below that anyway.
 
-**Topology.** One **Gluetun gateway pod** in the `media` namespace. **SABnzbd runs as
-a sidecar container in that same pod**, sharing Gluetun's network namespace, so its
-egress goes through the tunnel. The *arr apps reach SABnzbd via the Gluetun pod's
-Service (`http://gluetun.media.svc.cluster.local:<port>`). Gluetun's **kill switch**
-(on by default) blocks pod traffic if the tunnel drops — leave it on.
+**Topology.** One **Gluetun gateway pod** in the `media` namespace. **SABnzbd,
+Prowlarr, Radarr, and Sonarr all run as containers in that same pod**, sharing
+Gluetun's network namespace — so *every* WAN egress (SABnzbd's downloads, Prowlarr's
+indexer queries, the *arrs' metadata fetches and trigger traffic) leaves through the
+tunnel, not the node's WAN. Because they share one netns they reach each other over
+`localhost:<port>` (SABnzbd 8080, Prowlarr 9696, Radarr 7878, Sonarr 8989 — no
+conflicts), and the pod's Service publishes those same ports to the LAN and Tailnet
+so the web UIs and Overseerr/Plex callers can reach them. Gluetun's **kill switch**
+(on by default) drops WAN traffic if the tunnel fails — leave it on. Two firewall
+settings are both required for reachability: `FIREWALL_OUTBOUND_SUBNETS` (cluster
+pod/Service CIDRs plus the LAN subnet) permits connections the pod *initiates*
+toward those ranges (cluster DNS, NAS, Plex), and `FIREWALL_INPUT_PORTS=8080,9696,7878,8989`
+permits connections initiated *into* the pod (browsers, Overseerr → the *arrs) —
+the outbound setting alone does not allow inbound. Two accepted tradeoffs:
+(1) **coupled lifecycle** — any image bump or manifest change to any of the five
+containers recreates the whole pod and re-establishes the tunnel; acceptable for a
+download stack that is down together anyway when the tunnel is. (2) **DNS does not
+ride the tunnel** — the app containers keep the kubelet-written cluster DNS (that's
+what resolves Service names), so their *public* hostname lookups egress via CoreDNS
+over the node's WAN; only the lookups leak, the traffic itself is tunneled.
 
 | App | Behind VPN? | Why |
 |---|---|---|
-| SABnzbd | **Yes** | Download traffic (runs inside Gluetun pod) |
-| Prowlarr | **Yes** | Indexer queries |
-| Radarr / Sonarr | **Yes** | Trigger downloads |
+| SABnzbd | **Yes** | Download traffic (container in the Gluetun pod) |
+| Prowlarr | **Yes** | Indexer queries (container in the Gluetun pod) |
+| Radarr / Sonarr | **Yes** | Metadata fetches + download triggers (containers in the Gluetun pod) |
 | Overseerr | No | Talks only to Plex + *arr internally |
 | Plex | No | Needs its own direct/relayed remote path |
 | Frigate | No | Camera traffic, fully internal |
 | Home Assistant | No | Needs LAN access for device discovery |
 | RomM | No | Fully internal |
 
-Validate the SABnzbd container's egress IP equals the VPN exit IP **before** wiring
-the *arr apps to it (see the quick-reference command in CLAUDE.md).
+Validate that egress from inside the pod equals the VPN exit IP **before**
+configuring indexers or download clients (see the quick-reference command in
+CLAUDE.md).
 
 ## Resource allocation
 
@@ -238,8 +254,8 @@ first.)
 | **Frigate** | 2 / 4 | 2Gi / 4Gi | critical · non-evictable |
 | **Home Assistant** | 0.5 / 2 | 512Mi / 2Gi | critical · non-evictable |
 | Plex | 1 / 6 | 1Gi / 4Gi | standard · burstable |
-| Gluetun + SABnzbd | 0.5 / 2 | 512Mi / 1Gi | standard |
-| *arr (each) | 0.25 / 1 | 256Mi / 512Mi | standard |
+| Gluetun + SABnzbd (download pod) | 0.5 / 2 | 512Mi / 1Gi | standard |
+| *arr (each, containers in the download pod) | 0.25 / 1 | 256Mi / 512Mi | standard |
 | Overseerr / RomM | 0.1 / 0.5 | 128Mi / 512Mi | standard |
 | Monitoring stack | 0.5 / 2 | 1Gi / 3Gi | standard |
 | Restic CronJob | 0.25 / 1 | 256Mi / 1Gi | low · best-effort |
