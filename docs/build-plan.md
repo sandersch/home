@@ -14,7 +14,8 @@ Legend: 🔧 manual one-time · ⚙️ scripted · 📦 GitOps (git commit). ⚑
 **0.1 Install Ubuntu 26.04 LTS** (server, no GUI). During partitioning, create the
 layout from [architecture.md](./architecture.md#filesystem-and-partitioning):
 `/` 100 GB ext4 · `/var` 150 GB ext4 · `/opt` 250 GB btrfs · `/frigate/cache` 50 GB
-ext4 · ~250 GB unallocated. Create a non-root sudo user; disable root SSH login.
+ext4 · `/sabnzbd/incomplete` 50 GB ext4 · ~200 GB unallocated. Create a non-root sudo
+user; disable root SSH login.
 
 **0.2 Static networking (NIC1 first).** Set NIC1 to a static IP via Netplan before
 anything else so the address can't shift mid-bootstrap. Confirm interface names with
@@ -378,8 +379,9 @@ spec:
           image: lscr.io/linuxserver/sabnzbd
           # no special networking — inherits gluetun's namespace (as do the *arrs)
           volumeMounts:
-            - { name: sabnzbd-config, mountPath: /config }   # /opt/sabnzbd (NVMe)
-            - { name: downloads, mountPath: /downloads }     # NAS NFS
+            - { name: sabnzbd-config, mountPath: /config }      # /opt/sabnzbd (btrfs NVMe)
+            - { name: sabnzbd-incomplete, mountPath: /incomplete } # /sabnzbd/incomplete (ext4 NVMe)
+            - { name: downloads, mountPath: /downloads }         # NAS NFS
         - name: prowlarr                         # localhost:9696
           image: lscr.io/linuxserver/prowlarr
           volumeMounts: [{ name: prowlarr-config, mountPath: /config }]
@@ -393,7 +395,9 @@ spec:
           volumeMounts:
             - { name: sonarr-config, mountPath: /config }
             - { name: media, mountPath: /media }
-      # volumes: per-app config PVCs (local-nvme) + downloads/media (NFS).
+      # volumes: per-app config PVCs (local-nvme) + sabnzbd-incomplete hostPath
+      # (/sabnzbd/incomplete, ext4 — high-write staging, not snapshotted, see
+      # architecture.md#filesystem-and-partitioning) + downloads/media (NFS).
       # Every container sets its own requests/limits per the allocation table.
 ```
 Accepted caveats: any image bump or manifest change to **any** container recreates

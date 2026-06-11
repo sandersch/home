@@ -50,7 +50,8 @@ their keep.
 /var           150 GB   ext4    container images + k3s state (image layers dominate)
 /opt           250 GB   btrfs   ALL low-latency app state (snapshots + zstd)
 /frigate/cache  50 GB   ext4    Frigate temp/buffer only (high-write, throwaway)
-~250 GB         —       —       unallocated (future partitions, no repartition needed)
+/sabnzbd/incomplete 50 GB ext4  SABnzbd staging only (large-file, constant-write, unpack-in-place)
+~200 GB         —       —       unallocated (future partitions, no repartition needed)
 ```
 
 Rationale for the splits:
@@ -60,11 +61,17 @@ Rationale for the splits:
   `crictl rmi --prune`.
 - **`/opt` btrfs** — the one filesystem that benefits from snapshots (roll back
   before app upgrades) and zstd compression (the SQLite-heavy small-write workloads
-  of Plex/Frigate/*arr/HA). This is where all valuable app state lives.
+  of Plex/Frigate/*arr/HA). This is where all valuable app state lives. SABnzbd
+  *config* lives here; the incomplete staging dir does not.
 - **`/frigate/cache` ext4, separate** — pure throughput, no snapshots wanted, kept
   off btrfs so high-write churn doesn't interact with snapshot bookkeeping. Frigate's
   DB lives on `/opt` (snapshotted), only its cache/buffer lives here.
-- **~250 GB unallocated** — headroom to add a partition later (e.g. if Immich's local
+- **`/sabnzbd/incomplete` ext4, separate** — same rationale as `/frigate/cache`:
+  large NZBs being downloaded and unpacked in-place are high-write, fully regenerable,
+  and snapshot-worthless. Keeping them on btrfs would pollute `/opt` snapshot bookkeeping
+  and consume snapshot space for data you'd never want to restore. SABnzbd's config
+  (database, history, settings) remains on `/opt/sabnzbd` and is snapshotted normally.
+- **~200 GB unallocated** — headroom to add a partition later (e.g. if Immich's local
   cache grows) without repartitioning.
 
 ## Networking
@@ -114,7 +121,8 @@ The rule: **latency-sensitive state on local NVMe; bulk/regenerable data on NAS.
 | Frigate | Cache / temp | `/frigate/cache` | ext4 (NVMe) |
 | Frigate | Recordings/clips | NAS | NFS |
 | Radarr/Sonarr/Prowlarr | Config + SQLite | `/opt/<app>` | btrfs (NVMe) |
-| SABnzbd | Incomplete (staging) | `/opt/sabnzbd` | btrfs (NVMe) |
+| SABnzbd | Config + DB | `/opt/sabnzbd` | btrfs (NVMe) |
+| SABnzbd | Incomplete (staging) | `/sabnzbd/incomplete` | ext4 (NVMe) |
 | SABnzbd | Complete (handoff) | NAS | NFS |
 | Overseerr | Request DB | `/opt/overseerr` | btrfs (NVMe) |
 | RomM | DB/metadata | `/opt/romm` | btrfs (NVMe) |
