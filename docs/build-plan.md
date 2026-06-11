@@ -261,14 +261,15 @@ IP before configuring indexers/downloads. Pattern below.
 
 Then, in parallel once VPN is validated:
 
-**4b — Plex** (standard/burstable). `/dev/dri` hostPath + the render group; NAS media
-PVC; `/opt/plex` metadata. ⚑ Run a 1080p transcode and confirm GPU use with
-`intel_gpu_top` on the host.
+**4b — Plex** (standard/burstable). `/dev/dri` hostPath + the render group; media via
+hostPath to `/mnt/media` (NFS mounted on host by fstab in Phase 0.4); `/opt/plex`
+metadata. ⚑ Run a 1080p transcode and confirm GPU use with `intel_gpu_top` on the host.
 
 **4c — Frigate** (critical/non-evictable). `hostNetwork: true` so RTSP connections to
 cameras originate from the host (source IP `10.10.0.1`) without passing through the
 forward chain — this is what makes the nftables camera isolation work. Coral USB
-hostPath; DB on `/opt/frigate`, cache on `/frigate/cache`, recordings on NAS. ⚑ Verify
+hostPath; DB on `/opt/frigate`, cache on `/frigate/cache`, recordings via hostPath to
+`/mnt/frigate`. ⚑ Verify
 cameras remain unreachable from the internet.
 
 **4d — remaining stack.** Overseerr (pointed at the *arrs via the Gluetun Service),
@@ -412,9 +413,16 @@ spec:
           volumeMounts:
             - { name: sonarr-config, mountPath: /config }
             - { name: media, mountPath: /media }
-      # volumes: per-app config PVCs (local-nvme) + sabnzbd-incomplete hostPath
-      # (/sabnzbd/incomplete, ext4 — high-write staging, not snapshotted, see
-      # architecture.md#filesystem-and-partitioning) + downloads/media (NFS).
+      volumes:
+        # config PVCs — local-nvme StorageClass, each bound to a pre-created PV under /opt
+        - { name: sabnzbd-config,   persistentVolumeClaim: { claimName: sabnzbd-config-pvc } }
+        - { name: prowlarr-config,  persistentVolumeClaim: { claimName: prowlarr-config-pvc } }
+        - { name: radarr-config,    persistentVolumeClaim: { claimName: radarr-config-pvc } }
+        - { name: sonarr-config,    persistentVolumeClaim: { claimName: sonarr-config-pvc } }
+        # NVMe staging partition — high-write, not snapshotted (see architecture.md)
+        - { name: sabnzbd-incomplete, hostPath: { path: /sabnzbd/incomplete, type: DirectoryOrCreate } }
+        # NAS paths — NFS mounted on host via fstab (Phase 0.4); pods use hostPath, no NFS PVC
+        - { name: media,     hostPath: { path: /mnt/media,           type: Directory } }
       # Every container sets its own requests/limits per the allocation table.
 ```
 Accepted caveats: any image bump or manifest change to **any** container recreates
