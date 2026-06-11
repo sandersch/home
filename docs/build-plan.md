@@ -317,6 +317,9 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: local-nvme
   hostPath: { path: /opt/<app>/config, type: DirectoryOrCreate }
+  claimRef:                              # pins this PV to exactly one PVC; prevents
+    namespace: <ns>                      # the scheduler binding it to a different app
+    name: <app>-config-pvc
   nodeAffinity:
     required:
       nodeSelectorTerms:
@@ -330,6 +333,7 @@ metadata: { name: <app>-config-pvc, namespace: <ns> }
 spec:
   storageClassName: local-nvme
   accessModes: [ReadWriteOnce]
+  volumeName: <app>-config-pv           # pins this PVC to the matching PV by name
   resources: { requests: { storage: 5Gi } }
 ```
 
