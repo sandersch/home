@@ -52,7 +52,7 @@ decision is wrong, raise it rather than silently diverging.
 | Alerting | **ntfy** (self-hosted) → phone push | Free, self-hosted, simple |
 
 Deferred / revisit later (see [operations.md](./docs/operations.md#follow-ups)):
-k3s etcd snapshots, a possible second node, Tailscale Funnel for Plex, Immich.
+a possible second node, Tailscale Funnel for Plex, Immich.
 
 ## Repository structure
 

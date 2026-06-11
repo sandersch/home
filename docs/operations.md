@@ -150,11 +150,13 @@ Deferred deliberately; revisit when the trigger condition is met.
 
 | Item | When to do it |
 |---|---|
-| **k3s etcd snapshots** | Soon — it's a one-line k3s flag. Insurance for the bits not in git (the `sops-age` secret, manual bootstrap state). Skepticism that it's *necessary* is fair given git + a documented bootstrap make a rebuild ~30 min; do it because it's nearly free, not because it's urgent. |
 | **Second node** | Only on a *measured* need: HA must survive main-node maintenance, or Frigate outgrows the Coral/CPU budget. Repo layout already supports it via `nodeSelector`/affinity. |
 | **Tailscale Funnel for Plex** | If sharing with non-Tailnet users / casting to uncontrolled client devices becomes a real need. Cleaner than Plex native remote access. |
 | **Immich** | When ready — coordinate the initial import in a quiet window, watch memory. Originals on NAS, thumbs/ML on `/opt/immich`. |
 
 Accepted constraints (not gaps): no staging environment (changes go to the one
 cluster — mitigated by btrfs snapshots + `flux suspend`); cert renewal depends on the
-external DNS provider's API (90-day certs make a brief outage non-fatal).
+external DNS provider's API (90-day certs make a brief outage non-fatal); no k3s etcd
+snapshots — the entire cluster state lives in git, and a full re-bootstrap from
+scratch takes ~30 min; the only out-of-git state is the `sops-age` key, which is
+backed up to a password manager.
