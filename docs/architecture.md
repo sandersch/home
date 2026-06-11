@@ -73,10 +73,15 @@ Dual-NIC design separating trusted traffic from cameras.
 
 | Interface | Role | Address (example) | Notes |
 |---|---|---|---|
-| NIC1 (`enp1s0`) | Primary LAN | `192.168.1.10/24` | Internet, NAS NFS, DNS, ingress |
+| NIC1 (`enp1s0`) | Primary LAN | `192.168.1.10/24` | Internet, NAS NFS, host SSH, k3s API |
 | NIC2 (`enp2s0`) | Camera segment | `10.10.0.1/24` | Isolated; serves DHCP; Frigate only |
 
 > Confirm actual interface names on the box (`ip link`) before writing Netplan.
+
+> Ingress is **not** on NIC1's `.10`. MetalLB announces a separate LoadBalancer IP
+> (`192.168.1.11`) for service/ingress traffic via L2 ARP; keeping it off the node IP
+> avoids a conflict with the address the kernel already owns. Reserve `.11` (and the
+> node's `.10`) outside the router's DHCP range.
 
 **Camera isolation (nftables, host-level).** The `camera_isolation` table uses `policy accept` with two explicit drop rules: `iifname "enp2s0" drop` blocks camera-initiated connections (camera→internet, camera→LAN), and `oifname "enp2s0" drop` blocks forwarded LAN→camera traffic (access to camera web UIs must go via the host, e.g. SSH port-forward). `policy accept` is intentional — `policy drop` would break k3s pod networking, because every hook chain (this one and k3s's own iptables-nft chains) is evaluated independently for each packet, and a drop verdict in any chain is final even when another chain accepts. Frigate runs with `hostNetwork: true`, so its RTSP connections to cameras originate from the host's NIC2 address (`10.10.0.1`) and never pass through the forward chain. Validate before cameras go live: ping `8.8.8.8` and a LAN host from the camera segment — both must fail.
 
@@ -87,8 +92,9 @@ state. (An earlier sketch put it in a pod; host-level is the cleaner, more relia
 choice for DHCP on a physical NIC.) Cameras get stable leases so Frigate can target
 them at known addresses.
 
-**Internal DNS (router).** A single wildcard record `*.worm.run → 192.168.1.10` points
-all service hostnames at the node; ingress-nginx routes by `Host` header. Adding a
+**Internal DNS (router).** A single wildcard record `*.worm.run → 192.168.1.11` points
+all service hostnames at the **MetalLB ingress IP** (`192.168.1.11`, distinct from the
+node's own `192.168.1.10`); ingress-nginx routes by `Host` header. Adding a
 service needs no new DNS record, just an Ingress manifest. Confirm the router supports
 *true wildcard* records (most capable routers do; some consumer ones only allow
 explicit hostnames) — test with a throwaway hostname before depending on it.
@@ -136,8 +142,9 @@ before any init container could create it.) Concrete YAML is in
 
 - **k3s**, single node, installed with `--disable traefik --disable servicelb`
   (we bring our own ingress and LB).
-- **MetalLB** provides a stable LoadBalancer IP (the node's static IP) so the router
-  wildcard target never changes.
+- **MetalLB** provides a stable LoadBalancer IP (`192.168.1.11`, a dedicated address it
+  owns — *not* the node's own `192.168.1.10`) so the router wildcard target never
+  changes. Service traffic and host SSH / the k3s API thus live on separate IPs.
 - **ingress-nginx** terminates HTTP(S) and routes by hostname.
 - **cert-manager** issues real certificates via **Let's Encrypt DNS-01** (HTTP-01 is
   impossible since nothing is publicly reachable). This needs the public domain's DNS

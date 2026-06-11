@@ -68,7 +68,8 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="18d1", ATTRS{idProduct}=="9302", MODE="0666"
 `sudo udevadm control --reload-rules && sudo udevadm trigger`. (The Coral enumerates
 under two IDs — before and after its firmware loads.)
 
-**0.7 Router DNS.** Add the wildcard record `*.worm.run → 192.168.1.10`. Test true
+**0.7 Router DNS.** Add the wildcard record `*.worm.run → 192.168.1.11` (the MetalLB
+ingress IP from Phase 2.2, **not** the node's own `192.168.1.10`). Test true
 wildcard support with a throwaway hostname before relying on it.
 
 ---
@@ -119,13 +120,14 @@ curl -sfL https://get.k3s.io | sh -s - \
 kubectl get nodes            # minis Ready
 ```
 
-**2.2 MetalLB** — stable LoadBalancer IP (the node's static IP) so the wildcard target
-is fixed.
+**2.2 MetalLB** — a stable LoadBalancer IP (`192.168.1.11`, distinct from the node's own
+`192.168.1.10`) so the wildcard target is fixed. MetalLB must own its pool addresses, so
+the pool cannot reuse the node IP the kernel already answers ARP for.
 ```yaml
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata: { name: homelab-pool, namespace: metallb-system }
-spec: { addresses: ["192.168.1.10/32"] }   # outside the DHCP range
+spec: { addresses: ["192.168.1.11/32"] }   # MetalLB owns this; ≠ node IP (.10), outside the DHCP range
 ```
 
 **2.3 ingress-nginx** and **2.4 cert-manager** (Helm during bootstrap; convert to
