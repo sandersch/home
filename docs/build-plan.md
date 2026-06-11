@@ -11,7 +11,10 @@ Legend: 🔧 manual one-time · ⚙️ scripted · 📦 GitOps (git commit). ⚑
 
 ## Phase 0 — OS baseline 🔧
 
-**0.1 Install Ubuntu 26.04 LTS** (server, no GUI). During partitioning, create the
+**0.1 Install Ubuntu 24.04 LTS** (server, no GUI; chosen over 26.04 — too new for
+the one production node, and the MS-01's hardware is fully supported). No full-disk
+encryption — unattended reboot after a UPS shutdown must work. No swap partition
+(kubelet requires swap off). During partitioning, create the
 layout from [architecture.md](./architecture.md#filesystem-and-volume-layout):
 ESP + `/boot` outside LVM, then a single LVM PV on the rest of the disk → VG `vg0`
 with LVs `root` 100 GB ext4 (`/`) · `var` 150 GB ext4 (`/var`) · `opt` 250 GB btrfs
