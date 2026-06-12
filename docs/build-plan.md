@@ -56,10 +56,8 @@ If IOMMU is needed for passthrough, add `intel_iommu=on` to the kernel cmdline.
 **0.4 NFS mounts.** Add to `/etc/fstab`, then `sudo mount -a` and verify:
 ```
 media.nfs.service.matrix:/mnt/media    /mnt/media    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
-frigate.nfs.service.matrix:/mnt/frigate  /mnt/frigate  nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
-games.nfs.service.matrix:/mnt/games   /mnt/games    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
 ```
-`nofail` is essential — a NAS outage at boot must not block k3s.
+`nofail` is essential — a NAS outage at boot must not block k3s. Additional mounts (`/mnt/frigate`, `/mnt/games`) will be added in Phase 4 when the apps that need them are configured.
 
 **0.5 UPS via NUT.** Configure `/etc/nut/ups.conf` (driver usually `usbhid-ups`),
 `/etc/nut/upsmon.conf` (shutdown threshold), `/etc/nut/upsd.conf`. Enable the service.
