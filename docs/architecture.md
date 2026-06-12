@@ -86,19 +86,20 @@ Rationale for the splits:
 
 Dual-NIC design separating trusted traffic from cameras.
 
-| Interface | Role | Address (example) | Notes |
+| Interface | Role | Address | Notes |
 |---|---|---|---|
-| NIC1 (`enp1s0`) | Primary LAN | `172.17.1.5/24` | Internet, NAS NFS, host SSH, k3s API |
-| NIC2 (`enp2s0`) | Camera segment | `192.168.104.1/24` | Isolated; serves DHCP; Frigate only |
+| NIC1 (`enp88s0`) | Primary LAN | `172.17.1.5/24` | Internet, NAS NFS, host SSH, k3s API |
+| NIC2 (`enp87s0`) | Camera segment | `192.168.104.1/24` | Isolated; serves DHCP; Frigate only |
 
-> Confirm actual interface names on the box (`ip link`) before writing Netplan.
+> Names confirmed on the installed node (Intel I226-V 2.5GbE). The unused 10G SFP+
+> ports are `enp2s0f0np0`/`enp2s0f1np1`; WiFi is `wlp89s0`.
 
 > Ingress is **not** on NIC1's `.5`. MetalLB announces a separate LoadBalancer IP
 > (`172.17.1.10`) for service/ingress traffic via L2 ARP; keeping it off the node IP
 > avoids a conflict with the address the kernel already owns. Reserve `.10` (and the
 > node's `.5`) outside the router's DHCP range.
 
-**Camera isolation (nftables, host-level).** The `camera_isolation` table uses `policy accept` with two explicit drop rules: `iifname "enp2s0" drop` blocks camera-initiated connections (camera→internet, camera→LAN), and `oifname "enp2s0" drop` blocks forwarded LAN→camera traffic (access to camera web UIs must go via the host, e.g. SSH port-forward). `policy accept` is intentional — `policy drop` would break k3s pod networking, because every hook chain (this one and k3s's own iptables-nft chains) is evaluated independently for each packet, and a drop verdict in any chain is final even when another chain accepts. Frigate runs with `hostNetwork: true`, so its RTSP connections to cameras originate from the host's NIC2 address (`192.168.104.1`) and never pass through the forward chain. Validate before cameras go live: ping `8.8.8.8` and a LAN host (`172.17.1.5`) from the camera segment — both must fail.
+**Camera isolation (nftables, host-level).** The `camera_isolation` table uses `policy accept` with two explicit drop rules: `iifname "enp87s0" drop` blocks camera-initiated connections (camera→internet, camera→LAN), and `oifname "enp87s0" drop` blocks forwarded LAN→camera traffic (access to camera web UIs must go via the host, e.g. SSH port-forward). `policy accept` is intentional — `policy drop` would break k3s pod networking, because every hook chain (this one and k3s's own iptables-nft chains) is evaluated independently for each packet, and a drop verdict in any chain is final even when another chain accepts. Frigate runs with `hostNetwork: true`, so its RTSP connections to cameras originate from the host's NIC2 address (`192.168.104.1`) and never pass through the forward chain. Validate before cameras go live: ping `8.8.8.8` and a LAN host (`172.17.1.5`) from the camera segment — both must fail.
 
 **Camera DHCP (dnsmasq, host-level).** `dnsmasq` runs as a host systemd service bound
 to NIC2, serving DHCP on `192.168.104.0/24`. It lives with networking (Phase 1) rather

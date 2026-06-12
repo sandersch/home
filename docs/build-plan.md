@@ -24,22 +24,26 @@ Phase 4, carved from the VG free space. Create a non-root sudo user; disable roo
 SSH login.
 
 **0.2 Static networking (NIC1 first).** Set NIC1 to a static IP via Netplan before
-anything else so the address can't shift mid-bootstrap. Confirm interface names with
-`ip link` first.
+anything else so the address can't shift mid-bootstrap. Interface names confirmed on
+the installed node: the two 2.5GbE ports are `enp88s0` (NIC1) and `enp87s0` (NIC2);
+the unused 10G SFP+ ports are `enp2s0f0np0`/`enp2s0f1np1`. Also disable cloud-init's
+network rendering (`/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg` containing
+`network: {config: disabled}`) or it regenerates the installer's DHCP stub on reboot.
 
 ```yaml
 # /etc/netplan/00-installer-config.yaml
 network:
   version: 2
   ethernets:
-    enp1s0:                      # NIC1 — verify name
+    enp88s0:                     # NIC1 — primary LAN
       addresses: [172.17.1.5/24]
       routes: [{ to: default, via: 172.17.1.1 }]
       nameservers: { addresses: [172.17.1.1] }
       dhcp4: false
-    enp2s0:                      # NIC2 — camera segment
+    enp87s0:                     # NIC2 — camera segment
       addresses: [192.168.104.1/24]
       dhcp4: false
+      optional: true             # no carrier until cameras connect; don't block boot
 ```
 `sudo netplan apply` and confirm both interfaces are up.
 
@@ -47,9 +51,9 @@ network:
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y curl git vim nfs-common sqlite3 jq age iperf3 nftables dnsmasq nut
-ls -la /dev/dri/            # expect card0 + renderD128 (Quick Sync)
+ls -la /dev/dri/            # expect cardN + renderD128 (Quick Sync; card1 on this node)
 lsmod | grep i915           # i915 driver loaded; if not, add to /etc/modules + reboot
-getent group render         # note the render GID — needed for the Plex pod
+getent group render         # render GID — needed for the Plex pod. On this node: 993
 ```
 If IOMMU is needed for passthrough, add `intel_iommu=on` to the kernel cmdline.
 
@@ -89,8 +93,8 @@ originate from the host on NIC2 and never enter the forward chain.
 table inet camera_isolation {
   chain forward {
     type filter hook forward priority 0; policy accept;
-    iifname "enp2s0" drop    # cameras cannot initiate connections to anything
-    oifname "enp2s0" drop    # LAN→camera forwarding blocked; access via host only
+    iifname "enp87s0" drop   # cameras cannot initiate connections to anything
+    oifname "enp87s0" drop   # LAN→camera forwarding blocked; access via host only
   }
 }
 ```
@@ -103,7 +107,7 @@ go via the node itself (SSH port-forward or a temporary rule).
 known addresses.
 ```
 # /etc/dnsmasq.d/cameras.conf (excerpt)
-interface=enp2s0
+interface=enp87s0
 bind-interfaces
 dhcp-range=192.168.104.50,192.168.104.200,12h
 # dhcp-host=AA:BB:CC:DD:EE:FF,192.168.104.51   # pin per-camera as needed
@@ -467,7 +471,7 @@ Proton), change the env in `gluetun-mullvad` and restart — nothing else change
 ## Plex Quick Sync pattern (notes)
 
 - Mount `/dev/dri` as a hostPath volume into the Plex container.
-- Grant the **render group** via `securityContext.supplementalGroups: [<RENDER_GID>]`
+- Grant the **render group** via `securityContext.supplementalGroups: [993]`
   (the GID from `getent group render` in Phase 0.3); a privileged pod also works but
   the group is tighter.
 - Do **not** set `PLEX_CLAIM` when migrating existing config — the migrated data
