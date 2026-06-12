@@ -17,8 +17,8 @@ encryption — unattended reboot after a UPS shutdown must work. No swap partiti
 (kubelet requires swap off). During partitioning, create the
 layout from [architecture.md](./architecture.md#filesystem-and-volume-layout):
 ESP + `/boot` outside LVM, then a single LVM PV on the rest of the disk → VG `vg0`
-with LVs `root` 100 GB ext4 (`/`) · `var` 150 GB ext4 (`/var`) · `opt` 250 GB btrfs
-(`/opt`) · ~450 GB left **unallocated in the VG**. Do *not* pre-create filesystems
+with LVs `root` 100 GB ext4 (`/`) · `var` 100 GB ext4 (`/var`) · `opt` 100 GB btrfs
+(`/opt`) · ~700 GB left **unallocated in the VG**. Do *not* pre-create filesystems
 for Frigate cache or SABnzbd staging — those are TopoLVM-provisioned PVCs in
 Phase 4, carved from the VG free space. Create a non-root sudo user; disable root
 SSH login.
