@@ -111,7 +111,10 @@ table inet camera_isolation {
     iifname "enp87s0" ct state established,related accept   # RTSP/stream replies
     iifname "enp87s0" udp dport 67 accept                   # DHCP (dnsmasq)
     iifname "enp87s0" udp dport 123 accept                  # NTP (chrony, see 1.3)
-    iifname "enp87s0" ip protocol icmp accept               # IPv4 ping for diagnostics (segment is v4-only)
+    iifname "enp87s0" icmp type echo-request accept         # ping diagnostics ONLY (v4); a broad
+                                                            #   `ip protocol icmp` allow would also let a
+                                                            #   camera send the host ICMP redirects. Host→camera
+                                                            #   ping replies still pass via `established`.
     iifname "enp87s0" limit rate 10/minute log prefix "cam-drop-input "  # all other camera→host
     iifname "enp87s0" counter drop
   }
@@ -130,7 +133,14 @@ net.ipv6.conf.enp87s0.disable_ipv6 = 1
 the explicit drops do the work without breaking k3s's own nft chains. Enable nftables.
 ⚑ From a device on the camera segment, confirm you **cannot** ping `8.8.8.8` or any
 `172.17.1.0/24` host, and that ICMP to the host (`192.168.104.1`) still **succeeds**
-(the diagnostics allow). To prove the input chain actually drops host services, test a
+(the diagnostics allow). **Caveat — the forward-chain drop is not actually exercised at
+this stage:** `net.ipv4.ip_forward` is `0` on stock Ubuntu and only gets flipped to `1`
+by k3s in Phase 2, so right now the host won't route camera→internet/LAN regardless of
+nftables (and a correctly-DHCP'd camera has no default route anyway). The "cannot ping
+`8.8.8.8`" check therefore passes trivially and `cam-drop-fwd-*` will never log here — only
+the **input** chain is genuinely testable now. The forward drop must be re-validated at the
+gate (post-k3s) from a test device with a manual IP **and** a manual gateway of
+`192.168.104.1`; see the gate. To prove the input chain actually drops host services, test a
 port with something **listening** behind it: SSH (`nc -vz 192.168.104.1 22`) is up from
 Phase 0 and must **fail**. The other host services don't exist yet — k3s `:6443` lands
 in Phase 2, Frigate `:5000` in Phase 4 — so `nc` to them fails because nothing listens,
@@ -150,6 +160,10 @@ runs on a **Cisco Catalyst 3850**, which supports this — configure **protected
 (`switchport protected` on each camera access port, plus `switchport block unicast`/
 `block multicast` so unknown-unicast/flood traffic isn't leaked between them). A blanket
 PVLAN is the heavier alternative if you later need more than protected ports gives.
+**Leave the host uplink port _unprotected_** — protected ports can't talk to each other, so
+protecting the uplink would kill host↔camera RTSP. (Protected ports also only isolate within
+a single switch/stack; if cameras ever span a second switch over a trunk, you'd need PVLANs.
+The segment is a single 3850 today, so protected ports suffice.)
 
 ⚑ This is a **blocker, not a follow-up**: network isolation must be complete before any
 camera is connected and before Frigate goes live (Phase 4c). Validate by attempting a
@@ -193,7 +207,10 @@ bind-dynamic            # binds as the interface appears; survives a boot with n
 port=0                  # DHCP only — no DNS. Frigate targets cameras by IP, and a
                         # resolver here would be an outbound beacon path for a
                         # compromised camera (queries forwarded via the host's WAN).
-dhcp-range=192.168.104.50,192.168.104.200,12h
+dhcp-range=192.168.104.50,192.168.104.99,12h    # DYNAMIC pool only; static reservations
+                        # (dhcp-host) live in a dedicated .100-.199 block, so a pinned camera IP
+                        # can't collide with a transient lease. Split fixed up front — once cameras
+                        # are pinned their IPs are baked into NTP/Frigate config.
 dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up leases
 # Only the 104 subnet gets a range. NIC2's 192.168.1.2/24 alias (for reaching a
 # factory-default camera at .108, see 1.1) is intentionally NOT served DHCP — it's a
@@ -205,7 +222,7 @@ dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up lea
 # needs no default route, and withholding it stops cameras even attempting off-segment
 # traffic (the forward drop is the backstop).
 dhcp-option=option:ntp-server,192.168.104.1
-# dhcp-host=AA:BB:CC:DD:EE:FF,192.168.104.51   # pin per-camera as needed
+# dhcp-host=AA:BB:CC:DD:EE:FF,192.168.104.101  # pin per-camera in the static .100-.199 block
 ```
 ⚑ Confirm a camera receives a lease in range.
 
@@ -228,6 +245,9 @@ is now the active daemon):
 ```
 # /etc/chrony/conf.d/cameras.conf
 allow 192.168.104.0/24      # answer NTP from the camera segment
+local stratum 10            # serve the host's own clock as a fallback so the segment stays
+                            # served during a WAN outage (else chrony goes unsynced and REFUSES
+                            # to serve, and the cameras have no other time source → they drift)
 ```
 chrony listens on all interfaces (default) — we deliberately do **not** `bindaddress`
 to NIC2. Binding to `192.168.104.1` would require that address to exist on `enp87s0`
@@ -374,7 +394,7 @@ Do **not** start Phase 3.5/4 until all of these are green:
 - [ ] NFS mounts readable from a test pod
 - [ ] `/dev/dri/renderD128` visible in a **privileged test pod** (Quick Sync path)
 - [ ] Coral device visible in a privileged test pod
-- [ ] Camera segment **cannot** reach internet or LAN (ping `8.8.8.8` + a `172.17.1.x` host both fail)
+- [ ] Camera segment **cannot** reach internet or LAN (ping `8.8.8.8` + a `172.17.1.x` host both fail). **Run this with k3s up (ip_forward=1) from a test device with a static IP + manual gateway `192.168.104.1`** — otherwise the forward drop is untested (see 1.1) and `cam-drop-fwd-*` should appear in the journal
 - [ ] Camera segment **cannot** reach host services — `nc -vz 192.168.104.1 22` fails (SSH is listening, so this is a real test); `:6443` now also fails with k3s up. Re-check `:5000` after Frigate (Phase 4c)
 - [ ] `cam-drop-*` log entries appear in `journalctl -k` when a blocked connection is attempted from the segment
 - [ ] Two cameras on the segment **cannot** reach each other (switch protected ports, 1.1b)
