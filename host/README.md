@@ -53,15 +53,26 @@ match or `upsmon` can't authenticate to `upsd` and the clean-shutdown-on-power-l
 hook silently won't work. (It's a localhost-only credential — `upsd` listens on
 `127.0.0.1` — but the rule stands regardless.)
 
-### Phase 1 — not yet captured
+### Phase 1 — camera-segment isolation
 
-These files don't exist on the host yet; add them here when Phase 1 is built:
+Captured here, ready to copy to the host when Phase 1 is applied (in order). All are
+`root:root`; the host has only the stock Ubuntu nftables default until these land.
 
-- `etc/nftables.conf` — the `camera_isolation` table (Phase 1.1). The host currently
-  has only the stock Ubuntu default, so it's deliberately **not** committed yet.
-- `etc/sysctl.d/99-camera-no-ipv6.conf` — disable IPv6 on `enp87s0` (Phase 1.1).
-- `etc/dnsmasq.d/cameras.conf` — camera-segment DHCP (Phase 1.2).
-- `etc/chrony/conf.d/cameras.conf` — camera-segment NTP (Phase 1.3).
+| Repo file | Destination | Owner / perms | Apply |
+|---|---|---|---|
+| `etc/nftables.conf` | `/etc/nftables.conf` | `root:root` `644` | `sudo systemctl enable --now nftables` (replaces the stock default; manages only the `camera_isolation` table — no `flush ruleset`, so k3s's own nft chains survive a reload) |
+| `etc/sysctl.d/99-camera-no-ipv6.conf` | same | `root:root` `644` | `sudo sysctl --system` (disables IPv6 on NIC2) |
+| `etc/dnsmasq.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl restart dnsmasq` (DHCP-only, NIC2) |
+| `etc/chrony/conf.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl restart chrony` (serve NTP to the segment) |
+
+**Phase 1.3 (chrony):** `chrony` is **not** in stock Ubuntu 24.04 (it ships
+`systemd-timesyncd`, client-only). Install it in Phase 0.3 and confirm it's the active
+daemon (`timedatectl` / `chronyc sources`) before relying on this file. The config has
+**no `bindaddress`** by design — see the comment in the file and build-plan.md 1.3.
+
+**Phase 1.2 (dnsmasq):** the committed file has no `dhcp-host` MAC pins yet — those are
+blocked on the switch port-isolation (1.1b) and collecting camera MACs, and are required
+before Frigate (4c). Add them here as cameras are provisioned. See the TODO in the file.
 
 ## Keeping these in sync
 
