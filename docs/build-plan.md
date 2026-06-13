@@ -16,9 +16,10 @@ the one production node, and the MS-01's hardware is fully supported). No full-d
 encryption — unattended reboot after a UPS shutdown must work. No swap partition
 (kubelet requires swap off). During partitioning, create the
 layout from [architecture.md](./architecture.md#filesystem-and-volume-layout):
-ESP + `/boot` outside LVM, then a single LVM PV on the rest of the disk → VG `vg0`
-with LVs `root` 100 GB ext4 (`/`) · `var` 100 GB ext4 (`/var`) · `opt` 100 GB btrfs
-(`/opt`) · ~700 GB left **unallocated in the VG**. Do *not* pre-create filesystems
+the ESP outside LVM (`/boot` lives on the `root` LV — GRUB reads it from LVM), then a
+single LVM PV on the rest of the disk → VG `vg0` with LVs `root` 100 GB ext4 (`/`) ·
+`var` 100 GB ext4 (`/var`) · `opt` 100 GB btrfs (`/opt`) · ~650 GB left
+**unallocated in the VG**. Do *not* pre-create filesystems
 for Frigate cache or SABnzbd staging — those are TopoLVM-provisioned PVCs in
 Phase 4, carved from the VG free space. Create a non-root sudo user; disable root
 SSH login.
@@ -40,7 +41,7 @@ confirm both interfaces are up.
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y curl git vim nfs-common sqlite3 jq age iperf3 nftables dnsmasq nut chrony
-ls -la /dev/dri/            # expect cardN + renderD128 (Quick Sync; card1 on this node)
+ls -la /dev/dri/            # expect cardN + renderD128 (Quick Sync; card0 on this node)
 lsmod | grep i915           # i915 driver loaded; if not, add to /etc/modules + reboot
 getent group render         # render GID — needed for the Plex pod. On this node: 993
 ```

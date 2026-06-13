@@ -38,7 +38,8 @@ optimization per priority 5.
 
 ## Filesystem and volume layout
 
-**LVM under everything**: one PV/VG spanning the NVMe (after ESP + `/boot`), manual
+**LVM under everything**: one PV/VG spanning the NVMe (after the ESP; `/boot` is on the
+`root` LV, not its own partition), manual
 LVs for the OS filesystems, and the VG's free space handed to **TopoLVM** for
 dynamically provisioned scratch volumes. An earlier revision of this design rejected
 LVM as overlapping btrfs' volume management; that call was reversed — the partition
@@ -51,18 +52,20 @@ ext4 stays the default (boring, reliable); btrfs only where snapshots/compressio
 earn their keep.
 
 ```
-ESP + /boot              —      (outside LVM)
-vg0/root   100 GB  ext4  /      OS
-vg0/var    150 GB  ext4  /var   container images + k3s state (image layers dominate)
-vg0/opt    250 GB  btrfs /opt   ALL low-latency app state (snapshots + zstd)
-vg0 free  ~450 GB  —     —      TopoLVM device-class: scratch PVCs + lvextend headroom
+ESP (/boot/efi) 1 GB vfat       (outside LVM; /boot itself is on vg0/root)
+vg0/root   100 GB  ext4  /      OS (incl. /boot)
+vg0/var    100 GB  ext4  /var   container images + k3s state (image layers dominate)
+vg0/opt    100 GB  btrfs /opt   ALL low-latency app state (snapshots + zstd)
+vg0 free  ~650 GB  —     —      TopoLVM device-class: scratch PVCs + lvextend headroom
 ```
 
 Rationale for the splits:
 
-- **`/var` 150 GB** — container image layers for ~10 apps plus k3s/etcd state and
-  logs. Generous so it's never a worry; 120 GB would also be fine with periodic
-  `crictl rmi --prune`.
+- **`/var` 100 GB** — container image layers for ~10 apps plus k3s/etcd state and
+  logs. A starting point, not a ceiling: every manual LV grows online from the VG free
+  pool, so we start each at a conservative 100 GB and `lvextend` only what real usage
+  demands rather than betting the sizing up front. Periodic `crictl rmi --prune` keeps
+  image churn in check.
 - **`/opt` btrfs, manual LV — deliberately *not* TopoLVM-managed** — the one
   filesystem that benefits from snapshots (roll back before app upgrades) and zstd
   compression (the SQLite-heavy small-write workloads of Plex/Frigate/*arr/HA).
@@ -78,8 +81,9 @@ Rationale for the splits:
   NAS outage — and `allowVolumeExpansion` makes growing one an online PVC edit,
   i.e. a git commit. Kept off btrfs so the churn doesn't pollute `/opt` snapshot
   bookkeeping. Frigate's DB and SABnzbd's config stay on `/opt` (snapshotted).
-- **~450 GB VG free space** — generic headroom: new scratch PVCs (e.g. a future
-  Immich cache) or `lvextend` of any manual LV, no repartitioning. Set TopoLVM's
+- **~650 GB VG free space** — generic headroom: new scratch PVCs (e.g. a future
+  Immich cache) or `lvextend` of any manual LV, no repartitioning. Starting the OS LVs
+  small (100 GB each) is what leaves the pool this large. Set TopoLVM's
   `spare-gb` so dynamic PVCs can't squeeze out planned growth of the manual LVs.
 
 ## Networking
