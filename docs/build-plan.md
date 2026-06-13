@@ -41,7 +41,9 @@ network:
       nameservers: { addresses: [172.17.1.1] }
       dhcp4: false
     enp87s0:                     # NIC2 — camera segment
-      addresses: [192.168.104.1/24]
+      addresses:
+        - 192.168.104.1/24       # the live segment; dnsmasq serves leases here
+        - 192.168.1.2/24         # alias to reach a factory-default camera at .108
       dhcp4: false
       optional: true             # no carrier until cameras connect; don't block boot
 ```
@@ -176,6 +178,20 @@ The host can route to the camera segment (it owns `192.168.104.1`); only *forwar
 LAN→camera traffic is blocked, so the SSH-forwarded connection originating on the host
 works. Tear down the tunnel when done — no standing rule is added.
 
+**Provisioning a factory-default / static camera.** New Amcrest cameras default to DHCP
+and land on a `192.168.104.x` lease (reach them via the tunnel above). But a reset, a
+static-default firmware, or a second-hand camera previously set static will instead sit
+at the factory `192.168.1.108` and ignore DHCP. NIC2 carries a secondary address
+(`192.168.1.2/24`, set in 0.2) precisely to reach those without a bench network — tunnel
+to the default address, enable DHCP + set NTP/credentials, then it rejoins the `104`
+segment:
+```bash
+ssh -L 8080:192.168.1.108:80 charlie@172.17.1.5   # camera default UI at localhost:8080
+```
+This is a one-at-a-time recovery path (every factory camera is `192.168.1.108`), not the
+normal flow. The nftables rules need no change — they are `iifname "enp87s0"`-scoped, so
+the alias subnet is already covered.
+
 **1.2 Camera DHCP (dnsmasq).** Bind dnsmasq to NIC2 and serve `192.168.104.0/24`
 (host-level service, not a pod). Give cameras stable leases so Frigate can target
 known addresses.
@@ -190,6 +206,9 @@ port=0                  # DHCP only — no DNS. Frigate targets cameras by IP, a
                         # compromised camera (queries forwarded via the host's WAN).
 dhcp-range=192.168.104.50,192.168.104.200,12h
 dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up leases
+# Only the 104 subnet gets a range. NIC2's 192.168.1.2/24 alias (for reaching a
+# factory-default camera at .108, see 1.1) is intentionally NOT served DHCP — it's a
+# manual provisioning path, not part of the live segment.
 # Hand cameras the host as their NTP server (option 42) — BEST EFFORT ONLY. Amcrest/
 # Dahua cameras generally ignore option 42 and use the NTP server set in their own web
 # UI, so this is a backstop, not the source of truth; the authoritative NTP config is
