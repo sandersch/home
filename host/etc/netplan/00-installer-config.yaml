@@ -1,0 +1,14 @@
+network:
+  version: 2
+  ethernets:
+    enp88s0:                     # NIC1 — primary LAN
+      addresses: [172.17.1.5/24]
+      routes: [{ to: default, via: 172.17.1.1 }]
+      nameservers: { addresses: [172.17.1.1] }
+      dhcp4: false
+    enp87s0:                     # NIC2 — camera segment
+      addresses:
+        - 192.168.104.1/24       # the live segment; dnsmasq serves leases here
+        - 192.168.1.2/24         # alias to reach a factory-default camera at .108
+      dhcp4: false
+      optional: true             # no carrier until cameras/switch arrive; do not block boot

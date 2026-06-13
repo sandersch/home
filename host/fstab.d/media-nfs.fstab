@@ -1,0 +1,5 @@
+# APPEND these lines to /etc/fstab — do NOT replace the file (it holds disk-specific
+# root/boot UUIDs generated at install time). See host/README.md (Phase 0.4).
+# nofail + _netdev: a NAS outage at boot must not block k3s. x-systemd.automount:
+# mount lazily on first access rather than at boot.
+media.nfs.service.matrix:/mnt/media    /mnt/media    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
