@@ -39,7 +39,7 @@ confirm both interfaces are up.
 **0.3 System prep + hardware checks.**
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl git vim nfs-common sqlite3 jq age iperf3 nftables dnsmasq nut
+sudo apt install -y curl git vim nfs-common sqlite3 jq age iperf3 nftables dnsmasq nut chrony
 ls -la /dev/dri/            # expect cardN + renderD128 (Quick Sync; card1 on this node)
 lsmod | grep i915           # i915 driver loaded; if not, add to /etc/modules + reboot
 getent group render         # render GID — needed for the Plex pod. On this node: 993
@@ -208,25 +208,35 @@ dhcp-option=option:ntp-server,192.168.104.1
 ```
 ⚑ Confirm a camera receives a lease in range.
 
+> **TODO — pin every camera before Frigate (4c).** The "stable leases" Frigate relies
+> on are only guaranteed by `dhcp-host` MAC reservations; plain dynamic leases can
+> reshuffle across a lease-DB loss or long outage and break Frigate's IP-addressed
+> camera config. This is **blocked on finishing the switch port-isolation config (1.1b)
+> first** — cameras aren't connected until that's done, and their MACs aren't known
+> until they are. Once isolated and connected: collect each camera's MAC, add a
+> `dhcp-host=<mac>,192.168.104.<n>` line here (reserve in-range is fine), restart
+> dnsmasq, and confirm each camera holds its reserved IP across a restart. Promote this
+> to a validation-gate item gating 4c.
+
 **1.3 Camera NTP (chrony).** Cameras have no internet, so they need a local time source
 or their clocks drift and recording timestamps/event correlation in Frigate go wrong.
-Serve NTP from the host on NIC2 only (chrony is already the system clock daemon on
-Ubuntu 24.04):
+Serve NTP from the host with **chrony** — install it in 0.3 (it supersedes Ubuntu
+24.04's default `systemd-timesyncd`, which is an SNTP *client* only and cannot serve
+the segment; confirm with `timedatectl` / `chronyc sources` that chrony, not timesyncd,
+is now the active daemon):
 ```
 # /etc/chrony/conf.d/cameras.conf
 allow 192.168.104.0/24      # answer NTP from the camera segment
-# bind only on NIC2 so we don't expose NTP on the LAN/WAN:
-bindaddress 192.168.104.1
 ```
-The matching `udp dport 123` allow rule is already in the 1.1 input chain. Restart
-chrony. ⚑ From a camera-segment device, `chronyc -h 192.168.104.1 tracking` (or any
-NTP query) succeeds; from the LAN it must **not** (bind is NIC2-only).
-
-`bindaddress` requires `192.168.104.1` to already exist on `enp87s0` when chrony starts.
-NIC2 is `optional: true` and may have no carrier at boot; Netplan normally assigns the
-static address regardless of carrier, but confirm with `ip addr show enp87s0` (no camera
-connected) that the address is present — if it isn't, chrony fails to bind. (dnsmasq
-sidesteps this with `bind-dynamic`; chrony's `bindaddress` does not.)
+chrony listens on all interfaces (default) — we deliberately do **not** `bindaddress`
+to NIC2. Binding to `192.168.104.1` would require that address to exist on `enp87s0`
+when chrony starts, but NIC2 is `optional: true` and may have no carrier at boot, so
+the bind could fail and silently leave the segment unserved (dnsmasq sidesteps this with
+`bind-dynamic`; chrony has no lazy-bind equivalent). The cost of listening everywhere is
+only that the trusted LAN can also query NTP — harmless, and not worth the boot-order
+fragility. The matching `udp dport 123` allow rule is already in the 1.1 input chain.
+Restart chrony. ⚑ From a camera-segment device, `chronyc -h 192.168.104.1 tracking`
+(or any NTP query) succeeds.
 
 **Configure NTP on each camera directly — this is the source of truth, not DHCP.** In
 the Amcrest web UI: Setup → System → General → Date & Time → enable NTP, set the server
@@ -368,7 +378,7 @@ Do **not** start Phase 3.5/4 until all of these are green:
 - [ ] `cam-drop-*` log entries appear in `journalctl -k` when a blocked connection is attempted from the segment
 - [ ] Two cameras on the segment **cannot** reach each other (switch protected ports, 1.1b)
 - [ ] dnsmasq issues a camera lease in range
-- [ ] Camera segment gets NTP from the host (`192.168.104.1`); NTP is **not** answerable from the LAN; each camera's own NTP is set to `192.168.104.1` and its clock is in sync
+- [ ] Camera segment gets NTP from the host (`192.168.104.1`); each camera's own NTP is set to `192.168.104.1` and its clock is in sync
 - [ ] Tailscale operator connected; `*.worm.run` resolves over the Tailnet
 - [ ] SOPS decrypt works (reconcile a Kustomization containing an encrypted Secret)
 - [ ] NUT active and reporting battery status
