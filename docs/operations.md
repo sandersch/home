@@ -154,6 +154,11 @@ Deferred deliberately; revisit when the trigger condition is met.
 | **Tailscale Funnel for Plex** | If sharing with non-Tailnet users / casting to uncontrolled client devices becomes a real need. Cleaner than Plex native remote access. |
 | **Immich** | When ready — coordinate the initial import in a quiet window, watch memory. Originals on NAS, thumbs/ML on `/opt/immich`. |
 
+> **Camera switch isolation (Catalyst 3850)** was previously listed here as a deferred
+> TODO. It is now a **Phase 1 blocker** — see [build-plan.md → 1.1b](./build-plan.md#phase-1--networking-isolation-).
+> No camera is connected until the host nftables rules *and* switch protected ports are
+> both in place and verified.
+
 Accepted constraints (not gaps): no staging environment (changes go to the one
 cluster — mitigated by btrfs snapshots + `flux suspend`); cert renewal depends on the
 external DNS provider's API (90-day certs make a brief outage non-fatal); no k3s etcd

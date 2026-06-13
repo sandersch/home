@@ -85,22 +85,96 @@ wildcard support with a throwaway hostname before relying on it.
 
 ## Phase 1 — networking isolation 🔧
 
-**1.1 Camera isolation (nftables).** Drop all camera-initiated traffic. No LAN→camera
-forwarding rule is needed: Frigate runs with `hostNetwork: true`, so its RTSP connections
-originate from the host on NIC2 and never enter the forward chain.
+**1.1 Camera isolation (nftables).** Two hooks. The **forward** chain drops everything
+routed to or from the segment (camera→internet, camera→LAN, LAN→camera). The **input**
+chain drops everything a camera sends *to the host itself* except the few things the
+segment legitimately needs — without it, the forward rules leave host services
+(`k3s :6443` and `kubelet :10250`, both bound to `0.0.0.0` by default; `SSH :22`; and
+every `hostNetwork` pod — Frigate, Plex, Home Assistant) reachable from a compromised
+camera on `192.168.104.1`. RTSP needs no allow rule: Frigate (the host) *initiates* to
+the camera, so the camera's replies are `established` and the host's own egress to the
+camera is on the output hook, not forward.
 ```
 # /etc/nftables.conf (excerpt)
+# Scope teardown to OUR table only — do NOT use a top-level `flush ruleset` here.
+# k3s/flannel/kube-proxy inject rules into the nat/filter/mangle tables at runtime;
+# a global flush on `systemctl reload nftables` would wipe them and break pod
+# networking until k3s re-syncs. This delete+recreate is idempotent and k3s-safe.
+table inet camera_isolation {}
+delete table inet camera_isolation
 table inet camera_isolation {
   chain forward {
     type filter hook forward priority 0; policy accept;
-    iifname "enp87s0" drop   # cameras cannot initiate connections to anything
-    oifname "enp87s0" drop   # LAN→camera forwarding blocked; access via host only
+    # Rate-limited log (no verdict → falls through), then an unconditional counter drop.
+    # The log rule must NOT carry the drop verdict: if `limit` gated the drop, packets
+    # over the rate would skip it and hit `policy accept`. Logging a compromised/chatty
+    # camera's blocked traffic is the whole point of the segment; rate-limit so a camera
+    # in a retry loop can't flood the journal.
+    iifname "enp87s0" limit rate 10/minute log prefix "cam-drop-fwd-in "  # camera→anywhere
+    iifname "enp87s0" counter drop
+    oifname "enp87s0" limit rate 10/minute log prefix "cam-drop-fwd-out " # LAN→camera (host-only access)
+    oifname "enp87s0" counter drop
+  }
+  chain input {
+    type filter hook input priority 0; policy accept;
+    iifname "enp87s0" ct state established,related accept   # RTSP/stream replies
+    iifname "enp87s0" udp dport 67 accept                   # DHCP (dnsmasq)
+    iifname "enp87s0" udp dport 123 accept                  # NTP (chrony, see 1.3)
+    iifname "enp87s0" ip protocol icmp accept               # IPv4 ping for diagnostics (segment is v4-only)
+    iifname "enp87s0" limit rate 10/minute log prefix "cam-drop-input "  # all other camera→host
+    iifname "enp87s0" counter drop
   }
 }
 ```
-Enable nftables. ⚑ From a device on the camera segment, confirm you **cannot** ping
-`8.8.8.8` or any `172.17.1.0/24` host. LAN→camera access (e.g. camera web UI) must
-go via the node itself (SSH port-forward or a temporary rule).
+The camera segment is **IPv4-only**. The `inet` table covers both families, and
+`ip protocol icmp` matches IPv4 ICMP only — ICMPv6 (router/neighbor discovery) from a
+camera falls to the final drop. To remove the IPv6 surface entirely rather than rely on
+that, disable it on NIC2:
+```
+# /etc/sysctl.d/99-camera-no-ipv6.conf
+net.ipv6.conf.enp87s0.disable_ipv6 = 1
+```
+`sudo sysctl --system` to apply.
+`policy accept` on both chains is intentional (see [architecture.md](./architecture.md#networking));
+the explicit drops do the work without breaking k3s's own nft chains. Enable nftables.
+⚑ From a device on the camera segment, confirm you **cannot** ping `8.8.8.8` or any
+`172.17.1.0/24` host, and that ICMP to the host (`192.168.104.1`) still **succeeds**
+(the diagnostics allow). To prove the input chain actually drops host services, test a
+port with something **listening** behind it: SSH (`nc -vz 192.168.104.1 22`) is up from
+Phase 0 and must **fail**. The other host services don't exist yet — k3s `:6443` lands
+in Phase 2, Frigate `:5000` in Phase 4 — so `nc` to them fails because nothing listens,
+not because the firewall blocks it; that's not a real test. For a definitive check now,
+run a throwaway listener bound to all interfaces on the host
+(`python3 -m http.server 8000`) and confirm the camera segment cannot reach it, then
+stop it. **Re-validate `:6443` (Phase 2) and `:5000` (Phase 4) once those services are
+actually up** — see the validation gate.
+After the rules are live, confirm the drop logging works: trigger a blocked connection
+from the segment and watch for the `cam-drop-*` prefixes in `journalctl -k -f`.
+
+**1.1b Intra-segment isolation is a switch responsibility, not the host's.** These rules
+only govern traffic that reaches the node; two cameras on the same L2 segment talk
+directly through the switch and never hit it. A compromised camera could pivot to its
+peers unless the switch isolates the camera ports from each other. The camera segment
+runs on a **Cisco Catalyst 3850**, which supports this — configure **protected ports**
+(`switchport protected` on each camera access port, plus `switchport block unicast`/
+`block multicast` so unknown-unicast/flood traffic isn't leaked between them). A blanket
+PVLAN is the heavier alternative if you later need more than protected ports gives.
+
+⚑ This is a **blocker, not a follow-up**: network isolation must be complete before any
+camera is connected and before Frigate goes live (Phase 4c). Validate by attempting a
+ping or port scan **between two cameras on the segment** — it must fail. Until this is
+done the posture is "no internet, no LAN reach, but cameras are *not* isolated from one
+another," which is not an acceptable state to run cameras in.
+
+LAN→camera access (e.g. a camera web UI for setup) goes through the node, since direct
+forwarding is dropped. Tunnel the camera's HTTP port to your workstation over SSH:
+```bash
+# reach camera 192.168.104.51's web UI at http://localhost:8080 on your laptop
+ssh -L 8080:192.168.104.51:80 charlie@172.17.1.5
+```
+The host can route to the camera segment (it owns `192.168.104.1`); only *forwarded*
+LAN→camera traffic is blocked, so the SSH-forwarded connection originating on the host
+works. Tear down the tunnel when done — no standing rule is added.
 
 **1.2 Camera DHCP (dnsmasq).** Bind dnsmasq to NIC2 and serve `192.168.104.0/24`
 (host-level service, not a pod). Give cameras stable leases so Frigate can target
@@ -108,14 +182,59 @@ known addresses.
 ```
 # /etc/dnsmasq.d/cameras.conf (excerpt)
 interface=enp87s0
-bind-interfaces
+bind-dynamic            # binds as the interface appears; survives a boot with no
+                        # carrier on NIC2 (it's optional:true). bind-interfaces would
+                        # fail to start if no camera is connected at boot.
+port=0                  # DHCP only — no DNS. Frigate targets cameras by IP, and a
+                        # resolver here would be an outbound beacon path for a
+                        # compromised camera (queries forwarded via the host's WAN).
 dhcp-range=192.168.104.50,192.168.104.200,12h
+dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up leases
+# Hand cameras the host as their NTP server (option 42) — BEST EFFORT ONLY. Amcrest/
+# Dahua cameras generally ignore option 42 and use the NTP server set in their own web
+# UI, so this is a backstop, not the source of truth; the authoritative NTP config is
+# set per-camera in 1.3. Deliberately NO router option (option 3): an isolated segment
+# needs no default route, and withholding it stops cameras even attempting off-segment
+# traffic (the forward drop is the backstop).
+dhcp-option=option:ntp-server,192.168.104.1
 # dhcp-host=AA:BB:CC:DD:EE:FF,192.168.104.51   # pin per-camera as needed
 ```
 ⚑ Confirm a camera receives a lease in range.
 
-**1.3 NAS throughput.** ⚑ `iperf3 -c media.nfs.service.matrix` should show ~2.3 Gbps. Diagnose before
-proceeding — Plex and Frigate both depend on it.
+**1.3 Camera NTP (chrony).** Cameras have no internet, so they need a local time source
+or their clocks drift and recording timestamps/event correlation in Frigate go wrong.
+Serve NTP from the host on NIC2 only (chrony is already the system clock daemon on
+Ubuntu 24.04):
+```
+# /etc/chrony/conf.d/cameras.conf
+allow 192.168.104.0/24      # answer NTP from the camera segment
+# bind only on NIC2 so we don't expose NTP on the LAN/WAN:
+bindaddress 192.168.104.1
+```
+The matching `udp dport 123` allow rule is already in the 1.1 input chain. Restart
+chrony. ⚑ From a camera-segment device, `chronyc -h 192.168.104.1 tracking` (or any
+NTP query) succeeds; from the LAN it must **not** (bind is NIC2-only).
+
+`bindaddress` requires `192.168.104.1` to already exist on `enp87s0` when chrony starts.
+NIC2 is `optional: true` and may have no carrier at boot; Netplan normally assigns the
+static address regardless of carrier, but confirm with `ip addr show enp87s0` (no camera
+connected) that the address is present — if it isn't, chrony fails to bind. (dnsmasq
+sidesteps this with `bind-dynamic`; chrony's `bindaddress` does not.)
+
+**Configure NTP on each camera directly — this is the source of truth, not DHCP.** In
+the Amcrest web UI: Setup → System → General → Date & Time → enable NTP, set the server
+to `192.168.104.1`. Without internet the cameras have no other time source, and they
+generally ignore the DHCP option 42 hint, so a misconfigured camera will silently drift
+and corrupt Frigate event timestamps. ⚑ After setup, confirm each camera's clock is in
+sync (visible in the camera UI / on Frigate's first snapshots).
+
+**1.4 NAS throughput.** ⚑ Run `iperf3 -s` on the NAS (it's a Linux box), then
+`iperf3 -c media.nfs.service.matrix` from the node. **Current expectation ~940 Mbps**,
+not line rate: the node reaches the NAS through a 1 GbE switch for now, so 2.5GbE
+can't be realized end-to-end until that switch is upgraded — don't chase the 2.3 Gbps
+figure yet. iperf3 measures raw TCP; the metric Plex/Frigate actually care about is
+NFS read/write, so once the mounts are up (Phase 0.4) also spot-check with `fio`/`dd`
+over `/mnt/media`. Diagnose anything well under ~940 Mbps before proceeding.
 
 ---
 
@@ -237,8 +356,12 @@ Do **not** start Phase 3.5/4 until all of these are green:
 - [ ] NFS mounts readable from a test pod
 - [ ] `/dev/dri/renderD128` visible in a **privileged test pod** (Quick Sync path)
 - [ ] Coral device visible in a privileged test pod
-- [ ] Camera segment **cannot** reach internet or LAN (ping test)
+- [ ] Camera segment **cannot** reach internet or LAN (ping `8.8.8.8` + a `172.17.1.x` host both fail)
+- [ ] Camera segment **cannot** reach host services — `nc -vz 192.168.104.1 22` fails (SSH is listening, so this is a real test); `:6443` now also fails with k3s up. Re-check `:5000` after Frigate (Phase 4c)
+- [ ] `cam-drop-*` log entries appear in `journalctl -k` when a blocked connection is attempted from the segment
+- [ ] Two cameras on the segment **cannot** reach each other (switch protected ports, 1.1b)
 - [ ] dnsmasq issues a camera lease in range
+- [ ] Camera segment gets NTP from the host (`192.168.104.1`); NTP is **not** answerable from the LAN; each camera's own NTP is set to `192.168.104.1` and its clock is in sync
 - [ ] Tailscale operator connected; `*.worm.run` resolves over the Tailnet
 - [ ] SOPS decrypt works (reconcile a Kustomization containing an encrypted Secret)
 - [ ] NUT active and reporting battery status
