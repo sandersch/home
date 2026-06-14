@@ -1,5 +1,5 @@
 # The password is redacted — restore it from the password manager and keep it identical
-# to the password on the MONITOR line in upsmon.conf. See host/README.md (NUT secret note).
+# to the password on the MONITOR line in upsmon.conf. See host/minis/README.md (NUT secret note).
 [upsmon]
     password = __REPLACE_WITH_UPSMON_PASSWORD__
     upsmon master

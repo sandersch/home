@@ -38,7 +38,7 @@ Set the hostname to **`minis`** (`sudo hostnamectl set-hostname minis`) — the 
 name k3s derives from it is load-bearing: every app PV pins `nodeAffinity` to
 `kubernetes.io/hostname: minis`, so a mismatched hostname leaves every app PVC
 `Pending` (see 2.1). Create a non-root sudo user (`charlie`). Harden SSH per
-[`host/etc/ssh/sshd_config.d/10-homelab.conf`](../host/etc/ssh/sshd_config.d/10-homelab.conf):
+[`host/minis/etc/ssh/sshd_config.d/10-homelab.conf`](../host/minis/etc/ssh/sshd_config.d/10-homelab.conf):
 key-only auth (`PasswordAuthentication no`) and no root login. Copy your key up
 (`ssh-copy-id charlie@172.17.1.5`) **before** disabling passwords, then
 `sudo systemctl restart ssh` and confirm a key login works in a second session before
@@ -55,10 +55,10 @@ config pins these to the friendly names **`lan0`** and **`cam0`** by MAC
 `enp2s0f0np0`/`enp2s0f1np1`. Also disable cloud-init's network rendering or it
 regenerates the installer's DHCP stub on reboot.
 
-→ Apply [`host/etc/netplan/00-installer-config.yaml`](../host/etc/netplan/00-installer-config.yaml)
+→ Apply [`host/minis/etc/netplan/00-installer-config.yaml`](../host/minis/etc/netplan/00-installer-config.yaml)
 (NIC1 static `172.17.1.5/24`; NIC2 `192.168.104.1/24` plus the `192.168.1.2/24`
 factory-default-camera alias, with `optional: true` so a carrierless NIC2 can't block
-boot) and [`host/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg`](../host/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg).
+boot) and [`host/minis/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg`](../host/minis/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg).
 Netplan must be mode `600`. Then `sudo netplan generate && sudo netplan apply` and
 confirm both interfaces are up.
 
@@ -78,23 +78,23 @@ rfkill block wifi           # WiFi (wlp89s0) is unused; block it to shrink attac
 ```
 If IOMMU is needed for passthrough, add `intel_iommu=on` to the kernel cmdline.
 
-**0.4 NFS mounts.** Append [`host/fstab.d/media-nfs.fstab`](../host/fstab.d/media-nfs.fstab)
+**0.4 NFS mounts.** Append [`host/minis/fstab.d/media-nfs.fstab`](../host/minis/fstab.d/media-nfs.fstab)
 to `/etc/fstab` (append, don't replace — `/etc/fstab` holds disk-specific root/boot
 UUIDs), then `sudo mount -a` and verify `/mnt/media`. `nofail` is essential — a NAS
 outage at boot must not block k3s. Additional mounts (`/mnt/frigate`, `/mnt/games`) will
 be added in Phase 4 when the apps that need them are configured.
 
-**0.5 UPS via NUT.** Apply the configs in [`host/etc/nut/`](../host/etc/nut/) (`nut.conf`,
+**0.5 UPS via NUT.** Apply the configs in [`host/minis/etc/nut/`](../host/minis/etc/nut/) (`nut.conf`,
 `ups.conf`, `upsd.conf`, `upsmon.conf`, `upsd.users`; mode `640 root:nut`). The driver
 (`usbhid-ups`) and model (`CyberPower CP1500`) are specific to this host's UPS. The
 `upsmon`/`upsd` password is **redacted** in the repo — restore it from the password
-manager, identical in both files (see [host/README.md](../host/README.md#nut-secret-note-important)).
+manager, identical in both files (see [host/minis/README.md](../host/minis/README.md#nut-secret-note-important)).
 Enable the stack (`sudo systemctl enable --now nut-driver-enumerator nut-server nut-monitor`).
 NUT is host-level and must start **before** k3s so the clean-shutdown hook works even if
 the cluster is degraded.
 
 **0.6 udev rules for the Coral.** Apply
-[`host/etc/udev/rules.d/99-coral.rules`](../host/etc/udev/rules.d/99-coral.rules) to give
+[`host/minis/etc/udev/rules.d/99-coral.rules`](../host/minis/etc/udev/rules.d/99-coral.rules) to give
 the device stable, non-root permissions (`MODE=0666`, `GROUP=plugdev`), then
 `sudo udevadm control --reload-rules && sudo udevadm trigger`. (The Coral enumerates
 under two USB IDs — before and after its firmware loads — so the rule matches both; the

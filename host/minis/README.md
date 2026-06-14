@@ -1,17 +1,17 @@
 # Host configuration files
 
 Canonical copies of the **host-level** config written during the manual phases
-([build-plan.md](../docs/build-plan.md) Phases 0–1). These are not applied to the
+([build-plan.md](../../docs/build-plan.md) Phases 0–1). These are not applied to the
 cluster — they configure the Ubuntu host itself, below k3s. The build plan references
 these files instead of inlining the config, so this directory is the source of truth.
 
-Files under `etc/` **mirror their on-disk path** (`host/etc/foo` → `/etc/foo`), so a
+Files under `etc/` **mirror their on-disk path** (`host/minis/etc/foo` → `/etc/foo`), so a
 restore is a copy. `fstab.d/` is the one exception — its contents are *appended* to
 `/etc/fstab`, never used to replace it (see Phase 0.4 below).
 
 ## Restoring from scratch
 
-Install the OS per [build-plan.md Phase 0.1](../docs/build-plan.md#phase-0--os-baseline-)
+Install the OS per [build-plan.md Phase 0.1](../../docs/build-plan.md#phase-0--os-baseline-)
 (partition layout, user, SSH), then drop these files into place and apply each, in
 phase order. All paths are owned by `root`; set the perms noted per file.
 
@@ -93,4 +93,4 @@ before Frigate (4c). Add them here as cameras are provisioned. See the TODO in t
 
 These are the source of truth, but they're hand-synced with the host — there's no
 automated apply. After changing host config, update the matching file here (or pull it
-back with `scp minis:/etc/... host/etc/...`) so a future restore reflects reality.
+back with `scp minis:/etc/... host/minis/etc/...`) so a future restore reflects reality.

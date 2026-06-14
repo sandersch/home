@@ -68,9 +68,10 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   ├── migration-runbook.md
 │   └── operations.md
 ├── host/                      # canonical host config for the manual phases (0–1);
-│   ├── README.md              #   files under etc/ mirror on-disk paths. NOT cluster-
-│   ├── etc/                   #   applied — this is the host below k3s. Source of truth;
-│   └── fstab.d/               #   build-plan.md points here instead of inlining config
+│   └── minis/                 #   one subdirectory per host (minis = the MS-01)
+│       ├── README.md          #   files under etc/ mirror on-disk paths. NOT cluster-
+│       ├── etc/               #   applied — this is the host below k3s. Source of truth;
+│       └── fstab.d/           #   build-plan.md points here instead of inlining config
 ├── clusters/
 │   └── minis/
 │       ├── flux-system/       # created by `flux bootstrap`; do not hand-edit
