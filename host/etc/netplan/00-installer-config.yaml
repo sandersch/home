@@ -1,14 +1,23 @@
 network:
   version: 2
   ethernets:
-    enp88s0:                     # NIC1 — primary LAN
+    # Interfaces are pinned to friendly names by MAC via match/set-name. netplan
+    # emits a systemd .link file so udev renames the NIC before addressing. Names
+    # are deliberately NOT eth0/eth1: those live in the kernel's own naming
+    # namespace and racing it can fail the rename. lan0/cam0 are role-named and
+    # race-free. The MACs are this host's two 2.5GbE ports (the 10Gb SFP+ are unused).
+    lan0:                          # NIC1 — primary LAN
+      match: { macaddress: "38:05:25:35:fb:d3" }
+      set-name: lan0
       addresses: [172.17.1.5/24]
       routes: [{ to: default, via: 172.17.1.1 }]
       nameservers: { addresses: [172.17.1.1] }
       dhcp4: false
-    enp87s0:                     # NIC2 — camera segment
+    cam0:                          # NIC2 — camera segment
+      match: { macaddress: "38:05:25:35:fb:d2" }
+      set-name: cam0
       addresses:
-        - 192.168.104.1/24       # the live segment; dnsmasq serves leases here
-        - 192.168.1.2/24         # alias to reach a factory-default camera at .108
+        - 192.168.104.1/24         # the live segment; dnsmasq serves leases here
+        - 192.168.1.2/24           # alias to reach a factory-default camera at .108
       dhcp4: false
-      optional: true             # no carrier until cameras/switch arrive; do not block boot
+      optional: true               # no carrier until cameras/switch arrive; do not block boot

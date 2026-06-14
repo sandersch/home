@@ -26,9 +26,13 @@ SSH login.
 
 **0.2 Static networking (NIC1 first).** Set NIC1 to a static IP via Netplan before
 anything else so the address can't shift mid-bootstrap. Interface names confirmed on
-the installed node: the two 2.5GbE ports are `enp88s0` (NIC1) and `enp87s0` (NIC2);
-the unused 10G SFP+ ports are `enp2s0f0np0`/`enp2s0f1np1`. Also disable cloud-init's
-network rendering or it regenerates the installer's DHCP stub on reboot.
+the installed node: the kernel names the two 2.5GbE ports `enp88s0` (NIC1,
+MAC `38:05:25:35:fb:d3`) and `enp87s0` (NIC2, MAC `38:05:25:35:fb:d2`); the netplan
+config pins these to the friendly names **`lan0`** and **`cam0`** by MAC
+(`match`/`set-name`), which all later config references. The rename lands on reboot —
+`netplan apply` cannot rename a live, addressed link. The unused 10G SFP+ ports are
+`enp2s0f0np0`/`enp2s0f1np1`. Also disable cloud-init's network rendering or it
+regenerates the installer's DHCP stub on reboot.
 
 → Apply [`host/etc/netplan/00-installer-config.yaml`](../host/etc/netplan/00-installer-config.yaml)
 (NIC1 static `172.17.1.5/24`; NIC2 `192.168.104.1/24` plus the `192.168.1.2/24`
@@ -101,22 +105,22 @@ table inet camera_isolation {
     # over the rate would skip it and hit `policy accept`. Logging a compromised/chatty
     # camera's blocked traffic is the whole point of the segment; rate-limit so a camera
     # in a retry loop can't flood the journal.
-    iifname "enp87s0" limit rate 10/minute log prefix "cam-drop-fwd-in "  # camera→anywhere
-    iifname "enp87s0" counter drop
-    oifname "enp87s0" limit rate 10/minute log prefix "cam-drop-fwd-out " # LAN→camera (host-only access)
-    oifname "enp87s0" counter drop
+    iifname "cam0" limit rate 10/minute log prefix "cam-drop-fwd-in "  # camera→anywhere
+    iifname "cam0" counter drop
+    oifname "cam0" limit rate 10/minute log prefix "cam-drop-fwd-out " # LAN→camera (host-only access)
+    oifname "cam0" counter drop
   }
   chain input {
     type filter hook input priority 0; policy accept;
-    iifname "enp87s0" ct state established,related accept   # RTSP/stream replies
-    iifname "enp87s0" udp dport 67 accept                   # DHCP (dnsmasq)
-    iifname "enp87s0" udp dport 123 accept                  # NTP (chrony, see 1.3)
-    iifname "enp87s0" icmp type echo-request accept         # ping diagnostics ONLY (v4); a broad
+    iifname "cam0" ct state established,related accept   # RTSP/stream replies
+    iifname "cam0" udp dport 67 accept                   # DHCP (dnsmasq)
+    iifname "cam0" udp dport 123 accept                  # NTP (chrony, see 1.3)
+    iifname "cam0" icmp type echo-request accept         # ping diagnostics ONLY (v4); a broad
                                                             #   `ip protocol icmp` allow would also let a
                                                             #   camera send the host ICMP redirects. Host→camera
                                                             #   ping replies still pass via `established`.
-    iifname "enp87s0" limit rate 10/minute log prefix "cam-drop-input "  # all other camera→host
-    iifname "enp87s0" counter drop
+    iifname "cam0" limit rate 10/minute log prefix "cam-drop-input "  # all other camera→host
+    iifname "cam0" counter drop
   }
 }
 ```
@@ -126,7 +130,7 @@ camera falls to the final drop. To remove the IPv6 surface entirely rather than 
 that, disable it on NIC2:
 ```
 # /etc/sysctl.d/99-camera-no-ipv6.conf
-net.ipv6.conf.enp87s0.disable_ipv6 = 1
+net.ipv6.conf.cam0.disable_ipv6 = 1
 ```
 `sudo sysctl --system` to apply.
 `policy accept` on both chains is intentional (see [architecture.md](./architecture.md#networking));
@@ -192,7 +196,7 @@ segment:
 ssh -L 8080:192.168.1.108:80 charlie@172.17.1.5   # camera default UI at localhost:8080
 ```
 This is a one-at-a-time recovery path (every factory camera is `192.168.1.108`), not the
-normal flow. The nftables rules need no change — they are `iifname "enp87s0"`-scoped, so
+normal flow. The nftables rules need no change — they are `iifname "cam0"`-scoped, so
 the alias subnet is already covered.
 
 **1.2 Camera DHCP (dnsmasq).** Bind dnsmasq to NIC2 and serve `192.168.104.0/24`
@@ -200,7 +204,7 @@ the alias subnet is already covered.
 known addresses.
 ```
 # /etc/dnsmasq.d/cameras.conf (excerpt)
-interface=enp87s0
+interface=cam0
 bind-dynamic            # binds as the interface appears; survives a boot with no
                         # carrier on NIC2 (it's optional:true). bind-interfaces would
                         # fail to start if no camera is connected at boot.
@@ -250,7 +254,7 @@ local stratum 10            # serve the host's own clock as a fallback so the se
                             # to serve, and the cameras have no other time source → they drift)
 ```
 chrony listens on all interfaces (default) — we deliberately do **not** `bindaddress`
-to NIC2. Binding to `192.168.104.1` would require that address to exist on `enp87s0`
+to NIC2. Binding to `192.168.104.1` would require that address to exist on `cam0`
 when chrony starts, but NIC2 is `optional: true` and may have no carrier at boot, so
 the bind could fail and silently leave the segment unserved (dnsmasq sidesteps this with
 `bind-dynamic`; chrony has no lazy-bind equivalent). The cost of listening everywhere is

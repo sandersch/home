@@ -30,8 +30,17 @@ phase order. All paths are owned by `root`; set the perms noted per file.
 | `fstab.d/media-nfs.fstab` | append to `/etc/fstab` | — | `sudo mount -a` then verify `/mnt/media` |
 
 `netplan` **requires `600`** or it refuses the file with a permissions warning. The
-secondary `192.168.1.2/24` on `enp87s0` only appears once NIC2 has carrier
+secondary `192.168.1.2/24` on `cam0` only appears once NIC2 has carrier
 (`optional: true`); that's expected.
+
+**Interface names** (`lan0` = NIC1/LAN, `cam0` = NIC2/camera) are pinned by MAC in the
+netplan `match`/`set-name` block, which emits a systemd `.link` rule udev applies at
+boot. The MACs are this host's two 2.5GbE ports. Note `netplan apply` **cannot rename a
+live, addressed interface** — on first apply (or if the NICs are swapped) the rename
+takes effect after a **reboot**; until then the kernel `enpXXsY` names persist. All
+downstream host config (`nftables.conf`, `dnsmasq.d/cameras.conf`,
+`sysctl.d/99-camera-no-ipv6.conf`, `chrony/conf.d/cameras.conf`) references `cam0`, so
+these names are now load-bearing — renaming again means sweeping all four in lockstep.
 
 **Phase 0.4 (fstab):** append the line(s) in `fstab.d/*.fstab` to the existing
 `/etc/fstab` — do not overwrite the file, which contains root/boot UUIDs unique to the
