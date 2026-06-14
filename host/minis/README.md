@@ -6,8 +6,8 @@ cluster — they configure the Ubuntu host itself, below k3s. The build plan ref
 these files instead of inlining the config, so this directory is the source of truth.
 
 Files under `etc/` **mirror their on-disk path** (`host/minis/etc/foo` → `/etc/foo`), so a
-restore is a copy. `fstab.d/` is the one exception — its contents are *appended* to
-`/etc/fstab`, never used to replace it (see Phase 0.4 below).
+restore is a copy. `etc/fstab` is captured in full, but read the Phase 0.4 note before
+restoring it — the `/boot/efi` line carries a disk-specific UUID.
 
 ## Restoring from scratch
 
@@ -28,7 +28,7 @@ phase order. All paths are owned by `root`; set the perms noted per file.
 | `etc/nut/upsd.conf` | `/etc/nut/upsd.conf` | `root:nut` `640` | " |
 | `etc/nut/upsmon.conf` | `/etc/nut/upsmon.conf` | `root:nut` `640` | " (**redacted secret**) |
 | `etc/nut/upsd.users` | `/etc/nut/upsd.users` | `root:nut` `640` | " (**redacted secret**) |
-| `fstab.d/media-nfs.fstab` | append to `/etc/fstab` | — | `sudo mount -a` then verify `/mnt/media` |
+| `etc/fstab` | `/etc/fstab` | `root:root` `644` | reconcile the `/boot/efi` UUID with this disk (see Phase 0.4), then `sudo mount -a` and verify `/mnt/media` |
 
 **SSH (key-only):** `sshd_config.d/10-homelab.conf` sets `PasswordAuthentication no` and
 `PermitRootLogin no`. On restore, **copy your public key up and confirm a key login works
@@ -48,10 +48,13 @@ downstream host config (`nftables.conf`, `dnsmasq.d/cameras.conf`,
 `sysctl.d/99-camera-no-ipv6.conf`, `chrony/conf.d/cameras.conf`) references `cam0`, so
 these names are now load-bearing — renaming again means sweeping all four in lockstep.
 
-**Phase 0.4 (fstab):** append the line(s) in `fstab.d/*.fstab` to the existing
-`/etc/fstab` — do not overwrite the file, which contains root/boot UUIDs unique to the
-installed disk. Only `/mnt/media` is mounted at this stage; `/mnt/frigate` and
-`/mnt/games` are added in Phase 4 with the apps that need them.
+**Phase 0.4 (fstab):** `etc/fstab` is the full file from this host. The root/`var`/`opt`
+entries are LVM device paths (`/dev/vg0/*`) that the Phase 0.1 partition layout
+reproduces, so they restore as-is — but the `/boot/efi` line is keyed by a
+**disk-specific UUID** (`/dev/disk/by-uuid/...`) generated at install time. After a
+fresh install, replace that UUID with this disk's EFI partition UUID (`blkid`) before
+relying on the file, or the boot mount fails. Only `/mnt/media` is mounted at this
+stage; `/mnt/frigate` and `/mnt/games` are added in Phase 4 with the apps that need them.
 
 **Phase 0.5 (NUT):** the configs are the *effective* (non-comment) settings, not a
 byte-for-byte copy of the stock files. After placing them, enable the stack:

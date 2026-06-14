@@ -78,11 +78,14 @@ rfkill block wifi           # WiFi (wlp89s0) is unused; block it to shrink attac
 ```
 If IOMMU is needed for passthrough, add `intel_iommu=on` to the kernel cmdline.
 
-**0.4 NFS mounts.** Append [`host/minis/fstab.d/media-nfs.fstab`](../host/minis/fstab.d/media-nfs.fstab)
-to `/etc/fstab` (append, don't replace — `/etc/fstab` holds disk-specific root/boot
-UUIDs), then `sudo mount -a` and verify `/mnt/media`. `nofail` is essential — a NAS
-outage at boot must not block k3s. Additional mounts (`/mnt/frigate`, `/mnt/games`) will
-be added in Phase 4 when the apps that need them are configured.
+**0.4 NFS mounts.** [`host/minis/etc/fstab`](../host/minis/etc/fstab) is the full fstab
+from this host. The root/`var`/`opt` entries are LVM device paths the Phase 0.1 layout
+reproduces, but the `/boot/efi` line carries a disk-specific UUID — reconcile it with
+this disk (`blkid`) before use. Restore the file (or just append the
+`media.nfs.service.matrix:/mnt/media` line on an existing install), then `sudo mount -a`
+and verify `/mnt/media`. `nofail` is essential — a NAS outage at boot must not block k3s.
+Additional mounts (`/mnt/frigate`, `/mnt/games`) will be added in Phase 4 when the apps
+that need them are configured.
 
 **0.5 UPS via NUT.** Apply the configs in [`host/minis/etc/nut/`](../host/minis/etc/nut/) (`nut.conf`,
 `ups.conf`, `upsd.conf`, `upsmon.conf`, `upsd.users`; mode `640 root:nut`). The driver
