@@ -11,6 +11,17 @@ Legend: 🔧 manual one-time · ⚙️ scripted · 📦 GitOps (git commit). ⚑
 
 ## Phase 0 — OS baseline 🔧
 
+**0.0 BIOS / firmware (one-time, before install).** These can't be set from the OS and
+silently break passthrough if wrong:
+- **VT-d / IOMMU enabled** — the `intel_iommu=on` cmdline in 0.3 is a no-op if VT-d is
+  off in firmware. Required for clean device passthrough.
+- **iGPU enabled** (not disabled/headless) — Quick Sync transcoding needs `/dev/dri`
+  to exist; confirm in 0.3.
+- **Secure Boot off** (or be ready to enrol keys) — simplest path for any out-of-tree
+  module; revisit only if you specifically want it on.
+- Flash to a current MS-01 BIOS while you're in here — firmware fixes for this board's
+  NIC/thermal behaviour ship regularly, and reflashing later means another reboot.
+
 **0.1 Install Ubuntu 24.04 LTS** (server, no GUI; chosen over 26.04 — too new for
 the one production node, and the MS-01's hardware is fully supported). No full-disk
 encryption — unattended reboot after a UPS shutdown must work. No swap partition
@@ -21,8 +32,18 @@ single LVM PV on the rest of the disk → VG `vg0` with LVs `root` 100 GB ext4 (
 `var` 100 GB ext4 (`/var`) · `opt` 100 GB btrfs (`/opt`) · ~650 GB left
 **unallocated in the VG**. Do *not* pre-create filesystems
 for Frigate cache or SABnzbd staging — those are TopoLVM-provisioned PVCs in
-Phase 4, carved from the VG free space. Create a non-root sudo user; disable root
-SSH login.
+Phase 4, carved from the VG free space.
+
+Set the hostname to **`minis`** (`sudo hostnamectl set-hostname minis`) — the node
+name k3s derives from it is load-bearing: every app PV pins `nodeAffinity` to
+`kubernetes.io/hostname: minis`, so a mismatched hostname leaves every app PVC
+`Pending` (see 2.1). Create a non-root sudo user (`charlie`). Harden SSH per
+[`host/etc/ssh/sshd_config.d/10-homelab.conf`](../host/etc/ssh/sshd_config.d/10-homelab.conf):
+key-only auth (`PasswordAuthentication no`) and no root login. Copy your key up
+(`ssh-copy-id charlie@172.17.1.5`) **before** disabling passwords, then
+`sudo systemctl restart ssh` and confirm a key login works in a second session before
+closing the first — SSH is the sanctioned tunnel path for camera web UIs (1.1), so it's
+reachable on LAN + Tailnet and worth locking down.
 
 **0.2 Static networking (NIC1 first).** Set NIC1 to a static IP via Netplan before
 anything else so the address can't shift mid-bootstrap. Interface names confirmed on
@@ -45,9 +66,15 @@ confirm both interfaces are up.
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y curl git vim nfs-common sqlite3 jq age iperf3 nftables dnsmasq nut chrony
+swapon --show               # MUST be empty — kubelet refuses swap. The installer often
+                            #   creates /swap.img even with no swap partition; if present:
+                            #   sudo swapoff -a && sudo rm /swap.img, then remove its
+                            #   /etc/fstab line so it stays off across reboots.
 ls -la /dev/dri/            # expect cardN + renderD128 (Quick Sync; card0 on this node)
 lsmod | grep i915           # i915 driver loaded; if not, add to /etc/modules + reboot
 getent group render         # render GID — needed for the Plex pod. On this node: 993
+rfkill block wifi           # WiFi (wlp89s0) is unused; block it to shrink attack surface.
+                            #   `rfkill` state persists across reboots on Ubuntu.
 ```
 If IOMMU is needed for passthrough, add `intel_iommu=on` to the kernel cmdline.
 
@@ -67,10 +94,13 @@ NUT is host-level and must start **before** k3s so the clean-shutdown hook works
 the cluster is degraded.
 
 **0.6 udev rules for the Coral.** Apply
-[`host/etc/udev/rules.d/99-coral.rules`](../host/etc/udev/rules.d/99-coral.rules) to pin
-the device to a stable path, then `sudo udevadm control --reload-rules && sudo udevadm
-trigger`. (The Coral enumerates under two USB IDs — before and after its firmware loads
-— so the rule matches both.)
+[`host/etc/udev/rules.d/99-coral.rules`](../host/etc/udev/rules.d/99-coral.rules) to give
+the device stable, non-root permissions (`MODE=0666`, `GROUP=plugdev`), then
+`sudo udevadm control --reload-rules && sudo udevadm trigger`. (The Coral enumerates
+under two USB IDs — before and after its firmware loads — so the rule matches both; the
+rule sets permissions, it does not create a symlink.) Frigate reaches the device via a
+`/dev/bus/usb` hostPath in Phase 4c — these permissions are what let the container open
+it without running fully privileged.
 
 **0.7 Router DNS.** Add the wildcard record `*.worm.run → 172.17.1.10` (the MetalLB
 ingress IP from Phase 2.2, **not** the node's own `172.17.1.5`). Test true
@@ -257,9 +287,9 @@ chrony listens on all interfaces (default) — we deliberately do **not** `binda
 to NIC2. Binding to `192.168.104.1` would require that address to exist on `cam0`
 when chrony starts, but NIC2 is `optional: true` and may have no carrier at boot, so
 the bind could fail and silently leave the segment unserved (dnsmasq sidesteps this with
-`bind-dynamic`; chrony has no lazy-bind equivalent). The cost of listening everywhere is
-only that the trusted LAN can also query NTP — harmless, and not worth the boot-order
-fragility. The matching `udp dport 123` allow rule is already in the 1.1 input chain.
+`bind-dynamic`; chrony has no lazy-bind equivalent). Listening everywhere is harmless:
+`allow 192.168.104.0/24` only authorizes the camera subnet, so a request arriving on the
+LAN reaches the socket but is refused — not worth the boot-order fragility of binding. The matching `udp dport 123` allow rule is already in the 1.1 input chain.
 Restart chrony. ⚑ From a camera-segment device, `chronyc -h 192.168.104.1 tracking`
 (or any NTP query) succeeds.
 
@@ -286,7 +316,9 @@ over `/mnt/media`. Diagnose anything well under ~940 Mbps before proceeding.
 ```bash
 curl -sfL https://get.k3s.io | sh -s - \
   --disable traefik --disable servicelb \
-  --node-label kubernetes.io/hostname=minis
+  --node-name minis          # node name drives the kubelet-set kubernetes.io/hostname
+                             #   label the PV nodeAffinity pins to; requires hostname=minis (0.1).
+                             #   Do NOT override that label via --node-label — it conflicts.
 kubectl get nodes            # minis Ready
 ```
 

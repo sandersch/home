@@ -19,6 +19,7 @@ phase order. All paths are owned by `root`; set the perms noted per file.
 
 | Repo file | Destination | Owner / perms | Apply |
 |---|---|---|---|
+| `etc/ssh/sshd_config.d/10-homelab.conf` | same | `root:root` `644` | copy your key up first, then `sudo systemctl restart ssh` (**key-only auth** — see note below) |
 | `etc/netplan/00-installer-config.yaml` | `/etc/netplan/00-installer-config.yaml` | `root:root` **`600`** | `sudo netplan generate && sudo netplan apply` |
 | `etc/cloud/cloud.cfg.d/99-disable-network-config.cfg` | same | `root:root` `644` | (takes effect next boot; stops cloud-init re-rendering netplan) |
 | `etc/udev/rules.d/99-coral.rules` | same | `root:root` `644` | `sudo udevadm control --reload-rules && sudo udevadm trigger` |
@@ -28,6 +29,11 @@ phase order. All paths are owned by `root`; set the perms noted per file.
 | `etc/nut/upsmon.conf` | `/etc/nut/upsmon.conf` | `root:nut` `640` | " (**redacted secret**) |
 | `etc/nut/upsd.users` | `/etc/nut/upsd.users` | `root:nut` `640` | " (**redacted secret**) |
 | `fstab.d/media-nfs.fstab` | append to `/etc/fstab` | — | `sudo mount -a` then verify `/mnt/media` |
+
+**SSH (key-only):** `sshd_config.d/10-homelab.conf` sets `PasswordAuthentication no` and
+`PermitRootLogin no`. On restore, **copy your public key up and confirm a key login works
+before restarting `ssh`** — otherwise the restart locks you out. Keep a second session
+open during the restart.
 
 `netplan` **requires `600`** or it refuses the file with a permissions warning. The
 secondary `192.168.1.2/24` on `cam0` only appears once NIC2 has carrier

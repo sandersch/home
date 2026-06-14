@@ -42,7 +42,7 @@ decision is wrong, raise it rather than silently diverging.
 | Secrets | **SOPS + age** | Flux-native decryption; no extra controller |
 | Ingress | ingress-nginx + MetalLB | Stable LB IP; hostname routing |
 | TLS | cert-manager + Let's Encrypt **DNS-01** | Real certs even for internal-only services |
-| DNS (internal) | Router wildcard `*.worm.run` → node IP | One record; ingress routes by host |
+| DNS (internal) | Router wildcard `*.worm.run` → MetalLB ingress IP (`172.17.1.10`, **not** the node's `.5`) | One record; ingress routes by host |
 | DNS (cameras) | **dnsmasq** host service on NIC2 subnet | DHCP for the isolated camera segment |
 | Remote access | **Tailnet + LAN only**, nothing public | Zero inbound exposure; Funnel for Plex later if needed |
 | VPN (downloads) | **Mullvad** via **Gluetun**, WireGuard | Strong privacy track record; provider is swappable |
