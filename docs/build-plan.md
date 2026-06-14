@@ -85,7 +85,12 @@ this disk (`blkid`) before use. Restore the file (or just append the
 `media.nfs.service.matrix:/mnt/media` line on an existing install), then `sudo mount -a`
 and verify `/mnt/media`. `nofail` is essential — a NAS outage at boot must not block k3s.
 Additional mounts (`/mnt/frigate`, `/mnt/games`) will be added in Phase 4 when the apps
-that need them are configured.
+that need them are configured. Completed downloads are *not* a separate export — SABnzbd
+hands off under `/mnt/media` so the download dir and the *arr library share one filesystem
+(hardlink/atomic-move imports). The NAS hostname `media.nfs.service.matrix` resolves via the
+router nameserver (`172.17.1.1`, set in 0.2) — there is no `/etc/hosts` fallback, so the
+boot-time mount depends on the router's DNS; confirm it resolves (`getent hosts
+media.nfs.service.matrix`) before `mount -a`.
 
 **0.5 UPS via NUT.** Apply the configs in [`host/minis/etc/nut/`](../host/minis/etc/nut/) (`nut.conf`,
 `ups.conf`, `upsd.conf`, `upsmon.conf`, `upsd.users`; mode `640 root:nut`). The driver
@@ -660,6 +665,11 @@ spec:
         - { name: sabnzbd-incomplete, persistentVolumeClaim: { claimName: sabnzbd-incomplete-pvc } }
         # NAS paths — NFS mounted on host via fstab (Phase 0.4); pods use hostPath, no NFS PVC
         - { name: media,     hostPath: { path: /mnt/media,           type: Directory } }
+        # SABnzbd's completed-download handoff lives under the SAME /mnt/media export, so the
+        # *arr library and the download dir are one filesystem — required for hardlink/atomic-move
+        # imports. Mount it at a path consistent with the *arrs (or set an *arr remote-path
+        # mapping) so they see SABnzbd's complete dir and the library on the same mount.
+        - { name: downloads, hostPath: { path: /mnt/media,           type: Directory } }
       # Every container sets its own requests/limits per the allocation table.
 ```
 Accepted caveats: any image bump or manifest change to **any** container recreates

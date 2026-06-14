@@ -144,7 +144,7 @@ The rule: **latency-sensitive state on local NVMe; bulk/regenerable data on NAS.
 | Radarr/Sonarr/Prowlarr | Config + SQLite | `/opt/<app>` | btrfs (NVMe) |
 | SABnzbd | Config + DB | `/opt/sabnzbd` | btrfs (NVMe) |
 | SABnzbd | Incomplete (staging) | `topolvm-scratch` PVC | ext4 LV (NVMe) |
-| SABnzbd | Complete (handoff) | NAS | NFS |
+| SABnzbd | Complete (handoff) | NAS, under `/mnt/media` (same export as the library — one filesystem, so *arr imports are hardlink/atomic-move) | NFS |
 | Overseerr | Request DB | `/opt/overseerr` | btrfs (NVMe) |
 | RomM | DB/metadata | `/opt/romm` | btrfs (NVMe) |
 | RomM | ROM library | NAS | NFS |
