@@ -228,7 +228,7 @@ and land on a `192.168.105.x` lease (reach them via the tunnel above). But a res
 static-default firmware, or a second-hand camera previously set static will instead sit
 at the factory `192.168.1.108` and ignore DHCP. NIC2 carries a secondary address
 (`192.168.1.2/24`, set in 0.2) precisely to reach those without a bench network — tunnel
-to the default address, enable DHCP + set NTP/credentials, then it rejoins the `104`
+to the default address, enable DHCP + set NTP/credentials, then it rejoins the `105`
 segment:
 ```bash
 ssh -L 8080:192.168.1.108:80 charlie@10.137.20.5   # camera default UI at localhost:8080
@@ -254,7 +254,7 @@ dhcp-range=192.168.105.50,192.168.105.99,12h    # DYNAMIC pool only; static rese
                         # can't collide with a transient lease. Split fixed up front — once cameras
                         # are pinned their IPs are baked into NTP/Frigate config.
 dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up leases
-# Only the 104 subnet gets a range. NIC2's 192.168.1.2/24 alias (for reaching a
+# Only the 105 subnet gets a range. NIC2's 192.168.1.2/24 alias (for reaching a
 # factory-default camera at .108, see 1.1) is intentionally NOT served DHCP — it's a
 # manual provisioning path, not part of the live segment.
 # Hand cameras the host as their NTP server (option 42) — BEST EFFORT ONLY. Amcrest/
