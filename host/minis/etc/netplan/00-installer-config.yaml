@@ -17,7 +17,7 @@ network:
       match: { macaddress: "38:05:25:35:fb:d2" }
       set-name: cam0
       addresses:
-        - 192.168.104.1/24         # the live segment; dnsmasq serves leases here
+        - 192.168.105.1/24         # the live segment; dnsmasq serves leases here
         - 192.168.1.2/24           # alias to reach a factory-default camera at .108
       dhcp4: false
       optional: true               # no carrier until cameras/switch arrive; do not block boot

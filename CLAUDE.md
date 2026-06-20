@@ -50,7 +50,7 @@ decision is wrong, raise it rather than silently diverging.
 | Storage (local) | **LVM under everything**; btrfs on `/opt`; **TopoLVM** for scratch | One VG: manual LVs for OS + `/opt` (btrfs snapshots + zstd); TopoLVM provisions enforced, resizable ext4 scratch LVs (Frigate cache, SABnzbd staging) from VG free space. Supersedes the earlier "no LVM" call — partition count + up-front sizing anxiety outweighed the abstraction overlap |
 | Backups | **Restic** → NAS nightly + **Backblaze B2** weekly | Cheap, deduplicating, offsite copy |
 | Alerting | **ntfy** (self-hosted) → phone push | Free, self-hosted, simple |
-| Camera segment addressing | **`192.168.104.0/24`, host at `.1`**, per-camera NTP target `192.168.104.1` | Frozen once cameras are provisioned: the subnet, the host's NIC2 address, and the NTP server are typed into each camera's web UI (1.3) and baked into DHCP/Frigate, so renumbering means hand-touching every camera. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
+| Camera segment addressing | **`192.168.105.0/24`, host at `.1`**, per-camera NTP target `192.168.105.1` | Frozen once cameras are provisioned: the subnet, the host's NIC2 address, and the NTP server are typed into each camera's web UI (1.3) and baked into DHCP/Frigate, so renumbering means hand-touching every camera. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
 
 Deferred / revisit later (see [operations.md](./docs/operations.md#follow-ups)):
 a possible second node, Tailscale Funnel for Plex, Immich.

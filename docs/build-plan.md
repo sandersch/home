@@ -56,7 +56,7 @@ config pins these to the friendly names **`lan0`** and **`cam0`** by MAC
 regenerates the installer's DHCP stub on reboot.
 
 → Apply [`host/minis/etc/netplan/00-installer-config.yaml`](../host/minis/etc/netplan/00-installer-config.yaml)
-(NIC1 static `10.137.20.5/24`; NIC2 `192.168.104.1/24` plus the `192.168.1.2/24`
+(NIC1 static `10.137.20.5/24`; NIC2 `192.168.105.1/24` plus the `192.168.1.2/24`
 factory-default-camera alias, with `optional: true` so a carrierless NIC2 can't block
 boot) and [`host/minis/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg`](../host/minis/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg).
 Netplan must be mode `600`. Then `sudo netplan generate && sudo netplan apply` and
@@ -124,7 +124,7 @@ chain drops everything a camera sends *to the host itself* except the few things
 segment legitimately needs — without it, the forward rules leave host services
 (`k3s :6443` and `kubelet :10250`, both bound to `0.0.0.0` by default; `SSH :22`; and
 every `hostNetwork` pod — Frigate, Plex, Home Assistant) reachable from a compromised
-camera on `192.168.104.1`. RTSP needs no allow rule: Frigate (the host) *initiates* to
+camera on `192.168.105.1`. RTSP needs no allow rule: Frigate (the host) *initiates* to
 the camera, so the camera's replies are `established` and the host's own egress to the
 camera is on the output hook, not forward.
 ```
@@ -174,7 +174,7 @@ net.ipv6.conf.cam0.disable_ipv6 = 1
 `policy accept` on both chains is intentional (see [architecture.md](./architecture.md#networking));
 the explicit drops do the work without breaking k3s's own nft chains. Enable nftables.
 ⚑ From a device on the camera segment, confirm you **cannot** ping `8.8.8.8` or any
-`10.137.20.0/24` host, and that ICMP to the host (`192.168.104.1`) still **succeeds**
+`10.137.20.0/24` host, and that ICMP to the host (`192.168.105.1`) still **succeeds**
 (the diagnostics allow). **Caveat — the forward-chain drop is not actually exercised at
 this stage:** `net.ipv4.ip_forward` is `0` on stock Ubuntu and only gets flipped to `1`
 by k3s in Phase 2, so right now the host won't route camera→internet/LAN regardless of
@@ -182,8 +182,8 @@ nftables (and a correctly-DHCP'd camera has no default route anyway). The "canno
 `8.8.8.8`" check therefore passes trivially and `cam-drop-fwd-*` will never log here — only
 the **input** chain is genuinely testable now. The forward drop must be re-validated at the
 gate (post-k3s) from a test device with a manual IP **and** a manual gateway of
-`192.168.104.1`; see the gate. To prove the input chain actually drops host services, test a
-port with something **listening** behind it: SSH (`nc -vz 192.168.104.1 22`) is up from
+`192.168.105.1`; see the gate. To prove the input chain actually drops host services, test a
+port with something **listening** behind it: SSH (`nc -vz 192.168.105.1 22`) is up from
 Phase 0 and must **fail**. The other host services don't exist yet — k3s `:6443` lands
 in Phase 2, Frigate `:5000` in Phase 4 — so `nc` to them fails because nothing listens,
 not because the firewall blocks it; that's not a real test. For a definitive check now,
@@ -216,15 +216,15 @@ another," which is not an acceptable state to run cameras in.
 LAN→camera access (e.g. a camera web UI for setup) goes through the node, since direct
 forwarding is dropped. Tunnel the camera's HTTP port to your workstation over SSH:
 ```bash
-# reach camera 192.168.104.51's web UI at http://localhost:8080 on your laptop
-ssh -L 8080:192.168.104.51:80 charlie@10.137.20.5
+# reach camera 192.168.105.51's web UI at http://localhost:8080 on your laptop
+ssh -L 8080:192.168.105.51:80 charlie@10.137.20.5
 ```
-The host can route to the camera segment (it owns `192.168.104.1`); only *forwarded*
+The host can route to the camera segment (it owns `192.168.105.1`); only *forwarded*
 LAN→camera traffic is blocked, so the SSH-forwarded connection originating on the host
 works. Tear down the tunnel when done — no standing rule is added.
 
 **Provisioning a factory-default / static camera.** New Amcrest cameras default to DHCP
-and land on a `192.168.104.x` lease (reach them via the tunnel above). But a reset, a
+and land on a `192.168.105.x` lease (reach them via the tunnel above). But a reset, a
 static-default firmware, or a second-hand camera previously set static will instead sit
 at the factory `192.168.1.108` and ignore DHCP. NIC2 carries a secondary address
 (`192.168.1.2/24`, set in 0.2) precisely to reach those without a bench network — tunnel
@@ -237,7 +237,7 @@ This is a one-at-a-time recovery path (every factory camera is `192.168.1.108`),
 normal flow. The nftables rules need no change — they are `iifname "cam0"`-scoped, so
 the alias subnet is already covered.
 
-**1.2 Camera DHCP (dnsmasq).** Bind dnsmasq to NIC2 and serve `192.168.104.0/24`
+**1.2 Camera DHCP (dnsmasq).** Bind dnsmasq to NIC2 and serve `192.168.105.0/24`
 (host-level service, not a pod). Give cameras stable leases so Frigate can target
 known addresses.
 ```
@@ -249,7 +249,7 @@ bind-dynamic            # binds as the interface appears; survives a boot with n
 port=0                  # DHCP only — no DNS. Frigate targets cameras by IP, and a
                         # resolver here would be an outbound beacon path for a
                         # compromised camera (queries forwarded via the host's WAN).
-dhcp-range=192.168.104.50,192.168.104.99,12h    # DYNAMIC pool only; static reservations
+dhcp-range=192.168.105.50,192.168.105.99,12h    # DYNAMIC pool only; static reservations
                         # (dhcp-host) live in a dedicated .100-.199 block, so a pinned camera IP
                         # can't collide with a transient lease. Split fixed up front — once cameras
                         # are pinned their IPs are baked into NTP/Frigate config.
@@ -263,8 +263,8 @@ dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up lea
 # set per-camera in 1.3. Deliberately NO router option (option 3): an isolated segment
 # needs no default route, and withholding it stops cameras even attempting off-segment
 # traffic (the forward drop is the backstop).
-dhcp-option=option:ntp-server,192.168.104.1
-# dhcp-host=AA:BB:CC:DD:EE:FF,192.168.104.101  # pin per-camera in the static .100-.199 block
+dhcp-option=option:ntp-server,192.168.105.1
+# dhcp-host=AA:BB:CC:DD:EE:FF,192.168.105.101  # pin per-camera in the static .100-.199 block
 ```
 ⚑ Confirm a camera receives a lease in range.
 
@@ -274,7 +274,7 @@ dhcp-option=option:ntp-server,192.168.104.1
 > camera config. This is **blocked on finishing the switch port-isolation config (1.1b)
 > first** — cameras aren't connected until that's done, and their MACs aren't known
 > until they are. Once isolated and connected: collect each camera's MAC, add a
-> `dhcp-host=<mac>,192.168.104.<n>` line here (reserve in-range is fine), restart
+> `dhcp-host=<mac>,192.168.105.<n>` line here (reserve in-range is fine), restart
 > dnsmasq, and confirm each camera holds its reserved IP across a restart. Promote this
 > to a validation-gate item gating 4c.
 
@@ -286,24 +286,24 @@ the segment; confirm with `timedatectl` / `chronyc sources` that chrony, not tim
 is now the active daemon):
 ```
 # /etc/chrony/conf.d/cameras.conf
-allow 192.168.104.0/24      # answer NTP from the camera segment
+allow 192.168.105.0/24      # answer NTP from the camera segment
 local stratum 10            # serve the host's own clock as a fallback so the segment stays
                             # served during a WAN outage (else chrony goes unsynced and REFUSES
                             # to serve, and the cameras have no other time source → they drift)
 ```
 chrony listens on all interfaces (default) — we deliberately do **not** `bindaddress`
-to NIC2. Binding to `192.168.104.1` would require that address to exist on `cam0`
+to NIC2. Binding to `192.168.105.1` would require that address to exist on `cam0`
 when chrony starts, but NIC2 is `optional: true` and may have no carrier at boot, so
 the bind could fail and silently leave the segment unserved (dnsmasq sidesteps this with
 `bind-dynamic`; chrony has no lazy-bind equivalent). Listening everywhere is harmless:
-`allow 192.168.104.0/24` only authorizes the camera subnet, so a request arriving on the
+`allow 192.168.105.0/24` only authorizes the camera subnet, so a request arriving on the
 LAN reaches the socket but is refused — not worth the boot-order fragility of binding. The matching `udp dport 123` allow rule is already in the 1.1 input chain.
-Restart chrony. ⚑ From a camera-segment device, `chronyc -h 192.168.104.1 tracking`
+Restart chrony. ⚑ From a camera-segment device, `chronyc -h 192.168.105.1 tracking`
 (or any NTP query) succeeds.
 
 **Configure NTP on each camera directly — this is the source of truth, not DHCP.** In
 the Amcrest web UI: Setup → System → General → Date & Time → enable NTP, set the server
-to `192.168.104.1`. Without internet the cameras have no other time source, and they
+to `192.168.105.1`. Without internet the cameras have no other time source, and they
 generally ignore the DHCP option 42 hint, so a misconfigured camera will silently drift
 and corrupt Frigate event timestamps. ⚑ After setup, confirm each camera's clock is in
 sync (visible in the camera UI / on Frigate's first snapshots).
@@ -438,12 +438,12 @@ Do **not** start Phase 3.5/4 until all of these are green:
 - [ ] NFS mounts readable from a test pod
 - [ ] `/dev/dri/renderD128` visible in a **privileged test pod** (Quick Sync path)
 - [ ] Coral device visible in a privileged test pod
-- [ ] Camera segment **cannot** reach internet or LAN (ping `8.8.8.8` + a `10.137.20.x` host both fail). **Run this with k3s up (ip_forward=1) from a test device with a static IP + manual gateway `192.168.104.1`** — otherwise the forward drop is untested (see 1.1) and `cam-drop-fwd-*` should appear in the journal
-- [ ] Camera segment **cannot** reach host services — `nc -vz 192.168.104.1 22` fails (SSH is listening, so this is a real test); `:6443` now also fails with k3s up. Re-check `:5000` after Frigate (Phase 4c)
+- [ ] Camera segment **cannot** reach internet or LAN (ping `8.8.8.8` + a `10.137.20.x` host both fail). **Run this with k3s up (ip_forward=1) from a test device with a static IP + manual gateway `192.168.105.1`** — otherwise the forward drop is untested (see 1.1) and `cam-drop-fwd-*` should appear in the journal
+- [ ] Camera segment **cannot** reach host services — `nc -vz 192.168.105.1 22` fails (SSH is listening, so this is a real test); `:6443` now also fails with k3s up. Re-check `:5000` after Frigate (Phase 4c)
 - [ ] `cam-drop-*` log entries appear in `journalctl -k` when a blocked connection is attempted from the segment
 - [ ] Two cameras on the segment **cannot** reach each other (switch protected ports, 1.1b)
 - [ ] dnsmasq issues a camera lease in range
-- [ ] Camera segment gets NTP from the host (`192.168.104.1`); each camera's own NTP is set to `192.168.104.1` and its clock is in sync
+- [ ] Camera segment gets NTP from the host (`192.168.105.1`); each camera's own NTP is set to `192.168.105.1` and its clock is in sync
 - [ ] Tailscale operator connected; `*.worm.run` resolves over the Tailnet
 - [ ] SOPS decrypt works (reconcile a Kustomization containing an encrypted Secret)
 - [ ] NUT active and reporting battery status
@@ -483,7 +483,7 @@ hostPath to `/mnt/media` (NFS mounted on host by fstab in Phase 0.4); `/opt/plex
 metadata. ⚑ Run a 1080p transcode and confirm GPU use with `intel_gpu_top` on the host.
 
 **4c — Frigate** (critical/non-evictable). `hostNetwork: true` so RTSP connections to
-cameras originate from the host (source IP `192.168.104.1`) without passing through the
+cameras originate from the host (source IP `192.168.105.1`) without passing through the
 forward chain — this is what makes the nftables camera isolation work. Coral USB
 hostPath; DB on `/opt/frigate`, cache on a `topolvm-scratch` PVC (50 Gi ext4 LV),
 recordings via hostPath to `/mnt/frigate`. ⚑ Verify
