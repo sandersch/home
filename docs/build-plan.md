@@ -226,8 +226,8 @@ another," which is not an acceptable state to run cameras in.
 LAN→camera access (e.g. a camera web UI for setup) goes through the node, since direct
 forwarding is dropped. Tunnel the camera's HTTP port to your workstation over SSH:
 ```bash
-# reach camera 192.168.105.51's web UI at http://localhost:8080 on your laptop
-ssh -L 8080:192.168.105.51:80 charlie@10.137.20.5
+# reach camera 192.168.105.101's web UI at http://localhost:8080 on your laptop
+ssh -L 8080:192.168.105.101:80 charlie@10.137.20.5
 ```
 The host can route to the camera segment (it owns `192.168.105.1`); only *forwarded*
 LAN→camera traffic is blocked, so the SSH-forwarded connection originating on the host
@@ -261,8 +261,8 @@ bind-dynamic            # binds as the interface appears; survives a boot with n
 port=0                  # DHCP only — no DNS. Frigate targets cameras by IP, and a
                         # resolver here would be an outbound beacon path for a
                         # compromised camera (queries forwarded via the host's WAN).
-dhcp-range=192.168.105.50,192.168.105.99,12h    # DYNAMIC pool only; static reservations
-                        # (dhcp-host) live in a dedicated .100-.199 block, so a pinned camera IP
+dhcp-range=192.168.105.100,192.168.105.199,12h  # DYNAMIC pool only; static reservations
+                        # (dhcp-host) live in a dedicated .50-.99 block, so a pinned camera IP
                         # can't collide with a transient lease. Split fixed up front — once cameras
                         # are pinned their IPs are baked into NTP/Frigate config.
 dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up leases
@@ -276,11 +276,11 @@ dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up lea
 # needs no default route, and withholding it stops cameras even attempting off-segment
 # traffic (the forward drop is the backstop).
 dhcp-option=option:ntp-server,192.168.105.1
-# dhcp-host=AA:BB:CC:DD:EE:FF,192.168.105.101  # pin per-camera in the static .100-.199 block
+# dhcp-host=AA:BB:CC:DD:EE:FF,192.168.105.51   # pin per-camera in the static .50-.99 block
 ```
 ⚑ Confirm a DHCP client receives a lease in range. Real cameras aren't connected yet at
 this stage (that's gated on the switch isolation in 1.1b), so validate with a **test
-laptop** plugged into the camera segment — it should get a `192.168.105.50–.99` lease, the
+laptop** plugged into the camera segment — it should get a `192.168.105.100–.199` lease, the
 host (`.1`) as NTP server, and **no** default route.
 
 > **TODO — pin every camera before Frigate (4c).** The "stable leases" Frigate relies
@@ -289,7 +289,7 @@ host (`.1`) as NTP server, and **no** default route.
 > camera config. This is **blocked on finishing the switch port-isolation config (1.1b)
 > first** — cameras aren't connected until that's done, and their MACs aren't known
 > until they are. Once isolated and connected: collect each camera's MAC, add a
-> `dhcp-host=<mac>,192.168.105.<n>` line here (reserve in-range is fine), restart
+> `dhcp-host=<mac>,192.168.105.<n>` line here (in the `.50-.99` static block), restart
 > dnsmasq, and confirm each camera holds its reserved IP across a restart. Promote this
 > to a validation-gate item gating 4c.
 
