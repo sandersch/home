@@ -13,8 +13,11 @@ Legend: 🔧 manual one-time · ⚙️ scripted · 📦 GitOps (git commit). ⚑
 
 **0.0 BIOS / firmware (one-time, before install).** These can't be set from the OS and
 silently break passthrough if wrong:
-- **VT-d / IOMMU enabled** — the `intel_iommu=on` cmdline in 0.3 is a no-op if VT-d is
-  off in firmware. Required for clean device passthrough.
+- **VT-d / IOMMU — optional, not required for this build.** Plex reaches Quick Sync via a
+  `/dev/dri` hostPath and the Coral via a `/dev/bus/usb` hostPath — both are plain device
+  access, *not* DMA/PCI passthrough, so neither needs IOMMU. Leave VT-d on only if you want
+  the option of true PCI passthrough later (e.g. a VM); nothing in the current container-first
+  design depends on it. The `intel_iommu=on` cmdline in 0.3 is correspondingly optional.
 - **iGPU enabled** (not disabled/headless) — Quick Sync transcoding needs `/dev/dri`
   to exist; confirm in 0.3.
 - **Secure Boot off** (or be ready to enrol keys) — simplest path for any out-of-tree
@@ -66,6 +69,10 @@ confirm both interfaces are up.
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y curl git vim nfs-common sqlite3 jq age iperf3 nftables dnsmasq nut chrony
+sudo timedatectl set-timezone America/Chicago   # set the HOST tz explicitly — Frigate event
+                            #   timestamps and cross-log correlation depend on it; the default
+                            #   is often UTC. (chrony in 1.3 serves time to cameras; this sets
+                            #   the host's own clock display/zone.)
 swapon --show               # MUST be empty — kubelet refuses swap. The installer often
                             #   creates /swap.img even with no swap partition; if present:
                             #   sudo swapoff -a && sudo rm /swap.img, then remove its
@@ -76,7 +83,10 @@ getent group render         # render GID — needed for the Plex pod. On this no
 rfkill block wifi           # WiFi (wlp89s0) is unused; block it to shrink attack surface.
                             #   `rfkill` state persists across reboots on Ubuntu.
 ```
-If IOMMU is needed for passthrough, add `intel_iommu=on` to the kernel cmdline.
+IOMMU is **not** needed for this build — the iGPU and Coral are reached by hostPath device
+access, not PCI passthrough (see 0.0). Only if you later add true PCI passthrough: set
+`intel_iommu=on` in `GRUB_CMDLINE_LINUX` (`/etc/default/grub`), `sudo update-grub`, reboot —
+and capture the grub file into `host/minis/etc/default/grub` so a restore stays a copy.
 
 **0.4 NFS mounts.** [`host/minis/etc/fstab`](../host/minis/etc/fstab) is the full fstab
 from this host. The root/`var`/`opt` entries are LVM device paths the Phase 0.1 layout
@@ -239,7 +249,9 @@ the alias subnet is already covered.
 
 **1.2 Camera DHCP (dnsmasq).** Bind dnsmasq to NIC2 and serve `192.168.105.0/24`
 (host-level service, not a pod). Give cameras stable leases so Frigate can target
-known addresses.
+known addresses. `sudo systemctl enable --now dnsmasq` so it survives a reboot.
+(`port=0` means dnsmasq runs no resolver, so it does **not** collide with
+`systemd-resolved` on `:53` — no need to disable resolved.)
 ```
 # /etc/dnsmasq.d/cameras.conf (excerpt)
 interface=cam0
@@ -266,7 +278,10 @@ dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up lea
 dhcp-option=option:ntp-server,192.168.105.1
 # dhcp-host=AA:BB:CC:DD:EE:FF,192.168.105.101  # pin per-camera in the static .100-.199 block
 ```
-⚑ Confirm a camera receives a lease in range.
+⚑ Confirm a DHCP client receives a lease in range. Real cameras aren't connected yet at
+this stage (that's gated on the switch isolation in 1.1b), so validate with a **test
+laptop** plugged into the camera segment — it should get a `192.168.105.50–.99` lease, the
+host (`.1`) as NTP server, and **no** default route.
 
 > **TODO — pin every camera before Frigate (4c).** The "stable leases" Frigate relies
 > on are only guaranteed by `dhcp-host` MAC reservations; plain dynamic leases can
@@ -298,7 +313,8 @@ the bind could fail and silently leave the segment unserved (dnsmasq sidesteps t
 `bind-dynamic`; chrony has no lazy-bind equivalent). Listening everywhere is harmless:
 `allow 192.168.105.0/24` only authorizes the camera subnet, so a request arriving on the
 LAN reaches the socket but is refused — not worth the boot-order fragility of binding. The matching `udp dport 123` allow rule is already in the 1.1 input chain.
-Restart chrony. ⚑ From a camera-segment device, `chronyc -h 192.168.105.1 tracking`
+`sudo systemctl enable --now chrony` (then restart to pick up the drop-in). ⚑ From a
+camera-segment device, `chronyc -h 192.168.105.1 tracking`
 (or any NTP query) succeeds.
 
 **Configure NTP on each camera directly — this is the source of truth, not DHCP.** In

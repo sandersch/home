@@ -80,8 +80,8 @@ Captured here, ready to copy to the host when Phase 1 is applied (in order). All
 |---|---|---|---|
 | `etc/nftables.conf` | `/etc/nftables.conf` | `root:root` `644` | `sudo systemctl enable --now nftables` (replaces the stock default; manages only the `camera_isolation` table — no `flush ruleset`, so k3s's own nft chains survive a reload) |
 | `etc/sysctl.d/99-camera-no-ipv6.conf` | same | `root:root` `644` | `sudo sysctl --system` (disables IPv6 on NIC2) |
-| `etc/dnsmasq.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl restart dnsmasq` (DHCP-only, NIC2) |
-| `etc/chrony/conf.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl restart chrony` (serve NTP to the segment) |
+| `etc/dnsmasq.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl enable --now dnsmasq` (DHCP-only, NIC2; `port=0` so no `:53` clash with systemd-resolved) |
+| `etc/chrony/conf.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl enable --now chrony && sudo systemctl restart chrony` (serve NTP to the segment) |
 
 **Phase 1.3 (chrony):** `chrony` is **not** in stock Ubuntu 24.04 (it ships
 `systemd-timesyncd`, client-only). Install it in Phase 0.3 and confirm it's the active
