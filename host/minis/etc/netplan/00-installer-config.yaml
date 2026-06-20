@@ -9,9 +9,9 @@ network:
     lan0:                          # NIC1 — primary LAN
       match: { macaddress: "38:05:25:35:fb:d3" }
       set-name: lan0
-      addresses: [172.17.1.5/24]
-      routes: [{ to: default, via: 172.17.1.1 }]
-      nameservers: { addresses: [172.17.1.1] }
+      addresses: [10.137.20.5/24]
+      routes: [{ to: default, via: 10.137.20.1 }]
+      nameservers: { addresses: [10.137.20.1] }
       dhcp4: false
     cam0:                          # NIC2 — camera segment
       match: { macaddress: "38:05:25:35:fb:d2" }

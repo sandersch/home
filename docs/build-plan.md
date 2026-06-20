@@ -40,7 +40,7 @@ name k3s derives from it is load-bearing: every app PV pins `nodeAffinity` to
 `Pending` (see 2.1). Create a non-root sudo user (`charlie`). Harden SSH per
 [`host/minis/etc/ssh/sshd_config.d/10-homelab.conf`](../host/minis/etc/ssh/sshd_config.d/10-homelab.conf):
 key-only auth (`PasswordAuthentication no`) and no root login. Copy your key up
-(`ssh-copy-id charlie@172.17.1.5`) **before** disabling passwords, then
+(`ssh-copy-id charlie@10.137.20.5`) **before** disabling passwords, then
 `sudo systemctl restart ssh` and confirm a key login works in a second session before
 closing the first — SSH is the sanctioned tunnel path for camera web UIs (1.1), so it's
 reachable on LAN + Tailnet and worth locking down.
@@ -56,7 +56,7 @@ config pins these to the friendly names **`lan0`** and **`cam0`** by MAC
 regenerates the installer's DHCP stub on reboot.
 
 → Apply [`host/minis/etc/netplan/00-installer-config.yaml`](../host/minis/etc/netplan/00-installer-config.yaml)
-(NIC1 static `172.17.1.5/24`; NIC2 `192.168.104.1/24` plus the `192.168.1.2/24`
+(NIC1 static `10.137.20.5/24`; NIC2 `192.168.104.1/24` plus the `192.168.1.2/24`
 factory-default-camera alias, with `optional: true` so a carrierless NIC2 can't block
 boot) and [`host/minis/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg`](../host/minis/etc/cloud/cloud.cfg.d/99-disable-network-config.cfg).
 Netplan must be mode `600`. Then `sudo netplan generate && sudo netplan apply` and
@@ -88,7 +88,7 @@ Additional mounts (`/mnt/frigate`, `/mnt/games`) will be added in Phase 4 when t
 that need them are configured. Completed downloads are *not* a separate export — SABnzbd
 hands off under `/mnt/media` so the download dir and the *arr library share one filesystem
 (hardlink/atomic-move imports). The NAS hostname `media.nfs.service.matrix` resolves via the
-router nameserver (`172.17.1.1`, set in 0.2) — there is no `/etc/hosts` fallback, so the
+router nameserver (`10.137.20.1`, set in 0.2) — there is no `/etc/hosts` fallback, so the
 boot-time mount depends on the router's DNS; confirm it resolves (`getent hosts
 media.nfs.service.matrix`) before `mount -a`.
 
@@ -110,8 +110,8 @@ rule sets permissions, it does not create a symlink.) Frigate reaches the device
 `/dev/bus/usb` hostPath in Phase 4c — these permissions are what let the container open
 it without running fully privileged.
 
-**0.7 Router DNS.** Add the wildcard record `*.worm.run → 172.17.1.10` (the MetalLB
-ingress IP from Phase 2.2, **not** the node's own `172.17.1.5`). Test true
+**0.7 Router DNS.** Add the wildcard record `*.worm.run → 10.137.20.10` (the MetalLB
+ingress IP from Phase 2.2, **not** the node's own `10.137.20.5`). Test true
 wildcard support with a throwaway hostname before relying on it.
 
 ---
@@ -174,7 +174,7 @@ net.ipv6.conf.cam0.disable_ipv6 = 1
 `policy accept` on both chains is intentional (see [architecture.md](./architecture.md#networking));
 the explicit drops do the work without breaking k3s's own nft chains. Enable nftables.
 ⚑ From a device on the camera segment, confirm you **cannot** ping `8.8.8.8` or any
-`172.17.1.0/24` host, and that ICMP to the host (`192.168.104.1`) still **succeeds**
+`10.137.20.0/24` host, and that ICMP to the host (`192.168.104.1`) still **succeeds**
 (the diagnostics allow). **Caveat — the forward-chain drop is not actually exercised at
 this stage:** `net.ipv4.ip_forward` is `0` on stock Ubuntu and only gets flipped to `1`
 by k3s in Phase 2, so right now the host won't route camera→internet/LAN regardless of
@@ -217,7 +217,7 @@ LAN→camera access (e.g. a camera web UI for setup) goes through the node, sinc
 forwarding is dropped. Tunnel the camera's HTTP port to your workstation over SSH:
 ```bash
 # reach camera 192.168.104.51's web UI at http://localhost:8080 on your laptop
-ssh -L 8080:192.168.104.51:80 charlie@172.17.1.5
+ssh -L 8080:192.168.104.51:80 charlie@10.137.20.5
 ```
 The host can route to the camera segment (it owns `192.168.104.1`); only *forwarded*
 LAN→camera traffic is blocked, so the SSH-forwarded connection originating on the host
@@ -231,7 +231,7 @@ at the factory `192.168.1.108` and ignore DHCP. NIC2 carries a secondary address
 to the default address, enable DHCP + set NTP/credentials, then it rejoins the `104`
 segment:
 ```bash
-ssh -L 8080:192.168.1.108:80 charlie@172.17.1.5   # camera default UI at localhost:8080
+ssh -L 8080:192.168.1.108:80 charlie@10.137.20.5   # camera default UI at localhost:8080
 ```
 This is a one-at-a-time recovery path (every factory camera is `192.168.1.108`), not the
 normal flow. The nftables rules need no change — they are `iifname "cam0"`-scoped, so
@@ -330,14 +330,14 @@ curl -sfL https://get.k3s.io | sh -s - \
 kubectl get nodes            # minis Ready
 ```
 
-**2.2 MetalLB** — a stable LoadBalancer IP (`172.17.1.10`, distinct from the node's own
-`172.17.1.5`) so the wildcard target is fixed. MetalLB must own its pool addresses, so
+**2.2 MetalLB** — a stable LoadBalancer IP (`10.137.20.10`, distinct from the node's own
+`10.137.20.5`) so the wildcard target is fixed. MetalLB must own its pool addresses, so
 the pool cannot reuse the node IP the kernel already answers ARP for.
 ```yaml
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata: { name: homelab-pool, namespace: metallb-system }
-spec: { addresses: ["172.17.1.10/32"] }   # MetalLB owns this; ≠ node IP (.5), outside the DHCP range
+spec: { addresses: ["10.137.20.10/32"] }   # MetalLB owns this; ≠ node IP (.5), outside the DHCP range
 ```
 
 **2.3 ingress-nginx** and **2.4 cert-manager** (Helm during bootstrap; convert to
@@ -438,7 +438,7 @@ Do **not** start Phase 3.5/4 until all of these are green:
 - [ ] NFS mounts readable from a test pod
 - [ ] `/dev/dri/renderD128` visible in a **privileged test pod** (Quick Sync path)
 - [ ] Coral device visible in a privileged test pod
-- [ ] Camera segment **cannot** reach internet or LAN (ping `8.8.8.8` + a `172.17.1.x` host both fail). **Run this with k3s up (ip_forward=1) from a test device with a static IP + manual gateway `192.168.104.1`** — otherwise the forward drop is untested (see 1.1) and `cam-drop-fwd-*` should appear in the journal
+- [ ] Camera segment **cannot** reach internet or LAN (ping `8.8.8.8` + a `10.137.20.x` host both fail). **Run this with k3s up (ip_forward=1) from a test device with a static IP + manual gateway `192.168.104.1`** — otherwise the forward drop is untested (see 1.1) and `cam-drop-fwd-*` should appear in the journal
 - [ ] Camera segment **cannot** reach host services — `nc -vz 192.168.104.1 22` fails (SSH is listening, so this is a real test); `:6443` now also fails with k3s up. Re-check `:5000` after Frigate (Phase 4c)
 - [ ] `cam-drop-*` log entries appear in `journalctl -k` when a blocked connection is attempted from the segment
 - [ ] Two cameras on the segment **cannot** reach each other (switch protected ports, 1.1b)
@@ -633,7 +633,7 @@ spec:
           # VPN_SERVICE_PROVIDER=mullvad, VPN_TYPE=wireguard,
           # WIREGUARD_PRIVATE_KEY=..., SERVER_COUNTRIES=...
           # FIREWALL_INPUT_PORTS=8080,9696,7878,8989     # inbound: UIs, Overseerr
-          # FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,172.17.1.0/24
+          # FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,10.137.20.0/24
           #   (k3s pod + Service CIDRs, LAN — keeps cluster DNS/NAS/Plex reachable)
         - name: sabnzbd                          # localhost:8080
           image: lscr.io/linuxserver/sabnzbd

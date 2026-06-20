@@ -42,7 +42,7 @@ decision is wrong, raise it rather than silently diverging.
 | Secrets | **SOPS + age** | Flux-native decryption; no extra controller |
 | Ingress | ingress-nginx + MetalLB | Stable LB IP; hostname routing |
 | TLS | cert-manager + Let's Encrypt **DNS-01** | Real certs even for internal-only services |
-| DNS (internal) | Router wildcard `*.worm.run` → MetalLB ingress IP (`172.17.1.10`, **not** the node's `.5`) | One record; ingress routes by host |
+| DNS (internal) | Router wildcard `*.worm.run` → MetalLB ingress IP (`10.137.20.10`, **not** the node's `.5`) | One record; ingress routes by host |
 | DNS (cameras) | **dnsmasq** host service on NIC2 subnet | DHCP for the isolated camera segment |
 | Remote access | **Tailnet + LAN only**, nothing public | Zero inbound exposure; Funnel for Plex later if needed |
 | VPN (downloads) | **Mullvad** via **Gluetun**, WireGuard | Strong privacy track record; provider is swappable |
@@ -50,7 +50,7 @@ decision is wrong, raise it rather than silently diverging.
 | Storage (local) | **LVM under everything**; btrfs on `/opt`; **TopoLVM** for scratch | One VG: manual LVs for OS + `/opt` (btrfs snapshots + zstd); TopoLVM provisions enforced, resizable ext4 scratch LVs (Frigate cache, SABnzbd staging) from VG free space. Supersedes the earlier "no LVM" call — partition count + up-front sizing anxiety outweighed the abstraction overlap |
 | Backups | **Restic** → NAS nightly + **Backblaze B2** weekly | Cheap, deduplicating, offsite copy |
 | Alerting | **ntfy** (self-hosted) → phone push | Free, self-hosted, simple |
-| Camera segment addressing | **`192.168.104.0/24`, host at `.1`**, per-camera NTP target `192.168.104.1` | Frozen once cameras are provisioned: the subnet, the host's NIC2 address, and the NTP server are typed into each camera's web UI (1.3) and baked into DHCP/Frigate, so renumbering means hand-touching every camera. No collision with LAN (`172.17.1/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
+| Camera segment addressing | **`192.168.104.0/24`, host at `.1`**, per-camera NTP target `192.168.104.1` | Frozen once cameras are provisioned: the subnet, the host's NIC2 address, and the NTP server are typed into each camera's web UI (1.3) and baked into DHCP/Frigate, so renumbering means hand-touching every camera. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
 
 Deferred / revisit later (see [operations.md](./docs/operations.md#follow-ups)):
 a possible second node, Tailscale Funnel for Plex, Immich.
