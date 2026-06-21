@@ -158,6 +158,8 @@ ip ssh pubkey-chain
 ! Kill the web UIs; manage over SSH.
 no ip http server
 no ip http secure-server
+! IOS may still render 'ip http authentication local'; harmless while both
+! HTTP/HTTPS servers remain disabled.
 !
 ! NOTE: the box also shows a 'call-home'/'service call-home' block (not emitted
 ! here). It is force-enabled by Smart-Licensing and cannot be disabled — left
