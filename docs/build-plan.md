@@ -79,7 +79,7 @@ swapon --show               # MUST be empty — kubelet refuses swap. The instal
                             #   creates /swap.img even with no swap partition; if present:
                             #   sudo swapoff -a && sudo rm /swap.img, then remove its
                             #   /etc/fstab line so it stays off across reboots.
-ls -la /dev/dri/            # expect cardN + renderD128 (Quick Sync; card0 on this node)
+ls -la /dev/dri/            # expect cardN + renderD128 (Quick Sync)
 lsmod | grep i915           # i915 driver loaded; if not, add to /etc/modules + reboot
 getent group render         # render GID — needed for the Plex pod. On this node: 993
 rfkill block wifi           # WiFi (wlpXYs0) is unused; block it to shrink attack surface.
