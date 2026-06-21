@@ -141,6 +141,10 @@ ip ssh version 2
 !   crypto key generate rsa modulus 2048
 !
 ! Allow admin SSH public-key auth from ryze/laptop.
+! NOTE: once imported, IOS renders this key as a 'key-hash ssh-rsa' line in the
+! running-config, not the key-string below. Expected hash (MD5 of the key blob):
+!   B5AB422B09EC7E4BA530D0E87C76A750
+! Match that against 'show running-config' to confirm sync without re-importing.
 ip ssh pubkey-chain
  username admin
   key-string
