@@ -159,6 +159,10 @@ ip ssh pubkey-chain
 no ip http server
 no ip http secure-server
 !
+! NOTE: the box also shows a 'call-home'/'service call-home' block (not emitted
+! here). It is force-enabled by Smart-Licensing and cannot be disabled — left
+! as-is by decision, not an out-of-sync drift.
+!
 ! Log successful logins (audit trail for console/vty access).
 login on-success log
 !
