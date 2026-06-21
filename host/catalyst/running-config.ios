@@ -1,5 +1,5 @@
 ! ============================================================================
-! Cisco Catalyst WS-C3850-48U  ·  hostname: catalyst  ·  mgmt 10.137.10.2
+! Cisco Catalyst WS-C3850-48P  ·  hostname: catalyst  ·  mgmt 10.137.10.2
 ! ----------------------------------------------------------------------------
 ! Source-of-truth running-config for the Layer-2 distribution switch.
 ! Mirrors docs/network.md (Network Step 2 + Local Camera Isolation block).

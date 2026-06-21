@@ -2,7 +2,7 @@
 
 **Hardware Infrastructure:**
 * UniFi UDM Pro
-* Cisco Catalyst WS-C3850-48U
+* Cisco Catalyst WS-C3850-48P (Cisco IOS XE Software, Version 16.12.14)
 * UniFi U7 Pro WAP
 * Dual WAN (AT&T + Spectrum)
 
@@ -292,8 +292,9 @@ interface range GigabitEthernet1/0/1-4
 | **Port 10** | 10G SFP+ | LAN trunk (reassigned from default SFP+ WAN) | Native/Untagged VLAN 99; Tagged 10/20/30/60/80 | Catalyst `Te1/1/4` via 10G DAC |
 | **Port 11** | 10G SFP+ LAN | WAP uplink trunk | Native/Untagged VLAN 10; Tagged 30/60/80 | YuanLey switch → U7 Pro (10G SFP+ fiber) |
 
-* **Cisco Catalyst WS-C3850-48U (`10.137.10.2`)**
+* **Cisco Catalyst WS-C3850-48P (`10.137.10.2`)**
   * *Roles:* Layer 2 Distribution Switch, PoE Core. Holds a single management SVI on VLAN 10 (`10.137.10.2`) — a host IP, not routing.
+  * *Software:* Cisco IOS XE Software, Version 16.12.14.
   * *Uplink:* Port `Te1/1/4` via 10G DAC → UDM Port 10. VLAN 99 is included in the allowed list so the trunk carries its own native VLAN; VLAN 105 is excluded.
   * *Status:* **Installed and operational** — this 10G DAC trunk to the UDM is already up; the optics/cabling are validated in place.
   * *Port Allocations:*
