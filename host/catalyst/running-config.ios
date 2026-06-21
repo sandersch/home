@@ -145,10 +145,12 @@ ip ssh pubkey-chain
 no ip http server
 no ip http secure-server
 !
+! Console is the deliberate break-glass path: NO 'login local' and (with no
+! enable secret set above) physical console access is intentionally
+! unauthenticated and lands at privilege 15. Recovery must not depend on a
+! credential. Remote admin is gated on the vty/SSH lines below instead.
 line con 0
- login local
- logging synchronous
- exec-timeout 15 0
+ stopbits 1
 !
 line vty 0 15
  login local
