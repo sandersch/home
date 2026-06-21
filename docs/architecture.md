@@ -2,7 +2,7 @@
 
 Design decisions and their rationale. For the step-by-step build, see
 [build-plan.md](./build-plan.md). Settled decisions are summarized in the
-[root CLAUDE.md decision log](../CLAUDE.md#decision-log).
+[root AGENTS.md decision log](../AGENTS.md#decision-log).
 
 ## Design priorities
 
@@ -189,7 +189,7 @@ LVs keep working if the controller is down. Concrete YAML for both patterns is i
   provider API credentials; the dependency is accepted. Renewals every ~90 days, so a
   brief provider outage isn't fatal.
 
-The k3s API (`:6443`) is reachable on the Tailnet so the laptop/Claude Code can hold a
+The k3s API (`:6443`) is reachable on the Tailnet so the laptop/AI coding session can hold a
 kubeconfig context pointing at the node's Tailscale IP.
 
 ## Access model
@@ -269,7 +269,7 @@ over the node's WAN; only the lookups leak, the traffic itself is tunneled.
 
 Validate that egress from inside the pod equals the VPN exit IP **before**
 configuring indexers or download clients (see the quick-reference command in
-CLAUDE.md).
+AGENTS.md).
 
 ## Resource allocation
 

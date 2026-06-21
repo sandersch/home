@@ -420,7 +420,7 @@ flux bootstrap github \
   --branch=main --path=clusters/minis --personal --private
 ```
 
-**3.5 Commit the repo skeleton** — see [structure in CLAUDE.md](../CLAUDE.md#repository-structure):
+**3.5 Commit the repo skeleton** — see [structure in AGENTS.md](../AGENTS.md#repository-structure):
 `clusters/minis/{infrastructure.yaml,apps.yaml}`, `infrastructure/{controllers,configs,monitoring}`,
 `apps/{media,frigate,home-assistant}`. `apps.yaml` should `dependsOn` the
 infrastructure Kustomization. Include the **TopoLVM HelmRelease** in

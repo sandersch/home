@@ -1,37 +1,24 @@
 # Homelab — Project Context
 
-This file orients an AI coding session (Claude Code) and any human working in this
-repo. Read it first. Detailed design and procedures live in [`docs/`](./docs).
+This file orients an AI coding session and any human working in this repo. Read it first. Detailed design and procedures live in [`docs/`](./docs).
 
 ## What this is
 
-A single-node, container-first homelab on a MINISFORUM MS-01, managed by GitOps.
-The goal is to reproduce (and extend) an existing ArgoCD + microk8s setup on fresh
-hardware, using **k3s + Flux CD**, while keeping operational complexity low and
-reliability high. Some one-time manual bootstrapping is acceptable; everything
-after the bootstrap is a git commit.
+A single-node, container-first homelab on a MINISFORUM MS-01, managed by GitOps. The goal is to reproduce (and extend) an existing ArgoCD + microk8s setup on fresh hardware, using **k3s + Flux CD**, while keeping operational complexity low and reliability high. Some one-time manual bootstrapping is acceptable; everything after the bootstrap is a git commit.
 
-The repo is operated alongside a Claude Code session running on a laptop, connected
-over SSH and/or the Tailnet. See [Working agreements](#working-agreements-for-an-ai-session).
+The repo is operated alongside an AI coding session on a laptop, connected over SSH and/or the Tailnet. See [Working agreements](#working-agreements-for-an-ai-session).
 
 ## Current status
 
-**Pre-build.** This repo currently contains planning docs only. Nothing has been
-deployed. The immediate task is to scaffold the repo and begin executing the
-[build plan](./docs/build-plan.md), starting at Phase 0 (OS baseline).
+**Pre-build.** This repo currently contains planning docs only. Nothing has been deployed. The immediate task is to scaffold the repo and begin executing the [build plan](./docs/build-plan.md), starting at Phase 0 (OS baseline).
 
 ## Hardware (summary)
 
-MINISFORUM MS-01 · Intel Core i5-12600H (6 P-cores + 4 E-cores, 12 threads) ·
-32 GB DDR5 · 1 TB NVMe · 2×2.5GbE ports in use, negotiating at 1Gb today ·
-2×10Gb SFP+ (unused) · Intel Coral USB accelerator · UPS in rack. Quick Sync iGPU
-drives Plex transcoding. Media and camera recordings live on a remote NAS over NFS. Full detail in
-[architecture.md](./docs/architecture.md).
+MINISFORUM MS-01 · Intel Core i5-12600H (6 P-cores + 4 E-cores, 12 threads) · 32 GB DDR5 · 1 TB NVMe · 2×2.5GbE ports in use, negotiating at 1Gb today · 2×10Gb SFP+ (unused) · Intel Coral USB accelerator · UPS in rack. Quick Sync iGPU drives Plex transcoding. Media and camera recordings live on a remote NAS over NFS. Full detail in [architecture.md](./docs/architecture.md).
 
 ## Decision log
 
-These are settled. Do not re-litigate without explicit instruction; if you think a
-decision is wrong, raise it rather than silently diverging.
+These are settled. Do not re-litigate without explicit instruction; if you think a decision is wrong, raise it rather than silently diverging.
 
 | Area | Decision | Why |
 |---|---|---|
@@ -61,7 +48,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 
 ```
 .
-├── CLAUDE.md                  # this file
+├── AGENTS.md                  # this file
 ├── docs/                      # planning + runbooks (not applied to cluster)
 │   ├── architecture.md
 │   ├── build-plan.md
@@ -93,58 +80,23 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 
 ## Conventions
 
-- **One namespace per concern**: `media`, `frigate`, `home-assistant`, plus the
-  infra namespaces (`flux-system`, `metallb-system`, `cert-manager`,
-  `ingress-nginx`, `tailscale`, `monitoring`). Cross-pod calls use cluster DNS,
-  e.g. `http://gluetun.media.svc.cluster.local:7878` (Overseerr → Radarr). The
-  download stack (SABnzbd + *arr) shares the Gluetun pod's network namespace and
-  talks over `localhost:<port>`.
-- **Every workload pod sets resource `requests`/`limits` and a `priorityClassName`.**
-  Tiers and exact values are in
-  [architecture.md → Resource allocation](./docs/architecture.md#resource-allocation).
-  Frigate and Home Assistant are `homelab-critical` (non-evictable); most else is
-  `homelab-standard`; backups are best-effort.
-- **App state uses the `local-nvme` StorageClass** via a per-app PV + PVC pointing
-  at `/opt/<app>/...`. The PV is a `hostPath` volume with `type: DirectoryOrCreate`,
-  so the kubelet creates the directory on first mount and adding storage for a new
-  app is a pure git change (no SSH). **Scratch data uses the `topolvm-scratch`
-  StorageClass** instead — a PVC alone dynamically provisions an enforced,
-  resizable ext4 LV from VG free space (no PV manifest). Pattern in
-  [build-plan.md → Storage pattern](./docs/build-plan.md#storage-pattern).
-- **Secrets are SOPS-encrypted before commit**, always. The repo is private, but
-  treat encryption as mandatory anyway — private is a safety net, not a license to
-  commit plaintext, and the repo may be selectively shared later.
-  `data`/`stringData` fields are encrypted via `.sops.yaml`. Encrypt with
-  `sops --encrypt --in-place path/to/secret.yaml`. The only secret that lives
-  outside git is the `sops-age` key itself (in-cluster + backed up to a password
-  manager).
-- **Latency-sensitive state on local NVMe; bulk data on NAS.** Plex metadata,
-  Frigate DB, app configs → `/opt` (btrfs). Media, ROMs, recordings, Immich
-  originals → NAS NFS. Scratch (Frigate cache, SABnzbd staging) →
-  `topolvm-scratch` PVCs (ext4 LVs, enforced, throwaway).
-- **Helm charts** are referenced via `HelmRepository` + `HelmRelease` CRDs (Flux),
-  not installed imperatively, except during the documented Phase 2 bootstrap.
+- **One namespace per concern**: `media`, `frigate`, `home-assistant`, plus the infra namespaces (`flux-system`, `metallb-system`, `cert-manager`, `ingress-nginx`, `tailscale`, `monitoring`). Cross-pod calls use cluster DNS, e.g. `http://gluetun.media.svc.cluster.local:7878` (Overseerr → Radarr). The download stack (SABnzbd + *arr) shares the Gluetun pod's network namespace and talks over `localhost:<port>`.
+- **Every workload pod sets resource `requests`/`limits` and a `priorityClassName`.** Tiers and exact values are in [architecture.md → Resource allocation](./docs/architecture.md#resource-allocation). Frigate and Home Assistant are `homelab-critical` (non-evictable); most else is `homelab-standard`; backups are best-effort.
+- **App state uses the `local-nvme` StorageClass** via a per-app PV + PVC pointing at `/opt/<app>/...`. The PV is a `hostPath` volume with `type: DirectoryOrCreate`, so the kubelet creates the directory on first mount and adding storage for a new app is a pure git change (no SSH). **Scratch data uses the `topolvm-scratch` StorageClass** instead — a PVC alone dynamically provisions an enforced, resizable ext4 LV from VG free space (no PV manifest). Pattern in [build-plan.md → Storage pattern](./docs/build-plan.md#storage-pattern).
+- **Secrets are SOPS-encrypted before commit**, always. The repo is private, but treat encryption as mandatory anyway — private is a safety net, not a license to commit plaintext, and the repo may be selectively shared later. `data`/`stringData` fields are encrypted via `.sops.yaml`. Encrypt with `sops --encrypt --in-place path/to/secret.yaml`. The only secret that lives outside git is the `sops-age` key itself (in-cluster + backed up to a password manager).
+- **Latency-sensitive state on local NVMe; bulk data on NAS.** Plex metadata, Frigate DB, app configs → `/opt` (btrfs). Media, ROMs, recordings, Immich originals → NAS NFS. Scratch (Frigate cache, SABnzbd staging) → `topolvm-scratch` PVCs (ext4 LVs, enforced, throwaway).
+- **Helm charts** are referenced via `HelmRepository` + `HelmRelease` CRDs (Flux), not installed imperatively, except during the documented Phase 2 bootstrap.
 
 ## Working agreements for an AI session
 
-This cluster runs real services (Plex, security cameras, home automation). Treat it
-as production.
+This cluster runs real services (Plex, security cameras, home automation). Treat it as production.
 
-- **Default to read-only.** Keep a read-only kubeconfig context as default; switch
-  to an admin context explicitly only when a change is intended.
-- **Suspend Flux before significant manifest surgery**: `flux suspend kustomization
-  apps` so Flux doesn't fight in-progress edits; resume when done.
-- **Snapshot before risky local changes**: take a btrfs snapshot of `/opt` before
-  any session that touches stateful app config or does an upgrade.
-- **Never write plaintext secrets to the repo.** If you generate a Secret manifest,
-  SOPS-encrypt it before it is committed. Never print private keys or tokens into
-  files under version control.
-- **Don't run destructive commands speculatively.** `kubectl delete`,
-  `helm uninstall`, `flux delete`, and anything touching PVs/PVCs or `/opt` must be
-  deliberate and confirmed — a wrong delete can drop Plex metadata or Frigate state.
-- **Validate, don't assume, hardware passthrough.** Confirm `/dev/dri` and the Coral
-  device inside a test pod before declaring Plex/Frigate done (see the validation
-  gate in the build plan).
+- **Default to read-only.** Keep a read-only kubeconfig context as default; switch to an admin context explicitly only when a change is intended.
+- **Suspend Flux before significant manifest surgery**: `flux suspend kustomization apps` so Flux doesn't fight in-progress edits; resume when done.
+- **Snapshot before risky local changes**: take a btrfs snapshot of `/opt` before any session that touches stateful app config or does an upgrade.
+- **Never write plaintext secrets to the repo.** If you generate a Secret manifest, SOPS-encrypt it before it is committed. Never print private keys or tokens into files under version control.
+- **Don't run destructive commands speculatively.** `kubectl delete`, `helm uninstall`, `flux delete`, and anything touching PVs/PVCs or `/opt` must be deliberate and confirmed — a wrong delete can drop Plex metadata or Frigate state.
+- **Validate, don't assume, hardware passthrough.** Confirm `/dev/dri` and the Coral device inside a test pod before declaring Plex/Frigate done (see the validation gate in the build plan).
 - **Prefer small, reversible commits** Flux can reconcile incrementally.
 
 ## Quick reference

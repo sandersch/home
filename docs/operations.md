@@ -122,10 +122,10 @@ starting points. After ~1 week of real data:
 - Only if Frigate detection latency suffers under load: consider the static
   CPU-manager policy to pin it to P-cores. Don't do this preemptively.
 
-## AI-session (Claude Code) practices
+## AI-session practices
 
-This repo is operated alongside a Claude Code session. See the
-[working agreements in CLAUDE.md](../CLAUDE.md#working-agreements-for-an-ai-session) for
+This repo is operated alongside an AI coding session. See the
+[working agreements in AGENTS.md](../AGENTS.md#working-agreements-for-an-ai-session) for
 the guardrails (read-only default, `flux suspend` before manifest surgery, btrfs
 snapshot before risky changes, never commit plaintext secrets, no speculative
 destructive commands). Operationally useful surfaces to expose to the session:
