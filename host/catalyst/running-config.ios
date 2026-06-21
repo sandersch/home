@@ -14,10 +14,6 @@
 ! ============================================================================
 
 service password-encryption
-! Disable Cisco Call Home / Smart Licensing telemetry for this private homelab
-! switch. IOS-XE may retain generated trustpoint/license stanzas after this,
-! but the service itself should stay off.
-no service call-home
 !
 hostname catalyst
 !
