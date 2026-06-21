@@ -124,7 +124,7 @@ enable secret __REPLACE_WITH_ENABLE_SECRET__
 username admin privilege 15 secret __REPLACE_WITH_ADMIN_SECRET__
 !
 ! SSH only — no plaintext telnet on the vty lines.
-ip domain name matrix
+ip domain name mgmt.matrix
 ip ssh version 2
 ! (exec) generate the host key once after setting 'ip domain name':
 !   crypto key generate rsa modulus 2048
