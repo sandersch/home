@@ -24,7 +24,7 @@ In priority order, these guide every tradeoff below:
 | Storage | 1 TB local NVMe (OS + containers + app state + Frigate cache) |
 | GPU | Intel iGPU (Quick Sync) for Plex hardware transcoding |
 | Accelerator | Intel Coral USB (Frigate object detection) — owned, working |
-| Network | 2×2.5GbE (in use) · 2×10Gb SFP+ (present, unused for now) |
+| Network | 2×2.5GbE ports in use, negotiating at 1Gb today · 2×10Gb SFP+ present, unused for now |
 | Power | UPS already in rack |
 | Wi-Fi | Disabled unless needed |
 

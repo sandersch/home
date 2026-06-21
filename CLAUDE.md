@@ -23,9 +23,9 @@ deployed. The immediate task is to scaffold the repo and begin executing the
 ## Hardware (summary)
 
 MINISFORUM MS-01 · Intel Core i5-12600H (6 P-cores + 4 E-cores, 12 threads) ·
-32 GB DDR5 · 1 TB NVMe · 2×2.5GbE (in use) · 2×10Gb SFP+ (unused) · Intel Coral
-USB accelerator · UPS in rack. Quick Sync iGPU drives Plex transcoding. Media and
-camera recordings live on a remote NAS over NFS. Full detail in
+32 GB DDR5 · 1 TB NVMe · 2×2.5GbE ports in use, negotiating at 1Gb today ·
+2×10Gb SFP+ (unused) · Intel Coral USB accelerator · UPS in rack. Quick Sync iGPU
+drives Plex transcoding. Media and camera recordings live on a remote NAS over NFS. Full detail in
 [architecture.md](./docs/architecture.md).
 
 ## Decision log
@@ -65,6 +65,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 ├── docs/                      # planning + runbooks (not applied to cluster)
 │   ├── architecture.md
 │   ├── build-plan.md
+│   ├── network.md
 │   ├── migration-runbook.md
 │   └── operations.md
 ├── host/                      # canonical host config for the manual phases (0–1);
