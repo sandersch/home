@@ -82,6 +82,7 @@ lsmod | grep i915           # i915 driver loaded; if not, add to /etc/modules + 
 getent group render         # render GID — needed for the Plex pod. On this node: 993
 rfkill block wifi           # WiFi (wlp89s0) is unused; block it to shrink attack surface.
                             #   `rfkill` state persists across reboots on Ubuntu.
+rfkill block bluetooth      # Bluetooth (hci0) is likewise unused — block it too.
 ```
 IOMMU is **not** needed for this build — the iGPU and Coral are reached by hostPath device
 access, not PCI passthrough (see 0.0). Only if you later add true PCI passthrough: set
