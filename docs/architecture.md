@@ -95,8 +95,10 @@ Dual-NIC design separating trusted traffic from cameras.
 | NIC1 (`lan0`) | Primary LAN | `10.137.20.5/24` | Internet, NAS NFS, host SSH, k3s API |
 | NIC2 (`cam0`) | Camera segment | `192.168.105.1/24` | Isolated; serves DHCP; Frigate only |
 
-> Names confirmed on the installed node (Intel I226-V 2.5GbE). The unused 10G SFP+
-> ports are `enp2s0f0np0`/`enp2s0f1np1`; WiFi is `wlp89s0`.
+> The 2.5GbE ports (Intel I226-V) are pinned to `lan0`/`cam0` by MAC, so their raw
+> kernel names don't matter. The unused 10G SFP+ ports enumerate as
+> `enpXs0f0np0`/`enpXs0f1np1` and WiFi as `wlpXYs0` — placeholder names, since the exact
+> PCI-enumeration index can shift if hardware is rearranged.
 
 > Ingress is **not** on NIC1's `.5`. MetalLB announces a separate LoadBalancer IP
 > (`10.137.20.10`) for service/ingress traffic via L2 ARP; keeping it off the node IP

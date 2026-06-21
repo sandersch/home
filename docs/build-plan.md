@@ -49,14 +49,16 @@ closing the first — SSH is the sanctioned tunnel path for camera web UIs (1.1)
 reachable on LAN + Tailnet and worth locking down.
 
 **0.2 Static networking (NIC1 first).** Set NIC1 to a static IP via Netplan before
-anything else so the address can't shift mid-bootstrap. Interface names confirmed on
-the installed node: the kernel names the two 2.5GbE ports `enp88s0` (NIC1,
-MAC `38:05:25:35:fb:d3`) and `enp87s0` (NIC2, MAC `38:05:25:35:fb:d2`); the netplan
-config pins these to the friendly names **`lan0`** and **`cam0`** by MAC
-(`match`/`set-name`), which all later config references. The rename lands on reboot —
-`netplan apply` cannot rename a live, addressed link. The unused 10G SFP+ ports are
-`enp2s0f0np0`/`enp2s0f1np1`. Also disable cloud-init's network rendering or it
-regenerates the installer's DHCP stub on reboot.
+anything else so the address can't shift mid-bootstrap. The kernel auto-names the two
+2.5GbE ports something like `enpXXs0` — the exact name is PCI-enumeration dependent and
+can shift if hardware is rearranged, so identify the ports by **MAC**, not by name:
+NIC1 = `38:05:25:35:fb:d3`, NIC2 = `38:05:25:35:fb:d2`. The netplan config pins these to
+the friendly names **`lan0`** and **`cam0`** by MAC (`match`/`set-name`), which all later
+config references — that rename is exactly what makes the names stable regardless of how
+the kernel enumerated them. The rename lands on reboot — `netplan apply` cannot rename a
+live, addressed link. The unused 10G SFP+ ports enumerate as `enpXs0f0np0`/`enpXs0f1np1`.
+Also disable cloud-init's network rendering or it regenerates the installer's DHCP stub
+on reboot.
 
 → Apply [`host/minis/etc/netplan/00-installer-config.yaml`](../host/minis/etc/netplan/00-installer-config.yaml)
 (NIC1 static `10.137.20.5/24`; NIC2 `192.168.105.1/24` plus the `192.168.1.2/24`
@@ -80,7 +82,7 @@ swapon --show               # MUST be empty — kubelet refuses swap. The instal
 ls -la /dev/dri/            # expect cardN + renderD128 (Quick Sync; card0 on this node)
 lsmod | grep i915           # i915 driver loaded; if not, add to /etc/modules + reboot
 getent group render         # render GID — needed for the Plex pod. On this node: 993
-rfkill block wifi           # WiFi (wlp89s0) is unused; block it to shrink attack surface.
+rfkill block wifi           # WiFi (wlpXYs0) is unused; block it to shrink attack surface.
                             #   `rfkill` state persists across reboots on Ubuntu.
 rfkill block bluetooth      # Bluetooth (hci0) is likewise unused — block it too.
 ```
