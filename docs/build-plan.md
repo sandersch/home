@@ -275,16 +275,18 @@ dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up lea
 # Hand cameras the host as their NTP server (option 42) — BEST EFFORT ONLY. Amcrest/
 # Dahua cameras generally ignore option 42 and use the NTP server set in their own web
 # UI, so this is a backstop, not the source of truth; the authoritative NTP config is
-# set per-camera in 1.3. Deliberately NO router option (option 3): an isolated segment
-# needs no default route, and withholding it stops cameras even attempting off-segment
-# traffic (the forward drop is the backstop).
+# set per-camera in 1.3. Deliberately empty router and DNS options: an isolated segment
+# needs no default route or resolver, and withholding them stops cameras even attempting
+# off-segment traffic or DNS beacons (the forward drop is the backstop).
+dhcp-option=option:router
+dhcp-option=option:dns-server
 dhcp-option=option:ntp-server,192.168.105.1
 # dhcp-host=AA:BB:CC:DD:EE:FF,192.168.105.51   # pin per-camera in the static .50-.99 block
 ```
 ⚑ Confirm a DHCP client receives a lease in range. Real cameras aren't connected yet at
 this stage (that's gated on the switch isolation in 1.1b), so validate with a **test
 laptop** plugged into the camera segment — it should get a `192.168.105.100–.199` lease, the
-host (`.1`) as NTP server, and **no** default route.
+host (`.1`) as NTP server, and **no** default route or DNS server.
 
 > **TODO — pin every camera before Frigate (4c).** The "stable leases" Frigate relies
 > on are only guaranteed by `dhcp-host` MAC reservations; plain dynamic leases can
