@@ -399,9 +399,9 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 
 ---
 
-## 🛠️ Step-by-Step System Deployment Checklist
+## 🛠️ Network Deployment Checklist
 
-### Phase 1: UniFi Dream Machine Configuration
+### Network Step 1: UniFi Dream Machine Configuration
 
 * [x] Verify WAN failover prioritization: Primary = AT&T (Port 9), Failover = Spectrum (Port 8). This is **failover only** (not load-balancing); Spectrum sits idle until AT&T fails. Intentional for now — keeps a stable primary IP and avoids per-session path issues. Note: both WANs run on RJ45 ports (9 + 8), leaving the SFP+ WAN port (Port 10) free to be reassigned to LAN — this is confirmed working in the current setup. Since AT&T is 1G symmetric, the RJ45 WAN imposes no bottleneck.
 * [ ] Build out virtual networks/VLAN scopes (10, 20, 30, 60, 80). Set management IP gateway to `10.137.10.1`. Set each dynamic DHCP pool to `.100-.199` within its subnet. Also create **VLAN 99 as a "VLAN Only" network** (no gateway, no DHCP) so it can be selected as the native VLAN on the Port 10 trunk profile — UniFi requires the network to exist before it can be assigned as a native VLAN, so the blackhole trunk config below cannot be applied without it. Do **not** build VLAN 105 on the controller (it is an isolated, gateway-less segment that lives only on the Catalyst).
@@ -416,7 +416,7 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 * [ ] Verify `ryze` can reach VLAN 10 management endpoints and that other Trusted/VLAN 30 clients, including `m5c`, cannot reach VLAN 10 directly.
 * [ ] Verify a VLAN 10 client receives DHCP option 42 for `10.137.20.2`, can sync NTP from `morpheus`, and cannot reach arbitrary VLAN 20 services or internet NTP servers.
 
-### Phase 2: Cisco Catalyst 3850 Initialization
+### Network Step 2: Cisco Catalyst 3850 Initialization
 
 * [ ] Set `vtp mode transparent` so the switch manages its own VLAN database locally and does not participate in VTP (matches the topology diagram).
 * [ ] Build out global VLAN tables database: `vlan 10,20,30,60,80,99,105`.
@@ -424,18 +424,18 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 * [ ] Provision SFP+ Uplink port `Te1/1/4` as a standard 802.1Q trunk. Force `switchport trunk native vlan 99` and set `switchport trunk allowed vlan 10,20,30,60,80,99` (VLAN 99 is included so the trunk carries its own native VLAN). Exclude VLAN 105 from the trunk.
 * [ ] Keep unused general-purpose wired ports as Access Mode on VLAN 30 for convenience. This is an intentional home-network tradeoff; unused ports are not disabled or parked in VLAN 99 by default. Reserve `Gi1/0/1-4` for VLAN 10 IPMI/IPKVM access devices, and do not treat those ports as general-purpose client access.
 * [ ] Configure `Gi1/0/1-4` as VLAN 10 access ports for IPMI/IPKVM devices.
-* [ ] Configure the camera deployment ports (`Gi1/0/37-47`) per the Local Camera Isolation config block: `switchport access vlan 105`, `switchport protected` (so cameras cannot talk to each other), plus `spanning-tree portfast` and `bpduguard enable`.
+* [ ] Configure the camera deployment ports (`Gi1/0/37-47`) per the Local Camera Isolation config block: `switchport access vlan 105`, `switchport protected` (so cameras cannot talk to each other), `switchport block unicast`, `switchport block multicast`, plus `spanning-tree portfast` and `bpduguard enable`.
 * [ ] Configure the NVR camera-side ingestion port (`Gi1/0/48`) per the same block: `switchport access vlan 105` with `spanning-tree portfast` and `bpduguard enable`, but **without** `switchport protected` — this is intentional so the cameras on the protected ports can reach the `minis` NVR NIC.
 * [ ] Harden device management access: set `enable secret`, enable `service password-encryption`, and disable plaintext remote access by allowing SSH only on the vty lines (`transport input ssh`).
 
-### Phase 2.5: Camera Segment Services
+### Network Step 2.5: Camera Segment Services
 
 * [ ] Configure `minis` `dnsmasq` on the camera-side NIC only, with `dhcp-host` MAC-to-IP reservations for every known camera in the static `192.168.105.50-192.168.105.99` block, and the dynamic pool limited to `192.168.105.100-192.168.105.199` for unknown devices. Do not advertise a default gateway / router option. Run DHCP-only (`port=0`) — do not serve DNS, which would be an outbound beacon path for a compromised camera.
 * [ ] Configure static camera network settings with no default gateway. Point camera NTP at `192.168.105.1` if local time sync is needed.
 * [ ] Confirm `minis` has IP forwarding/bridging disabled between its VLAN 20 server-side NIC and VLAN 105 camera-side NIC.
 * [ ] Confirm cameras can reach `192.168.105.1` for Frigate/NVR ingestion and local NTP, but cannot reach VLAN 20, VLAN 30, VLAN 10, or the internet directly.
 
-### Phase 3: Network Cutover Runbook (From Legacy `172.17.1.0/24`)
+### Network Step 3: Network Cutover Runbook (From Legacy `172.17.1.0/24`)
 
 * [ ] Sweep all configuration files for hardcoded references to the legacy range (`/etc/hosts`, Nginx reverse-proxy configs, docker-compose files, `.env` blocks, and system mounts such as `/etc/fstab`).
 * [ ] Make the network changes during a dedicated maintenance window. Update DHCP reservations to the new `10.137.x.x` blocks.
