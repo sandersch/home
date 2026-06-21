@@ -32,9 +32,9 @@ Media library and Frigate recordings live on a **remote NAS with spinning disks*
 reached over NFS. The local NVMe is reserved for the OS, container images, Frigate
 cache/temp, and low-latency application state.
 
-The 10Gb SFP+ backplane exists but is **not** a current requirement; 2.5GbE is
-sufficient for active workloads. Don't build for 10G yet — that's premature
-optimization per priority 5.
+The 10Gb SFP+ backplane exists but is **not** a current requirement. The host NICs are
+2.5GbE-capable, but the current router/switch ports they attach to are 1GbE, so the
+server and camera links negotiate at 1Gb today.
 
 ## Filesystem and volume layout
 
