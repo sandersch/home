@@ -1,0 +1,146 @@
+! ============================================================================
+! Cisco Catalyst WS-C3850-48U  ·  hostname: catalyst  ·  mgmt 10.137.10.2
+! ----------------------------------------------------------------------------
+! Source-of-truth running-config for the Layer-2 distribution switch.
+! Mirrors docs/network.md (Network Step 2 + Local Camera Isolation block).
+! This is a TEMPLATE: secrets are redacted (see README) and a few lines marked
+! "(exec)" are run from privileged EXEC at restore time, not pasted as config.
+!
+! INVARIANTS (docs/network.md → Canonical Invariants — do not violate):
+!   * Strictly L2. 'ip routing' stays OFF. The VLAN 10 SVI is a management host
+!     IP only, never an inter-VLAN gateway — the UDM Pro routes everything.
+!   * VLAN 105 (cameras) is NEVER added to the Te1/1/4 uplink trunk.
+!   * VLAN 99 is the empty blackhole native VLAN on the trunk.
+! ============================================================================
+
+service password-encryption
+!
+hostname catalyst
+!
+! --- Strictly Layer 2 ----------------------------------------------------
+! 'ip routing' is disabled by default; keep it that way. No 'ip routing' line
+! is emitted on purpose. The single SVI below is a host IP, not routing.
+no ip routing
+!
+! --- VLAN database (VTP transparent: manage the DB locally, ignore VTP) ---
+vtp mode transparent
+!
+vlan 10
+ name admin-mgmt
+vlan 20
+ name servers
+vlan 30
+ name trusted-fastlane
+vlan 60
+ name iot
+vlan 80
+ name guest
+vlan 99
+ name blackhole-native
+vlan 105
+ name cameras
+!
+! --- Spanning tree -------------------------------------------------------
+spanning-tree mode rapid-pvst
+!
+! --- Management interface -------------------------------------------------
+! VLAN 10 SVI = the switch's own management address. NOT a gateway: with
+! 'no ip routing' this terminates traffic for the box only.
+interface Vlan10
+ description catalyst management SVI (host IP, not routing)
+ ip address 10.137.10.2 255.255.255.0
+ no shutdown
+!
+! Reach ryze (VLAN 30) and other off-subnet admins via the UDM. Required
+! because the L2 switch has no routing table of its own.
+ip default-gateway 10.137.10.1
+!
+! ============================================================================
+! UPLINK TRUNK  ·  Te1/1/4 → UDM Port 10 (10G DAC)
+! ============================================================================
+! Native VLAN 99 must match the UDM side or untagged frames land in a live
+! VLAN and the blackhole design breaks. VLAN 99 is in the allowed list so the
+! trunk carries its own native VLAN. VLAN 105 is deliberately EXCLUDED.
+! (No 'switchport trunk encapsulation' — the 3850 is dot1q-only.)
+interface TenGigabitEthernet1/1/4
+ description Uplink to UDM Port 10 (10G DAC trunk)
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,20,30,60,80,99
+!
+! ============================================================================
+! ACCESS PORTS
+! ============================================================================
+!
+! IPMI / IPKVM out-of-band management (reserved block — not general client use)
+interface range GigabitEthernet1/0/1-4
+ description IPMI/IPKVM out-of-band mgmt (VLAN 10)
+ switchport mode access
+ switchport access vlan 10
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+!
+! General wired clients. Convenience default: anything plugged in just works.
+! Unused ports stay here on VLAN 30 by design (home-network tradeoff), not
+! disabled or parked in VLAN 99.
+interface range GigabitEthernet1/0/5-36
+ description General wired clients (VLAN 30)
+ switchport mode access
+ switchport access vlan 30
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+!
+! Camera deployment ports (11-port reserved range; 4 cameras today).
+! 'switchport protected' stops cameras talking to each other; block
+! unicast/multicast stops unknown-unicast and flood frames leaking between
+! them. Cameras can still reach the NVR port (Gi1/0/48, below).
+interface range GigabitEthernet1/0/37-47
+ description IP cameras (VLAN 105, isolated)
+ switchport mode access
+ switchport access vlan 105
+ switchport protected
+ switchport block unicast
+ switchport block multicast
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+!
+! minis NVR camera-side ingestion (cam0). INTENTIONALLY OMITS 'switchport
+! protected' and the block statements so the protected camera ports above can
+! reach this one port. Do not add protection here.
+interface GigabitEthernet1/0/48
+ description minis NVR camera-side ingestion (cam0, VLAN 105)
+ switchport mode access
+ switchport access vlan 105
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+!
+! ============================================================================
+! DEVICE MANAGEMENT HARDENING
+! ============================================================================
+! Secrets redacted per the repo's no-plaintext rule — restore from the
+! password manager (see README). Both lines store an irreversible hash on the
+! box once set; the cleartext is never committed.
+enable secret __REPLACE_WITH_ENABLE_SECRET__
+username admin privilege 15 secret __REPLACE_WITH_ADMIN_SECRET__
+!
+! SSH only — no plaintext telnet on the vty lines.
+ip domain name matrix
+ip ssh version 2
+! (exec) generate the host key once after setting 'ip domain name':
+!   crypto key generate rsa modulus 2048
+!
+! Kill the web UIs; manage over SSH.
+no ip http server
+no ip http secure-server
+!
+line con 0
+ login local
+ logging synchronous
+ exec-timeout 15 0
+!
+line vty 0 15
+ login local
+ transport input ssh
+ exec-timeout 15 0
+!
+end
