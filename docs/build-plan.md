@@ -326,9 +326,10 @@ sync (visible in the camera UI / on Frigate's first snapshots).
 
 **1.4 NAS throughput.** ⚑ Run `iperf3 -s` on the NAS (it's a Linux box), then
 `iperf3 -c media.nfs.service.matrix` from the node. **Current expectation ~940 Mbps**,
-not line rate: the node reaches the NAS through a 1 GbE switch for now, so 2.5GbE
-can't be realized end-to-end until that switch is upgraded — don't chase the 2.3 Gbps
-figure yet. iperf3 measures raw TCP; the metric Plex/Frigate actually care about is
+not line rate: `minis` and the NAS both attach directly to the UDM Pro's 1 GbE RJ45 LAN
+ports (no intermediate switch in this path), so 2.5GbE can't be realized end-to-end until
+both hosts move off those 1G RJ45 ports onto faster links (e.g. SFP+) — don't chase the
+2.3 Gbps figure yet. iperf3 measures raw TCP; the metric Plex/Frigate actually care about is
 NFS read/write, so once the mounts are up (Phase 0.4) also spot-check with `fio`/`dd`
 over `/mnt/media`. Diagnose anything well under ~940 Mbps before proceeding.
 

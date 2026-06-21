@@ -124,10 +124,11 @@ service needs no new DNS record, just an Ingress manifest. Confirm the router su
 explicit hostnames) — test with a throwaway hostname before depending on it.
 
 **NAS throughput.** Validate the NAS link with `iperf3` before deploying Plex/Frigate —
-both depend on it. The *design target* is 2.5GbE end-to-end (~2.3 Gbps), but the node
-currently reaches the NAS through a **1 GbE switch**, so the realistic interim
-expectation is **~940 Mbps**; 2.5GbE can't be realized until that switch is upgraded.
-Don't chase the 2.3 Gbps figure until then — see
+both depend on it. The *design target* is 2.5GbE end-to-end (~2.3 Gbps), but `minis`
+and the NAS both attach directly to the UDM Pro's **1 GbE RJ45 LAN ports** (Ports 3 and
+2 respectively — no intermediate switch in this path), so the realistic interim
+expectation is **~940 Mbps**; 2.5GbE can't be realized until both hosts move off those
+1G RJ45 ports onto faster links (e.g. SFP+). Don't chase the 2.3 Gbps figure until then — see
 [build-plan.md → 1.4](./build-plan.md#phase-1--networking-isolation-).
 
 ## Storage architecture
