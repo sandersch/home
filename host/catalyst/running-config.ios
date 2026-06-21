@@ -63,6 +63,12 @@ interface Vlan10
 ! because the L2 switch has no routing table of its own.
 ip default-gateway 10.137.10.1
 !
+! Vlan1 must be explicitly shut — it exists by default on every IOS switch and
+! must never carry traffic on a managed deployment.
+interface Vlan1
+ no ip address
+ shutdown
+!
 ! ============================================================================
 ! UPLINK TRUNK  ·  Te1/1/4 → UDM Port 10 (10G DAC)
 ! ============================================================================
