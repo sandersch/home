@@ -25,6 +25,8 @@ config. Then, from privileged EXEC:
    and console access remains the recovery path.
 2. **Generate the SSH host key** (one-time, after `ip domain name matrix` is in
    place): `crypto key generate rsa modulus 2048`. SSH won't come up without it.
+   The template also installs the `admin` user's SSH public key via
+   `ip ssh pubkey-chain`, so key auth should work after the host key exists.
 3. `write memory` to persist to `startup-config`.
 
 Confirm before relying on it: `ryze` (VLAN 30) can SSH to `10.137.10.2`, the
