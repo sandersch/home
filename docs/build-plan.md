@@ -172,10 +172,10 @@ table inet camera_isolation {
   }
 }
 ```
-The camera segment is **IPv4-only**. The `inet` table covers both families, and
-`ip protocol icmp` matches IPv4 ICMP only — ICMPv6 (router/neighbor discovery) from a
-camera falls to the final drop. To remove the IPv6 surface entirely rather than rely on
-that, disable it on NIC2:
+The camera segment is **IPv4-only**. The `inet` table covers both families, and the
+`icmp type echo-request` diagnostic allow is IPv4-only — ICMPv6 (router/neighbor
+discovery) from a camera falls to the final drop. To remove the IPv6 surface entirely
+rather than rely on that, disable it on NIC2:
 ```
 # /etc/sysctl.d/99-camera-no-ipv6.conf
 net.ipv6.conf.cam0.disable_ipv6 = 1
