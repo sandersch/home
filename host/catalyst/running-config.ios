@@ -145,6 +145,9 @@ ip ssh pubkey-chain
 no ip http server
 no ip http secure-server
 !
+! Log successful logins (audit trail for console/vty access).
+login on-success log
+!
 ! Console is the deliberate break-glass path: NO 'login local' and (with no
 ! enable secret set above) physical console access is intentionally
 ! unauthenticated and lands at privilege 15. Recovery must not depend on a
