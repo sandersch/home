@@ -15,11 +15,14 @@ are run from privileged EXEC, not pasted into the config.
 Console in (or SSH once mgmt is up), enter `configure terminal`, and paste the
 config. Then, from privileged EXEC:
 
-1. **Set the redacted secrets** — replace `__REPLACE_WITH_ENABLE_SECRET__` and
-   `__REPLACE_WITH_ADMIN_SECRET__` with the values from the password manager
-   *before* pasting (or set them interactively: `enable secret …`,
-   `username admin privilege 15 secret …`). They are stored as one-way hashes on
-   the box; the cleartext is never committed here.
+1. **Set the redacted admin secret** — replace
+   `__REPLACE_WITH_ADMIN_SECRET__` with the value from the password manager
+   *before* pasting (or set it interactively:
+   `username admin privilege 15 secret …`). It is stored as a one-way hash on
+   the box; the cleartext is never committed here. An `enable secret` is
+   intentionally skipped to avoid complicating the break-glass recovery
+   procedure; the privilege-15 local admin account is the remote admin path,
+   and console access remains the recovery path.
 2. **Generate the SSH host key** (one-time, after `ip domain name matrix` is in
    place): `crypto key generate rsa modulus 2048`. SSH won't come up without it.
 3. `write memory` to persist to `startup-config`.

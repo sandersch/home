@@ -117,10 +117,11 @@ interface GigabitEthernet1/0/48
 ! ============================================================================
 ! DEVICE MANAGEMENT HARDENING
 ! ============================================================================
-! Secrets redacted per the repo's no-plaintext rule — restore from the
-! password manager (see README). Both lines store an irreversible hash on the
-! box once set; the cleartext is never committed.
-enable secret __REPLACE_WITH_ENABLE_SECRET__
+! Secret redacted per the repo's no-plaintext rule — restore from the password
+! manager (see README). This stores an irreversible hash on the box once set;
+! the cleartext is never committed. No enable secret is set intentionally: the
+! privilege-15 local admin account is the remote admin path, and console access
+! remains the break-glass path without an additional enable credential.
 username admin privilege 15 secret __REPLACE_WITH_ADMIN_SECRET__
 !
 ! SSH only — no plaintext telnet on the vty lines.

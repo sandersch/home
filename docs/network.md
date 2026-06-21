@@ -426,7 +426,7 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 * [ ] Configure `Gi1/0/1-4` as VLAN 10 access ports for IPMI/IPKVM devices.
 * [ ] Configure the camera deployment ports (`Gi1/0/37-47`) per the Local Camera Isolation config block: `switchport access vlan 105`, `switchport protected` (so cameras cannot talk to each other), `switchport block unicast`, `switchport block multicast`, plus `spanning-tree portfast` and `bpduguard enable`.
 * [ ] Configure the NVR camera-side ingestion port (`Gi1/0/48`) per the same block: `switchport access vlan 105` with `spanning-tree portfast` and `bpduguard enable`, but **without** `switchport protected` — this is intentional so the cameras on the protected ports can reach the `minis` NVR NIC.
-* [ ] Harden device management access: set `enable secret`, enable `service password-encryption`, and disable plaintext remote access by allowing SSH only on the vty lines (`transport input ssh`).
+* [ ] Harden device management access: configure a privilege-15 local admin secret, enable `service password-encryption`, and disable plaintext remote access by allowing SSH only on the vty lines (`transport input ssh`). `enable secret` is intentionally skipped to avoid complicating the break-glass recovery procedure.
 
 ### Network Step 2.5: Camera Segment Services
 
