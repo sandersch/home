@@ -23,7 +23,7 @@ config. Then, from privileged EXEC:
    intentionally skipped to avoid complicating the break-glass recovery
    procedure; the privilege-15 local admin account is the remote admin path,
    and console access remains the recovery path.
-2. **Generate the SSH host key** (one-time, after `ip domain name matrix` is in
+2. **Generate the SSH host key** (one-time, after `ip domain name mgmt.matrix` is in
    place): `crypto key generate rsa modulus 2048`. SSH won't come up without it.
    The template also installs the `admin` user's SSH public key via
    `ip ssh pubkey-chain`, so key auth should work after the host key exists.
