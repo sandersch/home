@@ -5,6 +5,7 @@
 # password from a prompt (kept OUT of the repo — placeholder __REPLACE_..__ ships
 # instead), and enables the stack. NUT is host-level and must start before k3s so
 # the clean-shutdown-on-power-loss hook works even if the cluster is degraded.
+# shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root; require_sudo; require_host_etc

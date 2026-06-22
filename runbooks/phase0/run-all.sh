@@ -2,6 +2,7 @@
 # Run the Phase 0 steps in dependency order. Several steps are interactive
 # (SSH restart, netplan apply, NUT password) and pause for confirmation — run this
 # attached to a TTY, and keep a second SSH session open across the SSH/network steps.
+# shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 STEPS=(

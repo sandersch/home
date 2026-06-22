@@ -7,6 +7,7 @@
 # NOT overwrite the freshly-installed fstab — we only APPEND the NAS NFS line if it
 # isn't already present (the safe path build-plan.md 0.4 calls out for an existing
 # install). nofail/_netdev are essential: a NAS outage at boot must not block k3s.
+# shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root; require_sudo; require_host_etc

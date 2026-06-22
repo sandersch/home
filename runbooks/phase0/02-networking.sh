@@ -6,6 +6,7 @@
 # (match/set-name). The RENAME LANDS ON REBOOT — `netplan apply` cannot rename a
 # live, addressed link, so lan0/cam0 won't appear until the next boot; the static
 # addressing still applies now to the current kernel names.
+# shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root; require_sudo; require_host_etc

@@ -7,6 +7,7 @@
 # SSH is assumed already up and reachable (that's where this runbook starts). This
 # step applies the key-only-auth drop-in and restarts sshd. PasswordAuthentication no
 # will LOCK YOU OUT if your key isn't already authorized — guarded below.
+# shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root; require_sudo; require_host_etc

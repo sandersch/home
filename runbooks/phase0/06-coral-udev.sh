@@ -5,6 +5,7 @@
 # Frigate container (Phase 4c, via a /dev/bus/usb hostPath) can open it without
 # running fully privileged. The Coral enumerates under two USB IDs — before and
 # after its firmware loads — so the rule matches both.
+# shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root; require_sudo; require_host_etc

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Phase 0 preflight — sanity-check the host before running any step.
 # Read-only: changes nothing, just confirms assumptions the later scripts rely on.
+# shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 step "Phase 0 preflight checks"

@@ -4,6 +4,7 @@
 # Quick Sync checks are enforced because Plex later depends on /dev/dri and i915.
 # Coral presence is still reported only: the udev rule can be installed before the
 # USB accelerator is physically attached.
+# shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root; require_sudo
