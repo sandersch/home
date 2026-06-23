@@ -38,10 +38,10 @@ Run the host-side scripts in numeric order, or run `./run-all.sh` for steps 00-0
   flushes *every* table — including the nat/filter/mangle chains k3s/flannel/kube-proxy
   inject at runtime — and pod networking breaks until k3s re-syncs. `01` and any later
   rule change must use `systemctl reload nftables`, which only re-applies our conf file.
-- The camera DHCP/NTP config ships as drop-ins only, so `02-camera-dhcp-ntp.sh` asserts
-  that stock `/etc/dnsmasq.conf` and `/etc/chrony/chrony.conf` still include their
-  `conf.d` dirs. If an OS upgrade drops those includes, the daemons start cleanly but
-  silently ignore the camera config; the assert fails loudly instead.
+- The camera DHCP/NTP config ships as drop-ins only, so `02-camera-dhcp-ntp.sh` ensures
+  `/etc/dnsmasq.conf` and `/etc/chrony/chrony.conf` include their `conf.d` dirs. If an
+  OS upgrade drops those includes, the daemons start cleanly but silently ignore the
+  camera config; the runbook restores the include before restarting them.
 - Before k3s, stock Ubuntu usually has `net.ipv4.ip_forward=0`, so camera-to-LAN or
   camera-to-internet ping failures do not prove the forward chain. Re-test after Phase 2
   with a camera-segment test device using manual gateway `192.168.105.1`; blocked

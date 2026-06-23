@@ -13,8 +13,8 @@ step "Install camera dnsmasq and chrony configs"
 install_file dnsmasq.d/cameras.conf /etc/dnsmasq.d/cameras.conf root:root 644
 install_file chrony/conf.d/cameras.conf /etc/chrony/conf.d/cameras.conf root:root 644
 
-# The drop-ins above only take effect if the stock main configs include their dirs.
-assert_camera_dropins_included
+# The drop-ins above only take effect if the main configs include their dirs.
+ensure_camera_dropins_included
 
 step "Validate dnsmasq config"
 sudo dnsmasq --test

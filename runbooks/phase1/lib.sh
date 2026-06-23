@@ -27,23 +27,27 @@ assert_phase1_source_files() {
 # so they take effect ONLY if the stock main config includes their directory. If that
 # include is ever missing, the daemon starts cleanly and 'service_active' passes while
 # our drop-in is silently never parsed — dnsmasq serves no DHCP, or chrony refuses to
-# serve the segment during a WAN outage and the cameras drift. Assert the include so a
-# silent miss fails loudly here instead of only on the test device in step 03.
-assert_dropin_included() {
-  local label="$1" main="$2" regex="$3" dir="$4"
+# serve the segment during a WAN outage and the cameras drift. Ensure the include here
+# so a missing distro default is repaired before validation and service restart.
+ensure_dropin_included() {
+  local label="$1" main="$2" regex="$3" dir="$4" include_line="$5"
   sudo test -f "$main" \
     || die "$label main config $main is missing; the $dir drop-in would be ignored"
   if sudo grep -Eqs "$regex" "$main"; then
     ok "$main includes $dir (camera drop-in will be read)"
   else
-    die "$main does not include $dir; the camera $label drop-in is silently ignored. Add the include directive to $main."
+    printf '\n# Homelab camera %s drop-ins\n%s\n' "$label" "$include_line" \
+      | sudo tee -a "$main" >/dev/null
+    ok "added $dir include to $main"
   fi
 }
 
-assert_camera_dropins_included() {
-  step "Confirm stock main configs include the camera drop-in dirs"
-  assert_dropin_included dnsmasq /etc/dnsmasq.conf \
-    '^[[:space:]]*conf-dir=.*dnsmasq\.d' /etc/dnsmasq.d
-  assert_dropin_included chrony /etc/chrony/chrony.conf \
-    '^[[:space:]]*confdir[[:space:]].*conf\.d' /etc/chrony/conf.d
+ensure_camera_dropins_included() {
+  step "Ensure main configs include the camera drop-in dirs"
+  ensure_dropin_included dnsmasq /etc/dnsmasq.conf \
+    '^[[:space:]]*conf-dir=.*dnsmasq\.d' /etc/dnsmasq.d \
+    'conf-dir=/etc/dnsmasq.d,.dpkg-dist,.dpkg-old,.dpkg-new'
+  ensure_dropin_included chrony /etc/chrony/chrony.conf \
+    '^[[:space:]]*confdir[[:space:]].*conf\.d' /etc/chrony/conf.d \
+    'confdir /etc/chrony/conf.d'
 }
