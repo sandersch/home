@@ -306,10 +306,12 @@ the segment; confirm with `timedatectl` / `chronyc sources` that chrony, not tim
 is now the active daemon):
 ```
 # /etc/chrony/conf.d/cameras.conf
-allow 192.168.105.0/24      # answer NTP from the camera segment
-local stratum 10            # serve the host's own clock as a fallback so the segment stays
-                            # served during a WAN outage (else chrony goes unsynced and REFUSES
-                            # to serve, and the cameras have no other time source → they drift)
+# Answer NTP from the camera segment.
+allow 192.168.105.0/24
+# Serve the host's own clock as a fallback so the segment stays served during a WAN
+# outage (else chrony goes unsynced and REFUSES to serve, and the cameras have no
+# other time source → they drift).
+local stratum 10
 ```
 chrony listens on all interfaces (default) — we deliberately do **not** `bindaddress`
 to NIC2. Binding to `192.168.105.1` would require that address to exist on `cam0`
