@@ -107,7 +107,7 @@ assert_phase0_network_settled() {
   assert_interface_has_address lan0 10.137.20.5/24
   assert_interface_has_address cam0 192.168.105.1/24
   assert_interface_has_address cam0 192.168.1.2/24
-  ip route | grep -q '^default via 10\.137\.20\.1 ' \
+  ip -4 route show default | grep '^default via 10\.137\.20\.1 ' >/dev/null \
     || die "default route is not via 10.137.20.1"
   ok "default route points at 10.137.20.1"
 }
