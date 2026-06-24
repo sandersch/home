@@ -136,7 +136,7 @@ routed to or from the segment (camera→internet, camera→LAN, LAN→camera). T
 chain drops everything a camera sends *to the host itself* except the few things the
 segment legitimately needs — without it, the forward rules leave host services
 (`k3s :6443` and `kubelet :10250`, both bound to `0.0.0.0` by default; `SSH :22`; and
-every `hostNetwork` pod — Frigate, Plex, Home Assistant) reachable from a compromised
+every `hostNetwork` pod — Frigate, Home Assistant) reachable from a compromised
 camera on `192.168.105.1`. RTSP needs no allow rule: Frigate (the host) *initiates* to
 the camera, so the camera's replies are `established` and the host's own egress to the
 camera is on the output hook, not forward.
@@ -436,8 +436,20 @@ infrastructure Kustomization. Include the **TopoLVM HelmRelease** in
 `infrastructure/configs/` — Phase 4's scratch PVCs need them, and the `dependsOn`
 ordering guarantees they exist first.
 
-**3.6 Enable SOPS decryption** on the Flux Kustomizations:
+**3.6 Enable SOPS decryption** on both Flux Kustomizations. Encrypted
+cert-manager DNS credentials and Tailscale OAuth credentials are infrastructure
+secrets, so the infrastructure Kustomization needs decryption too; app secrets use the
+same `sops-age` key.
 ```yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: infrastructure, namespace: flux-system }
+spec:
+  decryption:
+    provider: sops
+    secretRef: { name: sops-age }
+  # ...path, sourceRef
+---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata: { name: apps, namespace: flux-system }
@@ -467,6 +479,8 @@ Do **not** start Phase 3.5/4 until all of these are green:
 - [ ] `cam-drop-*` log entries appear in `journalctl -k` when a blocked connection is attempted from the segment
 - [ ] Two cameras on the segment **cannot** reach each other (switch protected ports, 1.1b)
 - [ ] dnsmasq issues a camera lease in range
+- [ ] Every real camera has a `dhcp-host=<mac>,192.168.105.<50-99>` reservation and
+      keeps the same IP across a dnsmasq restart before Frigate goes live
 - [ ] Camera segment gets NTP from the host (`192.168.105.1`); each camera's own NTP is set to `192.168.105.1` and its clock is in sync
 - [ ] Tailscale operator connected; `*.worm.run` resolves over the Tailnet
 - [ ] SOPS decrypt works (reconcile a Kustomization containing an encrypted Secret)
@@ -479,39 +493,50 @@ top.
 
 ## Phase 3.5 — app data migration 🔧
 
-Run the **old stack and new stack in parallel**; cut over only after validation. Full
-procedure (VACUUM, rsync flags, service-URL rewrites, cutover, rollback) is in
+This phase is only the pre-work copy after the validation gate. Copy existing
+Plex/Radarr/Sonarr/Prowlarr state from the old stack to `/opt/...` on `minis` while
+the old stack continues serving. The migrated workloads are deployed in Phase 4 using
+this copied data; cutover does not happen here.
+
+Copy procedure details (VACUUM, rsync flags, ownership, and URL notes) are in
 [migration-runbook.md](./migration-runbook.md).
 
 - **Migrate:** Plex (metadata/DB), Radarr, Sonarr, Prowlarr.
 - **Fresh installs, no migration:** Overseerr, RomM, Home Assistant, Frigate.
-- Keep the old node intact and powered off (not wiped) for ~2 weeks post-cutover as a
-  rollback path.
+- Keep the old stack intact for Phase 4 validation and rollback.
 
 ---
 
 ## Phase 4 — core workloads 📦
 
 GitOps from here. Every pod sets resource requests/limits + a priorityClassName.
+Deploy workloads with NAS media mounts read-only initially where practical. Validate
+the copied app state and hardware paths first; only after validation do you cut over,
+flip NAS writes on, and run the final rsync for app-config changes made during the
+parallel run. `/mnt/frigate` and `/mnt/games` are not mounted in Phase 0, so add them
+to the host fstab during this phase before deploying Frigate or RomM.
 
 **4a — download pod: Gluetun + Mullvad + SABnzbd + *arr (deploy first).** One pod in
 `media`: Gluetun plus SABnzbd, Prowlarr, Radarr, and Sonarr sharing its network
 namespace. Intra-stack calls are `localhost:<port>`; everything outside the pod uses
 the Gluetun Service. ⚑ Confirm the egress IP from inside the pod equals the VPN exit
-IP before configuring indexers/downloads. Pattern below.
+IP before configuring indexers/downloads, then validate *arr history and a test
+download flow. Pattern below.
 
 Then, in parallel once VPN is validated:
 
 **4b — Plex** (standard/burstable). `/dev/dri` hostPath + the render group; media via
 hostPath to `/mnt/media` (NFS mounted on host by fstab in Phase 0.4); `/opt/plex`
-metadata. ⚑ Run a 1080p transcode and confirm GPU use with `intel_gpu_top` on the host.
+metadata. ⚑ Confirm the migrated library/metadata is intact, then run a 1080p
+transcode and confirm GPU use with `intel_gpu_top` on the host.
 
 **4c — Frigate** (critical/non-evictable). `hostNetwork: true` so RTSP connections to
 cameras originate from the host (source IP `192.168.105.1`) without passing through the
 forward chain — this is what makes the nftables camera isolation work. Coral USB
 hostPath; DB on `/opt/frigate`, cache on a `topolvm-scratch` PVC (50 Gi ext4 LV),
-recordings via hostPath to `/mnt/frigate`. ⚑ Verify
-cameras remain unreachable from the internet.
+recordings via hostPath to `/mnt/frigate`. ⚑ Before Frigate goes live, confirm every
+real camera has a stable `.50-.99` `dhcp-host` reservation across a dnsmasq restart;
+then verify cameras remain unreachable from the internet.
 
 **4d — remaining stack.** Overseerr (pointed at the *arrs via the Gluetun Service),
 RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery; plus any
