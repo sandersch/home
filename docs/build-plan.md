@@ -342,7 +342,11 @@ over `/mnt/media`. Diagnose anything well under ~940 Mbps before proceeding.
 
 ---
 
-## Phase 2 — k3s + cluster infrastructure ⚙️
+## Phase 2 — k3s + Flux bootstrap prerequisites ⚙️
+
+This phase is intentionally small. The only imperative cluster writes are the k3s
+install, the `flux-system/sops-age` Secret, and `flux bootstrap`. Everything else
+that changes Kubernetes state is reconciled by Flux from git in Phase 3.
 
 **2.1 Install k3s.**
 ```bash
@@ -354,62 +358,20 @@ curl -sfL https://get.k3s.io | sh -s - \
 kubectl get nodes            # minis Ready
 ```
 
-**2.2 MetalLB** — a stable LoadBalancer IP (`10.137.20.10`, distinct from the node's own
-`10.137.20.5`) so the wildcard target is fixed. MetalLB must own its pool addresses, so
-the pool cannot reuse the node IP the kernel already answers ARP for.
-```yaml
-apiVersion: metallb.io/v1beta1
-kind: IPAddressPool
-metadata: { name: homelab-pool, namespace: metallb-system }
-spec: { addresses: ["10.137.20.10/32"] }   # MetalLB owns this; ≠ node IP (.5), outside the DHCP range
-```
-
-**2.3 ingress-nginx** and **2.4 cert-manager** (Helm during bootstrap; convert to
-HelmReleases under `infrastructure/controllers/` once Flux owns the cluster). Create a
-**Let's Encrypt DNS-01 ClusterIssuer** with provider API credentials. SOPS does not
-exist yet — create the Secret imperatively:
-```bash
-kubectl create secret generic cert-manager-dns-creds \
-  --namespace cert-manager \
-  --from-literal=api-token=<YOUR_TOKEN>
-```
-When converting cert-manager to a HelmRelease in Phase 3, write the Secret manifest,
-`sops --encrypt --in-place` it, and commit — Flux will decrypt it at apply time.
-
-**2.5 Tailscale operator** — LAN + Tailnet access; configure **split DNS** in the
-Tailscale admin console so `*.worm.run` resolves over the tunnel. OAuth creds are
-likewise created imperatively during bootstrap (SOPS does not exist yet):
-```bash
-kubectl create secret generic tailscale-oauth \
-  --namespace tailscale \
-  --from-literal=client-id=<ID> \
-  --from-literal=client-secret=<SECRET>
-```
-Encrypt and commit the Secret manifest when converting to a HelmRelease in Phase 3.
-Add a kubeconfig context on the laptop pointing at the node's Tailscale IP on `:6443`.
-
-**2.6 PriorityClasses** — apply `homelab-critical` and `homelab-standard` (see
-[architecture.md → Resource allocation](./architecture.md#resource-allocation)). These
-are referenced by every workload, so they exist before apps.
-
----
-
-## Phase 3 — Flux GitOps bootstrap ⚙️
-
-**3.1 age keypair.**
+**2.2 age keypair.**
 ```bash
 age-keygen -o age.key         # copy the public key from stdout
 # >>> back up age.key to the password manager NOW, before continuing <<<
 ```
 
-**3.2 Store the private key in-cluster.**
+**2.3 Store the private key in-cluster.**
 ```bash
 kubectl create namespace flux-system
 kubectl create secret generic sops-age \
   --namespace flux-system --from-file=age.agekey=age.key
 ```
 
-**3.3 `.sops.yaml`** at the repo root:
+**2.4 `.sops.yaml`** at the repo root:
 ```yaml
 creation_rules:
   - path_regex: .*\.yaml
@@ -417,7 +379,7 @@ creation_rules:
     age: <YOUR_AGE_PUBLIC_KEY>
 ```
 
-**3.4 Bootstrap Flux** (creates the repo if absent — **private** by default — commits
+**2.5 Bootstrap Flux** (creates the repo if absent — **private** by default — commits
 Flux manifests, generates a deploy key, and starts reconciling). `--private` is the
 default for `flux bootstrap github`; it's passed explicitly here so the intent is
 obvious and a future edit can't silently flip it to public:
@@ -427,40 +389,98 @@ flux bootstrap github \
   --branch=main --path=clusters/minis --personal --private
 ```
 
-**3.5 Commit the repo skeleton** — see [structure in AGENTS.md](../AGENTS.md#repository-structure):
-`clusters/minis/{infrastructure.yaml,apps.yaml}`, `infrastructure/{controllers,configs,monitoring}`,
-`apps/{media,frigate,home-assistant}`. `apps.yaml` should `dependsOn` the
-infrastructure Kustomization. Include the **TopoLVM HelmRelease** in
-`infrastructure/controllers/` (lvmd embedded in the node DaemonSet, device-class →
-`vg0`, a `spare-gb` reserve) and the `topolvm-scratch` StorageClass in
-`infrastructure/configs/` — Phase 4's scratch PVCs need them, and the `dependsOn`
-ordering guarantees they exist first.
+---
 
-**3.6 Enable SOPS decryption** on both Flux Kustomizations. Encrypted
-cert-manager DNS credentials and Tailscale OAuth credentials are infrastructure
-secrets, so the infrastructure Kustomization needs decryption too; app secrets use the
-same `sops-age` key.
+## Phase 3 — GitOps-managed cluster infrastructure ⚙️
+
+Phase 3 is the first normal Flux commit after bootstrap. Do not install controllers
+with imperative Helm commands and then convert them later; commit the desired state
+directly as Flux `HelmRepository`, `HelmRelease`, and Kubernetes manifests.
+
+**3.1 Commit the ordered Flux skeleton** — see
+[structure in AGENTS.md](../AGENTS.md#repository-structure):
+`clusters/minis/{kustomization.yaml,infra-controllers.yaml,infra-configs.yaml,apps.yaml}`,
+`infrastructure/{controllers,configs,monitoring}`, and
+`apps/{media,frigate,home-assistant}`.
+At the planning stage, app and infrastructure target directories may contain only
+brief README placeholders; add a real `kustomization.yaml` to each Flux target path
+when the first manifests for that path are committed.
+
+Use separate Kustomizations so CRD-backed config does not race the controllers that
+install those CRDs:
+
+- `infra-controllers` → `./infrastructure/controllers`, `wait: true`
+- `infra-configs` → `./infrastructure/configs`, `dependsOn: infra-controllers`,
+  `wait: true`, SOPS decryption enabled
+- `apps` → `./apps`, `dependsOn: infra-configs`, SOPS decryption enabled
+
 ```yaml
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
-metadata: { name: infrastructure, namespace: flux-system }
+metadata: { name: infra-controllers, namespace: flux-system }
 spec:
+  interval: 10m
+  path: ./infrastructure/controllers
+  prune: true
+  sourceRef: { kind: GitRepository, name: flux-system }
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata: { name: infra-configs, namespace: flux-system }
+spec:
+  dependsOn: [{ name: infra-controllers }]
   decryption:
     provider: sops
     secretRef: { name: sops-age }
-  # ...path, sourceRef
+  interval: 10m
+  path: ./infrastructure/configs
+  prune: true
+  sourceRef: { kind: GitRepository, name: flux-system }
+  wait: true
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata: { name: apps, namespace: flux-system }
 spec:
+  dependsOn: [{ name: infra-configs }]
   decryption:
     provider: sops
     secretRef: { name: sops-age }
-  # ...path, sourceRef, dependsOn: [{ name: infrastructure }]
+  interval: 10m
+  path: ./apps
+  prune: true
+  sourceRef: { kind: GitRepository, name: flux-system }
+  wait: true
 ```
 From here: write a Secret, `sops --encrypt --in-place secret.yaml`, commit — Flux
 decrypts at apply time.
+
+**3.2 Controllers in `infrastructure/controllers/`.** Commit namespaces,
+`HelmRepository` objects, and `HelmRelease` objects for:
+
+- MetalLB
+- ingress-nginx
+- cert-manager, with CRDs installed by the Helm release
+- Tailscale operator
+- TopoLVM, with lvmd embedded in the node DaemonSet, device-class → `vg0`, and a
+  `spare-gb` reserve
+
+**3.3 Config in `infrastructure/configs/`.** Commit the CRD-backed resources and
+cluster-wide config that depend on the controllers:
+
+- MetalLB `IPAddressPool` + `L2Advertisement`. The pool is `10.137.20.10/32`,
+  distinct from the node's own `10.137.20.5`; MetalLB must own the address it
+  announces.
+- ingress-nginx LoadBalancer configuration that receives `10.137.20.10`
+- encrypted cert-manager DNS provider Secret + Let's Encrypt DNS-01 `ClusterIssuer`
+- encrypted Tailscale OAuth Secret and any operator config needed for Tailnet access
+- `homelab-critical` and `homelab-standard` `PriorityClass` objects
+- `local-nvme`, non-default `local-path`, and `topolvm-scratch` `StorageClass` objects
+
+Configure **split DNS** in the Tailscale admin console so `*.worm.run` resolves over
+the tunnel. Add a kubeconfig context on the laptop pointing at the node's Tailscale IP
+on `:6443`.
 
 ---
 
@@ -469,8 +489,14 @@ decrypts at apply time.
 Do **not** start Phase 3.5/4 until all of these are green:
 
 - [ ] `kubectl get nodes` → `minis Ready`
+- [ ] `flux get kustomizations` → `flux-system`, `infra-controllers`,
+      `infra-configs`, and `apps` Reconciled
+- [ ] `flux get helmreleases -A` → MetalLB, ingress-nginx, cert-manager, Tailscale
+      operator, and TopoLVM Ready
+- [ ] `kubectl get crd` confirms MetalLB, cert-manager, Tailscale, and TopoLVM CRDs
+      exist before config resources apply
 - [ ] ingress-nginx + cert-manager pods Running; ClusterIssuer Ready
-- [ ] `flux get kustomizations` → all Reconciled
+- [ ] `kubectl get svc -n ingress-nginx` shows LoadBalancer IP `10.137.20.10`
 - [ ] NFS mounts readable from a test pod
 - [ ] `/dev/dri/renderD128` visible in a **privileged test pod** (Quick Sync path)
 - [ ] Coral device visible in a privileged test pod
@@ -483,7 +509,8 @@ Do **not** start Phase 3.5/4 until all of these are green:
       keeps the same IP across a dnsmasq restart before Frigate goes live
 - [ ] Camera segment gets NTP from the host (`192.168.105.1`); each camera's own NTP is set to `192.168.105.1` and its clock is in sync
 - [ ] Tailscale operator connected; `*.worm.run` resolves over the Tailnet
-- [ ] SOPS decrypt works (reconcile a Kustomization containing an encrypted Secret)
+- [ ] SOPS decrypt works (reconcile an encrypted Secret and confirm Flux applies it
+      without plaintext in git)
 - [ ] NUT active and reporting battery status
 
 The device-passthrough items are far easier to debug now, without app complexity on

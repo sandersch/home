@@ -63,8 +63,10 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 ├── clusters/
 │   └── minis/
 │       ├── flux-system/       # created by `flux bootstrap`; do not hand-edit
-│       ├── infrastructure.yaml# Kustomization → ../../infrastructure
-│       └── apps.yaml          # Kustomization → ../../apps (dependsOn infra)
+│       ├── kustomization.yaml # includes flux-system + ordered Flux Kustomizations
+│       ├── infra-controllers.yaml # Kustomization → ../../infrastructure/controllers
+│       ├── infra-configs.yaml     # Kustomization → ../../infrastructure/configs
+│       └── apps.yaml              # Kustomization → ../../apps (dependsOn configs)
 ├── infrastructure/
 │   ├── controllers/           # HelmRepos + HelmReleases: metallb, ingress-nginx,
 │   │                          #   cert-manager, tailscale-operator, topolvm
@@ -85,7 +87,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 - **App state uses the `local-nvme` StorageClass** via a per-app PV + PVC pointing at `/opt/<app>/...`. The PV is a `hostPath` volume with `type: DirectoryOrCreate`, so the kubelet creates the directory on first mount and adding storage for a new app is a pure git change (no SSH). **Scratch data uses the `topolvm-scratch` StorageClass** instead — a PVC alone dynamically provisions an enforced, resizable ext4 LV from VG free space (no PV manifest). Pattern in [build-plan.md → Storage pattern](./docs/build-plan.md#storage-pattern).
 - **Secrets are SOPS-encrypted before commit**, always. The repo is private, but treat encryption as mandatory anyway — private is a safety net, not a license to commit plaintext, and the repo may be selectively shared later. `data`/`stringData` fields are encrypted via `.sops.yaml`. Encrypt with `sops --encrypt --in-place path/to/secret.yaml`. The only secret that lives outside git is the `sops-age` key itself (in-cluster + backed up to a password manager).
 - **Latency-sensitive state on local NVMe; bulk data on NAS.** Plex metadata, Frigate DB, app configs → `/opt` (btrfs). Media, ROMs, recordings, Immich originals → NAS NFS. Scratch (Frigate cache, SABnzbd staging) → `topolvm-scratch` PVCs (ext4 LVs, enforced, throwaway).
-- **Helm charts** are referenced via `HelmRepository` + `HelmRelease` CRDs (Flux), not installed imperatively, except during the documented Phase 2 bootstrap.
+- **Helm charts** are referenced via `HelmRepository` + `HelmRelease` CRDs (Flux), not installed imperatively. Phase 2 only installs k3s, creates `flux-system/sops-age`, and bootstraps Flux.
 
 ## Working agreements for an AI session
 
