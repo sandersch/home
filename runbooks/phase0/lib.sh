@@ -6,9 +6,6 @@
 # shellcheck source=runbooks/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 
-# shellcheck disable=SC2034 # Used by run-all.sh after sourcing this phase lib.
-LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 # Phase 0.1 partitioning is manual, but everything after it assumes this exact
 # shape: root/var/opt on vg0, /opt on btrfs, and enough VG free space left for
 # TopoLVM scratch PVCs. Fail early if the installer layout drifted.

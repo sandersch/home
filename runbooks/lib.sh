@@ -94,6 +94,19 @@ assert_mount_layout() {
   ok "$mount is $expected_source ($expected_fstype)"
 }
 
+assert_nfs_mount_layout() {
+  local mount="$1" expected_source="$2" expected_fstype="$3"
+  local source fstype
+
+  source="$(findmnt -n -o SOURCE --target "$mount" 2>/dev/null || true)"
+  fstype="$(findmnt -n -o FSTYPE --target "$mount" 2>/dev/null || true)"
+  [ -n "$source" ] || die "$mount is not mounted"
+  [ "$fstype" = "$expected_fstype" ] || die "$mount is $fstype, expected $expected_fstype"
+  [ "$source" = "$expected_source" ] || die "$mount is mounted from $source, expected $expected_source"
+
+  ok "$mount is $expected_source ($expected_fstype)"
+}
+
 assert_interface_has_address() {
   local iface="$1" cidr="$2"
   ip link show "$iface" >/dev/null 2>&1 || die "interface $iface is missing; reboot after Phase 0 networking so lan0/cam0 names settle"

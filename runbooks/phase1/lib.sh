@@ -8,9 +8,6 @@
 # shellcheck source=runbooks/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 
-# shellcheck disable=SC2034 # Used by run-all.sh after sourcing this phase lib.
-PHASE1_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 assert_phase1_source_files() {
   local f
   for f in \

@@ -15,8 +15,9 @@ phase section there first, then run the scripts.
 |---|---|---|
 | 0 | [`phase0/`](./phase0/) | OS baseline from SSH-ready: hostname, SSH hardening, networking, system prep, NFS, UPS/NUT, Coral udev |
 | 1 | [`phase1/`](./phase1/) | Camera-segment isolation: nftables, DHCP-only dnsmasq, chrony NTP, Catalyst checklist, validation, NAS throughput |
+| 2 | [`phase2/`](./phase2/) | k3s install, SOPS age key/secret, `.sops.yaml`, and Flux bootstrap |
 
-Phases 2+ get their own subdirectories as they're scripted.
+Phases 3+ get their own subdirectories if any later manual work is scripted.
 
 ## Assumptions
 

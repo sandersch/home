@@ -3,6 +3,8 @@
 # shellcheck source=runbooks/phase1/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+PHASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 STEPS=(
   00-preflight.sh
   01-host-isolation.sh
@@ -19,7 +21,7 @@ confirm "Run the host-side Phase 1 steps now?" || die "aborted"
 
 for s in "${STEPS[@]}"; do
   step "=== $s ==="
-  bash "$PHASE1_LIB_DIR/$s"
+  bash "$PHASE_DIR/$s"
 done
 
 step "Phase 1 host-side steps complete"

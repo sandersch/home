@@ -5,6 +5,8 @@
 # shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
+PHASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 STEPS=(
   00-preflight.sh
   01-hostname-ssh.sh
@@ -22,9 +24,9 @@ confirm "Run all Phase 0 steps now?" || die "aborted"
 for s in "${STEPS[@]}"; do
   step "=== $s ==="
   if [ "$s" = "02-networking.sh" ]; then
-    PHASE0_REQUIRE_NETPLAN_APPLY=1 bash "$LIB_DIR/$s"
+    PHASE0_REQUIRE_NETPLAN_APPLY=1 bash "$PHASE_DIR/$s"
   else
-    bash "$LIB_DIR/$s"
+    bash "$PHASE_DIR/$s"
   fi
 done
 
