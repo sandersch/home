@@ -1,0 +1,87 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sabnzbd
+  namespace: media
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - sabnzbd.worm.run
+  rules:
+    - host: sabnzbd.worm.run
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gluetun
+                port:
+                  name: sabnzbd
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prowlarr
+  namespace: media
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - prowlarr.worm.run
+  rules:
+    - host: prowlarr.worm.run
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gluetun
+                port:
+                  name: prowlarr
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: radarr
+  namespace: media
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - radarr.worm.run
+  rules:
+    - host: radarr.worm.run
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gluetun
+                port:
+                  name: radarr
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sonarr
+  namespace: media
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - sonarr.worm.run
+  rules:
+    - host: sonarr.worm.run
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gluetun
+                port:
+                  name: sonarr
