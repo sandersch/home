@@ -34,7 +34,7 @@ The node name is load-bearing because app PV nodeAffinity pins to the kubelet's
 kubernetes.io/hostname label.
 EOF
   confirm "Install k3s now?" || die "aborted"
-  curl -sfL https://get.k3s.io | sh -s - \
+  curl -sfL https://get.k3s.io | sudo sh -s - \
     --disable traefik --disable servicelb \
     --node-name minis
 fi
