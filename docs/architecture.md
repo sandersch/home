@@ -211,9 +211,10 @@ LVs keep working if the controller is down. Concrete YAML for both patterns is i
   changes. Service traffic and host SSH / the k3s API thus live on separate IPs.
 - **ingress-nginx** terminates HTTP(S) and routes by hostname.
 - **cert-manager** issues real certificates via **Let's Encrypt DNS-01** (HTTP-01 is
-  impossible since nothing is publicly reachable). This needs the public domain's DNS
-  provider API credentials; the dependency is accepted. Renewals every ~90 days, so a
-  brief provider outage isn't fatal.
+  impossible since nothing is publicly reachable). The solver uses **Google Cloud DNS**
+  (`cloudDNS.project` + `serviceAccountSecretRef`), so this needs a GCP service-account
+  key with DNS Administrator on the zone's project, stored as an encrypted Secret; the
+  dependency is accepted. Renewals every ~90 days, so a brief provider outage isn't fatal.
 
 The k3s API (`:6443`) is reachable on the Tailnet so the laptop/AI coding session can hold a
 kubeconfig context pointing at the node's Tailscale IP.

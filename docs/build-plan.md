@@ -479,7 +479,11 @@ cluster-wide config that depend on the controllers:
   distinct from the node's own `10.137.20.5`; MetalLB must own the address it
   announces.
 - ingress-nginx LoadBalancer configuration that receives `10.137.20.10`
-- encrypted cert-manager DNS provider Secret + Let's Encrypt DNS-01 `ClusterIssuer`
+- cert-manager Let's Encrypt DNS-01 `ClusterIssuer` solving via **Google Cloud
+  DNS**: the solver's `cloudDNS.project` names the GCP project hosting the zone,
+  and `cloudDNS.serviceAccountSecretRef` points at an encrypted Secret holding a
+  service-account key JSON (DNS Administrator on that project). Per cert-manager's
+  CloudDNS DNS-01 guide: https://cert-manager.io/docs/configuration/acme/dns01/google/
 - encrypted Tailscale OAuth Secret and any operator config needed for Tailnet access
 - `homelab-critical` and `homelab-standard` `PriorityClass` objects
 - `local-nvme`, non-default `local-path`, and `topolvm-scratch` `StorageClass` objects
