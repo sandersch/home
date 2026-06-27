@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: worm-run
+  namespace: ingress-nginx
+spec:
+  secretName: worm-run-tls
+  dnsNames:
+    - worm.run
+  issuerRef:
+    name: letsencrypt-dns01
+    kind: ClusterIssuer
