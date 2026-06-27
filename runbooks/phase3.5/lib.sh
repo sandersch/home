@@ -34,6 +34,21 @@ phase35_dest_dir() {
   printf '%s/%s/config\n' "$PHASE35_DEST_ROOT" "$1"
 }
 
+phase35_source_owner() {
+  stat -c '%u:%g' "$(phase35_source_dir "$1")"
+}
+
+phase35_readable_as_source_owner() {
+  local app="$1" owner uid gid src
+  owner="$(phase35_source_owner "$app")"
+  uid="${owner%%:*}"
+  gid="${owner##*:}"
+  src="$(phase35_source_dir "$app")"
+
+  sudo setpriv --reuid "$uid" --regid "$gid" --clear-groups \
+    test -r "$src"
+}
+
 phase35_plex_db_dir() {
   printf '%s/Library/Application Support/Plex Media Server/Plug-in Support/Databases\n' "$1"
 }
@@ -73,6 +88,9 @@ assert_phase35_sources_present() {
     src="$(phase35_source_dir "$app")"
     [ -d "$src" ] || die "missing source directory: $src"
     ok "$src present"
+    phase35_readable_as_source_owner "$app" \
+      || die "$src is not readable as its archive owner $(phase35_source_owner "$app")"
+    ok "$src is readable as archive owner $(phase35_source_owner "$app")"
   done
 
   for file in \
@@ -140,20 +158,30 @@ create_phase35_destinations() {
 }
 
 rsync_phase35_app() {
-  local app="$1" src dest
+  local app="$1" src dest owner uid gid
   src="$(phase35_source_dir "$app")"
   dest="$(phase35_dest_dir "$app")"
+  owner="$(phase35_source_owner "$app")"
+  uid="${owner%%:*}"
+  gid="${owner##*:}"
+
+  # NFS exports commonly use root-squash. Reading as the archive owner avoids
+  # permission denied on 0600/0660 files while the final chown below normalizes
+  # everything for the target LinuxServer containers.
+  sudo chown -R "$owner" "$PHASE35_DEST_ROOT/$app"
 
   if [ "$app" = "plex" ]; then
-    sudo rsync -aHAX --numeric-ids --info=progress2 --delete \
+    sudo setpriv --reuid "$uid" --regid "$gid" --clear-groups \
+      rsync -aHAX --numeric-ids --info=progress2 --delete \
       --exclude=lost+found \
       --exclude='Library/Application Support/Plex Media Server/Cache/Shaders' \
       "$src/" "$dest/"
   else
-    sudo rsync -aHAX --numeric-ids --info=progress2 --delete \
+    sudo setpriv --reuid "$uid" --regid "$gid" --clear-groups \
+      rsync -aHAX --numeric-ids --info=progress2 --delete \
       "$src/" "$dest/"
   fi
-  ok "copied $app config"
+  ok "copied $app config as archive owner $owner"
 }
 
 chown_phase35_destinations() {

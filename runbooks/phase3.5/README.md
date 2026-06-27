@@ -13,7 +13,7 @@ to local NVMe under `/opt`. It does not deploy workloads or change Kubernetes st
 - The old hosts are stopped, so the archive is a quiesced final source.
 - `/mnt/media` is mounted on `minis` and contains `/mnt/media/to_archive/config`.
 - `/opt` is mounted on `minis` and has enough free space.
-- `rsync` and `sqlite3` are installed on `minis`.
+- `rsync`, `setpriv`, and `sqlite3` are installed on `minis`.
 
 ## Source and destination
 
@@ -50,6 +50,9 @@ Run scripts in numeric order, or run `./run-all.sh`.
 - Plex `lost+found` and `Library/Application Support/Plex Media Server/Cache/Shaders`
   are excluded. The shader cache is regenerable and may not be readable from the
   archive.
+- The NAS export may root-squash `sudo`, so the copy script detects each archive
+  directory's numeric owner and runs `rsync` as that UID/GID. This lets it read
+  restrictive files such as Plex `0600`/`0660` config and cache files.
 - Migrated files are chowned to `1000:1000`, matching the LinuxServer container
   defaults used by the planned workloads.
 

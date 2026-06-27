@@ -5,7 +5,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root
 require_sudo
-require_tools awk du df find findmnt grep rsync sqlite3 tail timeout
+require_tools awk du df find findmnt grep rsync setpriv sqlite3 stat tail timeout
 
 step "Verify target host and mounts"
 assert_hostname_minis
