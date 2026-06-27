@@ -4,9 +4,13 @@ Moving existing application state from the current ArgoCD/microk8s host onto the
 MS-01. This is **Phase 3.5** of the [build plan](./build-plan.md#phase-35--app-data-migration-);
 do it only after the validation gate passes.
 
-Principle: Phase 3.5 is the pre-work copy only. Migrated data is *copied*, never
-moved, so the source stays intact; the workloads are deployed and cut over later in
-Phase 4 after validation.
+For the current stopped-host archive path, use the executable host-side scripts in
+[`runbooks/phase3.5`](../runbooks/phase3.5/).
+
+Principle: migrated data is *copied*, never moved, so the source stays intact. When
+the old stack is still running, Phase 3.5 is only a warm pre-copy and Phase 4 needs a
+final quiesced rsync. In the current stopped-host archive flow, Phase 3.5 is already
+the final quiesced copy.
 
 - **Migrate:** Plex (metadata/DB), Radarr, Sonarr, Prowlarr.
 - **Fresh, no migration:** Overseerr, RomM, Home Assistant, Frigate.
@@ -101,24 +105,19 @@ for any Zigbee/Z-Wave USB stick.
 
 ---
 
-## Phase 3.5 copy, then Phase 4 cutover
+## Phase 3.5 copy, then Phase 4 validation
 
-1. **Phase 3.5: copy while the old stack still runs.** rsync configs to `/opt/...` on
-   the new node; the old stack keeps serving.
+1. **Phase 3.5 stopped-host copy:** run `runbooks/phase3.5/run-all.sh` on `minis`.
+   It copies the archive from `/mnt/media/to_archive/config` into `/opt/...` and
+   validates the copied SQLite DBs.
 2. **Phase 4: deploy new pods using the copied data.** Keep NAS media mounts
    read-only initially where practical. Validate: Plex sees the full library and
    metadata; Quick Sync transcode works; *arr apps show their history; VPN egress is
    the Mullvad exit IP; a test download flows end-to-end Prowlarr → Radarr → SABnzbd.
 3. **Still in Phase 4: verify inter-app URLs** (intra-pod ones stay `localhost`;
    update Overseerr's Radarr/Sonarr targets); re-validate the test download.
-4. **Phase 4 cutover:** switch DNS / point Overseerr at the new stack; flip NAS
-   mounts to read-write; **do a final rsync** to capture any config changes made
-   through the UI during validation (new indexers, quality profiles — these live in
-   the old SQLite and won't be in the first copy).
-5. **After cutover:** shut down the old stack.
-6. **Rollback path:** keep the old node intact and powered off (not wiped) for ~2
-   weeks. If something surfaces post-cutover, the old config still exists to fall back
-   to.
+4. **After validation:** keep the old stopped hosts or archive intact for ~2 weeks.
+   If something surfaces post-migration, the old config still exists to fall back to.
 
-> The final rsync in step 4 is the most-forgotten step and the one most likely to
-> cause "but I added that indexer!" confusion later. Don't skip it.
+If you ever repeat this with the old stack still running, do a final quiesced rsync
+during Phase 4 cutover before declaring the new stack authoritative.

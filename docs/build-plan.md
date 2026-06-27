@@ -537,6 +537,8 @@ this copied data; cutover does not happen here.
 
 Copy procedure details (VACUUM, rsync flags, ownership, and URL notes) are in
 [migration-runbook.md](./migration-runbook.md).
+Executable host-side scripts for the stopped-host archive copy live in
+[`runbooks/phase3.5`](../runbooks/phase3.5/).
 
 - **Migrate:** Plex (metadata/DB), Radarr, Sonarr, Prowlarr.
 - **Fresh installs, no migration:** Overseerr, RomM, Home Assistant, Frigate.
