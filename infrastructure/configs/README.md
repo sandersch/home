@@ -1,7 +1,8 @@
 # Infrastructure Configs
 
-Cluster-wide config and CRD-backed resources will live here after their controllers are
-installed.
+Cluster-wide config and CRD-backed resources live here after their controllers are
+installed by `../controllers`.
 
-Planned resources include MetalLB pools, ingress LoadBalancer config, cert-manager
-ClusterIssuer, encrypted DNS and Tailscale secrets, PriorityClasses, and StorageClasses.
+Managed resources include MetalLB pools, the cert-manager ClusterIssuer,
+PriorityClasses, StorageClasses, and SOPS-encrypted operational Secrets generated
+by the Phase 3 runbook.

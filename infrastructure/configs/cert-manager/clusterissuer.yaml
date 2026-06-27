@@ -1,0 +1,17 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-dns01
+spec:
+  acme:
+    email: wormrun@wormpoint.com
+    privateKeySecretRef:
+      name: letsencrypt-dns01-account-key
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+      - dns01:
+          cloudDNS:
+            project: kubetest-333602
+            serviceAccountSecretRef:
+              key: key.json
+              name: clouddns-dns01-solver

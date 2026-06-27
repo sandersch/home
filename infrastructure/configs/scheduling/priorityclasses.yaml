@@ -1,0 +1,16 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: homelab-critical
+value: 1000000
+preemptionPolicy: PreemptLowerPriority
+globalDefault: false
+description: Critical homelab workloads that should survive resource pressure.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: homelab-standard
+value: 1000
+globalDefault: false
+description: Standard homelab workloads that can yield to critical services.
