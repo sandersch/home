@@ -35,3 +35,10 @@ flux bootstrap github \
   --branch=main --path=clusters/minis --personal --private
 
 ok "flux bootstrap completed"
+
+# bootstrap commits gotk-components.yaml/gotk-sync.yaml to the remote via a temp
+# clone, not this working tree; fast-forward the local branch so the bootstrap
+# commit is present locally (06-validate-bootstrap.sh checks for those files).
+step "Sync local tree with the bootstrap commit"
+git -C "$REPO_ROOT" pull --ff-only
+ok "local branch fast-forwarded to the bootstrap commit"
