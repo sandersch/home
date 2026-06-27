@@ -1,0 +1,13 @@
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: worm-run-ingress
+spec:
+  hostnamePrefix: worm-run-ingress
+  replicas: 1
+  subnetRouter:
+    advertiseRoutes:
+      - 10.137.20.10/32
+      - 10.137.20.1/32
+  tags:
+    - tag:k8s

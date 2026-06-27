@@ -4,5 +4,6 @@ resources:
   - secrets
   - metallb
   - cert-manager
+  - tailscale
   - storage
   - scheduling

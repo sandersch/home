@@ -65,7 +65,8 @@ Manual checks still required:
 - Confirm camera segment cannot reach host TCP :22 and :6443.
 - Confirm two cameras on protected switch ports cannot reach each other.
 - Confirm every real camera has a stable dnsmasq reservation and uses NTP 192.168.105.1.
-- Confirm Tailscale admin-console split DNS resolves *.worm.run over the Tailnet.
+- Confirm Tailscale has approved Connector routes 10.137.20.10/32 and 10.137.20.1/32.
+- Confirm Tailscale split DNS for worm.run uses 10.137.20.1 and resolves *.worm.run to 10.137.20.10 over the Tailnet.
 EOF
 
 ok "automated Phase 3 validation complete"

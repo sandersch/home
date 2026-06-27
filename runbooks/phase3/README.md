@@ -36,3 +36,11 @@ metadata and encrypted `data` fields, never plaintext key material. The CloudDNS
 Secret belongs to `infrastructure/configs/secrets`; the Tailscale OAuth Secret
 belongs to `infrastructure/controllers/tailscale` so the Helm chart can mount it
 during the controller phase.
+
+## Tailnet remote access
+
+`infrastructure/configs/tailscale` advertises only the ingress IP
+`10.137.20.10/32` and router DNS IP `10.137.20.1/32` through the Tailscale
+operator Connector. In the Tailscale admin console, approve those routes for the
+`tag:k8s` Connector device and configure split DNS for `worm.run` to use
+`10.137.20.1`. Do not advertise the full `10.137.20.0/24` LAN.
