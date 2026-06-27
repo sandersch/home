@@ -1,13 +1,13 @@
 apiVersion: v1
 data:
-    FIREWALL_INPUT_PORTS: ENC[AES256_GCM,data:z0/+AFEgHtHMnMn15KCuDSXF32GM4YD6dQLJ9Q==,iv:aGRKFRQJJ4YdesYIEMJlDCEKd0xQVZRvlO6xHmS7vpY=,tag:5VD8eNKffBqNmEV3352VRQ==,type:str]
-    FIREWALL_OUTBOUND_SUBNETS: ENC[AES256_GCM,data:s1/Bk3gKRjaJ2APKm5YnAZgzgOUpM9fhJrK+uX6VMaWSiLBcqU8kLr5VPrwMIqIKs55QMEVEsnk=,iv:/EKUfIazQQiA1VdEKoOX5YXThE/6TxvBR7ZYc9lvi4Y=,tag:RQO6MeymZpiAElB91Z0GzA==,type:str]
-    SERVER_COUNTRIES: ENC[AES256_GCM,data:hg7P3LVBuJcIPzK5VVjwrxfC9L0=,iv:0xSU/GM7S/fMK9y2mbtRxahsJesT1AKOou73jr+toLI=,tag:DQOMT34Dx9ne78MfYNxSPQ==,type:str]
-    TZ: ENC[AES256_GCM,data:OrURfGa3YE16z6e8b0RprY2hhgU=,iv:JDMnjnJgMJ0aOGxHLMMme6Q5A3bHtFJmyNTxXZBSLJE=,tag:VGLZs0TQJ2pWus3OskasbQ==,type:str]
-    VPN_SERVICE_PROVIDER: ENC[AES256_GCM,data:s2yTPpYw4QUf3WgN,iv:e2MQrikTSZrGi3PftidS1LRJGZAhYUR8pPdbLZWFFMY=,tag:HiuyJKVGXK9lMA9/aYT77w==,type:str]
-    VPN_TYPE: ENC[AES256_GCM,data:Rbyhk6pwg4L4hjZg,iv:H3BXi/tS2v3ssxKHp7gzeBy6YwsWFobzxfnmTjFCPFg=,tag:oS/Kp83sy1jieT35FG+jaA==,type:str]
-    WIREGUARD_ADDRESSES: ENC[AES256_GCM,data:qLeB4q644uwVtURJhYlh0BS52xe2HigNPcQFiSyvL2dvgdQbF/7Ws3Ranypm/dwdLH8KIoY+LxMr3/GouEot9g==,iv:8at4wWmM/DuzcQvOyy+/utD0rq79pIEg6RH3LBxVt6I=,tag:jFcQTr+gS5rIT5dwpXQH7w==,type:str]
-    WIREGUARD_PRIVATE_KEY: ENC[AES256_GCM,data:rqdTr2WoSbqRhZ2iYkhpzQW0JUT2Boho6TXd20/uKtu0XWDHdNgVg3y1k98BlAYJ58MGTw8ohHKJbf07,iv:ukdGRJdj1E4upN4wjGG25UFMyyYpzu3KrynjbCXxnsE=,tag:ucDsUh+UlVL/CSMS2m3JRA==,type:str]
+    FIREWALL_INPUT_PORTS: ENC[AES256_GCM,data:syyXw9Wp32WEBazz5IhWJuV2I4ay5jXtBa0QUg==,iv:JFtNHGAj8JDhaKxBpHC2M76I/G+/dikTgLzmMgNIdtw=,tag:yWunnQFO5hO8AFW/ef85KA==,type:str]
+    FIREWALL_OUTBOUND_SUBNETS: ENC[AES256_GCM,data:xAoXOZb/N/17rRpdIeY4r/BER6z9xHs5CzJIBnTADJZPZ73jwycilq6+cH+W+GA2N3FwqTAZT8I=,iv:asgTg3/qqM6oZSieTYNQC1RWtL1ZnwVpzQKY3dhJRlo=,tag:5lL2zUEgfIZDo/4U9rFd6Q==,type:str]
+    SERVER_COUNTRIES: ENC[AES256_GCM,data:jtAYmg==,iv:KHbshRzMtLuzGjxOpTod0wedCMV+LCA0YLLB96xnS5c=,tag:/kmbcCAPsvJNlSauXuhyPQ==,type:str]
+    TZ: ENC[AES256_GCM,data:F6wYgPyZAu8Gp0Cep/hAODW7m7g=,iv:Sg8fYJI3wl5WePHXvJ4h1g8LHrD0ufE76GIJZkKNU3M=,tag:K56FTuDG90Uw9ZKb/K28xA==,type:str]
+    VPN_SERVICE_PROVIDER: ENC[AES256_GCM,data:h7w6SqouzTC2PTsv,iv:mW28bDtVfPK/IVs0tBhk8n2KbGY2oln79WIynrwoEt4=,tag:2I7ZqMZQvFGROmKlt4KhRw==,type:str]
+    VPN_TYPE: ENC[AES256_GCM,data:CXKxZcFKxvQelpzD,iv:N+EUd4ogzpywE1eiTdXV9xnBUk+t4tYw9hDgrYjjvhw=,tag:6b8s6goPjqKJxjL7msNZdQ==,type:str]
+    WIREGUARD_ADDRESSES: ENC[AES256_GCM,data:9cse7SpWK6GPAgwclP6ydMOuwp9vmEp2k+V/ZxuFdUi9+iE8jWj7u+sj23bC/N+DPybmimZxxCfEOdPwDkaz7w==,iv:Ngwymoaf0dEsb81+h674IN5/8eYp6qMeJjp5uUWkINY=,tag:FVweXF1OUnFyCWyq19JB/A==,type:str]
+    WIREGUARD_PRIVATE_KEY: ENC[AES256_GCM,data:qNAEaZg6UOaub30PYmi/NWkSs1PcAUjkdWuIBYDnYN5jamksJhtjT816wzBW48z9XAHqEem1Ma2GRjCT,iv:GpsTyPhZIzjvS5broTVFK0COLIynxpuh82+5pIIuIUE=,tag:T584O3biG6y82TjlBUJFwA==,type:str]
 kind: Secret
 metadata:
     name: gluetun-mullvad
@@ -16,14 +16,14 @@ sops:
     age:
         - enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBLSEdWdWw5UWo2NnpXWHVj
-            RTR2YURRVmQ5ZVRzYVRmQU1ScGdvUkhMMjFBCklWWjFESkcwUkdRYjZMc09kMUVm
-            U0xhd0czR2RiSzRmMTIrVzg4a3BnSlEKLS0tIE8yWWM3T016R0RHQUI3YitJdjdy
-            YXZpRERNSzB0MjFPNVhRSFlIWnF4UlUKVuJb4ojxpQMW8/nSbMgWSdiOySUxqBeG
-            a0zJSoeGW7/wYgAFv57soNr2oH4eEHzjq5/DDMxN4hquROjjM4GF6A==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBaTERRY01hVktMSW0xajRw
+            ZCt5L3p5bHdzUFI3NVd1bDc5bWkzN2EzMlVjCndINkdyUVkzOFQreVBUYXRMYWlJ
+            VGdYZTdtdHRieE14ZXBGK1hMakZnejAKLS0tIENxaXFwR0ZpcmtQamU2MDV5aVJM
+            Y3RlM3oyT0FjeGp5dGFpUUtMN3Zsb1UKda6C2TRSuP4nFzFi6CkEkb9O4/B+h6am
+            1fEnl6m690QC96suXiNZrFS6uqscFf+zILEaLw8uZF9dsMSF5Pr7rg==
             -----END AGE ENCRYPTED FILE-----
           recipient: age18cxm2hs3ctq0s735h7z9lj7w7ag37f2vleesglcw6lezlhy5v9nsatkxex
     encrypted_regex: ^(data|stringData)$
-    lastmodified: "2026-06-27T14:29:09Z"
-    mac: ENC[AES256_GCM,data:iaWD1IhdxF9SKj2eOydDqLGScHhCB4nLsApVc5h1OXR+saieuQqFP3Kk2x4cP3O3J8yrP9iZIrI6yB5Gxq1Otfm0vZJ6qXU4KjhmmxIxsvhKlr9wmVkV4whhe1fNtNSYmzpnHsFWBwhIYsjL5ODsnb3y/YwehdANCSzod0xsrlI=,iv:PVNQIREETPyGbVjB0uuJ04tUoOzkzVtSXg/g99GbId0=,tag:60dRKgURbRkKuLnPe0O76A==,type:str]
+    lastmodified: "2026-06-27T14:51:07Z"
+    mac: ENC[AES256_GCM,data:rr2ga5bvweCk3e41H5Phug8ooCX0zrDa/HYkU73jX/pTflwSInQVDtwhap8ePqz9LmqlmJEILcbXKFazzzv3HfEXTfpw2dDA1al2EwRXGO9QiDwoJ0whVtksEKxw9ykvImpktzkgqDEvfNkAwpZBErJvdw0Rjh+yAnX9CxkWSz0=,iv:/BuKeDgu9TEB45Fvzz4gJE1vgQAClSYZnPcpD1TFJtY=,tag:63CFPv1n/CmUONXC3JVxPQ==,type:str]
     version: 3.13.1
