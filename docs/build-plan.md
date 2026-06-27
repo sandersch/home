@@ -768,9 +768,12 @@ Proton), change the env in `gluetun-mullvad` and restart — nothing else change
 
 ## Plex Quick Sync pattern (notes)
 
-- Mount `/dev/dri` as a hostPath volume into the Plex container.
-- Grant the **render group** via `securityContext.supplementalGroups: [993]`
-  (the GID from `getent group render` in Phase 0.3); a privileged pod also works but
-  the group is tighter.
+- Install Intel's GPU device plugin from the pinned upstream Flux source in
+  `infrastructure/controllers/intel-gpu-plugin`.
+- Request `gpu.intel.com/i915: "1"` in the Plex container's requests and limits.
+  The device plugin authorizes the Quick Sync device through kubelet/containerd;
+  do not bind-mount `/dev/dri` directly.
+- Keep `securityContext.supplementalGroups: [993]` for compatibility with the
+  host render group from Phase 0.3, but do not use a privileged Plex container.
 - Do **not** set `PLEX_CLAIM` when migrating existing config — the migrated data
   already holds a valid token (see migration runbook).

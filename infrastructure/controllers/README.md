@@ -9,6 +9,7 @@ Managed controllers:
 - cert-manager
 - Tailscale operator
 - TopoLVM
+- Intel GPU device plugin
 
 These are reconciled by the `infra-controllers` Flux Kustomization before
 CRD-backed config in `../configs`.

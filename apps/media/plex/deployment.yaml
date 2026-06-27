@@ -40,9 +40,11 @@ spec:
             requests:
               cpu: "1"
               memory: 1Gi
+              gpu.intel.com/i915: "1"
             limits:
               cpu: "6"
               memory: 4Gi
+              gpu.intel.com/i915: "1"
           volumeMounts:
             - name: config
               mountPath: /config
@@ -54,8 +56,6 @@ spec:
               readOnly: true
             - name: transcode
               mountPath: /transcode
-            - name: dri
-              mountPath: /dev/dri
       volumes:
         - name: config
           persistentVolumeClaim:
@@ -67,7 +67,3 @@ spec:
         - name: transcode
           persistentVolumeClaim:
             claimName: plex-transcode-pvc
-        - name: dri
-          hostPath:
-            path: /dev/dri
-            type: Directory
