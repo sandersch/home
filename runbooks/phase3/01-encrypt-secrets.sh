@@ -7,7 +7,7 @@
 #   TAILSCALE_OAUTH_CLIENT_SECRET=...
 #
 # Plaintext is written only under a temporary directory, then SOPS-encrypted into
-# infrastructure/configs/secrets/.
+# the Flux target that needs each Secret.
 
 # shellcheck source=runbooks/phase3/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -25,7 +25,8 @@ require_tools kubectl kustomize sops
   || die "set TAILSCALE_OAUTH_CLIENT_SECRET"
 [ -f "$REPO_ROOT/.sops.yaml" ] || die "missing $REPO_ROOT/.sops.yaml; complete Phase 2 first"
 
-secret_dir="$REPO_ROOT/infrastructure/configs/secrets"
+config_secret_dir="$REPO_ROOT/infrastructure/configs/secrets"
+tailscale_dir="$REPO_ROOT/infrastructure/controllers/tailscale"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
@@ -48,16 +49,20 @@ kubectl_create_secret operator-oauth \
 step "Encrypt with SOPS"
 export SOPS_CONFIG="$REPO_ROOT/.sops.yaml"
 sops --encrypt "$tmpdir/clouddns-dns01-solver.yaml" \
-  >"$secret_dir/clouddns-dns01-solver.sops.yaml"
+  >"$config_secret_dir/clouddns-dns01-solver.sops.yaml"
 sops --encrypt "$tmpdir/tailscale-operator-oauth.yaml" \
-  >"$secret_dir/tailscale-operator-oauth.sops.yaml"
+  >"$tailscale_dir/tailscale-operator-oauth.sops.yaml"
 ok "encrypted Secret manifests written"
 
 step "Ensure secrets are included by kustomize"
 (
-  cd "$secret_dir"
+  cd "$config_secret_dir"
   kustomize edit add resource clouddns-dns01-solver.sops.yaml >/dev/null 2>&1 || true
+)
+(
+  cd "$tailscale_dir"
   kustomize edit add resource tailscale-operator-oauth.sops.yaml >/dev/null 2>&1 || true
 )
+kustomize build "$REPO_ROOT/infrastructure/controllers" >/dev/null
 kustomize build "$REPO_ROOT/infrastructure/configs" >/dev/null
-ok "encrypted secrets are included in infrastructure/configs"
+ok "encrypted secrets are included in their Flux targets"

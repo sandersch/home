@@ -47,7 +47,7 @@ assert_secret_manifests_present() {
   local f missing=0
   for f in \
     infrastructure/configs/secrets/clouddns-dns01-solver.sops.yaml \
-    infrastructure/configs/secrets/tailscale-operator-oauth.sops.yaml; do
+    infrastructure/controllers/tailscale/tailscale-operator-oauth.sops.yaml; do
     if [ -f "$REPO_ROOT/$f" ]; then
       ok "$f present"
     else

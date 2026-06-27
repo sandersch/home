@@ -13,7 +13,11 @@ assert_kustomize_builds
 assert_secret_manifests_present
 
 step "Reconcile infra controllers"
-flux reconcile kustomization infra-controllers --with-source
+if ! flux reconcile kustomization infra-controllers --with-source; then
+  warn "infra-controllers did not become Ready; forcing Tailscale HelmRelease once in case it is in a terminal failed state"
+  flux reconcile helmrelease tailscale-operator -n flux-system --force || true
+  flux reconcile kustomization infra-controllers --with-source
+fi
 kustomization_ready infra-controllers 600s
 flux get helmreleases -A
 

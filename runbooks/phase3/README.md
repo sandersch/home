@@ -32,4 +32,7 @@ export TAILSCALE_OAUTH_CLIENT_SECRET=...
 ```
 
 Review the generated `*.sops.yaml` files before commit. They must contain SOPS
-metadata and encrypted `data` fields, never plaintext key material.
+metadata and encrypted `data` fields, never plaintext key material. The CloudDNS
+Secret belongs to `infrastructure/configs/secrets`; the Tailscale OAuth Secret
+belongs to `infrastructure/controllers/tailscale` so the Helm chart can mount it
+during the controller phase.
