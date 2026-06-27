@@ -96,13 +96,21 @@ assert_mount_layout() {
 
 assert_nfs_mount_layout() {
   local mount="$1" expected_source="$2" expected_fstype="$3"
-  local source fstype
+  local mounts mount_summary
 
-  source="$(findmnt -n -o SOURCE --target "$mount" 2>/dev/null || true)"
-  fstype="$(findmnt -n -o FSTYPE --target "$mount" 2>/dev/null || true)"
-  [ -n "$source" ] || die "$mount is not mounted"
-  [ "$fstype" = "$expected_fstype" ] || die "$mount is $fstype, expected $expected_fstype"
-  [ "$source" = "$expected_source" ] || die "$mount is mounted from $source, expected $expected_source"
+  # The fstab entry uses x-systemd.automount, so findmnt may show an autofs
+  # wrapper until the path is touched. Trigger it first, and only validate the
+  # real backing filesystem so the autofs layer does not look like a mismatch.
+  timeout 20 ls -la "$mount" >/dev/null \
+    || die "$mount is not readable; fix NAS DNS/export/reachability before continuing"
+
+  mounts="$(findmnt -rn --real -o SOURCE,FSTYPE --target "$mount" 2>/dev/null || true)"
+  [ -n "$mounts" ] || die "$mount has no real mounted filesystem"
+  if ! printf '%s\n' "$mounts" | awk -v src="$expected_source" -v fs="$expected_fstype" \
+    '$1 == src && $2 == fs { found = 1 } END { exit !found }'; then
+    mount_summary="$(printf '%s\n' "$mounts" | paste -sd '; ' -)"
+    die "$mount is mounted as $mount_summary, expected $expected_source $expected_fstype"
+  fi
 
   ok "$mount is $expected_source ($expected_fstype)"
 }

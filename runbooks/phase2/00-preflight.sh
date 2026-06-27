@@ -8,7 +8,7 @@ step "Phase 2 preflight checks"
 require_not_root
 require_sudo
 require_host_etc
-require_tools curl git age age-keygen ip findmnt swapon hostname
+require_tools curl git age age-keygen ip findmnt swapon hostname timeout awk
 
 assert_hostname_minis
 assert_no_swap
