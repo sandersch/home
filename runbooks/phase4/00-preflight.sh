@@ -9,6 +9,9 @@ require_tools kustomize
 step "Verify Phase 4 download stack tree"
 assert_phase4_download_stack_tree
 
+step "Verify Phase 4 Plex tree"
+assert_phase4_plex_tree
+
 step "Verify local kustomize output"
 kustomize build "$REPO_ROOT/apps" >/dev/null
 ok "kustomize build apps"

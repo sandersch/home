@@ -2,13 +2,15 @@
 
 Scripts for [build-plan.md Phase 4](../../docs/build-plan.md#phase-4--core-workloads-).
 
-This directory starts with the first Phase 4 app: the media download stack
-(Gluetun, SABnzbd, Prowlarr, Radarr, and Sonarr).
+This directory starts with the first Phase 4 apps: the media download stack
+(Gluetun, SABnzbd, Prowlarr, Radarr, and Sonarr) and Plex.
 
 ## Prerequisites
 
 - Phase 3.5 validation has passed.
 - `/mnt/media` is mounted on `minis`.
+- `/opt/plex/config` contains the migrated Plex config from Phase 3.5, owned by
+  UID/GID `1000:1000`.
 - `/opt/radarr/config`, `/opt/sonarr/config`, and `/opt/prowlarr/config` contain the
   migrated config from Phase 3.5.
 - You have Mullvad WireGuard values from a device config.
@@ -43,3 +45,14 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 
 Only after the egress IP is a Mullvad exit IP should you configure indexers,
 download clients, and a test download/import flow.
+
+For Plex, validate the rollout and device passthrough:
+
+```bash
+./runbooks/phase4/03-validate-plex.sh
+```
+
+After first boot, confirm the migrated server appears without `PLEX_CLAIM`, set the
+custom server access URL to `https://plex.worm.run`, keep Plex native Remote Access
+disabled, and force a 1080p transcode while watching hardware use with `intel_gpu_top`
+on the host.

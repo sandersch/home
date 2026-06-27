@@ -9,6 +9,19 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 PHASE4_DOWNLOAD_STACK_DIR="$REPO_ROOT/apps/media/download-stack"
 PHASE4_GLUETUN_SECRET="$PHASE4_DOWNLOAD_STACK_DIR/gluetun-mullvad.sops.yaml"
 
+assert_phase4_plex_tree() {
+  local f
+  for f in \
+    apps/media/plex/kustomization.yaml \
+    apps/media/plex/deployment.yaml \
+    apps/media/plex/service.yaml \
+    apps/media/plex/ingress.yaml \
+    apps/media/plex/storage.yaml; do
+    [ -f "$REPO_ROOT/$f" ] || die "missing Phase 4 Plex file: $f"
+  done
+  ok "Phase 4 Plex tree is present"
+}
+
 assert_phase4_download_stack_tree() {
   local f
   for f in \
