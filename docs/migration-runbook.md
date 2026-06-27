@@ -13,7 +13,7 @@ final quiesced rsync. In the current stopped-host archive flow, Phase 3.5 is alr
 the final quiesced copy.
 
 - **Migrate:** Plex (metadata/DB), Radarr, Sonarr, Prowlarr.
-- **Fresh, no migration:** Overseerr, RomM, Home Assistant, Frigate.
+- **Fresh, no migration:** Seerr, RomM, Home Assistant, Frigate.
 
 ---
 
@@ -79,15 +79,15 @@ confirm `<DataFolder>` matches the in-container path (`/config`) before starting
 
 **3. Verify inter-app URLs.** The whole download stack (SABnzbd + *arrs) shares the
 Gluetun pod's network namespace, so the *arr↔SABnzbd/Prowlarr URLs stay `localhost`
-and usually migrate as-is; only callers outside the pod (Overseerr) need new targets.
+and usually migrate as-is; only callers outside the pod (Seerr) need new targets.
 Update in each app's web UI after start (not by editing SQLite):
 
 | Connection | Old | New |
 |---|---|---|
 | Radarr/Sonarr → download client | `localhost:8080` | `localhost:8080` — unchanged (same pod netns) |
 | Radarr/Sonarr → Prowlarr | `localhost:9696` | `localhost:9696` — unchanged (same pod netns) |
-| Overseerr → Radarr | `localhost:7878` | `http://gluetun.media.svc.cluster.local:7878` |
-| Overseerr → Sonarr | `localhost:8989` | `http://gluetun.media.svc.cluster.local:8989` |
+| Seerr → Radarr | `localhost:7878` | `http://gluetun.media.svc.cluster.local:7878` |
+| Seerr → Sonarr | `localhost:8989` | `http://gluetun.media.svc.cluster.local:8989` |
 
 > From outside the pod, every download-stack app (SABnzbd and the *arrs) is reached
 > at the **Gluetun** Service address on the app's port — there are no per-app
@@ -97,7 +97,7 @@ Update in each app's web UI after start (not by editing SQLite):
 
 ## Fresh-install apps
 
-**Overseerr** and **RomM** start clean. After Overseerr is up, link it to Plex via
+**Seerr** and **RomM** start clean. After Seerr is up, link it to Plex via
 Plex OAuth (Settings → Plex → sign in) — the callback URL is tied to the new hostname,
 so this must be done on the new instance regardless. **Home Assistant** and **Frigate**
 are also fresh; HA needs `hostNetwork: true` for device discovery and hostPath mounts
@@ -115,7 +115,7 @@ for any Zigbee/Z-Wave USB stick.
    metadata; Quick Sync transcode works; *arr apps show their history; VPN egress is
    the Mullvad exit IP; a test download flows end-to-end Prowlarr → Radarr → SABnzbd.
 3. **Still in Phase 4: verify inter-app URLs** (intra-pod ones stay `localhost`;
-   update Overseerr's Radarr/Sonarr targets); re-validate the test download.
+   update Seerr's Radarr/Sonarr targets); re-validate the test download.
 4. **After validation:** keep the old stopped hosts or archive intact for ~2 weeks.
    If something surfaces post-migration, the old config still exists to fall back to.
 

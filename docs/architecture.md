@@ -172,7 +172,7 @@ The rule: **latency-sensitive state on local NVMe; bulk/regenerable data on NAS.
 | SABnzbd | Config + DB | `/opt/sabnzbd` | btrfs (NVMe) |
 | SABnzbd | Incomplete (staging) | `topolvm-scratch` PVC | ext4 LV (NVMe) |
 | SABnzbd | Complete (handoff) | NAS, under `/mnt/media` (same export as the library — one filesystem, so *arr imports are hardlink/atomic-move) | NFS |
-| Overseerr | Request DB | `/opt/overseerr` | btrfs (NVMe) |
+| Seerr | Request DB | `/opt/seerr` | btrfs (NVMe) |
 | RomM | DB/metadata | `/opt/romm` | btrfs (NVMe) |
 | RomM | ROM library | NAS | NFS |
 | Home Assistant | Recorder DB + state | `/opt/home-assistant` | btrfs (NVMe) |
@@ -269,12 +269,12 @@ indexer queries, the *arrs' metadata fetches and trigger traffic) leaves through
 tunnel, not the node's WAN. Because they share one netns they reach each other over
 `localhost:<port>` (SABnzbd 8080, Prowlarr 9696, Radarr 7878, Sonarr 8989 — no
 conflicts), and the pod's Service publishes those same ports to the LAN and Tailnet
-so the web UIs and Overseerr/Plex callers can reach them. Gluetun's **kill switch**
+so the web UIs and Seerr/Plex callers can reach them. Gluetun's **kill switch**
 (on by default) drops WAN traffic if the tunnel fails — leave it on. Two firewall
 settings are both required for reachability: `FIREWALL_OUTBOUND_SUBNETS` (cluster
 pod/Service CIDRs plus the LAN subnet) permits connections the pod *initiates*
 toward those ranges (cluster DNS, NAS, Plex), and `FIREWALL_INPUT_PORTS=8080,9696,7878,8989`
-permits connections initiated *into* the pod (browsers, Overseerr → the *arrs) —
+permits connections initiated *into* the pod (browsers, Seerr → the *arrs) —
 the outbound setting alone does not allow inbound. Two accepted tradeoffs:
 (1) **coupled lifecycle** — any image bump or manifest change to any of the five
 containers recreates the whole pod and re-establishes the tunnel; acceptable for a
@@ -288,7 +288,7 @@ over the node's WAN; only the lookups leak, the traffic itself is tunneled.
 | SABnzbd | **Yes** | Download traffic (container in the Gluetun pod) |
 | Prowlarr | **Yes** | Indexer queries (container in the Gluetun pod) |
 | Radarr / Sonarr | **Yes** | Metadata fetches + download triggers (containers in the Gluetun pod) |
-| Overseerr | No | Talks only to Plex + *arr internally |
+| Seerr | No | Talks only to Plex + *arr internally |
 | Plex | No | Needs its own direct/relayed remote path |
 | Frigate | No | Camera traffic, fully internal |
 | Home Assistant | No | Needs LAN access for device discovery |
@@ -328,7 +328,7 @@ first.)
 | Plex | 1 / 6 | 1Gi / 4Gi | standard · burstable |
 | Gluetun + SABnzbd (download pod) | 0.5 / 2 | 512Mi / 1Gi | standard |
 | *arr (each, containers in the download pod) | 0.25 / 1 | 256Mi / 512Mi | standard |
-| Overseerr / RomM | 0.1 / 0.5 | 128Mi / 512Mi | standard |
+| Seerr / RomM | 0.1 / 0.5 | 128Mi / 512Mi | standard |
 | Monitoring stack | 0.5 / 2 | 1Gi / 3Gi | standard |
 | Restic CronJob | 0.25 / 1 | 256Mi / 1Gi | low · best-effort |
 

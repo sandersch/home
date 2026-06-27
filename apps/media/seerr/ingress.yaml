@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: seerr
+  namespace: media
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - seerr.worm.run
+  rules:
+    - host: seerr.worm.run
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: seerr
+                port:
+                  name: http

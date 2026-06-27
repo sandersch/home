@@ -24,7 +24,7 @@ to local NVMe under `/opt`. It does not deploy workloads or change Kubernetes st
 | Sonarr | `/mnt/media/to_archive/config/sonarr-config/` | `/opt/sonarr/config/` |
 | Prowlarr | `/mnt/media/to_archive/config/prowlarr-config/` | `/opt/prowlarr/config/` |
 
-Overseerr, RomM, Home Assistant, Frigate, and SABnzbd queue/history are intentionally
+Seerr, RomM, Home Assistant, Frigate, and SABnzbd queue/history are intentionally
 not migrated in this phase.
 
 ## Order

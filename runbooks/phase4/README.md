@@ -56,3 +56,12 @@ After first boot, confirm the migrated server appears without `PLEX_CLAIM`, set 
 custom server access URL to `https://plex.worm.run`, keep Plex native Remote Access
 disabled, and force a 1080p transcode while watching hardware use with `intel_gpu_top`
 on the host.
+
+For Seerr, validate the rollout and in-cluster service path:
+
+```bash
+./runbooks/phase4/04-validate-seerr.sh
+```
+
+Then open `https://seerr.worm.run`, link Plex, and point Radarr/Sonarr at the
+Gluetun Service URLs from the migration runbook.

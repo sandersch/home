@@ -541,7 +541,7 @@ Executable host-side scripts for the stopped-host archive copy live in
 [`runbooks/phase3.5`](../runbooks/phase3.5/).
 
 - **Migrate:** Plex (metadata/DB), Radarr, Sonarr, Prowlarr.
-- **Fresh installs, no migration:** Overseerr, RomM, Home Assistant, Frigate.
+- **Fresh installs, no migration:** Seerr, RomM, Home Assistant, Frigate.
 - Keep the old stack intact for Phase 4 validation and rollback.
 
 ---
@@ -577,7 +577,7 @@ recordings via hostPath to `/mnt/frigate`. ⚑ Before Frigate goes live, confirm
 real camera has a stable `.50-.99` `dhcp-host` reservation across a dnsmasq restart;
 then verify cameras remain unreachable from the internet.
 
-**4d — remaining stack.** Overseerr (pointed at the *arrs via the Gluetun Service),
+**4d — remaining stack.** Seerr (pointed at the *arrs via the Gluetun Service),
 RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery; plus any
 Zigbee/Z-Wave USB stick via hostPath, like the Coral).
 
@@ -704,7 +704,7 @@ spec:
 
 SABnzbd, Prowlarr, Radarr, and Sonarr share Gluetun's network namespace (one pod,
 five containers): all WAN egress rides the tunnel and the kill switch protects it;
-intra-stack calls are `localhost:<port>`; callers outside the pod (Overseerr,
+intra-stack calls are `localhost:<port>`; callers outside the pod (Seerr,
 browsers) use the Gluetun Service at the app's port. **Both firewall env vars below
 are required** — outbound subnets alone does not allow inbound UI/API traffic.
 
@@ -720,7 +720,7 @@ spec:
           envFrom: [{ secretRef: { name: gluetun-mullvad } }]   # SOPS-encrypted
           # VPN_SERVICE_PROVIDER=mullvad, VPN_TYPE=wireguard,
           # WIREGUARD_PRIVATE_KEY=..., SERVER_COUNTRIES=...
-          # FIREWALL_INPUT_PORTS=8080,9696,7878,8989     # inbound: UIs, Overseerr
+          # FIREWALL_INPUT_PORTS=8080,9696,7878,8989     # inbound: UIs, Seerr
           # FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,10.137.20.0/24
           #   (k3s pod + Service CIDRs, LAN — keeps cluster DNS/NAS/Plex reachable)
         - name: sabnzbd                          # localhost:8080
