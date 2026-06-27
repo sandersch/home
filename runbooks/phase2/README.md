@@ -13,7 +13,13 @@ that changes Kubernetes state belongs in git and is reconciled by Flux in Phase 
   and readable `/mnt/media`.
 - Phase 1 host-side camera isolation is applied.
 - This repo is checked out on `minis`.
-- The `flux` CLI is installed and authenticated as needed for `flux bootstrap github`.
+- The `flux` CLI is installed on `minis`:
+  ```bash
+  curl -s https://fluxcd.io/install.sh | sudo bash
+  flux version --client
+  ```
+  `flux bootstrap github` uses `GITHUB_TOKEN`; export it before running
+  `05-flux-bootstrap.sh`.
 - GitHub owner/repository/branch are `sandersch/home` on `main`, matching the build
   plan.
 

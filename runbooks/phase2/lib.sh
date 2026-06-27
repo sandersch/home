@@ -107,6 +107,25 @@ assert_kubectl_ready() {
   ok "kubernetes node minis is Ready"
 }
 
+print_flux_cli_install_hint() {
+  cat >&2 <<'EOF'
+Install the Flux CLI on minis, then rerun this script:
+  curl -s https://fluxcd.io/install.sh | sudo bash
+  flux version --client
+EOF
+}
+
+require_flux_cli() {
+  if command -v flux >/dev/null; then
+    ok "flux CLI present"
+    return 0
+  fi
+
+  warn "required tool missing: flux"
+  print_flux_cli_install_hint
+  die "flux CLI is required before Flux bootstrap"
+}
+
 age_public_key_from_file() {
   local key_file="${1:-$(age_key_file)}"
   [ -f "$key_file" ] || die "age key file missing: $key_file"

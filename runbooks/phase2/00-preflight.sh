@@ -37,6 +37,7 @@ if command -v flux >/dev/null; then
   ok "flux CLI present"
 else
   warn "flux CLI missing; install it before 05-flux-bootstrap.sh"
+  print_flux_cli_install_hint
 fi
 
 step "Preflight complete"

@@ -4,7 +4,8 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root
-require_tools flux git kubectl
+require_tools git kubectl
+require_flux_cli
 
 step "Validate inputs"
 [ -n "${GITHUB_TOKEN:-}" ] \

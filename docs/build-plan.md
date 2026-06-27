@@ -379,6 +379,12 @@ creation_rules:
     age: <YOUR_AGE_PUBLIC_KEY>
 ```
 
+**2.4.1 Install the Flux CLI.**
+```bash
+curl -s https://fluxcd.io/install.sh | sudo bash
+flux version --client
+```
+
 **2.5 Bootstrap Flux** (creates the repo if absent — **private** by default — commits
 Flux manifests, generates a deploy key, and starts reconciling). `--private` is the
 default for `flux bootstrap github`; it's passed explicitly here so the intent is

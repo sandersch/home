@@ -4,7 +4,8 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root
-require_tools kubectl flux
+require_tools kubectl
+require_flux_cli
 
 step "Validate k3s node"
 assert_kubectl_ready
