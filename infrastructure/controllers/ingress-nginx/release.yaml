@@ -24,6 +24,8 @@ spec:
       retries: 3
   values:
     controller:
+      extraArgs:
+        default-ssl-certificate: ingress-nginx/worm-run-tls
       ingressClassResource:
         default: true
       service:
