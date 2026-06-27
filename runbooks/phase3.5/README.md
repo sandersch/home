@@ -35,7 +35,7 @@ Run scripts in numeric order, or run `./run-all.sh`.
 |---|---|---|
 | `00-preflight.sh` | Checks host, NFS archive, source files, `/opt` capacity, and empty destinations | no |
 | `01-copy-configs.sh` | Copies configs with `rsync -aHAX --numeric-ids --delete` and fixes ownership | yes |
-| `02-validate-copy.sh` | Checks expected files, SQLite integrity, ownership, and `/opt` usage | no |
+| `02-validate-copy.sh` | Checks expected files, Plex DB readability, *arr SQLite integrity, ownership, and `/opt` usage | no |
 
 ## Safety notes
 
@@ -53,6 +53,9 @@ Run scripts in numeric order, or run `./run-all.sh`.
 - The NAS export may root-squash `sudo`, so the copy script detects each archive
   directory's numeric owner and runs `rsync` as that UID/GID. This lets it read
   restrictive files such as Plex `0600`/`0660` config and cache files.
+- Plex library DB validation uses schema/table read checks instead of
+  `PRAGMA integrity_check` because Plex can define a custom SQLite tokenizer that
+  the system `sqlite3` binary cannot load.
 - Migrated files are chowned to `1000:1000`, matching the LinuxServer container
   defaults used by the planned workloads.
 

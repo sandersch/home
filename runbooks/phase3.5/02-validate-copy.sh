@@ -10,9 +10,10 @@ require_tools df find sqlite3
 step "Verify expected copied files"
 assert_phase35_copied_files
 
-step "SQLite integrity checks"
-assert_integrity_ok "Plex library" "$(phase35_db_path plex-library)"
-assert_integrity_ok "Plex blobs" "$(phase35_db_path plex-blobs)"
+step "Plex SQLite access checks"
+assert_plex_databases_readable
+
+step "*arr SQLite integrity checks"
 assert_integrity_ok "Radarr" "$(phase35_db_path radarr)"
 assert_integrity_ok "Sonarr" "$(phase35_db_path sonarr)"
 assert_integrity_ok "Prowlarr" "$(phase35_db_path prowlarr)"

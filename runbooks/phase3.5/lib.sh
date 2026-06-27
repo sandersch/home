@@ -202,6 +202,24 @@ assert_integrity_ok() {
   ok "$label SQLite integrity_check"
 }
 
+assert_sqlite_query_ok() {
+  local label="$1" db="$2" sql="$3"
+  [ -f "$db" ] || die "missing copied DB: $db"
+  sudo sqlite3 "$db" "$sql" >/dev/null \
+    || die "$label SQLite validation query failed"
+  ok "$label SQLite opens and expected schema is readable"
+}
+
+assert_plex_databases_readable() {
+  # Plex's library DB can define a custom FTS tokenizer named "collating". The
+  # system sqlite3 binary does not have that tokenizer, so PRAGMA integrity_check
+  # may fail at schema-prepare time even when Plex itself can read the DB.
+  assert_sqlite_query_ok "Plex library" "$(phase35_db_path plex-library)" \
+    'PRAGMA schema_version; SELECT count(*) FROM sqlite_master; SELECT count(*) FROM metadata_items;'
+  assert_sqlite_query_ok "Plex blobs" "$(phase35_db_path plex-blobs)" \
+    'PRAGMA schema_version; SELECT count(*) FROM sqlite_master;'
+}
+
 assert_phase35_copied_files() {
   local file
   for file in \
