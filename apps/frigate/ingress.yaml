@@ -3,6 +3,8 @@ kind: Ingress
 metadata:
   name: frigate
   namespace: frigate
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
 spec:
   ingressClassName: nginx
   tls:
