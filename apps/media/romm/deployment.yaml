@@ -36,6 +36,11 @@ spec:
       containers:
         - name: romm
           image: rommapp/romm:4.9.2
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
           env:
             - name: TZ
               value: America/Chicago

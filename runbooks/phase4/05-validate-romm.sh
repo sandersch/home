@@ -21,6 +21,10 @@ step "Verify RomM library mount"
 kubectl -n media exec deploy/romm -c romm -- sh -c 'test -d /romm/library && ls /romm/library >/dev/null'
 ok "RomM library mount is readable"
 
+step "Verify RomM app container UID/GID"
+kubectl -n media exec deploy/romm -c romm -- sh -c '[ "$(id -u):$(id -g)" = "1000:1000" ]'
+ok "RomM app container runs as 1000:1000"
+
 step "Verify RomM HTTP service"
 kubectl -n media run romm-http-test --restart=Never --rm -i --image=busybox:1.36 \
   -- wget -qO- http://romm:8080/ >/dev/null
