@@ -97,8 +97,8 @@ reproduces, but the `/boot/efi` line carries a disk-specific UUID — reconcile 
 this disk (`blkid`) before use. Restore the file (or just append the
 `media.nfs.service.matrix:/mnt/media` line on an existing install), then `sudo mount -a`
 and verify `/mnt/media`. `nofail` is essential — a NAS outage at boot must not block k3s.
-Additional mounts (`/mnt/frigate`, `/mnt/games`) will be added in Phase 4 when the apps
-that need them are configured. Completed downloads are *not* a separate export — SABnzbd
+Additional mounts are added in Phase 4 when the apps that need them are configured
+(`/mnt/games` for RomM, `/mnt/frigate` for Frigate). Completed downloads are *not* a separate export — SABnzbd
 hands off under `/mnt/media` so the download dir and the *arr library share one filesystem
 (hardlink/atomic-move imports). The NAS hostname `media.nfs.service.matrix` resolves via the
 router nameserver (`10.137.20.1`, set in 0.2) — there is no `/etc/hosts` fallback, so the

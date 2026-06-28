@@ -28,7 +28,7 @@ phase order. All paths are owned by `root`; set the perms noted per file.
 | `etc/nut/upsd.conf` | `/etc/nut/upsd.conf` | `root:nut` `640` | " |
 | `etc/nut/upsmon.conf` | `/etc/nut/upsmon.conf` | `root:nut` `640` | " (**redacted secret**) |
 | `etc/nut/upsd.users` | `/etc/nut/upsd.users` | `root:nut` `640` | " (**redacted secret**) |
-| `etc/fstab` | `/etc/fstab` | `root:root` `644` | reconcile the `/boot/efi` UUID with this disk (see Phase 0.4), then `sudo mount -a` and verify `/mnt/media` |
+| `etc/fstab` | `/etc/fstab` | `root:root` `644` | reconcile the `/boot/efi` UUID with this disk (see Phase 0.4), then create the listed mountpoints, `sudo mount -a`, and verify the NFS mounts needed for the current phase |
 
 **SSH (key-only):** `sshd_config.d/10-homelab.conf` sets `PasswordAuthentication no` and
 `PermitRootLogin no`. On restore, **copy your public key up and confirm a key login works
@@ -53,8 +53,9 @@ entries are LVM device paths (`/dev/vg0/*`) that the Phase 0.1 partition layout
 reproduces, so they restore as-is — but the `/boot/efi` line is keyed by a
 **disk-specific UUID** (`/dev/disk/by-uuid/...`) generated at install time. After a
 fresh install, replace that UUID with this disk's EFI partition UUID (`blkid`) before
-relying on the file, or the boot mount fails. Only `/mnt/media` is mounted at this
-stage; `/mnt/frigate` and `/mnt/games` are added in Phase 4 with the apps that need them.
+relying on the file, or the boot mount fails. The Phase 0 runbook appends and verifies
+only `/mnt/media`; Phase 4 workloads add their own NAS mounts here as they are
+implemented, currently `/mnt/games` for RomM.
 
 **Phase 0.5 (NUT):** the configs are the *effective* (non-comment) settings, not a
 byte-for-byte copy of the stock files. After placing them, enable the stack:

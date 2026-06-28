@@ -63,7 +63,8 @@ init container (or pre-commands), then back up `/opt`.
 | Home Assistant | call its **REST API** `homeassistant.backup` (not raw sqlite3) | HA manages its own WAL |
 | Frigate | `sqlite3 .backup` | small; already in `/opt` scope |
 | Radarr/Sonarr/Prowlarr | `sqlite3 .backup` | low-risk but be consistent |
-| Seerr / RomM | `sqlite3 .backup` | lightweight; loss = re-sync/rescan |
+| Seerr | `sqlite3 .backup` | lightweight; loss = re-sync/rescan |
+| RomM | `mariadb-dump` from the MariaDB sidecar | lightweight; loss = re-sync/rescan |
 | SABnzbd | none | queue/history are throwaway |
 
 HA's dump is triggered over its API from inside the cluster using a long-lived token

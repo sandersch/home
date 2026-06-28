@@ -8,6 +8,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 
 PHASE4_DOWNLOAD_STACK_DIR="$REPO_ROOT/apps/media/download-stack"
 PHASE4_GLUETUN_SECRET="$PHASE4_DOWNLOAD_STACK_DIR/gluetun-mullvad.sops.yaml"
+PHASE4_ROMM_DIR="$REPO_ROOT/apps/media/romm"
+PHASE4_ROMM_SECRET="$PHASE4_ROMM_DIR/romm.sops.yaml"
 
 assert_phase4_plex_tree() {
   local f
@@ -45,4 +47,25 @@ assert_phase4_secret_present() {
   grep -q '^sops:' "$PHASE4_GLUETUN_SECRET" \
     || die "$PHASE4_GLUETUN_SECRET is not SOPS-encrypted"
   ok "Gluetun Mullvad Secret manifest is SOPS-encrypted"
+}
+
+assert_phase4_romm_tree() {
+  local f
+  for f in \
+    apps/media/romm/kustomization.yaml \
+    apps/media/romm/deployment.yaml \
+    apps/media/romm/service.yaml \
+    apps/media/romm/ingress.yaml \
+    apps/media/romm/storage.yaml; do
+    [ -f "$REPO_ROOT/$f" ] || die "missing Phase 4 RomM file: $f"
+  done
+  ok "Phase 4 RomM tree is present"
+}
+
+assert_phase4_romm_secret_present() {
+  [ -f "$PHASE4_ROMM_SECRET" ] \
+    || die "missing $PHASE4_ROMM_SECRET"
+  grep -q '^sops:' "$PHASE4_ROMM_SECRET" \
+    || die "$PHASE4_ROMM_SECRET is not SOPS-encrypted"
+  ok "RomM Secret manifest is SOPS-encrypted"
 }

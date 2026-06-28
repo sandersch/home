@@ -2,8 +2,8 @@
 
 Scripts for [build-plan.md Phase 4](../../docs/build-plan.md#phase-4--core-workloads-).
 
-This directory starts with the first Phase 4 apps: the media download stack
-(Gluetun, SABnzbd, Prowlarr, Radarr, and Sonarr) and Plex.
+This directory starts with the Phase 4 media apps: the media download stack
+(Gluetun, SABnzbd, Prowlarr, Radarr, and Sonarr), Plex, Seerr, and RomM.
 
 ## Prerequisites
 
@@ -13,6 +13,7 @@ This directory starts with the first Phase 4 apps: the media download stack
   UID/GID `1000:1000`.
 - `/opt/radarr/config`, `/opt/sonarr/config`, and `/opt/prowlarr/config` contain the
   migrated config from Phase 3.5.
+- `/mnt/games` is mounted on `minis` before reconciling RomM.
 - You have Mullvad WireGuard values from a device config.
 
 ## Secret generation
@@ -65,3 +66,12 @@ For Seerr, validate the rollout and in-cluster service path:
 
 Then open `https://seerr.worm.run`, link Plex, and point Radarr/Sonarr at the
 Gluetun Service URLs from the migration runbook.
+
+For RomM, validate the rollout, local state, database sidecar, service path, and
+NAS-backed library mount:
+
+```bash
+./runbooks/phase4/05-validate-romm.sh
+```
+
+Then open `https://romm.worm.run`, complete setup, and run the first library scan.

@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: romm
+    namespace: media
+stringData:
+    DB_PASSWD: ENC[AES256_GCM,data:MHLRP47lCe59J2+0KgSskFkpbzG1R2VrVz9JpNU3HoVKVEaeXrN9VLMxeegcM8Q7,iv:t6VkYc1777a4dPf92YvQcS2oRlmyOh4MrKXvcspvyQE=,tag:NxXQL+vZuydxbeRGK2JYVQ==,type:str]
+    MARIADB_PASSWORD: ENC[AES256_GCM,data:l99UHZCvmoquNHf9gzZg0Crew+fX5GNEomCJEBO+43Gb0mCJZMwIJbB+9DKihKLH,iv:dKHpdj+Pupw+6oi+hAQ3NebfjsqzgoXmh70PJ62ZBoU=,tag:7jTLXu2uMkFp1Z11FHxqEw==,type:str]
+    MARIADB_ROOT_PASSWORD: ENC[AES256_GCM,data:vxGeRlkU/DV24SE09Xo0BS2kLyCAoinQUqWcH7MS6F/7GmGh5/SlbAYyU4N4oywJ,iv:Ko6xGqgXU0a4JiTR5A8LKts6lt1e90VKc1OoDgJBTUg=,tag:DBZH4sEgNgjsyY0oyYfdiw==,type:str]
+    ROMM_AUTH_SECRET_KEY: ENC[AES256_GCM,data:p+9vytXIkDsXoJ0eel2HIHm4WT0vZ/axf/xWnY16pEXOoQGDhUOP00B13iEzsgziLVIXGqCvSBdktD9g0IpgUA==,iv:FuQ0vKTcl6w5wALJdY8SdC3H4cvDGzPFtlvSz5RI1e4=,tag:qPbtryXqGRW197bjJ9wX/Q==,type:str]
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBvUVNzL3JzRnFhaGo1bnZN
+            TVZITGkremVlNUZsQkNSRnNmcGR4VGgrdEIwCkRJWkZOa2NUYTN1Yzc5aEI3WnNP
+            UE5ObXA5U3VJRlpaTG9sVWxFSk11T1kKLS0tIEVKU1hTMmxyRUFhY0FYQm1pWkdO
+            bmZQNUV3ZktmZWxQZ2xJUW9EaHp5d28K8wetyVmW5c2POhxhr2S73KLgAHz32gb1
+            BXQM7ERFw6ZLDywB0D6sjZFq6BpXXfTZb/S05epm1FjUP+Z70U9YjA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age18cxm2hs3ctq0s735h7z9lj7w7ag37f2vleesglcw6lezlhy5v9nsatkxex
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-06-27T22:28:32Z"
+    mac: ENC[AES256_GCM,data:H98LG5GrL0M00QSA7H7jOylHkhXFW5POK3eqPci/3WqRBtVWZx7ooZHCa9IT/TKLno6VCWWb3OamlW+1oASxPKR/Zo31yhn3pyofJAy2qhiCUQzHWSbluTDt9fhIn35ZuCxbg7R0iFqONU5TkLeQdKXc9jflVKFFny9y+B9npJk=,iv:PJVij9d5XjqHUPDs4I8RUVvhBCFVFOK/S7Wruzxv464=,tag:Gzsg0dLtwCnuxe63kwMXbw==,type:str]
+    version: 3.13.1

@@ -12,6 +12,9 @@ assert_phase4_download_stack_tree
 step "Verify Phase 4 Plex tree"
 assert_phase4_plex_tree
 
+step "Verify Phase 4 RomM tree"
+assert_phase4_romm_tree
+
 step "Verify local kustomize output"
 kustomize build "$REPO_ROOT/apps" >/dev/null
 ok "kustomize build apps"
@@ -19,4 +22,7 @@ ok "kustomize build apps"
 step "Verify Gluetun Secret manifest"
 assert_phase4_secret_present
 
-ok "Phase 4 download stack preflight complete"
+step "Verify RomM Secret manifest"
+assert_phase4_romm_secret_present
+
+ok "Phase 4 preflight complete"
