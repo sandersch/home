@@ -199,5 +199,5 @@ spec:
             claimName: romm-data-pvc
         - name: library
           hostPath:
-            path: /mnt/games/roms
+            path: /mnt/games
             type: Directory
