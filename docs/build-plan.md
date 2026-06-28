@@ -191,7 +191,8 @@ the explicit drops do the work without breaking k3s's own nft chains. Enable nft
 (the diagnostics allow). **Caveat — the forward-chain drop is not actually exercised at
 this stage:** `net.ipv4.ip_forward` is `0` on stock Ubuntu and only gets flipped to `1`
 by k3s in Phase 2, so right now the host won't route camera→internet/LAN regardless of
-nftables (and a correctly-DHCP'd camera has no default route anyway). The "cannot ping
+nftables. DHCP advertises `192.168.105.1` as a router for camera firmware compatibility,
+but nftables still makes it a dead end for forwarded traffic. The "cannot ping
 `8.8.8.8`" check therefore passes trivially and `cam-drop-fwd-*` will never log here — only
 the **input** chain is genuinely testable now. The forward drop must be re-validated at the
 gate (post-k3s) from a test device with a manual IP **and** a manual gateway of
@@ -275,10 +276,12 @@ dhcp-authoritative      # sole DHCP server on an isolated segment; speeds up lea
 # Hand cameras the host as their NTP server (option 42) — BEST EFFORT ONLY. Amcrest/
 # Dahua cameras generally ignore option 42 and use the NTP server set in their own web
 # UI, so this is a backstop, not the source of truth; the authoritative NTP config is
-# set per-camera in 1.3. Deliberately empty router and DNS options: an isolated segment
-# needs no default route or resolver, and withholding them stops cameras even attempting
-# off-segment traffic or DNS beacons (the forward drop is the backstop).
-dhcp-option=option:router
+# set per-camera in 1.3. Some camera firmware repeatedly renews DHCP if no router is
+# advertised, so hand out the host's camera-side address as the gateway. nftables still
+# drops all forwarded traffic entering/leaving cam0, so this does not create an internet
+# or LAN path. DNS remains deliberately empty: serving DNS here would be an outbound
+# beacon path for a compromised camera.
+dhcp-option=option:router,192.168.105.1
 dhcp-option=option:dns-server
 dhcp-option=option:ntp-server,192.168.105.1
 # dhcp-host=AA:BB:CC:DD:EE:FF,192.168.105.51   # pin per-camera in the static .50-.99 block
