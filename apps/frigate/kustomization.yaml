@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- namespace.yaml
+- storage.yaml
+- service.yaml
+- ingress.yaml
+- deployment.yaml
+- frigate.sops.yaml
+configMapGenerator:
+- files:
+  - config.yml
+  name: frigate-config
+  namespace: frigate

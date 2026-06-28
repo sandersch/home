@@ -1,0 +1,40 @@
+mqtt:
+  enabled: false
+
+ffmpeg:
+  hwaccel_args: preset-vaapi
+
+detectors:
+  coral:
+    type: edgetpu
+    device: usb
+
+record:
+  enabled: true
+  continuous:
+    days: 0
+  motion:
+    days: 0
+  alerts:
+    retain:
+      days: 14
+      mode: motion
+  detections:
+    retain:
+      days: 14
+      mode: motion
+
+cameras:
+  amcrest_105_50:
+    enabled: true
+    ffmpeg:
+      inputs:
+        - path: rtsp://{FRIGATE_CAMERA_AMCREST_105_50_RTSP_USER}:{FRIGATE_CAMERA_AMCREST_105_50_RTSP_PASSWORD}@192.168.105.50:554/cam/realmonitor?channel=1&subtype=0
+          roles:
+            - record
+        - path: rtsp://{FRIGATE_CAMERA_AMCREST_105_50_RTSP_USER}:{FRIGATE_CAMERA_AMCREST_105_50_RTSP_PASSWORD}@192.168.105.50:554/cam/realmonitor?channel=1&subtype=1
+          roles:
+            - detect
+    detect:
+      enabled: true
+      fps: 5

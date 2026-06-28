@@ -10,6 +10,8 @@ PHASE4_DOWNLOAD_STACK_DIR="$REPO_ROOT/apps/media/download-stack"
 PHASE4_GLUETUN_SECRET="$PHASE4_DOWNLOAD_STACK_DIR/gluetun-mullvad.sops.yaml"
 PHASE4_ROMM_DIR="$REPO_ROOT/apps/media/romm"
 PHASE4_ROMM_SECRET="$PHASE4_ROMM_DIR/romm.sops.yaml"
+PHASE4_FRIGATE_DIR="$REPO_ROOT/apps/frigate"
+PHASE4_FRIGATE_SECRET="$PHASE4_FRIGATE_DIR/frigate.sops.yaml"
 
 assert_phase4_plex_tree() {
   local f
@@ -70,4 +72,27 @@ assert_phase4_romm_secret_present() {
   grep -q '^sops:' "$PHASE4_ROMM_SECRET" \
     || die "$PHASE4_ROMM_SECRET is not SOPS-encrypted"
   ok "RomM Secret manifest is SOPS-encrypted"
+}
+
+assert_phase4_frigate_tree() {
+  local f
+  for f in \
+    apps/frigate/kustomization.yaml \
+    apps/frigate/namespace.yaml \
+    apps/frigate/config.yml \
+    apps/frigate/deployment.yaml \
+    apps/frigate/service.yaml \
+    apps/frigate/ingress.yaml \
+    apps/frigate/storage.yaml; do
+    [ -f "$REPO_ROOT/$f" ] || die "missing Phase 4 Frigate file: $f"
+  done
+  ok "Phase 4 Frigate tree is present"
+}
+
+assert_phase4_frigate_secret_present() {
+  [ -f "$PHASE4_FRIGATE_SECRET" ] \
+    || die "missing $PHASE4_FRIGATE_SECRET; run runbooks/phase4/07-encrypt-frigate-secrets.sh"
+  grep -q '^sops:' "$PHASE4_FRIGATE_SECRET" \
+    || die "$PHASE4_FRIGATE_SECRET is not SOPS-encrypted"
+  ok "Frigate Secret manifest is SOPS-encrypted"
 }

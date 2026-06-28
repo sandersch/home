@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frigate
+  namespace: frigate
+  labels:
+    app.kubernetes.io/name: frigate
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frigate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: frigate
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      priorityClassName: homelab-critical
+      securityContext:
+        supplementalGroups:
+          - 993
+      containers:
+        - name: frigate
+          image: ghcr.io/blakeblackshear/frigate:0.17.2
+          envFrom:
+            - secretRef:
+                name: frigate
+          env:
+            - name: TZ
+              value: America/Chicago
+          ports:
+            - name: http-auth
+              containerPort: 8971
+            - name: http-local
+              containerPort: 5000
+          resources:
+            requests:
+              cpu: "2"
+              memory: 2Gi
+              gpu.intel.com/i915: "1"
+            limits:
+              cpu: "4"
+              memory: 4Gi
+              gpu.intel.com/i915: "1"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: config-file
+              mountPath: /config/config.yml
+              subPath: config.yml
+              readOnly: true
+            - name: cache
+              mountPath: /tmp/cache
+            - name: recordings
+              mountPath: /media/frigate
+            - name: coral
+              mountPath: /dev/bus/usb
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: frigate-config-pvc
+        - name: config-file
+          configMap:
+            name: frigate-config
+        - name: cache
+          persistentVolumeClaim:
+            claimName: frigate-cache-pvc
+        - name: recordings
+          hostPath:
+            path: /mnt/frigate
+            type: Directory
+        - name: coral
+          hostPath:
+            path: /dev/bus/usb
+            type: Directory

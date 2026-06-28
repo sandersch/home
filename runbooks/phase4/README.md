@@ -3,7 +3,8 @@
 Scripts for [build-plan.md Phase 4](../../docs/build-plan.md#phase-4--core-workloads-).
 
 This directory starts with the Phase 4 media apps: the media download stack
-(Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr), Plex, Seerr, and RomM.
+(Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr), Plex, Seerr, RomM,
+and Frigate.
 
 ## Prerequisites
 
@@ -14,7 +15,9 @@ This directory starts with the Phase 4 media apps: the media download stack
 - `/opt/radarr/config`, `/opt/sonarr/config`, and `/opt/prowlarr/config` contain the
   migrated config from Phase 3.5.
 - `/mnt/games` is mounted on `minis` before reconciling RomM.
+- `/mnt/frigate` is mounted on `minis` before reconciling Frigate.
 - You have Mullvad WireGuard values from a device config.
+- You have the Frigate RTSP username and password for the camera at `192.168.105.50`.
 
 ## Secret generation
 
@@ -44,6 +47,21 @@ The script also accepts `SCREENSCRAPER_USER`, `SCREENSCRAPER_PASSWORD`,
 `RETROACHIEVEMENTS_API_KEY`, and `STEAMGRIDDB_API_KEY`. It preserves existing RomM
 DB/auth keys by decrypting the current SOPS file locally, so the matching age identity
 must be available in the shell.
+
+Create the SOPS-encrypted Frigate Secret before reconciling Frigate:
+
+```bash
+export FRIGATE_CAMERA_AMCREST_105_50_RTSP_USER=...
+export FRIGATE_CAMERA_AMCREST_105_50_RTSP_PASSWORD=...
+./runbooks/phase4/07-encrypt-frigate-secrets.sh
+```
+
+The script writes `apps/frigate/frigate.sops.yaml` with camera-specific RTSP credentials
+and an auto-generated `FRIGATE_JWT_SECRET`. The committed encrypted file is only a
+placeholder until this script is rerun with the real camera credentials. Do not commit a
+plaintext Secret. Future cameras should use their own
+`FRIGATE_CAMERA_<NAME>_RTSP_USER` and `FRIGATE_CAMERA_<NAME>_RTSP_PASSWORD` pair; the
+script includes exported matching pairs automatically.
 
 ## Initial validation
 
@@ -88,3 +106,15 @@ NAS-backed library mount:
 ```
 
 Then open `https://romm.worm.run`, complete setup, and run the first library scan.
+
+For Frigate, validate the rollout, PVCs, hardware passthrough, camera stream, and
+camera-segment firewall posture:
+
+```bash
+kubectl -n frigate rollout status deploy/frigate
+kubectl -n frigate get pvc
+kubectl -n frigate exec deploy/frigate -- ls -la /dev/bus/usb /dev/dri/renderD128
+kubectl -n frigate logs deploy/frigate
+```
+
+Then open `https://frigate.worm.run` and confirm the `amcrest_105_50` camera is live.

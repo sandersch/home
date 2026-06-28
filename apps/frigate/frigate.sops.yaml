@@ -1,0 +1,24 @@
+apiVersion: v1
+data:
+    FRIGATE_CAMERA_AMCREST_105_50_RTSP_PASSWORD: ENC[AES256_GCM,data:RuGoUyXa1eDpvC3x,iv:vmBSdRD12Ba3/ynzjoj2Ik3MgPl2mibUkbF5sCGz0fc=,tag:aviZwYYEYChxGx0LxshFtQ==,type:str]
+    FRIGATE_CAMERA_AMCREST_105_50_RTSP_USER: ENC[AES256_GCM,data:C6g3j4mmazE=,iv:WP4LO/IGeltl0OHD+HocoFLnBs/L+5+rZmXudiNzPy0=,tag:bvLg7Yb8crYV4wT07XrbVw==,type:str]
+    FRIGATE_JWT_SECRET: ENC[AES256_GCM,data:H6ICA1ZMPdYfnDZlbw56e+dauN2FaSmoCozO0yUQ5cZp3PzzSXMeQtmNcKG5744Gite4j24Bchi2T57yr/0UilpPCnZsH2d6OkX9g3iOEBmhFsIWb3M2eA==,iv:0DX6nP6ZkB3u6H4HNUfBL2EOiLz5G/iemSTcJ5pMq58=,tag:4ipYRkps61vBx1mdb8uz3w==,type:str]
+kind: Secret
+metadata:
+    name: frigate
+    namespace: frigate
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBBNHZBc095cm92QVJGcDVQ
+            MlpvYTRjNmlzNEVBRWdEZFJKMzVHaEhYY0RvCldjM1ZPL3l3VkluK0JHS3pqZWxk
+            dndSTmNuVlAxUzM1K2RhY283TlQ4MU0KLS0tIGlHUFk4K080ckRRUTFJOFB3bGlW
+            OTRkbnV0bzlDZFBWWUxISG5zazhqVXMK2/oU49PBC80LDTiNUM+dX9skQeQ2Nsn6
+            in8WfxHvvY/5pQx0IgnJVr2OgxmvbUkuuhVWs7wWlqb2Zhgy12mWhA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age18cxm2hs3ctq0s735h7z9lj7w7ag37f2vleesglcw6lezlhy5v9nsatkxex
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-06-28T21:13:24Z"
+    mac: ENC[AES256_GCM,data:ApeTb22SNjqECDR1Kq7+f8PAbRCDtgYKOeqI+sw1hqwLBtr2Y603Ew6DSxbUoFQnztheqtlL3gE3nbOA4JY8ESNeLVeV4Xo0vCcZrVuLs1kNKRUgkuE5LsJH8Xwm7/x1qgrSF4BW5esmic8onLjmF8Uds929cmMF1LLFZg3N8MM=,iv:UgwVM30Ck+eOeEmV46JVEy2VUF/cdsPY8DZJPnLFg1Y=,tag:HcJhRweYjP7Q5+K9dIVSbw==,type:str]
+    version: 3.13.1

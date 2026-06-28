@@ -12,3 +12,4 @@
 /dev/disk/by-uuid/87BD-380A /boot/efi vfat defaults 0 2
 media.nfs.service.matrix:/mnt/media    /mnt/media    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
 games.nfs.service.matrix:/mnt/games    /mnt/games    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
+frigate.nfs.service.matrix:/mnt/frigate    /mnt/frigate    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
