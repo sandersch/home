@@ -172,6 +172,9 @@ The rule: **latency-sensitive state on local NVMe; bulk/regenerable data on NAS.
 | SABnzbd | Config + DB | `/opt/sabnzbd` | btrfs (NVMe) |
 | SABnzbd | Incomplete (staging) | `topolvm-scratch` PVC | ext4 LV (NVMe) |
 | SABnzbd | Complete (handoff) | NAS, under `/mnt/media` (same export as the library — one filesystem, so *arr imports are hardlink/atomic-move) | NFS |
+| qBittorrent | Config + DB | `/opt/qbittorrent` | btrfs (NVMe) |
+| qBittorrent | Incomplete (staging) | `topolvm-scratch` PVC | ext4 LV (NVMe) |
+| qBittorrent | Complete (handoff) | NAS, under `/mnt/media/downloads/torrents` (same export as the library — one filesystem, so *arr imports are hardlink/atomic-move) | NFS |
 | Seerr | Request DB | `/opt/seerr` | btrfs (NVMe) |
 | RomM | DB/metadata | `/opt/romm` | btrfs (NVMe) |
 | RomM | ROM library | NAS | NFS |
@@ -263,20 +266,23 @@ WireGuard retains ~80%+ of line rate, and download traffic is capped by indexer/
 speed well below that anyway.
 
 **Topology.** One **Gluetun gateway pod** in the `media` namespace. **SABnzbd,
-Prowlarr, Radarr, and Sonarr all run as containers in that same pod**, sharing
-Gluetun's network namespace — so *every* WAN egress (SABnzbd's downloads, Prowlarr's
-indexer queries, the *arrs' metadata fetches and trigger traffic) leaves through the
-tunnel, not the node's WAN. Because they share one netns they reach each other over
-`localhost:<port>` (SABnzbd 8080, Prowlarr 9696, Radarr 7878, Sonarr 8989 — no
-conflicts), and the pod's Service publishes those same ports to the LAN and Tailnet
-so the web UIs and Seerr/Plex callers can reach them. Gluetun's **kill switch**
+qBittorrent, Prowlarr, Radarr, and Sonarr all run as containers in that same pod**,
+sharing Gluetun's network namespace — so *every* WAN egress (SABnzbd/qBittorrent
+downloads, Prowlarr's indexer queries, the *arrs' metadata fetches and trigger
+traffic) leaves through the tunnel, not the node's WAN. Because they share one netns
+they reach each other over `localhost:<port>` (SABnzbd 8080, qBittorrent 8090,
+Prowlarr 9696, Radarr 7878, Sonarr 8989 — no conflicts), and the pod's Service
+publishes those same UI/API ports to the LAN and Tailnet so the web UIs and Seerr/Plex
+callers can reach them. Gluetun's **kill switch**
 (on by default) drops WAN traffic if the tunnel fails — leave it on. Two firewall
 settings are both required for reachability: `FIREWALL_OUTBOUND_SUBNETS` (cluster
 pod/Service CIDRs plus the LAN subnet) permits connections the pod *initiates*
-toward those ranges (cluster DNS, NAS, Plex), and `FIREWALL_INPUT_PORTS=8080,9696,7878,8989`
+toward those ranges (cluster DNS, NAS, Plex), and `FIREWALL_INPUT_PORTS=8080,8090,9696,7878,8989`
 permits connections initiated *into* the pod (browsers, Seerr → the *arrs) —
-the outbound setting alone does not allow inbound. Two accepted tradeoffs:
-(1) **coupled lifecycle** — any image bump or manifest change to any of the five
+the outbound setting alone does not allow inbound. These non-secret Gluetun settings
+live in a plaintext ConfigMap; the SOPS Secret only carries the WireGuard address and
+private key. Two accepted tradeoffs:
+(1) **coupled lifecycle** — any image bump or manifest change to any of the six
 containers recreates the whole pod and re-establishes the tunnel; acceptable for a
 download stack that is down together anyway when the tunnel is. (2) **DNS does not
 ride the tunnel** — the app containers keep the kubelet-written cluster DNS (that's
@@ -286,6 +292,7 @@ over the node's WAN; only the lookups leak, the traffic itself is tunneled.
 | App | Behind VPN? | Why |
 |---|---|---|
 | SABnzbd | **Yes** | Download traffic (container in the Gluetun pod) |
+| qBittorrent | **Yes** | Torrent traffic (container in the Gluetun pod; no exposed peer port on Mullvad) |
 | Prowlarr | **Yes** | Indexer queries (container in the Gluetun pod) |
 | Radarr / Sonarr | **Yes** | Metadata fetches + download triggers (containers in the Gluetun pod) |
 | Seerr | No | Talks only to Plex + *arr internally |
@@ -327,6 +334,7 @@ first.)
 | **Home Assistant** | 0.5 / 2 | 512Mi / 2Gi | critical · non-evictable |
 | Plex | 1 / 6 | 1Gi / 4Gi | standard · burstable |
 | Gluetun + SABnzbd (download pod) | 0.5 / 2 | 512Mi / 1Gi | standard |
+| qBittorrent (container in the download pod) | 0.5 / 2 | 512Mi / 1Gi | standard |
 | *arr (each, containers in the download pod) | 0.25 / 1 | 256Mi / 512Mi | standard |
 | Seerr / RomM | 0.1 / 0.5 | 128Mi / 512Mi | standard |
 | Monitoring stack | 0.5 / 2 | 1Gi / 3Gi | standard |

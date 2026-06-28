@@ -31,11 +31,13 @@ assert_phase4_download_stack_tree() {
     apps/media/kustomization.yaml \
     apps/media/namespace.yaml \
     apps/media/download-stack/kustomization.yaml \
+    apps/media/download-stack/configmap.yaml \
     apps/media/download-stack/deployment.yaml \
     apps/media/download-stack/service.yaml \
     apps/media/download-stack/ingress.yaml \
     apps/media/download-stack/storage.yaml \
-    apps/media/download-stack/sabnzbd-incomplete-pvc.yaml; do
+    apps/media/download-stack/sabnzbd-incomplete-pvc.yaml \
+    apps/media/download-stack/qbittorrent-incomplete-pvc.yaml; do
     [ -f "$REPO_ROOT/$f" ] || die "missing Phase 4 file: $f"
   done
   ok "Phase 4 download stack tree is present"

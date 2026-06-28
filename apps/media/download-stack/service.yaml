@@ -11,6 +11,9 @@ spec:
     - name: sabnzbd
       port: 8080
       targetPort: sabnzbd
+    - name: qbittorrent
+      port: 8090
+      targetPort: qbittorrent
     - name: prowlarr
       port: 9696
       targetPort: prowlarr

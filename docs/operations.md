@@ -66,6 +66,7 @@ init container (or pre-commands), then back up `/opt`.
 | Seerr | `sqlite3 .backup` | lightweight; loss = re-sync/rescan |
 | RomM | `mariadb-dump` from the MariaDB sidecar | lightweight; loss = re-sync/rescan |
 | SABnzbd | none | queue/history are throwaway |
+| qBittorrent | none | queue/history are throwaway; credentials live in password manager |
 
 HA's dump is triggered over its API from inside the cluster using a long-lived token
 (SOPS secret), e.g. POST to

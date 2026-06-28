@@ -77,21 +77,23 @@ sudo chown -R 1000:1000 /opt/radarr /opt/sonarr /opt/prowlarr
 (`<DataFolder>`). Each app fixes the path on first start; if anything misbehaves,
 confirm `<DataFolder>` matches the in-container path (`/config`) before starting.
 
-**3. Verify inter-app URLs.** The whole download stack (SABnzbd + *arrs) shares the
-Gluetun pod's network namespace, so the *arr↔SABnzbd/Prowlarr URLs stay `localhost`
-and usually migrate as-is; only callers outside the pod (Seerr) need new targets.
+**3. Verify inter-app URLs.** The whole download stack (SABnzbd + qBittorrent + *arrs)
+shares the Gluetun pod's network namespace, so the *arr↔SABnzbd/Prowlarr URLs stay
+`localhost` and usually migrate as-is; only callers outside the pod (Seerr) need new
+targets. qBittorrent is a fresh download client added after first boot.
 Update in each app's web UI after start (not by editing SQLite):
 
 | Connection | Old | New |
 |---|---|---|
-| Radarr/Sonarr → download client | `localhost:8080` | `localhost:8080` — unchanged (same pod netns) |
+| Radarr/Sonarr → SABnzbd | `localhost:8080` | `localhost:8080` — unchanged (same pod netns) |
+| Radarr/Sonarr → qBittorrent | N/A | `localhost:8090` — add after first qBittorrent login |
 | Radarr/Sonarr → Prowlarr | `localhost:9696` | `localhost:9696` — unchanged (same pod netns) |
 | Seerr → Radarr | `localhost:7878` | `http://gluetun.media.svc.cluster.local:7878` |
 | Seerr → Sonarr | `localhost:8989` | `http://gluetun.media.svc.cluster.local:8989` |
 
-> From outside the pod, every download-stack app (SABnzbd and the *arrs) is reached
-> at the **Gluetun** Service address on the app's port — there are no per-app
-> Services for the download stack.
+> From outside the pod, every download-stack app (SABnzbd, qBittorrent, and the
+> *arrs) is reached at the **Gluetun** Service address on the app's port — there are
+> no per-app Services for the download stack.
 
 ---
 

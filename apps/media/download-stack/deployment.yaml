@@ -24,6 +24,37 @@ spec:
           envFrom:
             - secretRef:
                 name: gluetun-mullvad
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              valueFrom:
+                configMapKeyRef:
+                  name: gluetun-config
+                  key: VPN_SERVICE_PROVIDER
+            - name: VPN_TYPE
+              valueFrom:
+                configMapKeyRef:
+                  name: gluetun-config
+                  key: VPN_TYPE
+            - name: SERVER_COUNTRIES
+              valueFrom:
+                configMapKeyRef:
+                  name: gluetun-config
+                  key: SERVER_COUNTRIES
+            - name: FIREWALL_INPUT_PORTS
+              valueFrom:
+                configMapKeyRef:
+                  name: gluetun-config
+                  key: FIREWALL_INPUT_PORTS
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              valueFrom:
+                configMapKeyRef:
+                  name: gluetun-config
+                  key: FIREWALL_OUTBOUND_SUBNETS
+            - name: TZ
+              valueFrom:
+                configMapKeyRef:
+                  name: gluetun-config
+                  key: TZ
           securityContext:
             capabilities:
               add:
@@ -61,6 +92,36 @@ spec:
             - name: sabnzbd-config
               mountPath: /config
             - name: sabnzbd-incomplete
+              mountPath: /incomplete
+            - name: media
+              mountPath: /media
+        - name: qbittorrent
+          image: lscr.io/linuxserver/qbittorrent:latest
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: TZ
+              value: America/Chicago
+            - name: WEBUI_PORT
+              value: "8090"
+            - name: TORRENTING_PORT
+              value: "6881"
+          ports:
+            - name: qbittorrent
+              containerPort: 8090
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          volumeMounts:
+            - name: qbittorrent-config
+              mountPath: /config
+            - name: qbittorrent-incomplete
               mountPath: /incomplete
             - name: media
               mountPath: /media
@@ -145,6 +206,12 @@ spec:
         - name: sabnzbd-incomplete
           persistentVolumeClaim:
             claimName: sabnzbd-incomplete-pvc
+        - name: qbittorrent-config
+          persistentVolumeClaim:
+            claimName: qbittorrent-config-pvc
+        - name: qbittorrent-incomplete
+          persistentVolumeClaim:
+            claimName: qbittorrent-incomplete-pvc
         - name: prowlarr-config
           persistentVolumeClaim:
             claimName: prowlarr-config-pvc

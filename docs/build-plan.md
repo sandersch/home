@@ -34,7 +34,7 @@ the ESP outside LVM (`/boot` lives on the `root` LV — GRUB reads it from LVM),
 single LVM PV on the rest of the disk → VG `vg0` with LVs `root` 100 GB ext4 (`/`) ·
 `var` 100 GB ext4 (`/var`) · `opt` 100 GB btrfs (`/opt`) · ~650 GB left
 **unallocated in the VG**. Do *not* pre-create filesystems
-for Frigate cache or SABnzbd staging — those are TopoLVM-provisioned PVCs in
+for Frigate cache, SABnzbd staging, or qBittorrent staging — those are TopoLVM-provisioned PVCs in
 Phase 4, carved from the VG free space.
 
 Set the hostname to **`minis`** (`sudo hostnamectl set-hostname minis`) — the node
@@ -99,7 +99,7 @@ this disk (`blkid`) before use. Restore the file (or just append the
 and verify `/mnt/media`. `nofail` is essential — a NAS outage at boot must not block k3s.
 Additional mounts are added in Phase 4 when the apps that need them are configured
 (`/mnt/games` for RomM, `/mnt/frigate` for Frigate). Completed downloads are *not* a separate export — SABnzbd
-hands off under `/mnt/media` so the download dir and the *arr library share one filesystem
+and qBittorrent hand off under `/mnt/media` so the download dir and the *arr library share one filesystem
 (hardlink/atomic-move imports). The NAS hostname `media.nfs.service.matrix` resolves via the
 router nameserver (`10.137.20.1`, set in 0.2) — there is no `/etc/hosts` fallback, so the
 boot-time mount depends on the router's DNS; confirm it resolves (`getent hosts
@@ -555,12 +555,12 @@ flip NAS writes on, and run the final rsync for app-config changes made during t
 parallel run. `/mnt/frigate` and `/mnt/games` are not mounted in Phase 0, so add them
 to the host fstab during this phase before deploying Frigate or RomM.
 
-**4a — download pod: Gluetun + Mullvad + SABnzbd + *arr (deploy first).** One pod in
-`media`: Gluetun plus SABnzbd, Prowlarr, Radarr, and Sonarr sharing its network
-namespace. Intra-stack calls are `localhost:<port>`; everything outside the pod uses
-the Gluetun Service. ⚑ Confirm the egress IP from inside the pod equals the VPN exit
-IP before configuring indexers/downloads, then validate *arr history and a test
-download flow. Pattern below.
+**4a — download pod: Gluetun + Mullvad + SABnzbd + qBittorrent + *arr (deploy first).** One pod in
+`media`: Gluetun plus SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr sharing its
+network namespace. Intra-stack calls are `localhost:<port>`; everything outside the
+pod uses the Gluetun Service. ⚑ Confirm the egress IP from inside the pod equals the
+VPN exit IP before configuring indexers/downloads, then validate *arr history and
+test download flows. Pattern below.
 
 Then, in parallel once VPN is validated:
 
@@ -700,10 +700,10 @@ spec:
           persistentVolumeClaim: { claimName: <app>-config-pvc }
 ```
 
-## Download pod pattern (Gluetun + SABnzbd + *arr)
+## Download pod pattern (Gluetun + SABnzbd + qBittorrent + *arr)
 
-SABnzbd, Prowlarr, Radarr, and Sonarr share Gluetun's network namespace (one pod,
-five containers): all WAN egress rides the tunnel and the kill switch protects it;
+SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr share Gluetun's network namespace
+(one pod, six containers): all WAN egress rides the tunnel and the kill switch protects it;
 intra-stack calls are `localhost:<port>`; callers outside the pod (Seerr,
 browsers) use the Gluetun Service at the app's port. **Both firewall env vars below
 are required** — outbound subnets alone does not allow inbound UI/API traffic.
@@ -717,10 +717,18 @@ spec:
         - name: gluetun
           image: ghcr.io/qdm12/gluetun
           securityContext: { capabilities: { add: [NET_ADMIN] } }
-          envFrom: [{ secretRef: { name: gluetun-mullvad } }]   # SOPS-encrypted
+          envFrom: [{ secretRef: { name: gluetun-mullvad } }]   # WireGuard values, SOPS-encrypted
+          env:                                                  # non-secret config from gluetun-config
+            - { name: VPN_SERVICE_PROVIDER, valueFrom: { configMapKeyRef: { name: gluetun-config, key: VPN_SERVICE_PROVIDER } } }
+            - { name: VPN_TYPE, valueFrom: { configMapKeyRef: { name: gluetun-config, key: VPN_TYPE } } }
+            - { name: SERVER_COUNTRIES, valueFrom: { configMapKeyRef: { name: gluetun-config, key: SERVER_COUNTRIES } } }
+            - { name: FIREWALL_INPUT_PORTS, valueFrom: { configMapKeyRef: { name: gluetun-config, key: FIREWALL_INPUT_PORTS } } }
+            - { name: FIREWALL_OUTBOUND_SUBNETS, valueFrom: { configMapKeyRef: { name: gluetun-config, key: FIREWALL_OUTBOUND_SUBNETS } } }
+            - { name: TZ, valueFrom: { configMapKeyRef: { name: gluetun-config, key: TZ } } }
           # VPN_SERVICE_PROVIDER=mullvad, VPN_TYPE=wireguard,
-          # WIREGUARD_PRIVATE_KEY=..., SERVER_COUNTRIES=...
-          # FIREWALL_INPUT_PORTS=8080,9696,7878,8989     # inbound: UIs, Seerr
+          # WIREGUARD_PRIVATE_KEY=..., WIREGUARD_ADDRESSES=...
+          # SERVER_COUNTRIES=United States
+          # FIREWALL_INPUT_PORTS=8080,8090,9696,7878,8989 # inbound: UIs, Seerr
           # FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,10.137.20.0/24
           #   (k3s pod + Service CIDRs, LAN — keeps cluster DNS/NAS/Plex reachable)
         - name: sabnzbd                          # localhost:8080
@@ -730,6 +738,15 @@ spec:
             - { name: sabnzbd-config, mountPath: /config }      # /opt/sabnzbd (btrfs NVMe)
             - { name: sabnzbd-incomplete, mountPath: /incomplete } # topolvm-scratch PVC (ext4 LV)
             - { name: downloads, mountPath: /downloads }         # NAS NFS
+        - name: qbittorrent                     # localhost:8090
+          image: lscr.io/linuxserver/qbittorrent
+          # WEBUI_PORT=8090, TORRENTING_PORT=6881. The Web UI is published through
+          # the Gluetun Service; the torrent peer port is not exposed by Kubernetes
+          # or allowed as a Gluetun input port while using Mullvad without forwarding.
+          volumeMounts:
+            - { name: qbittorrent-config, mountPath: /config }      # /opt/qbittorrent (btrfs NVMe)
+            - { name: qbittorrent-incomplete, mountPath: /incomplete } # topolvm-scratch PVC
+            - { name: media, mountPath: /media }                     # NAS NFS
         - name: prowlarr                         # localhost:9696
           image: lscr.io/linuxserver/prowlarr
           volumeMounts: [{ name: prowlarr-config, mountPath: /config }]
@@ -746,17 +763,19 @@ spec:
       volumes:
         # config PVCs — local-nvme StorageClass, each bound to a pre-created PV under /opt
         - { name: sabnzbd-config,   persistentVolumeClaim: { claimName: sabnzbd-config-pvc } }
+        - { name: qbittorrent-config, persistentVolumeClaim: { claimName: qbittorrent-config-pvc } }
         - { name: prowlarr-config,  persistentVolumeClaim: { claimName: prowlarr-config-pvc } }
         - { name: radarr-config,    persistentVolumeClaim: { claimName: radarr-config-pvc } }
         - { name: sonarr-config,    persistentVolumeClaim: { claimName: sonarr-config-pvc } }
         # TopoLVM scratch LV — size-enforced, high-write, not snapshotted (see architecture.md)
         - { name: sabnzbd-incomplete, persistentVolumeClaim: { claimName: sabnzbd-incomplete-pvc } }
+        - { name: qbittorrent-incomplete, persistentVolumeClaim: { claimName: qbittorrent-incomplete-pvc } }
         # NAS paths — NFS mounted on host via fstab (Phase 0.4); pods use hostPath, no NFS PVC
         - { name: media,     hostPath: { path: /mnt/media,           type: Directory } }
-        # SABnzbd's completed-download handoff lives under the SAME /mnt/media export, so the
+        # SABnzbd/qBittorrent completed-download handoff lives under the SAME /mnt/media export, so the
         # *arr library and the download dir are one filesystem — required for hardlink/atomic-move
         # imports. Mount it at a path consistent with the *arrs (or set an *arr remote-path
-        # mapping) so they see SABnzbd's complete dir and the library on the same mount.
+        # mapping) so they see the complete dirs and the library on the same mount.
         - { name: downloads, hostPath: { path: /mnt/media,           type: Directory } }
       # Every container sets its own requests/limits per the allocation table.
 ```
@@ -764,7 +783,8 @@ Accepted caveats: any image bump or manifest change to **any** container recreat
 the whole pod and re-establishes the tunnel (the stack is briefly down together);
 the app containers' public DNS lookups go via cluster DNS over the node's WAN
 (lookups only — the traffic itself is tunneled). To switch provider later (e.g.
-Proton), change the env in `gluetun-mullvad` and restart — nothing else changes.
+Proton), change the non-secret provider settings in `gluetun-config`, rotate the
+provider-specific Secret values as needed, and restart.
 
 ## Plex Quick Sync pattern (notes)
 

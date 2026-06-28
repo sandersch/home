@@ -41,6 +41,46 @@ spec:
 apiVersion: v1
 kind: PersistentVolume
 metadata:
+  name: qbittorrent-config-pv
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-nvme
+  hostPath:
+    path: /opt/qbittorrent/config
+    type: DirectoryOrCreate
+  claimRef:
+    namespace: media
+    name: qbittorrent-config-pvc
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - minis
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-config-pvc
+  namespace: media
+spec:
+  storageClassName: local-nvme
+  accessModes:
+    - ReadWriteOnce
+  volumeName: qbittorrent-config-pv
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
   name: prowlarr-config-pv
 spec:
   capacity:

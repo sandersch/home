@@ -3,7 +3,7 @@
 Scripts for [build-plan.md Phase 4](../../docs/build-plan.md#phase-4--core-workloads-).
 
 This directory starts with the Phase 4 media apps: the media download stack
-(Gluetun, SABnzbd, Prowlarr, Radarr, and Sonarr), Plex, Seerr, and RomM.
+(Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr), Plex, Seerr, and RomM.
 
 ## Prerequisites
 
@@ -23,14 +23,13 @@ Create the SOPS-encrypted Gluetun Secret before reconciling `apps`:
 ```bash
 export MULLVAD_WIREGUARD_PRIVATE_KEY=...
 export MULLVAD_WIREGUARD_ADDRESSES=...
-export MULLVAD_SERVER_COUNTRIES="United States"
 ./runbooks/phase4/01-encrypt-download-secrets.sh
 ```
 
-`MULLVAD_SERVER_COUNTRIES` defaults to `United States` if unset.
-
-The script writes `apps/media/download-stack/gluetun-mullvad.sops.yaml` and adds it
-to the download-stack kustomization. Do not commit a plaintext Secret.
+The script writes `apps/media/download-stack/gluetun-mullvad.sops.yaml` with only
+the WireGuard values and adds it to the download-stack kustomization. Non-secret
+Gluetun settings such as provider, server country, firewall ports, and local subnets
+live in `apps/media/download-stack/configmap.yaml`. Do not commit a plaintext Secret.
 
 To add optional RomM metadata-provider credentials, export one or more supported
 variables and run:
@@ -48,18 +47,18 @@ must be available in the shell.
 
 ## Initial validation
 
-The initial manifests mount `/mnt/media` read-only in SABnzbd, Radarr, and Sonarr.
-Use that state to validate migrated config and VPN egress before allowing writes.
-
 After Flux reconciles:
 
 ```bash
-kubectl -n media rollout status deploy/gluetun
-kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
+./runbooks/phase4/02-validate-download-stack.sh
 ```
 
 Only after the egress IP is a Mullvad exit IP should you configure indexers,
-download clients, and a test download/import flow.
+download clients, and test download/import flows. Open `https://qbittorrent.worm.run`,
+complete the initial Web UI credential setup, then set qBittorrent's incomplete path
+to `/incomplete` and completed path to `/media/downloads/torrents`. Add it to
+Radarr/Sonarr as `localhost:8090` with app-specific categories, keeping SABnzbd on
+`localhost:8080`.
 
 For Plex, validate the rollout and device passthrough:
 

@@ -4,7 +4,6 @@
 # Inputs:
 #   MULLVAD_WIREGUARD_PRIVATE_KEY=...
 #   MULLVAD_WIREGUARD_ADDRESSES=...
-#   MULLVAD_SERVER_COUNTRIES=United States   # optional default
 #
 # Plaintext is written only under a temporary directory, then SOPS-encrypted into
 # the Flux target.
@@ -24,19 +23,11 @@ require_tools kubectl kustomize sops
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
-server_countries="${MULLVAD_SERVER_COUNTRIES:-United States}"
-
 step "Render plaintext Gluetun Secret manifest in a temp dir"
 kubectl create secret generic gluetun-mullvad \
   --namespace media \
-  --from-literal=VPN_SERVICE_PROVIDER=mullvad \
-  --from-literal=VPN_TYPE=wireguard \
   --from-literal=WIREGUARD_PRIVATE_KEY="$MULLVAD_WIREGUARD_PRIVATE_KEY" \
   --from-literal=WIREGUARD_ADDRESSES="$MULLVAD_WIREGUARD_ADDRESSES" \
-  --from-literal=SERVER_COUNTRIES="$server_countries" \
-  --from-literal=FIREWALL_INPUT_PORTS=8080,9696,7878,8989 \
-  --from-literal=FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,10.137.20.0/24 \
-  --from-literal=TZ=America/Chicago \
   --dry-run=client -o yaml >"$tmpdir/gluetun-mullvad.yaml"
 
 step "Encrypt with SOPS"

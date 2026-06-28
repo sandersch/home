@@ -129,7 +129,6 @@ spec:
               subPath: resources
             - name: library
               mountPath: /romm/library
-              readOnly: true
         - name: mariadb
           image: mariadb:11.4
           env:

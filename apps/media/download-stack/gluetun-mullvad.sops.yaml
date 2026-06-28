@@ -1,13 +1,7 @@
 apiVersion: v1
 data:
-    FIREWALL_INPUT_PORTS: ENC[AES256_GCM,data:syyXw9Wp32WEBazz5IhWJuV2I4ay5jXtBa0QUg==,iv:JFtNHGAj8JDhaKxBpHC2M76I/G+/dikTgLzmMgNIdtw=,tag:yWunnQFO5hO8AFW/ef85KA==,type:str]
-    FIREWALL_OUTBOUND_SUBNETS: ENC[AES256_GCM,data:xAoXOZb/N/17rRpdIeY4r/BER6z9xHs5CzJIBnTADJZPZ73jwycilq6+cH+W+GA2N3FwqTAZT8I=,iv:asgTg3/qqM6oZSieTYNQC1RWtL1ZnwVpzQKY3dhJRlo=,tag:5lL2zUEgfIZDo/4U9rFd6Q==,type:str]
-    SERVER_COUNTRIES: ENC[AES256_GCM,data:jtAYmg==,iv:KHbshRzMtLuzGjxOpTod0wedCMV+LCA0YLLB96xnS5c=,tag:/kmbcCAPsvJNlSauXuhyPQ==,type:str]
-    TZ: ENC[AES256_GCM,data:F6wYgPyZAu8Gp0Cep/hAODW7m7g=,iv:Sg8fYJI3wl5WePHXvJ4h1g8LHrD0ufE76GIJZkKNU3M=,tag:K56FTuDG90Uw9ZKb/K28xA==,type:str]
-    VPN_SERVICE_PROVIDER: ENC[AES256_GCM,data:h7w6SqouzTC2PTsv,iv:mW28bDtVfPK/IVs0tBhk8n2KbGY2oln79WIynrwoEt4=,tag:2I7ZqMZQvFGROmKlt4KhRw==,type:str]
-    VPN_TYPE: ENC[AES256_GCM,data:CXKxZcFKxvQelpzD,iv:N+EUd4ogzpywE1eiTdXV9xnBUk+t4tYw9hDgrYjjvhw=,tag:6b8s6goPjqKJxjL7msNZdQ==,type:str]
-    WIREGUARD_ADDRESSES: ENC[AES256_GCM,data:9cse7SpWK6GPAgwclP6ydMOuwp9vmEp2k+V/ZxuFdUi9+iE8jWj7u+sj23bC/N+DPybmimZxxCfEOdPwDkaz7w==,iv:Ngwymoaf0dEsb81+h674IN5/8eYp6qMeJjp5uUWkINY=,tag:FVweXF1OUnFyCWyq19JB/A==,type:str]
-    WIREGUARD_PRIVATE_KEY: ENC[AES256_GCM,data:qNAEaZg6UOaub30PYmi/NWkSs1PcAUjkdWuIBYDnYN5jamksJhtjT816wzBW48z9XAHqEem1Ma2GRjCT,iv:GpsTyPhZIzjvS5broTVFK0COLIynxpuh82+5pIIuIUE=,tag:T584O3biG6y82TjlBUJFwA==,type:str]
+    WIREGUARD_ADDRESSES: ENC[AES256_GCM,data:4QwA05euDYU19TOc0IX7o73QVeQzvggmc6uCUsyp3nnDtAjy1lSRHBmfG1XxkdadMvF3+MKE7OEu3FhWvlB6RA==,iv:y8BPqvkwDtk8KKnVjATCPlZmD2kac70dUfuCeck8pCk=,tag:Z+/vK6543E4xkSxg4jZozw==,type:str]
+    WIREGUARD_PRIVATE_KEY: ENC[AES256_GCM,data:PdsOgYWAlHwOYfMpdtJG+zVEDirDQUPRLNBqO/Wq97+uBcTQ4rb3n7kXkbragZyb7wb7BnjVSuiDNpG3,iv:dD2QmeDD3qbD89D8dTVOWO6UPAwKVVhRGvJNdobDV64=,tag:SaJKcvZW9u/wXoReIsJ6pQ==,type:str]
 kind: Secret
 metadata:
     name: gluetun-mullvad
@@ -16,14 +10,14 @@ sops:
     age:
         - enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBaTERRY01hVktMSW0xajRw
-            ZCt5L3p5bHdzUFI3NVd1bDc5bWkzN2EzMlVjCndINkdyUVkzOFQreVBUYXRMYWlJ
-            VGdYZTdtdHRieE14ZXBGK1hMakZnejAKLS0tIENxaXFwR0ZpcmtQamU2MDV5aVJM
-            Y3RlM3oyT0FjeGp5dGFpUUtMN3Zsb1UKda6C2TRSuP4nFzFi6CkEkb9O4/B+h6am
-            1fEnl6m690QC96suXiNZrFS6uqscFf+zILEaLw8uZF9dsMSF5Pr7rg==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBFSWZPQzg1OHZ0YkJ2NWJw
+            cGd2NlRWS09BQUdDSmVIWG1WbUFJWUhzaEU0CmZuTmNVNnVRb3U2VkFydWFHZ1Fk
+            UkFHY3NGaThqY3dnb0U2UnB0ZlVKbHMKLS0tIFA5ckMvMXZqWkNNQVZXNmtpbFQx
+            eWl4b0lDTmIrU29VcDNDU3NZWnkxRncKqNbr+hpgyJEb1SUzLrA5XJ7OJ6YhiRty
+            J9nha86JnAPmJDQ+Ev023mtCvCn+K9CaNNheiQqqivyhxsMnd6N8Xw==
             -----END AGE ENCRYPTED FILE-----
           recipient: age18cxm2hs3ctq0s735h7z9lj7w7ag37f2vleesglcw6lezlhy5v9nsatkxex
     encrypted_regex: ^(data|stringData)$
-    lastmodified: "2026-06-27T14:51:07Z"
-    mac: ENC[AES256_GCM,data:rr2ga5bvweCk3e41H5Phug8ooCX0zrDa/HYkU73jX/pTflwSInQVDtwhap8ePqz9LmqlmJEILcbXKFazzzv3HfEXTfpw2dDA1al2EwRXGO9QiDwoJ0whVtksEKxw9ykvImpktzkgqDEvfNkAwpZBErJvdw0Rjh+yAnX9CxkWSz0=,iv:/BuKeDgu9TEB45Fvzz4gJE1vgQAClSYZnPcpD1TFJtY=,tag:63CFPv1n/CmUONXC3JVxPQ==,type:str]
+    lastmodified: "2026-06-28T04:47:36Z"
+    mac: ENC[AES256_GCM,data:AG117vI4pHYjSwBQgm+4b3GlD3Odr90nxcxdbF6wEXe3YkK4bcTgtZT+s36BiUOK/JDs/znvvEJXrOAseBsbjA3MWsb9tNk7H1+boxjSIaTWkiOL/MhaU4ayxq8G8Jzz7qxJFPf4sy6nvMEbwQq+OeuHexYQCuNeofxx/USfTYc=,iv:Qr7qXZ0eDE/JfjCU9ZZ9ABfu3AsNAggrhGr5hXhx1/Y=,tag:zvL8rb969+UrqfndWDAlYg==,type:str]
     version: 3.13.1
