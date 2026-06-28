@@ -1,9 +1,6 @@
 mqtt:
   enabled: false
 
-auth:
-  reset_admin_password: true
-
 ffmpeg:
   hwaccel_args: preset-vaapi
 
