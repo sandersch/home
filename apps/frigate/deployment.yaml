@@ -21,6 +21,8 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: homelab-critical
       securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
         supplementalGroups:
           - 993
       containers:
