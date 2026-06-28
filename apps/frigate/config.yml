@@ -2,7 +2,7 @@ mqtt:
   enabled: false
 
 ffmpeg:
-  hwaccel_args: preset-vaapi
+  hwaccel_args: preset-intel-qsv-h264
 
 detectors:
   coral:
