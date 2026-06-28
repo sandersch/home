@@ -25,6 +25,8 @@ kind: Ingress
 metadata:
   name: qbittorrent
   namespace: media
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 100m
 spec:
   ingressClassName: nginx
   tls:
