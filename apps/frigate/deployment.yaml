@@ -43,11 +43,9 @@ spec:
             requests:
               cpu: "2"
               memory: 2Gi
-              gpu.intel.com/i915: "1"
             limits:
               cpu: "4"
               memory: 4Gi
-              gpu.intel.com/i915: "1"
           volumeMounts:
             - name: config
               mountPath: /config
@@ -61,6 +59,8 @@ spec:
               mountPath: /media/frigate
             - name: coral
               mountPath: /dev/bus/usb
+            - name: dri
+              mountPath: /dev/dri
       volumes:
         - name: config
           persistentVolumeClaim:
@@ -78,4 +78,8 @@ spec:
         - name: coral
           hostPath:
             path: /dev/bus/usb
+            type: Directory
+        - name: dri
+          hostPath:
+            path: /dev/dri
             type: Directory
