@@ -21,9 +21,8 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: homelab-critical
       securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
         supplementalGroups:
+          - 44
           - 993
       containers:
         - name: frigate
@@ -61,6 +60,8 @@ spec:
               mountPath: /dev/bus/usb
             - name: dri
               mountPath: /dev/dri
+            - name: shm
+              mountPath: /dev/shm
       volumes:
         - name: config
           persistentVolumeClaim:
@@ -83,3 +84,7 @@ spec:
           hostPath:
             path: /dev/dri
             type: Directory
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
