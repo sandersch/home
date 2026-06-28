@@ -32,6 +32,20 @@ export MULLVAD_SERVER_COUNTRIES="United States"
 The script writes `apps/media/download-stack/gluetun-mullvad.sops.yaml` and adds it
 to the download-stack kustomization. Do not commit a plaintext Secret.
 
+To add optional RomM metadata-provider credentials, export one or more supported
+variables and run:
+
+```bash
+export IGDB_CLIENT_ID=...
+export IGDB_CLIENT_SECRET=...
+./runbooks/phase4/06-add-romm-provider-secrets.sh
+```
+
+The script also accepts `SCREENSCRAPER_USER`, `SCREENSCRAPER_PASSWORD`,
+`RETROACHIEVEMENTS_API_KEY`, and `STEAMGRIDDB_API_KEY`. It preserves existing RomM
+DB/auth keys by decrypting the current SOPS file locally, so the matching age identity
+must be available in the shell.
+
 ## Initial validation
 
 The initial manifests mount `/mnt/media` read-only in SABnzbd, Radarr, and Sonarr.

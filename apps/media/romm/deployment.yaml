@@ -71,6 +71,18 @@ spec:
               value: "6379"
             - name: HASHEOUS_API_ENABLED
               value: "true"
+            - name: IGDB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: romm
+                  key: IGDB_CLIENT_ID
+                  optional: true
+            - name: IGDB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: romm
+                  key: IGDB_CLIENT_SECRET
+                  optional: true
             - name: SCREENSCRAPER_USER
               valueFrom:
                 secretKeyRef:
