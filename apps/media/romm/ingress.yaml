@@ -3,6 +3,8 @@ kind: Ingress
 metadata:
   name: romm
   namespace: media
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 50g
 spec:
   ingressClassName: nginx
   tls:
