@@ -727,7 +727,7 @@ spec:
             - { name: TZ, valueFrom: { configMapKeyRef: { name: gluetun-config, key: TZ } } }
           # VPN_SERVICE_PROVIDER=mullvad, VPN_TYPE=wireguard,
           # WIREGUARD_PRIVATE_KEY=..., WIREGUARD_ADDRESSES=...
-          # SERVER_COUNTRIES=United States
+          # SERVER_COUNTRIES=USA
           # FIREWALL_INPUT_PORTS=8080,8090,9696,7878,8989 # inbound: UIs, Seerr
           # FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,10.137.20.0/24
           #   (k3s pod + Service CIDRs, LAN — keeps cluster DNS/NAS/Plex reachable)
