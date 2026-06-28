@@ -23,10 +23,13 @@ spec:
       securityContext:
         supplementalGroups:
           - 44
+          - 46
           - 993
       containers:
         - name: frigate
           image: ghcr.io/blakeblackshear/frigate:0.17.2
+          securityContext:
+            privileged: true
           envFrom:
             - secretRef:
                 name: frigate
