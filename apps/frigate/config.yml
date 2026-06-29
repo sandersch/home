@@ -9,6 +9,24 @@ detectors:
     type: edgetpu
     device: usb
 
+objects:
+  track:
+    - person
+    - dog
+
+review:
+  alerts:
+    labels:
+      - person
+  detections:
+    labels:
+      - dog
+
+snapshots:
+  enabled: true
+  retain:
+    default: 14
+
 record:
   enabled: true
   continuous:
