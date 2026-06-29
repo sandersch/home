@@ -15,6 +15,9 @@ assert_phase4_plex_tree
 step "Verify Phase 4 RomM tree"
 assert_phase4_romm_tree
 
+step "Verify Phase 4 Frigate tree"
+assert_phase4_frigate_tree
+
 step "Verify local kustomize output"
 kustomize build "$REPO_ROOT/apps" >/dev/null
 ok "kustomize build apps"

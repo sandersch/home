@@ -5,6 +5,15 @@ isolated camera segment originate from the host's `cam0` address. Keep valuable 
 on `local-nvme`, recordings on NAS NFS at `/mnt/frigate`, and cache/scratch data on
 `topolvm-scratch`.
 
+Frigate reads `/config/config.yml` from `frigate-config-pvc`, backed by
+`/opt/frigate/config` on `minis`. The repo copy at `apps/frigate/config.yml` is the
+canonical source; install it to the host path before first reconcile or after config
+changes:
+
+```bash
+./runbooks/phase4/08-install-frigate-config.sh
+```
+
 Before reconciling this app, generate real RTSP credentials:
 
 ```bash

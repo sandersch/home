@@ -7,8 +7,3 @@ resources:
 - ingress.yaml
 - deployment.yaml
 - frigate.sops.yaml
-configMapGenerator:
-- files:
-  - config.yml
-  name: frigate-config
-  namespace: frigate

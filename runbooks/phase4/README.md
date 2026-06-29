@@ -16,6 +16,8 @@ and Frigate.
   migrated config from Phase 3.5.
 - `/mnt/games` is mounted on `minis` before reconciling RomM.
 - `/mnt/frigate` is mounted on `minis` before reconciling Frigate.
+- `/opt/frigate/config/config.yml` is installed from `apps/frigate/config.yml` before
+  reconciling Frigate.
 - You have Mullvad WireGuard values from a device config.
 - You have the Frigate RTSP username and password for the camera at `192.168.105.50`.
 
@@ -62,6 +64,17 @@ placeholder until this script is rerun with the real camera credentials. Do not 
 plaintext Secret. Future cameras should use their own
 `FRIGATE_CAMERA_<NAME>_RTSP_USER` and `FRIGATE_CAMERA_<NAME>_RTSP_PASSWORD` pair; the
 script includes exported matching pairs automatically.
+
+Install the Frigate config file into the host path backing `frigate-config-pvc` before
+reconciling Frigate:
+
+```bash
+./runbooks/phase4/08-install-frigate-config.sh
+```
+
+Frigate now reads `/config/config.yml` from `frigate-config-pvc`; it is not mounted from
+a ConfigMap. Keep `apps/frigate/config.yml` in sync with the host copy whenever camera
+definitions change.
 
 ## Initial validation
 
@@ -113,6 +126,7 @@ camera-segment firewall posture:
 ```bash
 kubectl -n frigate rollout status deploy/frigate
 kubectl -n frigate get pvc
+kubectl -n frigate exec deploy/frigate -- test -s /config/config.yml
 kubectl -n frigate exec deploy/frigate -- ls -la /dev/bus/usb /dev/dri/renderD128
 kubectl -n frigate logs deploy/frigate
 ```

@@ -51,10 +51,6 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
-            - name: config-file
-              mountPath: /config/config.yml
-              subPath: config.yml
-              readOnly: true
             - name: cache
               mountPath: /tmp/cache
             - name: recordings
@@ -69,9 +65,6 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: frigate-config-pvc
-        - name: config-file
-          configMap:
-            name: frigate-config
         - name: cache
           persistentVolumeClaim:
             claimName: frigate-cache-pvc

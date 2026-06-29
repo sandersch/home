@@ -576,9 +576,12 @@ transcode and confirm GPU use with `intel_gpu_top` on the host.
 cameras originate from the host (source IP `192.168.105.1`) without passing through the
 forward chain — this is what makes the nftables camera isolation work. Coral USB
 hostPath; DB on `/opt/frigate`, cache on a `topolvm-scratch` PVC (50 Gi ext4 LV),
-recordings via hostPath to `/mnt/frigate`. ⚑ Before Frigate goes live, confirm every
-real camera has a stable `.50-.99` `dhcp-host` reservation across a dnsmasq restart;
-then verify cameras remain unreachable from the internet.
+recordings via hostPath to `/mnt/frigate`, and `config.yml` as a file in
+`frigate-config-pvc` (`/opt/frigate/config/config.yml` on the host) rather than a
+ConfigMap. Install the file with `runbooks/phase4/08-install-frigate-config.sh` before
+first reconcile. ⚑ Before Frigate goes live, confirm every real camera has a stable
+`.50-.99` `dhcp-host` reservation across a dnsmasq restart; then verify cameras remain
+unreachable from the internet.
 
 **4d — remaining stack.** Seerr (pointed at the *arrs via the Gluetun Service),
 RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery; plus any
