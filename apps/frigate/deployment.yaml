@@ -21,8 +21,6 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: homelab-critical
       securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
         fsGroup: 1000
         supplementalGroups:
           - 44
@@ -33,13 +31,17 @@ spec:
           image: ghcr.io/blakeblackshear/frigate:0.17.2
           securityContext:
             allowPrivilegeEscalation: false
-            runAsNonRoot: true
+            runAsNonRoot: false
           envFrom:
             - secretRef:
                 name: frigate
           env:
             - name: TZ
               value: America/Chicago
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
           ports:
             - name: http-auth
               containerPort: 8971
