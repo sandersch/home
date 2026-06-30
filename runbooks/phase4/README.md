@@ -124,11 +124,7 @@ For Frigate, validate the rollout, PVCs, hardware passthrough, camera stream, an
 camera-segment firewall posture:
 
 ```bash
-kubectl -n frigate rollout status deploy/frigate
-kubectl -n frigate get pvc
-kubectl -n frigate exec deploy/frigate -- test -s /config/config.yml
-kubectl -n frigate exec deploy/frigate -- ls -la /dev/bus/usb /dev/dri/renderD128
-kubectl -n frigate logs deploy/frigate
+./runbooks/phase4/09-validate-frigate.sh
 ```
 
 Then open `https://frigate.worm.run` and confirm the `amcrest_105_50` camera is live.

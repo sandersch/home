@@ -34,11 +34,12 @@ phase validation scripts and gate below before declaring a phase complete.
 
 **0.0 BIOS / firmware (one-time, before install).** These can't be set from the OS and
 silently break passthrough if wrong:
-- **VT-d / IOMMU — optional, not required for this build.** Plex reaches Quick Sync via a
-  `/dev/dri` hostPath and the Coral via a `/dev/bus/usb` hostPath — both are plain device
-  access, *not* DMA/PCI passthrough, so neither needs IOMMU. Leave VT-d on only if you want
-  the option of true PCI passthrough later (e.g. a VM); nothing in the current container-first
-  design depends on it. The `intel_iommu=on` cmdline in 0.3 is correspondingly optional.
+- **VT-d / IOMMU — optional, not required for this build.** Plex and Frigate reach Quick
+  Sync through Intel's GPU device plugin, and the Coral uses a `/dev/bus/usb` hostPath.
+  These are plain device access, *not* DMA/PCI passthrough, so neither needs IOMMU.
+  Leave VT-d on only if you want the option of true PCI passthrough later (e.g. a VM);
+  nothing in the current container-first design depends on it. The `intel_iommu=on`
+  cmdline in 0.3 is correspondingly optional.
 - **iGPU enabled** (not disabled/headless) — Quick Sync transcoding needs `/dev/dri`
   to exist; confirm in 0.3.
 - **Secure Boot off** (or be ready to enrol keys) — simplest path for any out-of-tree
@@ -495,8 +496,9 @@ decrypts at apply time.
 - Tailscale operator
 - TopoLVM, with lvmd embedded in the node DaemonSet, device-class → `vg0`, and a
   `spare-gb` reserve
-- Intel GPU device plugin, used by Plex for Quick Sync access and applied from the
-  pinned upstream source in `infrastructure/controllers/intel-gpu-plugin`
+- Intel GPU device plugin, configured with two shared i915 allocations for Plex and
+  Frigate Quick Sync access, and applied from the pinned upstream source in
+  `infrastructure/controllers/intel-gpu-plugin`
 
 **3.3 Config in `infrastructure/configs/`.** Commit the CRD-backed resources and
 cluster-wide config that depend on the controllers:
@@ -531,7 +533,7 @@ these are green:
 - [ ] `flux get helmreleases -A` → MetalLB, ingress-nginx, cert-manager, Tailscale
       operator, and TopoLVM Ready
 - [ ] `flux get kustomization intel-gpu-plugin -n flux-system` → Ready, and
-      `kubectl get node minis` reports allocatable `gpu.intel.com/i915`
+      `kubectl get node minis` reports allocatable `gpu.intel.com/i915=2`
 - [ ] `kubectl get crd` confirms MetalLB, cert-manager, Tailscale, and TopoLVM CRDs
       exist before config resources apply
 - [ ] ingress-nginx + cert-manager pods Running; ClusterIssuer Ready
@@ -602,9 +604,11 @@ transcode and confirm GPU use with `intel_gpu_top` on the host.
 
 **4c — Frigate** (critical/non-evictable). `hostNetwork: true` so RTSP connections to
 cameras originate from the host (source IP `192.168.105.1`) without passing through the
-forward chain — this is what makes the nftables camera isolation work. Coral USB
-hostPath; DB on `/opt/frigate`, cache on a `topolvm-scratch` PVC (50 Gi ext4 LV),
-recordings via hostPath to `/mnt/frigate`, and `config.yml` as a file in
+forward chain — this is what makes the nftables camera isolation work. Quick Sync is
+exposed through Intel's GPU device plugin by requesting `gpu.intel.com/i915: "1"`;
+Coral USB uses a `/dev/bus/usb` hostPath without a privileged container. DB on
+`/opt/frigate`, cache on a `topolvm-scratch` PVC (50 Gi ext4 LV), recordings via
+hostPath to `/mnt/frigate`, and `config.yml` as a file in
 `frigate-config-pvc` (`/opt/frigate/config/config.yml` on the host) rather than a
 ConfigMap. Install the file with `runbooks/phase4/08-install-frigate-config.sh` before
 first reconcile. ⚑ Before Frigate goes live, confirm every real camera has a stable
@@ -826,7 +830,8 @@ provider-specific Secret values as needed, and restart.
 ## Plex Quick Sync pattern (notes)
 
 - Install Intel's GPU device plugin from the pinned upstream Flux source in
-  `infrastructure/controllers/intel-gpu-plugin`.
+  `infrastructure/controllers/intel-gpu-plugin`; it advertises two shared i915
+  allocations, one for Plex and one for Frigate.
 - Request `gpu.intel.com/i915: "1"` in the Plex container's requests and limits.
   The device plugin authorizes the Quick Sync device through kubelet/containerd;
   do not bind-mount `/dev/dri` directly.

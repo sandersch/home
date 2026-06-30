@@ -9,7 +9,7 @@ Managed controllers:
 - cert-manager
 - Tailscale operator
 - TopoLVM
-- Intel GPU device plugin
+- Intel GPU device plugin, with two shared i915 allocations for Plex and Frigate
 
 These are reconciled by the `infra-controllers` Flux Kustomization before
 CRD-backed config in `../configs`.

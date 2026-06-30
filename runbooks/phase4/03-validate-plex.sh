@@ -12,8 +12,8 @@ ok "Intel GPU plugin rollout is complete"
 
 step "Verify Intel i915 resource is advertised"
 i915_allocatable="$(kubectl get node minis -o go-template='{{ index .status.allocatable "gpu.intel.com/i915" }}')"
-[ "$i915_allocatable" = "1" ] || die "expected minis to advertise gpu.intel.com/i915=1, got '${i915_allocatable:-unset}'"
-ok "minis advertises gpu.intel.com/i915=1"
+[ "$i915_allocatable" = "2" ] || die "expected minis to advertise gpu.intel.com/i915=2, got '${i915_allocatable:-unset}'"
+ok "minis advertises gpu.intel.com/i915=2"
 
 step "Verify Plex rollout"
 kubectl -n media rollout status deploy/plex --timeout=300s

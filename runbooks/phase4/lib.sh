@@ -84,7 +84,8 @@ assert_phase4_frigate_tree() {
     apps/frigate/service.yaml \
     apps/frigate/ingress.yaml \
     apps/frigate/storage.yaml \
-    runbooks/phase4/08-install-frigate-config.sh; do
+    runbooks/phase4/08-install-frigate-config.sh \
+    runbooks/phase4/09-validate-frigate.sh; do
     [ -f "$REPO_ROOT/$f" ] || die "missing Phase 4 Frigate file: $f"
   done
   ok "Phase 4 Frigate tree is present"

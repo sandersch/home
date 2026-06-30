@@ -5,6 +5,10 @@ isolated camera segment originate from the host's `cam0` address. Keep valuable 
 on `local-nvme`, recordings on NAS NFS at `/mnt/frigate`, and cache/scratch data on
 `topolvm-scratch`.
 
+Quick Sync is exposed through Intel's GPU device plugin by requesting
+`gpu.intel.com/i915: "1"`. The Coral remains a `/dev/bus/usb` hostPath; the container
+does not run privileged.
+
 Frigate reads `/config/config.yml` from `frigate-config-pvc`, backed by
 `/opt/frigate/config` on `minis`. The repo copy at `apps/frigate/config.yml` is the
 canonical source; install it to the host path before first reconcile or after config

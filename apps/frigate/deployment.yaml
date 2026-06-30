@@ -28,8 +28,6 @@ spec:
       containers:
         - name: frigate
           image: ghcr.io/blakeblackshear/frigate:0.17.2
-          securityContext:
-            privileged: true
           envFrom:
             - secretRef:
                 name: frigate
@@ -45,9 +43,11 @@ spec:
             requests:
               cpu: "2"
               memory: 2Gi
+              gpu.intel.com/i915: "1"
             limits:
               cpu: "4"
               memory: 4Gi
+              gpu.intel.com/i915: "1"
           volumeMounts:
             - name: config
               mountPath: /config
@@ -57,8 +57,6 @@ spec:
               mountPath: /media/frigate
             - name: coral
               mountPath: /dev/bus/usb
-            - name: dri
-              mountPath: /dev/dri
             - name: shm
               mountPath: /dev/shm
       volumes:
@@ -75,10 +73,6 @@ spec:
         - name: coral
           hostPath:
             path: /dev/bus/usb
-            type: Directory
-        - name: dri
-          hostPath:
-            path: /dev/dri
             type: Directory
         - name: shm
           emptyDir:
