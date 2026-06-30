@@ -23,6 +23,7 @@ spec:
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
+        fsGroup: 1000
         supplementalGroups:
           - 44
           - 46
@@ -30,6 +31,9 @@ spec:
       containers:
         - name: frigate
           image: ghcr.io/blakeblackshear/frigate:0.17.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
           envFrom:
             - secretRef:
                 name: frigate
