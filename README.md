@@ -2,25 +2,29 @@
 
 Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 
-> **Status: pre-build.** This repo currently holds planning docs only — see
-> [`docs/build-plan.md`](./docs/build-plan.md) for the path from bare metal to running.
+> **Status: active build.** Most of Phases 0-4 are implemented in repo: host config,
+> runbooks, Flux bootstrap output, infrastructure controllers/configs, and the core
+> media/Frigate app manifests are present. See
+> [`docs/build-plan.md`](./docs/build-plan.md#implementation-status) for what remains.
 
 ## Stack at a glance
 
 - **Platform:** Ubuntu 24.04 LTS · k3s · Flux CD · MetalLB · ingress-nginx · cert-manager
 - **Access:** LAN + Tailnet only (nothing public) · `*.worm.run` via router wildcard DNS
-- **Workloads:** Plex (Quick Sync), Frigate (Coral), Radarr/Sonarr/Prowlarr/SABnzbd
-  (behind a Mullvad/Gluetun VPN), Seerr, RomM, Home Assistant
-- **Observability:** Prometheus · Grafana · Alertmanager · Loki · ntfy push alerts
-- **Backups:** Restic → NAS nightly + Backblaze B2 weekly
+- **Current workload manifests:** Plex (Quick Sync), Frigate (Coral),
+  Radarr/Sonarr/Prowlarr/SABnzbd/qBittorrent behind Mullvad/Gluetun, Seerr, RomM
+- **Still planned:** Home Assistant, Prometheus/Grafana/Alertmanager, Loki, ntfy
+  push alerts, Restic backups to NAS and Backblaze B2
 
 ## Layout
 
 ```
 AGENTS.md          project context, decisions, conventions (start here)
 docs/              architecture, build plan, migration runbook, operations
+runbooks/          executable host/app phase runbooks
+host/minis/        canonical host-level config copied by the runbooks
 clusters/minis/    Flux entrypoint (flux-system + Kustomizations)
-infrastructure/    controllers, cluster configs, monitoring
+infrastructure/    controllers, cluster configs, Phase 5 monitoring placeholder
 apps/              media, frigate, home-assistant
 ```
 

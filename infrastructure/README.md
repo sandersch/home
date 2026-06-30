@@ -1,6 +1,7 @@
 # Infrastructure
 
-GitOps-managed cluster platform resources live here.
+GitOps-managed cluster platform resources live here. Phase 3 infrastructure is
+implemented as Flux-managed manifests; Phase 5 monitoring is still reserved.
 
 Flux applies these before apps through ordered Kustomizations in `clusters/minis/`:
 

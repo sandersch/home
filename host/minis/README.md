@@ -15,7 +15,7 @@ Install the OS per [build-plan.md Phase 0.1](../../docs/build-plan.md#phase-0--o
 (partition layout, user, SSH), then drop these files into place and apply each, in
 phase order. All paths are owned by `root`; set the perms noted per file.
 
-### Phase 0 — currently captured
+### Phase 0 — captured and runbook-backed
 
 | Repo file | Destination | Owner / perms | Apply |
 |---|---|---|---|
@@ -74,8 +74,9 @@ hook silently won't work. (It's a localhost-only credential — `upsd` listens o
 
 ### Phase 1 — camera-segment isolation
 
-Captured here, ready to copy to the host when Phase 1 is applied (in order). All are
-`root:root`; the host has only the stock Ubuntu nftables default until these land.
+Captured here and copied by `runbooks/phase1/` when Phase 1 is applied. All are
+`root:root`. If the live host diverges, update these files so the runbooks continue
+to describe the real rebuild path.
 
 | Repo file | Destination | Owner / perms | Apply |
 |---|---|---|---|

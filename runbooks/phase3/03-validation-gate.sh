@@ -15,6 +15,7 @@ ok "node minis is Ready"
 flux get kustomizations
 kustomization_ready flux-system 180s
 kustomization_ready infra-controllers 300s
+kustomization_ready intel-gpu-plugin 300s
 kustomization_ready infra-configs 300s
 kustomization_ready apps 180s
 flux get helmreleases -A
@@ -45,6 +46,9 @@ kubectl run phase3-nfs-test --restart=Never --rm -i --image=busybox:1.36 \
 ok "/mnt/media is readable from a test pod"
 
 step "Device passthrough visibility"
+kubectl get node minis -o jsonpath="{.status.allocatable['gpu.intel.com/i915']}" \
+  | grep -Eq '^[1-9][0-9]*$' || die "node minis does not advertise allocatable gpu.intel.com/i915"
+ok "Intel GPU plugin advertises gpu.intel.com/i915 on node minis"
 kubectl run phase3-dri-test --restart=Never --rm -i --image=busybox:1.36 \
   --overrides='{"spec":{"containers":[{"name":"phase3-dri-test","image":"busybox:1.36","command":["sh","-c","test -e /dev/dri/renderD128"],"securityContext":{"privileged":true},"volumeMounts":[{"name":"dri","mountPath":"/dev/dri"}]}],"volumes":[{"name":"dri","hostPath":{"path":"/dev/dri","type":"Directory"}}]}}'
 kubectl run phase3-coral-test --restart=Never --rm -i --image=busybox:1.36 \

@@ -18,8 +18,9 @@ phase section there first, then run the scripts.
 | 2 | [`phase2/`](./phase2/) | k3s install, SOPS age key/secret, `.sops.yaml`, and Flux bootstrap |
 | 3 | [`phase3/`](./phase3/) | SOPS-encrypted infra secrets, Flux reconciliation, and platform validation gate |
 | 3.5 | [`phase3.5/`](./phase3.5/) | Final stopped-host app-data copy from the NAS archive into `/opt` |
+| 4 | [`phase4/`](./phase4/) | Secret helpers, host config install, and validation for download stack, Plex, Seerr, RomM, and Frigate |
 
-Later phases get their own subdirectories if manual work is scripted.
+Phase 5 gets its own subdirectory when monitoring/backups need scripted manual work.
 
 ## Assumptions
 

@@ -1,7 +1,7 @@
 # Media
 
-Media workload manifests will live here: Plex, Gluetun, SABnzbd, qBittorrent, the `*arr` stack,
-Seerr, and RomM.
+Media workload manifests live here: Plex, Gluetun, SABnzbd, qBittorrent, the `*arr`
+stack, Seerr, and RomM.
 
 Stateful app config should use `local-nvme`; high-write scratch data should use
 `topolvm-scratch`.

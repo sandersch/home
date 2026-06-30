@@ -10,7 +10,14 @@ The repo is operated alongside an AI coding session on a laptop, connected over 
 
 ## Current status
 
-**Pre-build.** This repo currently contains planning docs only. Nothing has been deployed. The immediate task is to scaffold the repo and begin executing the [build plan](./docs/build-plan.md), starting at Phase 0 (OS baseline).
+**Active build.** The repo is no longer planning-only: most of Phases 0-4 of the
+[build plan](./docs/build-plan.md) are implemented or scaffolded. Host-level Phase
+0-1 config lives under [`host/minis/etc`](./host/minis/etc), executable runbooks cover
+Phases 0, 1, 2, 3, 3.5, and most of 4, Flux bootstrap output exists under
+[`clusters/minis/flux-system`](./clusters/minis/flux-system), infrastructure
+controllers/configs are committed, and the core media plus Frigate app manifests are
+present. Treat remaining work as validation/cutover and filling the known app gaps,
+not as a greenfield scaffold.
 
 ## Hardware (summary)
 
@@ -49,12 +56,13 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 ```
 .
 ├── AGENTS.md                  # this file
-├── docs/                      # planning + runbooks (not applied to cluster)
+├── docs/                      # design, build plan, migration + operations docs
 │   ├── architecture.md
 │   ├── build-plan.md
 │   ├── network.md
 │   ├── migration-runbook.md
 │   └── operations.md
+├── runbooks/                  # executable host/app runbooks for Phases 0–4
 ├── host/                      # canonical host config for the manual phases (0–1);
 │   └── minis/                 #   one subdirectory per host (minis = the MS-01)
 │       ├── README.md          #   files under etc/ mirror on-disk paths. NOT cluster-
@@ -68,11 +76,12 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │       ├── infra-configs.yaml     # Kustomization → ../../infrastructure/configs
 │       └── apps.yaml              # Kustomization → ../../apps (dependsOn configs)
 ├── infrastructure/
-│   ├── controllers/           # HelmRepos + HelmReleases: metallb, ingress-nginx,
-│   │                          #   cert-manager, tailscale-operator, topolvm
+│   ├── controllers/           # HelmRepos + HelmReleases for metallb,
+│   │                          #   ingress-nginx, cert-manager, tailscale-operator,
+│   │                          #   topolvm; Intel GPU plugin via upstream Kustomization
 │   ├── configs/               # ClusterIssuer, MetalLB pool, StorageClass,
 │   │                          #   PriorityClasses, cluster-wide config
-│   └── monitoring/            # kube-prometheus-stack, Loki, ntfy, nut-exporter
+│   └── monitoring/            # Phase 5 placeholder: monitoring/alerting/backups
 └── apps/
     ├── media/                 # namespace + Plex, download pod (gluetun+
     │                          #   sabnzbd+*arr), seerr, romm

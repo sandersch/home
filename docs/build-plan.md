@@ -9,6 +9,27 @@ Legend: 🔧 manual one-time · ⚙️ scripted · 📦 GitOps (git commit). ⚑
 
 ---
 
+## Implementation status
+
+This plan now describes both the target build and the implementation already committed
+to this repo. Most of Phases 0-4 are represented as executable runbooks and/or Flux
+manifests:
+
+| Phase | Repo status | Remaining work |
+|---|---|---|
+| 0 — OS baseline | Host config and runbooks are present under `host/minis/` and `runbooks/phase0/`. | Manual BIOS/installer choices, router wildcard DNS, and any live-host revalidation after changes. |
+| 1 — networking isolation | Host nftables, dnsmasq, chrony, sysctl config, Catalyst checklist, and validation runbooks are present. | Real camera MAC reservations, final camera-segment validation, and keeping Catalyst/live config in sync. |
+| 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. | Live bootstrap health checks when rebuilding or changing credentials. |
+| 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
+| 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
+| 4 — core workloads | Download stack, Plex, Seerr, RomM, and Frigate manifests plus validation/secret helper runbooks are present. | Workload validation, app setup/cutover, real Frigate camera credentials/config, and Home Assistant manifests. |
+| 5 — observability + expansion | Design remains documented. | Monitoring, backup CronJobs, alerting, and deferred apps are still future work. |
+
+Do not read a committed manifest as proof that the live cluster is healthy. Use the
+phase validation scripts and gate below before declaring a phase complete.
+
+---
+
 ## Phase 0 — OS baseline 🔧
 
 **0.0 BIOS / firmware (one-time, before install).** These can't be set from the OS and
@@ -411,9 +432,9 @@ directly as Flux `HelmRepository`, `HelmRelease`, and Kubernetes manifests.
 `clusters/minis/{kustomization.yaml,infra-controllers.yaml,infra-configs.yaml,apps.yaml}`,
 `infrastructure/{controllers,configs,monitoring}`, and
 `apps/{media,frigate,home-assistant}`.
-At the planning stage, app and infrastructure target directories may contain only
-brief README placeholders; add a real `kustomization.yaml` to each Flux target path
-when the first manifests for that path are committed.
+The Flux target paths now contain real manifests rather than only placeholders:
+`infrastructure/controllers`, `infrastructure/configs`, and `apps` each have a
+`kustomization.yaml` and are included from `clusters/minis/`.
 
 Use separate Kustomizations so CRD-backed config does not race the controllers that
 install those CRDs:
@@ -466,7 +487,7 @@ From here: write a Secret, `sops --encrypt --in-place secret.yaml`, commit — F
 decrypts at apply time.
 
 **3.2 Controllers in `infrastructure/controllers/`.** Commit namespaces,
-`HelmRepository` objects, and `HelmRelease` objects for:
+`HelmRepository` objects, `HelmRelease` objects, and Flux-managed upstream manifests for:
 
 - MetalLB
 - ingress-nginx
@@ -474,6 +495,8 @@ decrypts at apply time.
 - Tailscale operator
 - TopoLVM, with lvmd embedded in the node DaemonSet, device-class → `vg0`, and a
   `spare-gb` reserve
+- Intel GPU device plugin, used by Plex for Quick Sync access and applied from the
+  pinned upstream source in `infrastructure/controllers/intel-gpu-plugin`
 
 **3.3 Config in `infrastructure/configs/`.** Commit the CRD-backed resources and
 cluster-wide config that depend on the controllers:
@@ -499,13 +522,16 @@ on `:6443`.
 
 ## ✅ Validation gate
 
-Do **not** start Phase 3.5/4 until all of these are green:
+Do **not** deploy or cut over Phase 3.5/4 workloads on the live cluster until all of
+these are green:
 
 - [ ] `kubectl get nodes` → `minis Ready`
 - [ ] `flux get kustomizations` → `flux-system`, `infra-controllers`,
       `infra-configs`, and `apps` Reconciled
 - [ ] `flux get helmreleases -A` → MetalLB, ingress-nginx, cert-manager, Tailscale
       operator, and TopoLVM Ready
+- [ ] `flux get kustomization intel-gpu-plugin -n flux-system` → Ready, and
+      `kubectl get node minis` reports allocatable `gpu.intel.com/i915`
 - [ ] `kubectl get crd` confirms MetalLB, cert-manager, Tailscale, and TopoLVM CRDs
       exist before config resources apply
 - [ ] ingress-nginx + cert-manager pods Running; ClusterIssuer Ready
@@ -567,9 +593,11 @@ test download flows. Pattern below.
 
 Then, in parallel once VPN is validated:
 
-**4b — Plex** (standard/burstable). `/dev/dri` hostPath + the render group; media via
-hostPath to `/mnt/media` (NFS mounted on host by fstab in Phase 0.4); `/opt/plex`
-metadata. ⚑ Confirm the migrated library/metadata is intact, then run a 1080p
+**4b — Plex** (standard/burstable). Quick Sync is exposed through Intel's GPU device
+plugin by requesting `gpu.intel.com/i915: "1"`; keep the render supplemental group for
+host compatibility, but do not mount `/dev/dri` directly. Media is mounted from
+`/mnt/media` (NFS mounted on host by fstab in Phase 0.4); metadata lives under
+`/opt/plex`. ⚑ Confirm the migrated library/metadata is intact, then run a 1080p
 transcode and confirm GPU use with `intel_gpu_top` on the host.
 
 **4c — Frigate** (critical/non-evictable). `hostNetwork: true` so RTSP connections to
@@ -586,6 +614,9 @@ unreachable from the internet.
 **4d — remaining stack.** Seerr (pointed at the *arrs via the Gluetun Service),
 RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery; plus any
 Zigbee/Z-Wave USB stick via hostPath, like the Coral).
+
+Current repo state: Seerr and RomM manifests are committed under `apps/media/`; Home
+Assistant is still a placeholder directory.
 
 ---
 
