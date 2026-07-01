@@ -6,8 +6,9 @@ on `local-nvme`, recordings on NAS NFS at `/mnt/frigate`, and cache/scratch data
 `topolvm-scratch`.
 
 Quick Sync is exposed through Intel's GPU device plugin by requesting
-`gpu.intel.com/i915: "1"`. The Coral remains a `/dev/bus/usb` hostPath; the container
-does not run privileged.
+`gpu.intel.com/i915: "1"`. The Coral uses a `/dev/bus/usb` hostPath and the container
+runs privileged; an unprivileged diagnostic pod could see the device node but could not
+initialize the EdgeTPU delegate.
 
 Frigate reads `/config/config.yml` from the generated `frigate-config` ConfigMap. The
 repo copy at `apps/frigate/config.yml` is the canonical source; Flux rolls the

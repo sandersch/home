@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Phase 0.6 — udev rule for the Coral USB accelerator.
 #
-# Gives the device stable, non-root permissions (MODE=0666, GROUP=plugdev) so the
-# Frigate container (Phase 4c, via a /dev/bus/usb hostPath) can open it without
-# running fully privileged. The Coral enumerates under two USB IDs — before and
-# after its firmware loads — so the rule matches both.
+# Gives the device stable, non-root permissions (MODE=0666, GROUP=plugdev) for
+# Frigate's /dev/bus/usb hostPath. Frigate still runs privileged because the
+# EdgeTPU delegate did not initialize in an unprivileged diagnostic pod. The Coral
+# enumerates under two USB IDs — before and after its firmware loads — so the rule
+# matches both.
 # shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

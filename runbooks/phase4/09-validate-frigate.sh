@@ -31,13 +31,13 @@ frigate_i915_limit="$(kubectl -n frigate get deploy frigate -o go-template='{{ r
 [ "$frigate_i915_limit" = "1" ] || die "expected Frigate to limit gpu.intel.com/i915=1, got '${frigate_i915_limit:-unset}'"
 ok "Frigate requests gpu.intel.com/i915=1"
 
-step "Verify Frigate no longer uses privileged DRM hostPath access"
+step "Verify Frigate uses privileged USB Coral access without direct DRM hostPath"
 frigate_privileged="$(kubectl -n frigate get deploy frigate -o jsonpath='{.spec.template.spec.containers[?(@.name=="frigate")].securityContext.privileged}')"
-[ -z "$frigate_privileged" ] || [ "$frigate_privileged" = "false" ] || die "Frigate container is still privileged"
+[ "$frigate_privileged" = "true" ] || die "expected Frigate container to be privileged for Coral USB access, got '${frigate_privileged:-unset}'"
 if kubectl -n frigate get deploy frigate -o jsonpath='{.spec.template.spec.volumes[*].name}' | grep -qw dri; then
   die "Frigate still has a direct /dev/dri hostPath volume"
 fi
-ok "Frigate is not privileged and has no direct /dev/dri hostPath volume"
+ok "Frigate is privileged for Coral USB access and has no direct /dev/dri hostPath volume"
 
 step "Verify Frigate config and hardware devices are visible"
 kubectl -n frigate exec deploy/frigate -- test -s /config/config.yml

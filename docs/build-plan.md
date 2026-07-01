@@ -142,8 +142,9 @@ the device stable, non-root permissions (`MODE=0666`, `GROUP=plugdev`), then
 `sudo udevadm control --reload-rules && sudo udevadm trigger`. (The Coral enumerates
 under two USB IDs — before and after its firmware loads — so the rule matches both; the
 rule sets permissions, it does not create a symlink.) Frigate reaches the device via a
-`/dev/bus/usb` hostPath in Phase 4c — these permissions are what let the container open
-it without running fully privileged.
+`/dev/bus/usb` hostPath in Phase 4c. The udev rule keeps host-side ownership stable, but
+the Frigate container still runs privileged because the EdgeTPU delegate failed to
+initialize in an unprivileged diagnostic pod.
 
 **0.7 Router DNS.** Add the wildcard record `*.worm.run → 10.137.20.10` (the MetalLB
 ingress IP from Phase 2.2, **not** the node's own `10.137.20.5`). Test true
@@ -606,7 +607,7 @@ transcode and confirm GPU use with `intel_gpu_top` on the host.
 cameras originate from the host (source IP `192.168.105.1`) without passing through the
 forward chain — this is what makes the nftables camera isolation work. Quick Sync is
 exposed through Intel's GPU device plugin by requesting `gpu.intel.com/i915: "1"`;
-Coral USB uses a `/dev/bus/usb` hostPath without a privileged container. DB on
+Coral USB uses a `/dev/bus/usb` hostPath with a privileged container. DB on
 `/opt/frigate`, cache on a `topolvm-scratch` PVC (50 Gi ext4 LV), recordings via
 hostPath to `/mnt/frigate`, and `config.yml` from the generated `frigate-config`
 ConfigMap. The `frigate-config-pvc` still backs the rest of `/config` for Frigate
