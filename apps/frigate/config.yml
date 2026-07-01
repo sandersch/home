@@ -62,3 +62,7 @@ cameras:
     motion:
       mask:
         - 0.664,0.033,0.664,0.075,0.969,0.079,0.969,0.031
+    notifications:
+      enabled: true
+      email: frigate@wormpoint.com
+      cooldown: 300
