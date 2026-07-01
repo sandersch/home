@@ -33,7 +33,7 @@ snapshots:
 record:
   enabled: true
   continuous:
-    days: 7
+    days: 1
   motion:
     days: 0
   alerts:
