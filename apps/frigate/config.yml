@@ -22,6 +22,7 @@ review:
       - person
   detections:
     labels:
+      - person
       - dog
 
 snapshots:
@@ -32,16 +33,16 @@ snapshots:
 record:
   enabled: true
   continuous:
-    days: 0
+    days: 7
   motion:
     days: 0
   alerts:
     retain:
-      days: 14
+      days: 365
       mode: motion
   detections:
     retain:
-      days: 14
+      days: 30
       mode: motion
 
 cameras:
