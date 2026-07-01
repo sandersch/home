@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: home-assistant
+  namespace: home-assistant
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - home-assistant.worm.run
+  rules:
+    - host: home-assistant.worm.run
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: home-assistant
+                port:
+                  name: http

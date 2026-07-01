@@ -626,7 +626,9 @@ RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery; plus any
 Zigbee/Z-Wave USB stick via hostPath, like the Coral).
 
 Current repo state: Seerr and RomM manifests are committed under `apps/media/`; Home
-Assistant is still a placeholder directory.
+Assistant manifests are committed under `apps/home-assistant/` as a fresh install with
+host networking, local-NVMe config storage, ingress, and first-boot reverse-proxy
+configuration seeding.
 
 ---
 

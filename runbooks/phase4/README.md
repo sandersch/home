@@ -4,7 +4,7 @@ Scripts for [build-plan.md Phase 4](../../docs/build-plan.md#phase-4--core-workl
 
 This directory starts with the Phase 4 media apps: the media download stack
 (Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr), Plex, Seerr, RomM,
-and Frigate.
+Frigate, and Home Assistant.
 
 ## Prerequisites
 
@@ -18,6 +18,8 @@ and Frigate.
 - `/mnt/frigate` is mounted on `minis` before reconciling Frigate.
 - You have Mullvad WireGuard values from a device config.
 - You have the Frigate RTSP username and password for the camera at `192.168.105.50`.
+- Home Assistant starts as a fresh install; no Zigbee/Z-Wave USB stick is mounted
+  until the stable device path is known.
 
 ## Secret generation
 
@@ -120,6 +122,16 @@ camera-segment firewall posture:
 ```
 
 Then open `https://frigate.worm.run` and confirm the `amcrest_105_50` camera is live.
+
+For Home Assistant, validate the rollout, PVC, host networking, reverse-proxy seed
+config, and in-cluster service path:
+
+```bash
+./runbooks/phase4/10-validate-home-assistant.sh
+```
+
+Then open `https://home-assistant.worm.run`, complete onboarding, and add LAN
+integrations.
 
 Status: validated on 2026-06-30 local time. `09-validate-frigate.sh` completed
 successfully, `amcrest_105_50` is live, Frigate logs show the Coral USB detector

@@ -12,6 +12,7 @@ PHASE4_ROMM_DIR="$REPO_ROOT/apps/media/romm"
 PHASE4_ROMM_SECRET="$PHASE4_ROMM_DIR/romm.sops.yaml"
 PHASE4_FRIGATE_DIR="$REPO_ROOT/apps/frigate"
 PHASE4_FRIGATE_SECRET="$PHASE4_FRIGATE_DIR/frigate.sops.yaml"
+PHASE4_HOME_ASSISTANT_DIR="$REPO_ROOT/apps/home-assistant"
 
 assert_phase4_plex_tree() {
   local f
@@ -97,4 +98,19 @@ assert_phase4_frigate_secret_present() {
   grep -q '^sops:' "$PHASE4_FRIGATE_SECRET" \
     || die "$PHASE4_FRIGATE_SECRET is not SOPS-encrypted"
   ok "Frigate Secret manifest is SOPS-encrypted"
+}
+
+assert_phase4_home_assistant_tree() {
+  local f
+  for f in \
+    apps/home-assistant/kustomization.yaml \
+    apps/home-assistant/namespace.yaml \
+    apps/home-assistant/deployment.yaml \
+    apps/home-assistant/service.yaml \
+    apps/home-assistant/ingress.yaml \
+    apps/home-assistant/storage.yaml \
+    runbooks/phase4/10-validate-home-assistant.sh; do
+    [ -f "$REPO_ROOT/$f" ] || die "missing Phase 4 Home Assistant file: $f"
+  done
+  ok "Phase 4 Home Assistant tree is present"
 }

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: home-assistant-config-pv
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-nvme
+  hostPath:
+    path: /opt/home-assistant/config
+    type: DirectoryOrCreate
+  claimRef:
+    namespace: home-assistant
+    name: home-assistant-config-pvc
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - minis
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: home-assistant-config-pvc
+  namespace: home-assistant
+spec:
+  storageClassName: local-nvme
+  accessModes:
+    - ReadWriteOnce
+  volumeName: home-assistant-config-pv
+  resources:
+    requests:
+      storage: 20Gi
