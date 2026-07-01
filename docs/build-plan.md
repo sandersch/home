@@ -22,7 +22,7 @@ manifests:
 | 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. | Live bootstrap health checks when rebuilding or changing credentials. |
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
-| 4 — core workloads | Download stack, Plex, Seerr, RomM, and Frigate manifests plus validation/secret helper runbooks are present. | Workload validation, app setup/cutover, real Frigate camera credentials/config, and Home Assistant manifests. |
+| 4 — core workloads | Download stack, Plex, Seerr, RomM, and Frigate manifests plus validation/secret helper runbooks are present. Frigate's first camera, Coral detector, and Intel QSV path are validated on the live cluster. | Remaining workload validation/app setup, Frigate camera tuning, and Home Assistant manifests. |
 | 5 — observability + expansion | Design remains documented. | Monitoring, backup CronJobs, alerting, and deferred apps are still future work. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
@@ -614,6 +614,12 @@ ConfigMap. The `frigate-config-pvc` still backs the rest of `/config` for Frigat
 state. ⚑ Before Frigate goes live, confirm every real camera has a stable
 `.50-.99` `dhcp-host` reservation across a dnsmasq restart; then verify cameras remain
 unreachable from the internet.
+
+Status: basic Frigate validation passed on 2026-06-30 local time. The
+`amcrest_105_50` camera is live, the Coral detector reports `TPU found` and active
+inference, and ffmpeg is using Intel QSV via `/dev/dri/renderD128` for the detect
+stream. Next Frigate work is operational tuning: motion masks, zones, object filters,
+and retention.
 
 **4d — remaining stack.** Seerr (pointed at the *arrs via the Gluetun Service),
 RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery; plus any

@@ -120,3 +120,10 @@ camera-segment firewall posture:
 ```
 
 Then open `https://frigate.worm.run` and confirm the `amcrest_105_50` camera is live.
+
+Status: validated on 2026-06-30 local time. `09-validate-frigate.sh` completed
+successfully, `amcrest_105_50` is live, Frigate logs show the Coral USB detector
+loaded (`TPU found`), `/api/stats` reports active Coral inference, and ffmpeg is using
+Intel QSV through `/dev/dri/renderD128`. `intel_gpu_top` on the host also confirmed
+hardware-accelerated ffmpeg activity. Remaining Frigate work is camera tuning: motion
+masks, zones, object filters, and retention.
