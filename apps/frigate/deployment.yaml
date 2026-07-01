@@ -21,28 +21,18 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       priorityClassName: homelab-critical
       securityContext:
-        fsGroup: 1000
         supplementalGroups:
           - 44
-          - 46
           - 993
       containers:
         - name: frigate
           image: ghcr.io/blakeblackshear/frigate:0.17.2
-          securityContext:
-            allowPrivilegeEscalation: true
-            privileged: false
-            runAsNonRoot: false
           envFrom:
             - secretRef:
                 name: frigate
           env:
             - name: TZ
               value: America/Chicago
-            - name: PUID
-              value: "1000"
-            - name: PGID
-              value: "1000"
           ports:
             - name: http-auth
               containerPort: 8971
@@ -60,6 +50,10 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
+            - name: config-file
+              mountPath: /config/config.yml
+              subPath: config.yml
+              readOnly: true
             - name: cache
               mountPath: /tmp/cache
             - name: recordings
@@ -72,6 +66,9 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: frigate-config-pvc
+        - name: config-file
+          configMap:
+            name: frigate-config
         - name: cache
           persistentVolumeClaim:
             claimName: frigate-cache-pvc
