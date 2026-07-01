@@ -9,14 +9,10 @@ Quick Sync is exposed through Intel's GPU device plugin by requesting
 `gpu.intel.com/i915: "1"`. The Coral remains a `/dev/bus/usb` hostPath; the container
 does not run privileged.
 
-Frigate reads `/config/config.yml` from `frigate-config-pvc`, backed by
-`/opt/frigate/config` on `minis`. The repo copy at `apps/frigate/config.yml` is the
-canonical source; install it to the host path before first reconcile or after config
-changes:
-
-```bash
-./runbooks/phase4/08-install-frigate-config.sh
-```
+Frigate reads `/config/config.yml` from the generated `frigate-config` ConfigMap. The
+repo copy at `apps/frigate/config.yml` is the canonical source; Flux rolls the
+Deployment when that file changes. The rest of `/config` remains backed by
+`frigate-config-pvc` for Frigate state.
 
 Before reconciling this app, generate real RTSP credentials:
 

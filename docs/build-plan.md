@@ -608,10 +608,9 @@ forward chain — this is what makes the nftables camera isolation work. Quick S
 exposed through Intel's GPU device plugin by requesting `gpu.intel.com/i915: "1"`;
 Coral USB uses a `/dev/bus/usb` hostPath without a privileged container. DB on
 `/opt/frigate`, cache on a `topolvm-scratch` PVC (50 Gi ext4 LV), recordings via
-hostPath to `/mnt/frigate`, and `config.yml` as a file in
-`frigate-config-pvc` (`/opt/frigate/config/config.yml` on the host) rather than a
-ConfigMap. Install the file with `runbooks/phase4/08-install-frigate-config.sh` before
-first reconcile. ⚑ Before Frigate goes live, confirm every real camera has a stable
+hostPath to `/mnt/frigate`, and `config.yml` from the generated `frigate-config`
+ConfigMap. The `frigate-config-pvc` still backs the rest of `/config` for Frigate
+state. ⚑ Before Frigate goes live, confirm every real camera has a stable
 `.50-.99` `dhcp-host` reservation across a dnsmasq restart; then verify cameras remain
 unreachable from the internet.
 
