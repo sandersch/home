@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mosquitto
+  namespace: mqtt
+  labels:
+    app.kubernetes.io/name: mosquitto
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mosquitto
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mosquitto
+    spec:
+      priorityClassName: homelab-critical
+      securityContext:
+        fsGroup: 1883
+      initContainers:
+        - name: render-password-file
+          image: eclipse-mosquitto:2
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              install -d -m 0750 -o 1883 -g 1883 /mosquitto/data
+              install -d -m 0750 -o 1883 -g 1883 /mosquitto/passwd
+              rm -f /mosquitto/passwd/passwords
+              mosquitto_passwd -c -b /mosquitto/passwd/passwords "$MOSQUITTO_FRIGATE_USER" "$MOSQUITTO_FRIGATE_PASSWORD"
+              mosquitto_passwd -b /mosquitto/passwd/passwords "$MOSQUITTO_HOME_ASSISTANT_USER" "$MOSQUITTO_HOME_ASSISTANT_PASSWORD"
+              chown 1883:1883 /mosquitto/passwd/passwords
+              chmod 0640 /mosquitto/passwd/passwords
+          envFrom:
+            - secretRef:
+                name: mosquitto-auth
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: data
+              mountPath: /mosquitto/data
+            - name: password-file
+              mountPath: /mosquitto/passwd
+      containers:
+        - name: mosquitto
+          image: eclipse-mosquitto:2
+          ports:
+            - name: mqtt
+              containerPort: 1883
+          readinessProbe:
+            tcpSocket:
+              port: mqtt
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: mqtt
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            runAsUser: 1883
+            runAsGroup: 1883
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: config
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+              readOnly: true
+            - name: data
+              mountPath: /mosquitto/data
+            - name: password-file
+              mountPath: /mosquitto/passwd
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: mosquitto-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: mosquitto-data-pvc
+        - name: password-file
+          emptyDir:
+            medium: Memory

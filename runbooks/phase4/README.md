@@ -70,6 +70,17 @@ Frigate reads `/config/config.yml` from the generated `frigate-config` ConfigMap
 file changes; the `frigate-config-pvc` still backs the rest of `/config` for Frigate
 state.
 
+Create the SOPS-encrypted Mosquitto Secret before reconciling MQTT and Frigate:
+
+```bash
+./runbooks/phase4/11-encrypt-mqtt-secrets.sh
+```
+
+The script writes `apps/mqtt/mosquitto-auth.sops.yaml` with separate Frigate and
+Home Assistant accounts, plus `apps/frigate/frigate-mqtt.sops.yaml` with the
+matching Frigate MQTT account. Decrypt the Mosquitto Secret locally with `sops` when
+you need the Home Assistant MQTT credentials for the UI.
+
 ## Initial validation
 
 After Flux reconciles:
@@ -132,6 +143,16 @@ config, and in-cluster service path:
 
 Then open `https://home-assistant.worm.run`, complete onboarding, and add LAN
 integrations.
+
+For MQTT and the Frigate/Home Assistant connection, validate the broker:
+
+```bash
+./runbooks/phase4/12-validate-mqtt.sh
+```
+
+Then open Home Assistant, add the MQTT integration with broker
+`mosquitto.mqtt.svc.cluster.local:1883`, install the Frigate integration from HACS if
+needed, and add Frigate with URL `http://frigate.frigate.svc.cluster.local:8971`.
 
 Status: validated on 2026-06-30 local time. `09-validate-frigate.sh` completed
 successfully, `amcrest_105_50` is live, Frigate logs show the Coral USB detector

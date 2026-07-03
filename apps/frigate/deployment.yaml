@@ -32,6 +32,8 @@ spec:
           envFrom:
             - secretRef:
                 name: frigate
+            - secretRef:
+                name: frigate-mqtt
           env:
             - name: TZ
               value: America/Chicago

@@ -1,0 +1,23 @@
+apiVersion: v1
+data:
+    FRIGATE_MQTT_PASSWORD: ENC[AES256_GCM,data:NCCwzcXwGftizTiWNZNFIp869FTq7w2flwoJGn51HitmasWb8RPg4vQ3cu1+ZO8zAV4VG1t9IHLxhPhQ,iv:t7PQsy7V7qpUGyLCI0JTcoBOGjj62YJyV53HK5RElCY=,tag:cB9nJhkyvRVEAzd7NVx29Q==,type:str]
+    FRIGATE_MQTT_USER: ENC[AES256_GCM,data:oTNVAQ5KYlTRMXQe,iv:b3UBRvGHu3onYJBjNTFbeB7d8Qon3ZNk8x2yYLou9jQ=,tag:0gb5mkBcbgNNs8OmcD/r2Q==,type:str]
+kind: Secret
+metadata:
+    name: frigate-mqtt
+    namespace: frigate
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAvZjRrSEkyM0JJZ2hIMDgy
+            b05GOCs0ZTFyOGV3QzR4UGZRbWo4MlZSK2lJCkMxQ1ZkRnh5WVpUWVVBMkxvTmVG
+            RXlQQ2lIdlhoK0l6dDk5dHg5a2tpMVkKLS0tIG9vQUZLU2pHWCtkaS8rYUdMWERu
+            Mll3bjRKb1ZrUnc0cTM5VmtTMTNmNWMK+jav8LVpqRqGtoXqipkt9YQFW4tyXlD8
+            kHUBQjeitD9fKC9HCJ0yGIBNslXnq5uzhZOf+TBHkkHJBtU/sBF+AQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age18cxm2hs3ctq0s735h7z9lj7w7ag37f2vleesglcw6lezlhy5v9nsatkxex
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-07-03T03:53:44Z"
+    mac: ENC[AES256_GCM,data:jcG/H3/xLmTahtgKaeDagGHxepWOFjm2oPAhqYmwgbFWsBQmfV0G/RQ7LL33gEYWwurz4tIICoXaTOTaz76Ac5dUunks/3kRrXblD0aYh8xlweZRqS8GXJjBWRrLYncyIOlt1bvK4nFHQUrEK/4pLNTKQ/ZCgb9uGA+eVuf3TxM=,iv:EvTJ7YeXaXDdLrNIlW3TmHgi47giQLpU3cv0Z7Qw77E=,tag:yj3eKYoJ3rtg4eXjDqaevQ==,type:str]
+    version: 3.13.1

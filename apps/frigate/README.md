@@ -23,9 +23,11 @@ export FRIGATE_CAMERA_AMCREST_105_50_RTSP_PASSWORD=...
 ./runbooks/phase4/07-encrypt-frigate-secrets.sh
 ```
 
-The committed encrypted Secret is only a placeholder so the app tree can build before
-the real camera credentials are available. Additional cameras should use the same
-camera-scoped pattern, for example
+The committed encrypted camera Secret is only a placeholder so the app tree can build
+before the real camera credentials are available. Generate MQTT credentials with
+`./runbooks/phase4/11-encrypt-mqtt-secrets.sh`; that script also writes the separate
+`frigate-mqtt` Secret consumed by the Deployment. Additional cameras should use the
+same camera-scoped pattern, for example
 `FRIGATE_CAMERA_DRIVEWAY_105_51_RTSP_USER` and
 `FRIGATE_CAMERA_DRIVEWAY_105_51_RTSP_PASSWORD`; the secret helper includes exported
 matching pairs automatically.

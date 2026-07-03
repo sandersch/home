@@ -1,0 +1,25 @@
+apiVersion: v1
+data:
+    MOSQUITTO_FRIGATE_PASSWORD: ENC[AES256_GCM,data:49NVydTTIV7QMWgrINMxWZWbvf+5RC0kZViiT8tV4L7JxDzzvioQp9X5nPddgPEURHcd9fTRerd6l995,iv:yfMUJbC6U+h38qMXBBWin2+aTvvnSrkrm1c6CHpj2S8=,tag:410RiU6ygLJ0anD0lXiLWQ==,type:str]
+    MOSQUITTO_FRIGATE_USER: ENC[AES256_GCM,data:cktgol4wn2xwgtsR,iv:GpIPxEELlPBOEw1SpA3evdsl//mmsir9f+SpQ/LUxso=,tag:NwexX6JzXi9NBdHcrDvxYQ==,type:str]
+    MOSQUITTO_HOME_ASSISTANT_PASSWORD: ENC[AES256_GCM,data:OmlZSgfA9fY3kmqnVeSH4hwUDKkDOyefenWcdsYcI4EAXegXSSQJYoV34bxZaUFVjyGaGuMQcZllbPiO,iv:mKClSV5uAp1SDuS7vqhGpiyvt6LOr3T3KejLattbi44=,tag:/HPqPXtAJYW14VKfIJSdrQ==,type:str]
+    MOSQUITTO_HOME_ASSISTANT_USER: ENC[AES256_GCM,data:yv1JxxefkGZ1SAOnryGhEg1hwmw=,iv:CEAFPjwtO0vbuNvMgt0+AC4NbQE1wTOrLWF+636XbI8=,tag:+F0Tdx3FhpemBK3Ej/KcNA==,type:str]
+kind: Secret
+metadata:
+    name: mosquitto-auth
+    namespace: mqtt
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA0QUQ2cm1mWWNWY1RwWHBu
+            REw1bGxCNWxhZldmS2hWVGdsbkZFcXZwTmdrCkNrcUw4T2U2Z2h3S0dGY2F0aEMz
+            NHZRalZ6ODFHclBZSHlKN3pjTmlTK1kKLS0tIDEwb3hkT2M4Q2xFTVRwbTdUMk44
+            OGZBTG1LTFByVU9YTFQrQ01DTncrak0Kpmevd7PjVrfaOFffZyBGopSeONQOAULv
+            293IYCShWWs+zdv826Ogr1L6HntWMZI01TgF5tnRCKaEqAzU4H2KNg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age18cxm2hs3ctq0s735h7z9lj7w7ag37f2vleesglcw6lezlhy5v9nsatkxex
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-07-03T03:53:44Z"
+    mac: ENC[AES256_GCM,data:qotpurYAA2Z72gERHx5BqAMckVDCvgGfGTRnOj5wCscN/gb4VYbQVWUkSQTKzGypbUIOjMkCFz3JDLCdar3esUkGCwO3iWreMePam26DQn+SggrpGLMBfXNvt6gCmTL2CbyZxuEJXU9KmgFdH+eZdOiBRX9cfqIOn8UiN0WWvbY=,iv:76HcOrXIACZvFWgYmqmQNxwCXzVVNg8mcpaXv2HD+7g=,tag:/GOSBq2O/NnFa9DNGMZw6w==,type:str]
+    version: 3.13.1

@@ -8,6 +8,9 @@ Fresh Home Assistant deployment for Phase 4.
   ingress reverse-proxy headers work on first boot.
 - No Zigbee/Z-Wave USB device is mounted yet; add an explicit hostPath once the
   target device path is known.
+- Frigate is connected through the internal Mosquitto broker. Add Home Assistant's
+  MQTT integration with `mosquitto.mqtt.svc.cluster.local:1883`, then add the HACS
+  Frigate integration with URL `http://frigate.frigate.svc.cluster.local:8971`.
 
 Use `local-nvme` for app state. Device passthrough and host networking should be
 documented in the manifest comments when added.

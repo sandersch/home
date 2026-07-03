@@ -18,6 +18,9 @@ assert_phase4_romm_tree
 step "Verify Phase 4 Frigate tree"
 assert_phase4_frigate_tree
 
+step "Verify Phase 4 MQTT tree"
+assert_phase4_mqtt_tree
+
 step "Verify Phase 4 Home Assistant tree"
 assert_phase4_home_assistant_tree
 
@@ -30,5 +33,11 @@ assert_phase4_secret_present
 
 step "Verify RomM Secret manifest"
 assert_phase4_romm_secret_present
+
+step "Verify Mosquitto Secret manifest"
+assert_phase4_mqtt_secret_present
+
+step "Verify Frigate MQTT Secret manifest"
+assert_phase4_frigate_mqtt_secret_present
 
 ok "Phase 4 preflight complete"

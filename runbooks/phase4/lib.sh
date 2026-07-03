@@ -12,7 +12,10 @@ PHASE4_ROMM_DIR="$REPO_ROOT/apps/media/romm"
 PHASE4_ROMM_SECRET="$PHASE4_ROMM_DIR/romm.sops.yaml"
 PHASE4_FRIGATE_DIR="$REPO_ROOT/apps/frigate"
 PHASE4_FRIGATE_SECRET="$PHASE4_FRIGATE_DIR/frigate.sops.yaml"
+PHASE4_FRIGATE_MQTT_SECRET="$PHASE4_FRIGATE_DIR/frigate-mqtt.sops.yaml"
 PHASE4_HOME_ASSISTANT_DIR="$REPO_ROOT/apps/home-assistant"
+PHASE4_MQTT_DIR="$REPO_ROOT/apps/mqtt"
+PHASE4_MQTT_SECRET="$PHASE4_MQTT_DIR/mosquitto-auth.sops.yaml"
 
 assert_phase4_plex_tree() {
   local f
@@ -98,6 +101,38 @@ assert_phase4_frigate_secret_present() {
   grep -q '^sops:' "$PHASE4_FRIGATE_SECRET" \
     || die "$PHASE4_FRIGATE_SECRET is not SOPS-encrypted"
   ok "Frigate Secret manifest is SOPS-encrypted"
+}
+
+assert_phase4_frigate_mqtt_secret_present() {
+  [ -f "$PHASE4_FRIGATE_MQTT_SECRET" ] \
+    || die "missing $PHASE4_FRIGATE_MQTT_SECRET; run runbooks/phase4/11-encrypt-mqtt-secrets.sh"
+  grep -q '^sops:' "$PHASE4_FRIGATE_MQTT_SECRET" \
+    || die "$PHASE4_FRIGATE_MQTT_SECRET is not SOPS-encrypted"
+  ok "Frigate MQTT Secret manifest is SOPS-encrypted"
+}
+
+assert_phase4_mqtt_tree() {
+  local f
+  for f in \
+    apps/mqtt/kustomization.yaml \
+    apps/mqtt/namespace.yaml \
+    apps/mqtt/configmap.yaml \
+    apps/mqtt/deployment.yaml \
+    apps/mqtt/service.yaml \
+    apps/mqtt/storage.yaml \
+    runbooks/phase4/11-encrypt-mqtt-secrets.sh \
+    runbooks/phase4/12-validate-mqtt.sh; do
+    [ -f "$REPO_ROOT/$f" ] || die "missing Phase 4 MQTT file: $f"
+  done
+  ok "Phase 4 MQTT tree is present"
+}
+
+assert_phase4_mqtt_secret_present() {
+  [ -f "$PHASE4_MQTT_SECRET" ] \
+    || die "missing $PHASE4_MQTT_SECRET; run runbooks/phase4/11-encrypt-mqtt-secrets.sh"
+  grep -q '^sops:' "$PHASE4_MQTT_SECRET" \
+    || die "$PHASE4_MQTT_SECRET is not SOPS-encrypted"
+  ok "Mosquitto Secret manifest is SOPS-encrypted"
 }
 
 assert_phase4_home_assistant_tree() {

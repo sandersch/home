@@ -9,8 +9,9 @@ resources:
 - ingress.yaml
 - deployment.yaml
 - frigate.sops.yaml
+- frigate-mqtt.sops.yaml
 
 configMapGenerator:
-- name: frigate-config
-  files:
+- files:
   - config.yml
+  name: frigate-config

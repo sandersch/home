@@ -27,6 +27,8 @@ require_tools kubectl kustomize openssl sops
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
+export SOPS_CONFIG="$REPO_ROOT/.sops.yaml"
+
 step "Generate Frigate JWT secret"
 openssl rand -hex 32 >"$tmpdir/FRIGATE_JWT_SECRET"
 ok "generated FRIGATE_JWT_SECRET"
@@ -67,7 +69,6 @@ kubectl create secret generic frigate \
   --dry-run=client -o yaml >"$tmpdir/frigate.yaml"
 
 step "Encrypt with SOPS"
-export SOPS_CONFIG="$REPO_ROOT/.sops.yaml"
 sops --encrypt "$tmpdir/frigate.yaml" >"$PHASE4_FRIGATE_SECRET"
 ok "encrypted Secret manifest written"
 
