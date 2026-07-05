@@ -431,10 +431,10 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 
 ### Network Step 2.5: Camera Segment Services
 
-* [ ] Configure `minis` `dnsmasq` on the camera-side NIC only, with `dhcp-host` MAC-to-IP reservations for every known camera in the static `192.168.105.50-192.168.105.99` block, and the dynamic pool limited to `192.168.105.100-192.168.105.199` for unknown devices. Advertise `192.168.105.1` as the router for camera firmware compatibility, but keep nftables forwarding drops in place. Run DHCP-only (`port=0`) — do not serve DNS, which would be an outbound beacon path for a compromised camera.
+* [X] Configure `minis` `dnsmasq` on the camera-side NIC only, with `dhcp-host` MAC-to-IP reservations for every known camera in the static `192.168.105.50-192.168.105.99` block, and the dynamic pool limited to `192.168.105.100-192.168.105.199` for unknown devices. Advertise `192.168.105.1` as the router for camera firmware compatibility, but keep nftables forwarding drops in place. Run DHCP-only (`port=0`) — do not serve DNS, which would be an outbound beacon path for a compromised camera. Verified during Phase 4 validation: the live `dnsmasq` config is DHCP-only on `cam0` and the known Amcrest camera is pinned at `192.168.105.50`.
 * [ ] Configure static camera network settings with gateway `192.168.105.1` if the firmware requires one. Point camera NTP at `192.168.105.1` if local time sync is needed.
-* [ ] Confirm `minis` is not bridging or NATing between its VLAN 20 server-side NIC and VLAN 105 camera-side NIC, and that nftables drops forwarded traffic entering or leaving `cam0`.
-* [ ] Confirm cameras can reach `192.168.105.1` for Frigate/NVR ingestion and local NTP, but cannot reach VLAN 20, VLAN 30, VLAN 10, or the internet directly.
+* [X] Confirm `minis` is not bridging or NATing between its VLAN 20 server-side NIC and VLAN 105 camera-side NIC, and that nftables drops forwarded traffic entering or leaving `cam0`. Verified during Phase 4 validation with k3s running and `ip_forward=1`; the camera segment remains host-only.
+* [X] Confirm cameras can reach `192.168.105.1` for Frigate/NVR ingestion and local NTP, but cannot reach VLAN 20, VLAN 30, VLAN 10, or the internet directly. Verified during Phase 4 validation; Frigate ingests the pinned camera while camera-segment forwarding remains blocked.
 
 ### Network Step 3: Network Cutover Runbook (From Legacy `172.17.1.0/24`)
 
