@@ -5,3 +5,4 @@ resources:
   - infra-controllers.yaml
   - infra-configs.yaml
   - apps.yaml
+  - monitoring.yaml

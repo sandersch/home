@@ -2,9 +2,9 @@
 
 Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 
-> **Status: active build.** Most of Phases 0-4 are implemented in repo: host config,
-> runbooks, Flux bootstrap output, infrastructure controllers/configs, and the core
-> media/Frigate app manifests are present. See
+> **Status: active build.** Most of Phases 0-4 and the backup-first slice of Phase 5
+> are implemented in repo: host config, runbooks, Flux bootstrap output,
+> infrastructure controllers/configs, and the core media/Frigate app manifests are present. See
 > [`docs/build-plan.md`](./docs/build-plan.md#implementation-status) for what remains.
 
 ## Stack at a glance
@@ -13,8 +13,8 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 - **Access:** LAN + Tailnet only (nothing public) · `*.worm.run` via router wildcard DNS
 - **Current workload manifests:** Plex (Quick Sync), Frigate (Coral),
   Radarr/Sonarr/Prowlarr/SABnzbd/qBittorrent behind Mullvad/Gluetun, Seerr, RomM
-- **Still planned:** Home Assistant, Prometheus/Grafana/Alertmanager, Loki, ntfy
-  push alerts, Restic backups to NAS and Backblaze B2
+- **Still planned:** Prometheus/Grafana/Alertmanager, Loki, ntfy push alerts,
+  Backblaze B2 backup copy, and deferred apps
 
 ## Layout
 
@@ -24,7 +24,7 @@ docs/              architecture, build plan, migration runbook, operations
 runbooks/          executable host/app phase runbooks
 host/minis/        canonical host-level config copied by the runbooks
 clusters/minis/    Flux entrypoint (flux-system + Kustomizations)
-infrastructure/    controllers, cluster configs, Phase 5 monitoring placeholder
+infrastructure/    controllers, cluster configs, Phase 5 backups/monitoring
 apps/              media, frigate, home-assistant
 ```
 

@@ -54,8 +54,9 @@ reproduces, so they restore as-is — but the `/boot/efi` line is keyed by a
 **disk-specific UUID** (`/dev/disk/by-uuid/...`) generated at install time. After a
 fresh install, replace that UUID with this disk's EFI partition UUID (`blkid`) before
 relying on the file, or the boot mount fails. The Phase 0 runbook appends and verifies
-only `/mnt/media`; Phase 4 workloads add their own NAS mounts here as they are
-implemented, currently `/mnt/games` for RomM.
+only `/mnt/media`; later phases add their own NAS mounts here as they are implemented:
+`/mnt/games` for RomM, `/mnt/frigate` for Frigate, and `/mnt/backups` for Phase 5
+Restic.
 
 **Phase 0.5 (NUT):** the configs are the *effective* (non-comment) settings, not a
 byte-for-byte copy of the stock files. After placing them, enable the stack:

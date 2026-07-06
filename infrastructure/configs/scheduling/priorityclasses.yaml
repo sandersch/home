@@ -14,3 +14,11 @@ metadata:
 value: 1000
 globalDefault: false
 description: Standard homelab workloads that can yield to critical services.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: homelab-low
+value: 100
+globalDefault: false
+description: Low-priority best-effort jobs such as backups.

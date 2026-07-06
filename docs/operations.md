@@ -11,7 +11,7 @@ Three categories of data, three different needs:
 |---|---|---|---|
 | age private key + bootstrap secrets | manual | password manager | once |
 | GitOps repo (all manifests) | git | GitHub | every commit |
-| App state (`/opt`, incl. SQLite DBs) | Restic CronJob | NAS + Backblaze B2 | nightly / weekly |
+| App state (`/opt`, incl. SQLite DBs) | Restic CronJob | NAS now; Backblaze B2 next | nightly / weekly |
 | Frigate recordings | — (not backed up) | NAS is the store | — |
 | Media library | NAS-level (your call) | — | — |
 
@@ -23,15 +23,18 @@ the non-redundant local NVMe**.
 ### Restic CronJob (runs in-cluster)
 
 Restic runs as a Kubernetes **CronJob** (chosen over a host systemd timer to keep it
-in git and visible to monitoring). It mounts `/opt` (hostPath, read is fine) and pushes
-to a NAS-local repo (fast restores) and a Backblaze B2 repo (offsite). B2 was chosen
-over Cloudflare R2: cheaper per-GB storage (~$6/TB vs ~$15/TB), and egress is
-irrelevant for an infrequently-restored backup. Switching providers later is a backend
-URL change — Restic supports B2/S3/R2/Wasabi natively, and rclone covers the rest.
+in git and visible to monitoring). The Phase 5 backup-first implementation mounts
+`/opt` read-only and writes to a dedicated NAS export at `/mnt/backups`, with the
+Restic repository at `/mnt/backups/opt` from the host's point of view
+(`/repo/nas/opt` in the pod). Backblaze B2 is intentionally the next backup phase,
+after the NAS repo and restore drill are proven. B2 was chosen over Cloudflare R2:
+cheaper per-GB storage (~$6/TB vs ~$15/TB), and egress is irrelevant for an
+infrequently-restored backup. Switching providers later is a backend URL change —
+Restic supports B2/S3/R2/Wasabi natively, and rclone covers the rest.
 
 ```bash
-restic -r /mnt/nas/backups/opt  backup /data/opt   # local copy
-restic -r b2:bucket/opt         backup /data/opt   # offsite (or `restic copy` weekly)
+restic -r /mnt/backups/opt backup /data/opt   # local copy
+restic -r b2:bucket/opt    backup /data/opt   # future offsite copy
 ```
 
 Required hardening on the CronJob so a failure is **loud**, not silently missing:
@@ -44,18 +47,19 @@ spec:
       backoffLimit: 0              # fail fast, no silent retries
       activeDeadlineSeconds: 3600  # kill a hung run after 1h
 ```
-Plus the Alertmanager rule on failed jobs (below). Credentials (`B2_ACCOUNT_ID`,
-`B2_ACCOUNT_KEY`, `RESTIC_PASSWORD`) are a SOPS-encrypted Secret. **`restic init` runs
-once** per repo before the first backup — a manual step or a one-shot Job, like the age
-key.
+Plus the Alertmanager rule on failed jobs once monitoring lands. Credentials
+(`RESTIC_PASSWORD`, `HOME_ASSISTANT_TOKEN`, `ROMM_DB_PASSWORD`, and later B2 keys) are
+SOPS-encrypted Secrets. **`restic init` runs once** per repo before the first backup via
+`runbooks/phase5/03-init-restic-nas-repo.sh`.
 
 ### SQLite hot backups (pre-hook)
 
 Several apps use SQLite; copying a live DB file can capture a mid-write (corrupt)
 state. Before Restic snapshots, dump each DB safely with the online-backup API. The
-stock `restic/restic` image lacks `sqlite3`, so build a small image
-(`FROM restic/restic` + `apk add sqlite`) and push to GHCR; run the dumps as an
-init container (or pre-commands), then back up `/opt`.
+stock `restic/restic` image lacks the helper tools, so the repo builds
+`ghcr.io/sandersch/restic-backup:0.19.0-1` from `containers/restic-backup/` with
+`sqlite`, `mariadb-client`, `curl`, and `jq`. The CronJob runs the dump commands before
+backing up `/opt`.
 
 | App | Treatment | Notes |
 |---|---|---|
@@ -70,7 +74,9 @@ init container (or pre-commands), then back up `/opt`.
 
 HA's dump is triggered over its API from inside the cluster using a long-lived token
 (SOPS secret), e.g. POST to
-`http://home-assistant.home-assistant.svc.cluster.local/api/services/homeassistant/backup`.
+`http://home-assistant.home-assistant.svc.cluster.local:8123/api/services/homeassistant/backup`.
+RomM's MariaDB sidecar is exposed only inside the cluster as
+`romm-mariadb.media.svc.cluster.local:3306` for the backup job.
 
 ## Monitoring & alerting
 

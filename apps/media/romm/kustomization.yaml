@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - storage.yaml
   - service.yaml
+  - mariadb-service.yaml
   - ingress.yaml
   - deployment.yaml
   - romm.sops.yaml

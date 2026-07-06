@@ -1,0 +1,7 @@
+FROM restic/restic:0.19.0
+
+USER root
+RUN apk add --no-cache bash ca-certificates curl jq mariadb-client sqlite
+
+ENTRYPOINT []
+CMD ["/bin/bash"]

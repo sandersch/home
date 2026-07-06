@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, and Frigate manifests plus validation/secret helper runbooks are present. Frigate's first camera, Coral detector, and Intel QSV path are validated on the live cluster. | Remaining workload validation/app setup, Frigate camera tuning, and Home Assistant manifests. |
-| 5 — observability + expansion | Design remains documented. | Monitoring, backup CronJobs, alerting, and deferred apps are still future work. |
+| 5 — observability + expansion | Backup-first manifests and runbooks are present: dedicated `/mnt/backups` NAS export, Restic image, monitoring Flux target, NAS CronJob, and restore validation. | Publish the backup image, generate live secrets, initialize the NAS repo, run the first backup/restore drill, then add B2, monitoring, alerting, and deferred apps. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
 phase validation scripts and gate below before declaring a phase complete.
@@ -119,8 +119,8 @@ reproduces, but the `/boot/efi` line carries a disk-specific UUID — reconcile 
 this disk (`blkid`) before use. Restore the file (or just append the
 `media.nfs.service.matrix:/mnt/media` line on an existing install), then `sudo mount -a`
 and verify `/mnt/media`. `nofail` is essential — a NAS outage at boot must not block k3s.
-Additional mounts are added in Phase 4 when the apps that need them are configured
-(`/mnt/games` for RomM, `/mnt/frigate` for Frigate). Completed downloads are *not* a separate export — SABnzbd
+Additional mounts are added when the apps that need them are configured
+(`/mnt/games` for RomM, `/mnt/frigate` for Frigate, `/mnt/backups` for Phase 5 Restic). Completed downloads are *not* a separate export — SABnzbd
 and qBittorrent hand off under `/mnt/media` so the download dir and the *arr library share one filesystem
 (hardlink/atomic-move imports). The NAS hostname `media.nfs.service.matrix` resolves via the
 router nameserver (`10.137.20.1`, set in 0.2) — there is no `/etc/hosts` fallback, so the
@@ -638,9 +638,10 @@ configuration seeding.
 - **Loki + Promtail** for logs; **nut-exporter** for UPS metrics; **ntfy** pod for
   push alerts. Alert definitions and routing in
   [operations.md](./operations.md#monitoring--alerting).
-- **Restic CronJob** for backups — stand this up early in Phase 5, *before* Immich
-  adds a large new data surface. Design in
-  [operations.md](./operations.md#backups).
+- **Restic CronJob** for backups — backup-first implementation is committed under
+  `infrastructure/monitoring` and `runbooks/phase5`. It starts with nightly NAS-local
+  `/opt` backups to `/mnt/backups/opt`; B2/offsite copy comes after the first restore
+  drill. Design and operating notes in [operations.md](./operations.md#backups).
 - **Immich (later)** — coordinate the initial import during a quiet window and watch
   memory (its ML container is the one big consumer). Originals on NAS; thumbs/ML on
   `/opt/immich`; benefits from Quick Sync.

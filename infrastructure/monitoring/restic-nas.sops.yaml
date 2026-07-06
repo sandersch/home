@@ -1,0 +1,24 @@
+apiVersion: v1
+data:
+    HOME_ASSISTANT_TOKEN: ENC[AES256_GCM,data:QtxdqGqmvBfabFgjxgr0BnVCROzTdIyVEwATZ48azmFY7QXxB11KHo4hyXa98nZ9NF/VzwLDUl2/wR+MRwJq6Ux4dIKEItEc7qV3iNBiizZ1OtGEycxeVsubHjouRYAs6xbn7ubjMfE5HcOcGG3OmIv32GnckORVgX+/9Bm3Gim5xdErLhdnHlIaZ21Ci2dJ4OXmMfX1pKwNeE89A3RQot61NBHRhgxmwwLp3gGEFt6V5QrpBDI9q2Gsq5fkL6mhP+sZZhCJ8UrGE0BnVAAkXOnRvnFo3g/Fx2d3qQ+8o2q6xA6S+2EpGMSbJ0Cq1vi7R80AWA==,iv:sRkzUccskymeEeusWWXP0nTy5Jq4yHo2QuNOEKq4zfY=,tag:MUU9+VvB9aHdGygJ5b2L1w==,type:str]
+    RESTIC_PASSWORD: ENC[AES256_GCM,data:y7pPgpI0bMAYypSplR1Sfw==,iv:0DPhPM56OsYLuirtn1f4uS4SC8hJbqVBNcZL4aqPxek=,tag:l5edpM89m5Z+ZSL0gP4z/A==,type:str]
+    ROMM_DB_PASSWORD: ENC[AES256_GCM,data:RM3UoR2R/HtwVc2Amxcx+WJhhZWjVDmRS+AAAxIhmeVv20UqnrLxA9561VpUbhTLNecemqqRMZHWmlkfoSmPl7tuRh0=,iv:5TNBWNXnaP0Q/RJfJNkNZfVjiaFslUQiFY5GVtAPKrA=,tag:RDM+uYNQ8Oqql8Xml6jdhg==,type:str]
+kind: Secret
+metadata:
+    name: restic-nas
+    namespace: monitoring
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBTT0Rlanc1bDA5RW1QS3hp
+            b05iVnFWUmsySnB3blFyS09Va005K3Mrc2hFClV2NkJBZkN5NGRmSVFiMEpiUFdG
+            U2dxWnFuL0c5a051LzNLUmRUbU1jSFEKLS0tIG9TQ1U4dVZlUFRhbjNxOHVMQldP
+            aHRTaGxWTmZpaUs1cjNEWUNaa0htUkUKnREBmNeZjbVcetuCIfhGEJgY0aML4E+X
+            bHUozTeWm4CBZciovg39zMzkxUTM0lw20Gbs+iMycDnUXdbZoIKUCQ==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age18cxm2hs3ctq0s735h7z9lj7w7ag37f2vleesglcw6lezlhy5v9nsatkxex
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-07-06T02:52:35Z"
+    mac: ENC[AES256_GCM,data:PEh6Rtb9u7SpHxvnqfDjH5ffAg+yS7SHLWfvBv2RYBZwglMeF8hZRNkvXzsknuN0IeF700AG0LHbRlDbvTCRI4zbjpW184zKn5lU5SPLJ6+YYJZRsRF95ShinjFRDMNhj6uOCEJe/Q1BYQQ5mGdbsKQxFlMjwrtH61kbgsmluuY=,iv:QwQjYY0OmhQ2jZ3f5JsP1keoY2s/F5Eq2Rih7BY0nHI=,tag:mEWdAqRu92Gd11cA3/0uVA==,type:str]
+    version: 3.13.1

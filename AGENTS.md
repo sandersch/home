@@ -74,14 +74,15 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │       ├── kustomization.yaml # includes flux-system + ordered Flux Kustomizations
 │       ├── infra-controllers.yaml # Kustomization → ../../infrastructure/controllers
 │       ├── infra-configs.yaml     # Kustomization → ../../infrastructure/configs
-│       └── apps.yaml              # Kustomization → ../../apps (dependsOn configs)
+│       ├── apps.yaml              # Kustomization → ../../apps (dependsOn configs)
+│       └── monitoring.yaml        # Kustomization → ../../infrastructure/monitoring
 ├── infrastructure/
 │   ├── controllers/           # HelmRepos + HelmReleases for metallb,
 │   │                          #   ingress-nginx, cert-manager, tailscale-operator,
 │   │                          #   topolvm; Intel GPU plugin via upstream Kustomization
 │   ├── configs/               # ClusterIssuer, MetalLB pool, StorageClass,
 │   │                          #   PriorityClasses, cluster-wide config
-│   └── monitoring/            # Phase 5 placeholder: monitoring/alerting/backups
+│   └── monitoring/            # Phase 5 backups now; monitoring/alerting next
 └── apps/
     ├── media/                 # namespace + Plex, download pod (gluetun+
     │                          #   sabnzbd+*arr), seerr, romm
