@@ -31,7 +31,12 @@ else
 fi
 
 step "Mount and verify $PHASE5_BACKUP_MOUNT"
-sudo install -d -o root -g root -m 755 "$PHASE5_BACKUP_MOUNT"
+if [ -d "$PHASE5_BACKUP_MOUNT" ]; then
+  ok "$PHASE5_BACKUP_MOUNT already exists"
+else
+  sudo install -d -o root -g root -m 755 "$PHASE5_BACKUP_MOUNT"
+  ok "created $PHASE5_BACKUP_MOUNT mountpoint"
+fi
 if timeout 30 sudo mount "$PHASE5_BACKUP_MOUNT"; then
   ok "mount $PHASE5_BACKUP_MOUNT completed"
 else
