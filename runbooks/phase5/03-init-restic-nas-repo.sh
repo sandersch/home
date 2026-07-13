@@ -97,4 +97,4 @@ YAML
 step "Run one-shot Restic repository init job"
 kubectl -n monitoring delete job restic-nas-init --ignore-not-found=true
 kubectl apply -f "$tmpdir/restic-nas-init.yaml"
-wait_for_job monitoring restic-nas-init 300s
+wait_for_job monitoring restic-nas-init 900s
