@@ -63,12 +63,30 @@ assert_phase5_restic_secret_present() {
 
 wait_for_job() {
   local namespace="$1" job="$2" timeout="${3:-3600s}"
-  if kubectl -n "$namespace" wait "job/$job" --for=condition=Complete --timeout="$timeout"; then
-    ok "job/$job completed"
-    kubectl -n "$namespace" logs "job/$job" --all-containers=true --tail=120
-    return 0
-  fi
-  warn "job/$job did not complete; recent logs follow"
+  local timeout_seconds deadline complete failed
+
+  timeout_seconds="${timeout%s}"
+  [ "$timeout_seconds" != "$timeout" ] || die "wait_for_job timeout must be in seconds, got: $timeout"
+  deadline=$((SECONDS + timeout_seconds))
+
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    complete="$(kubectl -n "$namespace" get "job/$job" -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || true)"
+    failed="$(kubectl -n "$namespace" get "job/$job" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)"
+    if [ "$complete" = "True" ]; then
+      ok "job/$job completed"
+      kubectl -n "$namespace" logs "job/$job" --all-containers=true --tail=120
+      return 0
+    fi
+    if [ "$failed" = "True" ]; then
+      warn "job/$job failed; recent logs follow"
+      kubectl -n "$namespace" logs "job/$job" --all-containers=true --tail=200 || true
+      kubectl -n "$namespace" describe "job/$job" || true
+      return 1
+    fi
+    sleep 5
+  done
+
+  warn "job/$job did not complete before $timeout; recent logs follow"
   kubectl -n "$namespace" logs "job/$job" --all-containers=true --tail=200 || true
   kubectl -n "$namespace" describe "job/$job" || true
   return 1
