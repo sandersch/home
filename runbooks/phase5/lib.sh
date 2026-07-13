@@ -88,6 +88,7 @@ wait_for_job() {
 
   warn "job/$job did not complete before $timeout; recent logs follow"
   kubectl -n "$namespace" logs "job/$job" --all-containers=true --tail=200 || true
+  kubectl -n "$namespace" describe pod -l "job-name=$job" || true
   kubectl -n "$namespace" describe "job/$job" || true
   return 1
 }
