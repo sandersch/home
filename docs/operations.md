@@ -74,7 +74,7 @@ backing up `/opt`.
 
 HA's dump is triggered over its API from inside the cluster using a long-lived token
 (SOPS secret), e.g. POST to
-`http://home-assistant.home-assistant.svc.cluster.local:8123/api/services/homeassistant/backup`.
+`http://home-assistant.home-assistant.svc.cluster.local:8123/api/services/backup/create_automatic`.
 RomM's MariaDB sidecar is exposed only inside the cluster as
 `romm-mariadb.media.svc.cluster.local:3306` for the backup job.
 
