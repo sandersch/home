@@ -6,7 +6,7 @@
 #
 # Optional:
 #   RESTIC_PASSWORD=...   generated when omitted and no existing restic-nas Secret exists
-#   ROMM_DB_PASSWORD=...  read from apps/media/romm/romm.sops.yaml DB_PASSWD when omitted
+#   ROMM_DB_PASSWORD=...  read from apps/media/romm/romm.sops.yaml MARIADB_PASSWORD when omitted
 
 # shellcheck source=runbooks/phase5/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -21,7 +21,28 @@ trap 'rm -rf "$tmpdir"' EXIT
 existing_key() {
   local key="$1"
   [ -f "$tmpdir/restic-nas.existing.json" ] || return 0
-  jq -r --arg key "$key" '.stringData[$key] // .data[$key] // empty' "$tmpdir/restic-nas.existing.json"
+  jq -r --arg key "$key" '
+    if (.stringData[$key] // "") != "" then
+      .stringData[$key]
+    elif (.data[$key] // "") != "" then
+      .data[$key] | @base64d
+    else
+      empty
+    end
+  ' "$tmpdir/restic-nas.existing.json"
+}
+
+romm_secret_value() {
+  local key="$1"
+  jq -r --arg key "$key" '
+    if (.stringData[$key] // "") != "" then
+      .stringData[$key]
+    elif (.data[$key] // "") != "" then
+      .data[$key] | @base64d
+    else
+      empty
+    end
+  ' "$tmpdir/romm.json"
 }
 
 if [ -f "$PHASE5_RESTIC_SECRET" ]; then
@@ -46,10 +67,15 @@ fi
 
 if [ -z "${ROMM_DB_PASSWORD:-}" ]; then
   [ -f "$PHASE5_ROMM_SECRET" ] || die "missing $PHASE5_ROMM_SECRET"
-  step "Decrypt RomM Secret in a temp dir to read DB_PASSWD"
-  sops --decrypt --output-type json "$PHASE5_ROMM_SECRET" \
-    | jq -r '.stringData.DB_PASSWD // empty' >"$tmpdir/ROMM_DB_PASSWORD"
-  [ -s "$tmpdir/ROMM_DB_PASSWORD" ] || die "could not read DB_PASSWD from RomM Secret"
+  step "Decrypt RomM Secret in a temp dir to read MARIADB_PASSWORD"
+  sops --decrypt --output-type json "$PHASE5_ROMM_SECRET" >"$tmpdir/romm.json"
+  romm_secret_value MARIADB_PASSWORD >"$tmpdir/ROMM_DB_PASSWORD"
+  [ -s "$tmpdir/ROMM_DB_PASSWORD" ] || die "could not read MARIADB_PASSWORD from RomM Secret"
+
+  romm_secret_value DB_PASSWD >"$tmpdir/DB_PASSWD"
+  if [ -s "$tmpdir/DB_PASSWD" ] && ! cmp -s "$tmpdir/DB_PASSWD" "$tmpdir/ROMM_DB_PASSWORD"; then
+    warn "RomM DB_PASSWD and MARIADB_PASSWORD differ; the backup dump uses MARIADB_PASSWORD"
+  fi
 else
   printf '%s' "$ROMM_DB_PASSWORD" >"$tmpdir/ROMM_DB_PASSWORD"
 fi
