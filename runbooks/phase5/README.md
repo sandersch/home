@@ -26,8 +26,12 @@ export HOME_ASSISTANT_TOKEN=...
 ./runbooks/phase5/02-encrypt-restic-secret.sh
 ```
 
-`RESTIC_PASSWORD` is generated when omitted. `ROMM_DB_PASSWORD` is read from the
-existing SOPS-encrypted RomM Secret when omitted.
+`RESTIC_PASSWORD` is generated when omitted only if there is no existing Restic Secret;
+on reruns, the existing value is preserved so the initialized Restic repository stays
+readable. `HOME_ASSISTANT_TOKEN` is also preserved on reruns when omitted.
+`ROMM_DB_PASSWORD` is read from the existing SOPS-encrypted RomM Secret's `DB_PASSWD`
+key when omitted, because that is the credential the RomM app uses to connect as the
+`romm` database user.
 
 The script writes plaintext only under a temporary directory, encrypts the Secret to
 `infrastructure/monitoring/restic-nas.sops.yaml`, and adds it to the monitoring

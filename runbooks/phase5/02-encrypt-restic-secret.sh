@@ -5,8 +5,8 @@
 #   HOME_ASSISTANT_TOKEN=...
 #
 # Optional:
-#   RESTIC_PASSWORD=...   generated when omitted
-#   ROMM_DB_PASSWORD=...  read from apps/media/romm/romm.sops.yaml when omitted
+#   RESTIC_PASSWORD=...   generated when omitted and no existing restic-nas Secret exists
+#   ROMM_DB_PASSWORD=...  read from apps/media/romm/romm.sops.yaml DB_PASSWD when omitted
 
 # shellcheck source=runbooks/phase5/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -15,22 +15,41 @@ require_not_root
 require_tools jq kubectl kustomize openssl sops yq
 
 [ -f "$REPO_ROOT/.sops.yaml" ] || die "missing $REPO_ROOT/.sops.yaml; complete Phase 2 first"
-[ -n "${HOME_ASSISTANT_TOKEN:-}" ] || die "HOME_ASSISTANT_TOKEN is required"
-
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
+existing_key() {
+  local key="$1"
+  [ -f "$tmpdir/restic-nas.existing.json" ] || return 0
+  jq -r --arg key "$key" '.stringData[$key] // .data[$key] // empty' "$tmpdir/restic-nas.existing.json"
+}
+
+if [ -f "$PHASE5_RESTIC_SECRET" ]; then
+  step "Decrypt existing Restic Secret in a temp dir to preserve unchanged values"
+  sops --decrypt --output-type json "$PHASE5_RESTIC_SECRET" >"$tmpdir/restic-nas.existing.json" \
+    || die "could not decrypt $PHASE5_RESTIC_SECRET; set SOPS_AGE_KEY_FILE or export all values"
+  ok "existing Restic Secret decrypted in temp dir"
+fi
+
+if [ -z "${RESTIC_PASSWORD:-}" ]; then
+  RESTIC_PASSWORD="$(existing_key RESTIC_PASSWORD)"
+fi
 if [ -z "${RESTIC_PASSWORD:-}" ]; then
   RESTIC_PASSWORD="$(openssl rand -base64 48)"
   export RESTIC_PASSWORD
 fi
 
+if [ -z "${HOME_ASSISTANT_TOKEN:-}" ]; then
+  HOME_ASSISTANT_TOKEN="$(existing_key HOME_ASSISTANT_TOKEN)"
+fi
+[ -n "${HOME_ASSISTANT_TOKEN:-}" ] || die "HOME_ASSISTANT_TOKEN is required"
+
 if [ -z "${ROMM_DB_PASSWORD:-}" ]; then
   [ -f "$PHASE5_ROMM_SECRET" ] || die "missing $PHASE5_ROMM_SECRET"
-  step "Decrypt RomM Secret in a temp dir to read MARIADB_PASSWORD"
+  step "Decrypt RomM Secret in a temp dir to read DB_PASSWD"
   sops --decrypt --output-type json "$PHASE5_ROMM_SECRET" \
-    | jq -r '.stringData.MARIADB_PASSWORD // empty' >"$tmpdir/ROMM_DB_PASSWORD"
-  [ -s "$tmpdir/ROMM_DB_PASSWORD" ] || die "could not read MARIADB_PASSWORD from RomM Secret"
+    | jq -r '.stringData.DB_PASSWD // empty' >"$tmpdir/ROMM_DB_PASSWORD"
+  [ -s "$tmpdir/ROMM_DB_PASSWORD" ] || die "could not read DB_PASSWD from RomM Secret"
 else
   printf '%s' "$ROMM_DB_PASSWORD" >"$tmpdir/ROMM_DB_PASSWORD"
 fi
