@@ -69,10 +69,12 @@ if [ -z "${ROMM_DB_PASSWORD:-}" ]; then
   [ -f "$PHASE5_ROMM_SECRET" ] || die "missing $PHASE5_ROMM_SECRET"
   step "Decrypt RomM Secret in a temp dir to read MARIADB_PASSWORD"
   sops --decrypt --output-type json "$PHASE5_ROMM_SECRET" >"$tmpdir/romm.json"
-  romm_secret_value MARIADB_PASSWORD >"$tmpdir/ROMM_DB_PASSWORD"
+  ROMM_DB_PASSWORD="$(romm_secret_value MARIADB_PASSWORD)"
+  printf '%s' "$ROMM_DB_PASSWORD" >"$tmpdir/ROMM_DB_PASSWORD"
   [ -s "$tmpdir/ROMM_DB_PASSWORD" ] || die "could not read MARIADB_PASSWORD from RomM Secret"
 
-  romm_secret_value DB_PASSWD >"$tmpdir/DB_PASSWD"
+  ROMM_APP_DB_PASSWORD="$(romm_secret_value DB_PASSWD)"
+  printf '%s' "$ROMM_APP_DB_PASSWORD" >"$tmpdir/DB_PASSWD"
   if [ -s "$tmpdir/DB_PASSWD" ] && ! cmp -s "$tmpdir/DB_PASSWD" "$tmpdir/ROMM_DB_PASSWORD"; then
     warn "RomM DB_PASSWD and MARIADB_PASSWORD differ; the backup dump uses MARIADB_PASSWORD"
   fi
