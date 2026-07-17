@@ -41,21 +41,54 @@ data:
 
     dump_sqlite() {
       log "creating SQLite hot backups from /data/opt"
-      local db rel out escaped count
+      local db rel out escaped count err
       count=0
       while IFS= read -r -d '' db; do
-        if sqlite3 -readonly "$db" 'PRAGMA quick_check;' >/dev/null 2>&1; then
-          rel="${db#/data/opt/}"
-          out="$SQLITE_DUMPS/${rel}.sqlite-backup"
-          mkdir -p "$(dirname "$out")"
-          escaped="${out//\'/\'\'}"
-          sqlite3 -readonly "$db" ".backup '$escaped'"
-          count=$((count + 1))
+        err="$WORK_DIR/sqlite-error"
+        rel="${db#/data/opt/}"
+        out="$SQLITE_DUMPS/${rel}.sqlite-backup"
+        mkdir -p "$(dirname "$out")"
+        escaped="${out//\'/\'\'}"
+        if sqlite3 -readonly "$db" ".backup '$escaped'" 2>"$err"; then
+          if sqlite_backup_health_check "$db" "$out" "$err"; then
+            count=$((count + 1))
+          else
+            rm -f "$out"
+            log "skipping SQLite backup that failed validation: $db: $(sqlite_error_summary "$err")"
+          fi
         else
-          log "skipping non-SQLite or unhealthy DB candidate: $db"
+          log "skipping non-SQLite or unhealthy DB candidate: $db: $(sqlite_error_summary "$err")"
         fi
       done < <(find /data/opt -type f -name '*.db' -print0)
       log "created $count SQLite backup file(s)"
+    }
+
+    sqlite_backup_health_check() {
+      local source_db="$1" backup_db="$2" err="$3" result
+      case "$source_db" in
+        /data/opt/plex/config/Library/Application\ Support/Plex\ Media\ Server/Plug-in\ Support/Databases/com.plexapp.plugins.library*.db)
+          # Plex may define a custom FTS tokenizer named "collating". Stock
+          # sqlite3 can still run .backup, but PRAGMA quick_check can fail
+          # while preparing that schema.
+          sqlite3 -readonly "$backup_db" 'PRAGMA schema_version; SELECT count(*) FROM sqlite_master;' >/dev/null 2>"$err"
+          ;;
+        *)
+          result="$(sqlite3 -readonly "$backup_db" 'PRAGMA quick_check;' 2>"$err")" || return 1
+          if [ "$result" != "ok" ]; then
+            printf '%s\n' "$result" >"$err"
+            return 1
+          fi
+          ;;
+      esac
+    }
+
+    sqlite_error_summary() {
+      local err="$1"
+      if [ -s "$err" ]; then
+        head -c 500 "$err" | tr '\n' ' '
+      else
+        printf 'no sqlite error output'
+      fi
     }
 
     trigger_home_assistant_backup() {
