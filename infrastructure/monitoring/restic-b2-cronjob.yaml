@@ -8,7 +8,7 @@ metadata:
 spec:
   schedule: "30 4 * * 0"
   timeZone: America/Chicago
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   failedJobsHistoryLimit: 3
   successfulJobsHistoryLimit: 1

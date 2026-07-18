@@ -18,7 +18,7 @@ Run these after Phase 4 is validated and the NAS has a dedicated backup export a
 | `05-validate-restore.sh` | Check the latest snapshot, RomM dump, HA backup artifact, and a SQLite dump |
 | `06-encrypt-restic-b2-secret.sh` | Generate the independent SOPS-encrypted B2 repository Secret |
 | `07-init-restic-b2-repo.sh` | Reconcile monitoring and initialize the B2 repository idempotently |
-| `08-run-manual-b2-backup.sh` | Run the suspended weekly B2 CronJob manually |
+| `08-run-manual-b2-backup.sh` | Run the weekly B2 CronJob manually |
 | `09-validate-b2-restore.sh` | Restore representative B2 artifacts without the NAS |
 
 ## Secret generation
@@ -92,7 +92,7 @@ Commit the encrypted Secret, reconcile and validate while the CronJob is suspend
 ./runbooks/phase5/09-validate-b2-restore.sh
 ```
 
-Only after all three succeed, change `suspend: true` to `suspend: false` in
+Only after all three succeed, ensure `suspend: false` in
 `infrastructure/monitoring/restic-b2-cronjob.yaml`, commit, and reconcile monitoring.
 The offsite schedule is Sunday at 04:30 America/Chicago, with 8 weekly and 12 monthly
 snapshots and no daily tier.

@@ -67,7 +67,7 @@ assert_phase5_backup_invariants() {
   yq -e 'select(.kind == "CronJob" and .metadata.name == "restic-b2-backup") |
     .spec.schedule == "30 4 * * 0" and
     .spec.timeZone == "America/Chicago" and
-    .spec.suspend == true and
+    .spec.suspend == false and
     .spec.concurrencyPolicy == "Forbid" and
     .spec.jobTemplate.spec.backoffLimit == 0 and
     .spec.jobTemplate.spec.activeDeadlineSeconds == 21600 and

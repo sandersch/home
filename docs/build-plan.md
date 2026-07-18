@@ -641,8 +641,8 @@ configuration seeding.
 - **Restic CronJobs** for backups — the implementation under
   `infrastructure/monitoring` and `runbooks/phase5` has nightly NAS-local `/opt`
   backups to `/mnt/backups/opt` plus an independent weekly Backblaze B2 repository.
-  The B2 CronJob is committed suspended until its first manual backup and NAS-free
-  restore drill pass. Design and operating notes are in
+  The first B2 backup, repository check, and NAS-free restore drill passed on
+  2026-07-18, and the weekly CronJob is enabled. Design and operating notes are in
   [operations.md](./operations.md#backups).
 - **Immich (later)** — coordinate the initial import during a quiet window and watch
   memory (its ML container is the one big consumer). Originals on NAS; thumbs/ML on

@@ -6,13 +6,12 @@ Committed now:
 
 - `monitoring` namespace.
 - Restic NAS backup CronJob for `/opt` app state.
-- Suspended weekly Backblaze B2 CronJob for the independent offsite repository.
+- Enabled weekly Backblaze B2 CronJob for the independent offsite repository.
 - Backup script ConfigMap with SQLite, Home Assistant, and RomM hot-backup steps.
 
-The B2 CronJob remains suspended until its encrypted Secret has been generated and the
-manual backup/restore validation in `runbooks/phase5` passes. The generator adds
-`restic-b2.sops.yaml` to this kustomization; it is intentionally absent until real B2
-credentials are supplied.
+The B2 repository initialization, manual backup, repository check, and NAS-independent
+restore validation passed on 2026-07-18. Its encrypted Secret is included and the
+weekly CronJob is enabled.
 
 Still planned: kube-prometheus-stack, Loki, nut-exporter, ntfy, alert rules, and
 backup/health dashboards.
