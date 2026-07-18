@@ -10,14 +10,16 @@ The repo is operated alongside an AI coding session on a laptop, connected over 
 
 ## Current status
 
-**Active build.** The repo is no longer planning-only: most of Phases 0-4 of the
-[build plan](./docs/build-plan.md) are implemented or scaffolded. Host-level Phase
-0-1 config lives under [`host/minis/etc`](./host/minis/etc), executable runbooks cover
-Phases 0, 1, 2, 3, 3.5, and most of 4, Flux bootstrap output exists under
+**Active build.** The repo is no longer planning-only: Phases 0-4 of the
+[build plan](./docs/build-plan.md) are largely implemented. Host-level Phase 0-1
+config lives under [`host/minis/etc`](./host/minis/etc), executable runbooks cover
+Phases 0-5, Flux bootstrap output exists under
 [`clusters/minis/flux-system`](./clusters/minis/flux-system), infrastructure
-controllers/configs are committed, and the core media plus Frigate app manifests are
-present. Treat remaining work as validation/cutover and filling the known app gaps,
-not as a greenfield scaffold.
+controllers/configs are committed, and manifests exist for the media stack, Frigate,
+Home Assistant, and MQTT. Core media and Frigate live validation has passed; both
+Restic backup repositories have also passed backup/restore drills. Treat remaining
+work as Home Assistant integration closeout, Frigate tuning, observability/alerting,
+and deferred apps—not as a greenfield scaffold.
 
 ## Hardware (summary)
 
@@ -62,7 +64,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   ├── network.md
 │   ├── migration-runbook.md
 │   └── operations.md
-├── runbooks/                  # executable host/app runbooks for Phases 0–4
+├── runbooks/                  # executable host/app/backup runbooks for Phases 0–5
 ├── host/                      # canonical host config for the manual phases (0–1);
 │   └── minis/                 #   one subdirectory per host (minis = the MS-01)
 │       ├── README.md          #   files under etc/ mirror on-disk paths. NOT cluster-
@@ -87,12 +89,13 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
     ├── media/                 # namespace + Plex, download pod (gluetun+
     │                          #   sabnzbd+*arr), seerr, romm
     ├── frigate/
-    └── home-assistant/
+    ├── home-assistant/
+    └── mqtt/                  # internal Mosquitto broker for HA/Frigate
 ```
 
 ## Conventions
 
-- **One namespace per concern**: `media`, `frigate`, `home-assistant`, plus the infra namespaces (`flux-system`, `metallb-system`, `cert-manager`, `ingress-nginx`, `tailscale`, `monitoring`). Cross-pod calls use cluster DNS, e.g. `http://gluetun.media.svc.cluster.local:7878` (Seerr → Radarr). The download stack (SABnzbd + *arr) shares the Gluetun pod's network namespace and talks over `localhost:<port>`.
+- **One namespace per concern**: `media`, `frigate`, `home-assistant`, `mqtt`, plus the infra namespaces (`flux-system`, `metallb-system`, `cert-manager`, `ingress-nginx`, `tailscale`, `monitoring`). Cross-pod calls use cluster DNS, e.g. `http://gluetun.media.svc.cluster.local:7878` (Seerr → Radarr). The download stack (SABnzbd + *arr) shares the Gluetun pod's network namespace and talks over `localhost:<port>`.
 - **Every workload pod sets resource `requests`/`limits` and a `priorityClassName`.** Tiers and exact values are in [architecture.md → Resource allocation](./docs/architecture.md#resource-allocation). Frigate and Home Assistant are `homelab-critical` (non-evictable); most else is `homelab-standard`; backups are best-effort.
 - **App state uses the `local-nvme` StorageClass** via a per-app PV + PVC pointing at `/opt/<app>/...`. The PV is a `hostPath` volume with `type: DirectoryOrCreate`, so the kubelet creates the directory on first mount and adding storage for a new app is a pure git change (no SSH). **Scratch data uses the `topolvm-scratch` StorageClass** instead — a PVC alone dynamically provisions an enforced, resizable ext4 LV from VG free space (no PV manifest). Pattern in [build-plan.md → Storage pattern](./docs/build-plan.md#storage-pattern).
 - **Secrets are SOPS-encrypted before commit**, always. The repo is private, but treat encryption as mandatory anyway — private is a safety net, not a license to commit plaintext, and the repo may be selectively shared later. `data`/`stringData` fields are encrypted via `.sops.yaml`. Encrypt with `sops --encrypt --in-place path/to/secret.yaml`. The only secret that lives outside git is the `sops-age` key itself (in-cluster + backed up to a password manager).

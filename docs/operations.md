@@ -90,9 +90,11 @@ fails with MariaDB error 1045, rerun
 
 ## Monitoring & alerting
 
-Stack: **kube-prometheus-stack** (Prometheus + Grafana + Alertmanager) + **Loki/Promtail**
-for logs + **nut-exporter** for UPS metrics. Alerts route to **ntfy** (self-hosted)
-for phone push.
+Stack: **kube-prometheus-stack** (Prometheus + Grafana + Alertmanager) + **Loki with
+Grafana Alloy** for log collection + **nut-exporter** for UPS metrics. Alerts route to
+**ntfy** (self-hosted) for phone push. Promtail is not part of the target: it reached
+[end of life in March 2026](https://grafana.com/docs/loki/latest/send-data/promtail/)
+and its functionality moved to Grafana Alloy.
 
 ### Alerts to define
 
@@ -172,10 +174,11 @@ Deferred deliberately; revisit when the trigger condition is met.
 | **Tailscale Funnel for Plex** | If sharing with non-Tailnet users / casting to uncontrolled client devices becomes a real need. Cleaner than Plex native remote access. |
 | **Immich** | When ready — coordinate the initial import in a quiet window, watch memory. Originals on NAS, thumbs/ML on `/opt/immich`. |
 
-> **Camera switch isolation (Catalyst 3850)** was previously listed here as a deferred
-> TODO. It is now a **Phase 1 blocker** — see [build-plan.md → 1.1b](./build-plan.md#phase-1--networking-isolation-).
-> No camera is connected until the host nftables rules *and* switch protected ports are
-> both in place and verified.
+> **Camera switch isolation (Catalyst 3850)** was previously listed here as deferred
+> work. It became a Phase 1 blocker and was satisfied before the deployed camera went
+> live: protected ports and the host nftables path were verified during Phase 4. Repeat
+> the camera-specific isolation checks whenever another camera is provisioned; see
+> [build-plan.md → 1.1b](./build-plan.md#phase-1--networking-isolation-).
 
 Accepted constraints (not gaps): no staging environment (changes go to the one
 cluster — mitigated by btrfs snapshots + `flux suspend`); cert renewal depends on the

@@ -18,11 +18,11 @@ manifests:
 | Phase | Repo status | Remaining work |
 |---|---|---|
 | 0 — OS baseline | Host config and runbooks are present under `host/minis/` and `runbooks/phase0/`. | Manual BIOS/installer choices, router wildcard DNS, and any live-host revalidation after changes. |
-| 1 — networking isolation | Host nftables, dnsmasq, chrony, sysctl config, Catalyst checklist, and validation runbooks are present. | Real camera MAC reservations, final camera-segment validation, and keeping Catalyst/live config in sync. |
+| 1 — networking isolation | Host nftables, dnsmasq, chrony, sysctl config, Catalyst checklist, and validation runbooks are present. Host forwarding isolation, DHCP-only dnsmasq, and the deployed camera path were live-validated during Phase 4; the Amcrest camera is pinned at `192.168.105.50`. | Add a reservation and repeat the camera-specific checks whenever another camera is provisioned; keep Catalyst/live config in sync. |
 | 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. | Live bootstrap health checks when rebuilding or changing credentials. |
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
-| 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. The download stack, Plex, Seerr, RomM, and Frigate are validated on the live cluster, including the Frigate Coral detector and Intel QSV path. | Validate and finish setup for Home Assistant and MQTT; tune Frigate cameras. |
+| 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. The download stack, Plex, Seerr, RomM, and Frigate are validated on the live cluster, including the Frigate Coral detector and Intel QSV path. Home Assistant is deployed and its API-managed backup/restore path has passed. | Complete and validate Home Assistant's MQTT/Frigate application integrations; tune Frigate cameras. |
 | 5 — observability + expansion | NAS and B2 backups are implemented and live-validated: the Restic image is published, both repositories and encrypted Secrets are configured, the independent CronJobs are enabled, and backup/restore drills have passed. | Add monitoring, alerting, and deferred apps. Confirm the first naturally scheduled weekly B2 run after enablement. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
@@ -312,17 +312,16 @@ dhcp-option=option:ntp-server,192.168.105.1
 ⚑ Confirm a DHCP client receives a lease in range. Real cameras aren't connected yet at
 this stage (that's gated on the switch isolation in 1.1b), so validate with a **test
 laptop** plugged into the camera segment — it should get a `192.168.105.100–.199` lease, the
-host (`.1`) as NTP server, and **no** default route or DNS server.
+host (`.1`) as both its advertised gateway and NTP server, and **no DNS server**. The
+gateway is present for camera firmware compatibility; the nftables forward chain must
+still prevent that route from reaching the LAN or internet.
 
-> **TODO — pin every camera before Frigate (4c).** The "stable leases" Frigate relies
-> on are only guaranteed by `dhcp-host` MAC reservations; plain dynamic leases can
-> reshuffle across a lease-DB loss or long outage and break Frigate's IP-addressed
-> camera config. This is **blocked on finishing the switch port-isolation config (1.1b)
-> first** — cameras aren't connected until that's done, and their MACs aren't known
-> until they are. Once isolated and connected: collect each camera's MAC, add a
-> `dhcp-host=<mac>,192.168.105.<n>` line here (in the `.50-.99` static block), restart
-> dnsmasq, and confirm each camera holds its reserved IP across a restart. Promote this
-> to a validation-gate item gating 4c.
+> **Required for every camera before adding it to Frigate (4c).** Stable leases require
+> explicit `dhcp-host` MAC reservations; plain dynamic leases can reshuffle after a
+> lease-DB loss or long outage. The deployed Amcrest is pinned at `.50`. For each
+> additional camera, collect its MAC during provisioning, add a reservation in the
+> `.50-.99` static block, restart dnsmasq, and confirm the camera holds its reserved IP
+> before adding that address to `apps/frigate/config.yml`.
 
 **1.3 Camera NTP (chrony).** Cameras have no internet, so they need a local time source
 or their clocks drift and recording timestamps/event correlation in Frigate go wrong.
@@ -632,21 +631,21 @@ RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery; plus any
 Zigbee/Z-Wave USB stick via hostPath, like the Coral).
 
 Current repo state: Seerr and RomM manifests are committed under `apps/media/`; Home
-Assistant manifests are committed under `apps/home-assistant/` as a fresh install with
-host networking, local-NVMe config storage, ingress, and first-boot reverse-proxy
-configuration seeding.
+Assistant manifests are committed under `apps/home-assistant/` with host networking,
+local-NVMe config storage, ingress, and first-boot reverse-proxy configuration seeding.
 
 Status: Seerr and RomM live validation passed on 2026-07-18. Seerr is connected to
 Plex and the download stack; RomM's local state, MariaDB sidecar, service path, and
-NAS-backed library are operational. Home Assistant still needs its remaining
-application setup and validation.
+NAS-backed library are operational. Home Assistant is deployed, and its authenticated
+API-managed backup plus representative restore validation passed as part of Phase 5.
+Its remaining Phase 4 work is application-level MQTT/Frigate integration and validation.
 
 ---
 
 ## Phase 5 — observability + expansion 📦
 
 - **kube-prometheus-stack** (Prometheus + Grafana + Alertmanager) via HelmRelease.
-- **Loki + Promtail** for logs; **nut-exporter** for UPS metrics; **ntfy** pod for
+- **Loki + Grafana Alloy** for logs; **nut-exporter** for UPS metrics; **ntfy** pod for
   push alerts. Alert definitions and routing in
   [operations.md](./operations.md#monitoring--alerting).
 - **Restic CronJobs** for backups — the implementation under

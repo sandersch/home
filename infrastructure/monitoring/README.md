@@ -13,5 +13,5 @@ The B2 repository initialization, manual backup, repository check, and NAS-indep
 restore validation passed on 2026-07-18. Its encrypted Secret is included and the
 weekly CronJob is enabled.
 
-Still planned: kube-prometheus-stack, Loki, nut-exporter, ntfy, alert rules, and
-backup/health dashboards.
+Still planned: kube-prometheus-stack, Loki with Grafana Alloy for log collection,
+nut-exporter, ntfy, alert rules, and backup/health dashboards.

@@ -1,6 +1,8 @@
 # Home Assistant
 
-Fresh Home Assistant deployment for Phase 4.
+Home Assistant deployment for Phase 4. It began as a fresh install; the deployment and
+authenticated API-managed backup/restore path are operational. MQTT and Frigate
+application integration still require final validation.
 
 - `hostNetwork: true` keeps LAN discovery paths such as mDNS/Zeroconf available.
 - State lives on local NVMe at `/opt/home-assistant/config`.

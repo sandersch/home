@@ -172,5 +172,7 @@ needed, and add Frigate with URL `http://frigate.frigate.svc.cluster.local:8971`
   through `/dev/dri/renderD128`. `intel_gpu_top` on the host also confirmed
   hardware-accelerated ffmpeg activity.
 
-Remaining Phase 4 work is Home Assistant and MQTT application setup and validation,
-plus Frigate camera tuning (motion masks, zones, object filters, and retention).
+Home Assistant is deployed and its authenticated API-managed backup/restore path has
+passed Phase 5 validation. Remaining Phase 4 work is completing and validating the
+Home Assistant MQTT/Frigate application integrations, plus Frigate camera tuning
+(motion masks, zones, object filters, and retention).

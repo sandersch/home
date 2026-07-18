@@ -47,9 +47,9 @@ Run the host-side scripts in numeric order, or run `./run-all.sh` for steps 00-0
   with a camera-segment test device using manual gateway `192.168.105.1`; blocked
   packets should produce `cam-drop-fwd-*` kernel logs.
 - Real cameras should not be connected until Catalyst protected-port isolation passes.
-- The committed dnsmasq config intentionally has no `dhcp-host` camera reservations yet.
-  Add reservations in the static `.50-.99` block once camera MACs are known, before
-  Frigate is deployed.
+- The committed dnsmasq config pins the deployed Amcrest camera at `.50`. Add one
+  reservation in the `.50-.99` static block for every additional camera before adding
+  it to Frigate; the dynamic pool remains `.100-.199` for discovery/provisioning.
 - Camera UI access from the LAN should be via SSH port forward through `minis`, not by
   opening routed access to VLAN 105.
 

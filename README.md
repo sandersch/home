@@ -12,9 +12,12 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 - **Platform:** Ubuntu 24.04 LTS · k3s · Flux CD · MetalLB · ingress-nginx · cert-manager
 - **Access:** LAN + Tailnet only (nothing public) · `*.worm.run` via router wildcard DNS
 - **Current workload manifests:** Plex (Quick Sync), Frigate (Coral),
-  Radarr/Sonarr/Prowlarr/SABnzbd/qBittorrent behind Mullvad/Gluetun, Seerr, RomM
-- **Still planned:** Prometheus/Grafana/Alertmanager, Loki, ntfy push alerts,
-  Backblaze B2 backup copy, and deferred apps
+  Radarr/Sonarr/Prowlarr/SABnzbd/qBittorrent behind Mullvad/Gluetun, Seerr, RomM,
+  Home Assistant, and Mosquitto
+- **Backups:** nightly NAS Restic plus an independent weekly Backblaze B2 copy;
+  manual backup/restore validation has passed for both repositories
+- **Still planned:** Prometheus/Grafana/Alertmanager, Loki with Grafana Alloy,
+  ntfy push alerts, and deferred apps
 
 ## Layout
 

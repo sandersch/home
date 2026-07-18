@@ -91,9 +91,10 @@ to describe the real rebuild path.
 daemon (`timedatectl` / `chronyc sources`) before relying on this file. The config has
 **no `bindaddress`** by design — see the comment in the file and build-plan.md 1.3.
 
-**Phase 1.2 (dnsmasq):** the committed file has no `dhcp-host` MAC pins yet — those are
-blocked on the switch port-isolation (1.1b) and collecting camera MACs, and are required
-before Frigate (4c). Add them here as cameras are provisioned. See the TODO in the file.
+**Phase 1.2 (dnsmasq):** the committed file pins the deployed Amcrest camera at
+`192.168.105.50`. Add another `dhcp-host` entry in the static `.50-.99` block whenever
+a camera is provisioned, and repeat the lease-stability and isolation checks before
+adding that camera to Frigate.
 
 ## Keeping these in sync
 
