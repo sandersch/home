@@ -85,6 +85,12 @@ assert_phase5_backup_invariants() {
     || die "shared Restic backup script does not apply the selected target tag"
   grep -Fq -- "\"\${retention_args[@]}\"" "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "shared Restic backup script does not build retention arguments dynamically"
+  if grep -Fq -- "-newer \"\$HA_MARKER\"" "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml"; then
+    die "shared Restic backup script still uses timestamp-based Home Assistant artifact detection"
+  fi
+  grep -Fq -- "home_assistant_backup_set_has_new_file \"\$HA_BACKUPS_BEFORE\" \"\$HA_BACKUPS_AFTER\"" \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not compare Home Assistant backup filename sets"
   ok "NAS and B2 backup invariants are intact"
 }
 

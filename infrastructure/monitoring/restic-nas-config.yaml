@@ -36,7 +36,8 @@ data:
     HOT_DUMPS="$WORK_DIR/hot-dumps"
     SQLITE_DUMPS="$HOT_DUMPS/sqlite"
     ROMM_DUMPS="$HOT_DUMPS/romm"
-    HA_MARKER="$WORK_DIR/home-assistant-backup-marker"
+    HA_BACKUPS_BEFORE="$WORK_DIR/home-assistant-backups-before"
+    HA_BACKUPS_AFTER="$WORK_DIR/home-assistant-backups-after"
     mkdir -p "$SQLITE_DUMPS" "$ROMM_DUMPS" "$WORK_DIR/restic-cache"
     export RESTIC_CACHE_DIR="$WORK_DIR/restic-cache"
 
@@ -94,7 +95,8 @@ data:
 
     trigger_home_assistant_backup() {
       log "triggering Home Assistant managed backup"
-      touch "$HA_MARKER"
+      local backup_dir="/data/opt/home-assistant/config/backups"
+      snapshot_home_assistant_backups "$backup_dir" "$HA_BACKUPS_BEFORE"
       local response_file="/tmp/home-assistant-backup-response.json"
       local status
       status="$(curl -sS \
@@ -111,15 +113,35 @@ data:
         return 1
       fi
 
-      local backup_dir="/data/opt/home-assistant/config/backups"
       for _ in $(seq 1 60); do
-        if [ -d "$backup_dir" ] && find "$backup_dir" -maxdepth 1 -type f -newer "$HA_MARKER" | grep -q .; then
+        snapshot_home_assistant_backups "$backup_dir" "$HA_BACKUPS_AFTER"
+        if home_assistant_backup_set_has_new_file "$HA_BACKUPS_BEFORE" "$HA_BACKUPS_AFTER"; then
           log "Home Assistant backup artifact appeared"
           return 0
         fi
         sleep 10
       done
       die "Home Assistant backup did not produce a new artifact within 10 minutes"
+    }
+
+    snapshot_home_assistant_backups() {
+      local backup_dir="$1" output="$2"
+      : >"$output"
+      if [ -d "$backup_dir" ]; then
+        find "$backup_dir" -maxdepth 1 -type f -print >"$output"
+      fi
+    }
+
+    home_assistant_backup_set_has_new_file() {
+      local before="$1" after="$2"
+      # Compare names instead of mtimes. BusyBox find compares -newer at
+      # whole-second precision and can miss an archive created in the same
+      # second as a timestamp marker.
+      awk '
+        FILENAME == ARGV[1] { before[$0] = 1; next }
+        !($0 in before) { found = 1 }
+        END { exit(found ? 0 : 1) }
+      ' "$before" "$after"
     }
 
     dump_romm() {
