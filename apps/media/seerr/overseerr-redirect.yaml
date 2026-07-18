@@ -4,7 +4,7 @@ metadata:
   name: overseerr-redirect
   namespace: media
   annotations:
-    nginx.ingress.kubernetes.io/permanent-redirect: https://seerr.worm.run$request_uri
+    nginx.ingress.kubernetes.io/permanent-redirect: https://seerr.worm.run
     nginx.ingress.kubernetes.io/permanent-redirect-code: "308"
 spec:
   ingressClassName: nginx
