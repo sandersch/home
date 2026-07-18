@@ -6,6 +6,9 @@ stack, Seerr, and RomM.
 Stateful app config should use `local-nvme`; high-write scratch data should use
 `topolvm-scratch`.
 
+Live validation passed for the download stack, Plex, and RomM on 2026-07-18. Seerr
+still needs its application setup and validation.
+
 ## Download stack
 
 The first Phase 4 workload is `download-stack`: one pod containing Gluetun, SABnzbd,

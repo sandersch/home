@@ -154,9 +154,20 @@ Then open Home Assistant, add the MQTT integration with broker
 `mosquitto.mqtt.svc.cluster.local:1883`, install the Frigate integration from HACS if
 needed, and add Frigate with URL `http://frigate.frigate.svc.cluster.local:8971`.
 
-Status: validated on 2026-06-30 local time. `09-validate-frigate.sh` completed
-successfully, `amcrest_105_50` is live, Frigate logs show the Coral USB detector
-loaded (`TPU found`), `/api/stats` reports active Coral inference, and ffmpeg is using
-Intel QSV through `/dev/dri/renderD128`. `intel_gpu_top` on the host also confirmed
-hardware-accelerated ffmpeg activity. Remaining Frigate work is camera tuning: motion
-masks, zones, object filters, and retention.
+## Validation status
+
+- Download stack: validated on 2026-07-18. The VPN egress and download/import
+  workflow are operational.
+- Plex: validated on 2026-07-18. The migrated server and library are intact, and
+  Quick Sync transcoding is operational.
+- RomM: validated on 2026-07-18. The application, MariaDB sidecar, service path,
+  local state, and NAS-backed library are operational.
+- Frigate: validated on 2026-06-30. `09-validate-frigate.sh` completed successfully,
+  `amcrest_105_50` is live, Frigate logs show the Coral USB detector loaded (`TPU
+  found`), `/api/stats` reports active Coral inference, and ffmpeg is using Intel QSV
+  through `/dev/dri/renderD128`. `intel_gpu_top` on the host also confirmed
+  hardware-accelerated ffmpeg activity.
+
+Remaining Phase 4 work is Seerr, Home Assistant, and MQTT application setup and
+validation, plus Frigate camera tuning (motion masks, zones, object filters, and
+retention).

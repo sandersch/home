@@ -22,7 +22,7 @@ manifests:
 | 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. | Live bootstrap health checks when rebuilding or changing credentials. |
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
-| 4 — core workloads | Download stack, Plex, Seerr, RomM, and Frigate manifests plus validation/secret helper runbooks are present. Frigate's first camera, Coral detector, and Intel QSV path are validated on the live cluster. | Remaining workload validation/app setup, Frigate camera tuning, and Home Assistant manifests. |
+| 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. The download stack, Plex, RomM, and Frigate are validated on the live cluster, including the Frigate Coral detector and Intel QSV path. | Validate and finish setup for Seerr, Home Assistant, and MQTT; tune Frigate cameras. |
 | 5 — observability + expansion | NAS and B2 backups are implemented and live-validated: the Restic image is published, both repositories and encrypted Secrets are configured, the independent CronJobs are enabled, and backup/restore drills have passed. | Add monitoring, alerting, and deferred apps. Confirm the first naturally scheduled weekly B2 run after enablement. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
@@ -594,6 +594,9 @@ pod uses the Gluetun Service. ⚑ Confirm the egress IP from inside the pod equa
 VPN exit IP before configuring indexers/downloads, then validate *arr history and
 test download flows. Pattern below.
 
+Status: live validation passed on 2026-07-18. The VPN-protected download stack and
+its download/import workflow are operational.
+
 Then, in parallel once VPN is validated:
 
 **4b — Plex** (standard/burstable). Quick Sync is exposed through Intel's GPU device
@@ -602,6 +605,9 @@ host compatibility, but do not mount `/dev/dri` directly. Media is mounted from
 `/mnt/media` (NFS mounted on host by fstab in Phase 0.4); metadata lives under
 `/opt/plex`. ⚑ Confirm the migrated library/metadata is intact, then run a 1080p
 transcode and confirm GPU use with `intel_gpu_top` on the host.
+
+Status: live validation passed on 2026-07-18. The migrated Plex server, media
+library, and Quick Sync transcoding path are operational.
 
 **4c — Frigate** (critical/non-evictable). `hostNetwork: true` so RTSP connections to
 cameras originate from the host (source IP `192.168.105.1`) without passing through the
@@ -629,6 +635,10 @@ Current repo state: Seerr and RomM manifests are committed under `apps/media/`; 
 Assistant manifests are committed under `apps/home-assistant/` as a fresh install with
 host networking, local-NVMe config storage, ingress, and first-boot reverse-proxy
 configuration seeding.
+
+Status: RomM live validation passed on 2026-07-18, including its local state,
+MariaDB sidecar, service path, and NAS-backed library. Seerr and Home Assistant still
+need their remaining application setup and validation.
 
 ---
 
