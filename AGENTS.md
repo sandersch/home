@@ -16,10 +16,10 @@ config lives under [`host/minis/etc`](./host/minis/etc), executable runbooks cov
 Phases 0-5, Flux bootstrap output exists under
 [`clusters/minis/flux-system`](./clusters/minis/flux-system), infrastructure
 controllers/configs are committed, and manifests exist for the media stack, Frigate,
-Home Assistant, and MQTT. Core media and Frigate live validation has passed; both
-Restic backup repositories have also passed backup/restore drills. Treat remaining
-work as Home Assistant integration closeout, Frigate tuning, observability/alerting,
-and deferred apps—not as a greenfield scaffold.
+Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
+integration have passed live validation; both Restic backup repositories have also
+passed backup/restore drills. Treat remaining work as Frigate tuning,
+observability/alerting, and deferred apps—not as a greenfield scaffold.
 
 ## Hardware (summary)
 

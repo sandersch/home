@@ -146,15 +146,35 @@ config, and in-cluster service path:
 Then open `https://home-assistant.worm.run`, complete onboarding, and add LAN
 integrations.
 
-For MQTT and the Frigate/Home Assistant connection, validate the broker:
+For MQTT and the Frigate/Home Assistant connection, first confirm a current Home
+Assistant backup and take the normal `/opt` btrfs snapshot. Then:
+
+1. Decrypt `apps/mqtt/mosquitto-auth.sops.yaml` locally with `sops` and use the
+   Home Assistant-specific account to add the MQTT integration. Values under Secret
+   `data` remain base64-encoded after SOPS decryption, so decode each exactly once.
+   Set the broker to `mosquitto.mqtt.svc.cluster.local:1883`, use TCP without TLS,
+   and leave discovery enabled. Do not store the plaintext values in the repo.
+2. Install HACS using its Home Assistant Container procedure, restart Home Assistant,
+   and complete the HACS GitHub device authorization.
+3. Install the Frigate integration from HACS, restart Home Assistant, and add Frigate
+   with URL `https://frigate.worm.run` and the existing Frigate login.
+4. Run the automated final-state validation:
 
 ```bash
 ./runbooks/phase4/12-validate-mqtt.sh
 ```
 
-Then open Home Assistant, add the MQTT integration with broker
-`mosquitto.mqtt.svc.cluster.local:1883`, install the Frigate integration from HACS if
-needed, and add Frigate with URL `http://frigate.frigate.svc.cluster.local:8971`.
+The validator creates and removes a short-lived MQTT client pod. It checks credential
+parity without printing values, authenticated publish/subscribe, anonymous and bad
+password rejection, retained Frigate availability, HA integration presence, and the
+Frigate HTTPS path. Finally, listen to `frigate/#` in Home Assistant and trigger a
+person event on `amcrest_105_50`; confirm a current `frigate/events` message and the
+matching Home Assistant entity update.
+
+Do not rerun `11-encrypt-mqtt-secrets.sh` during ordinary setup. If credentials are
+intentionally rotated, reconcile the encrypted Secrets, restart Mosquitto and Frigate
+in a controlled sequence, and update the Home Assistant broker login. Secret changes
+alone do not roll either Deployment.
 
 ## Validation status
 
@@ -172,7 +192,11 @@ needed, and add Frigate with URL `http://frigate.frigate.svc.cluster.local:8971`
   through `/dev/dri/renderD128`. `intel_gpu_top` on the host also confirmed
   hardware-accelerated ffmpeg activity.
 
-Home Assistant is deployed and its authenticated API-managed backup/restore path has
-passed Phase 5 validation. Remaining Phase 4 work is completing and validating the
-Home Assistant MQTT/Frigate application integrations, plus Frigate camera tuning
-(motion masks, zones, object filters, and retention).
+- Home Assistant, MQTT, and the HACS Frigate integration: validated on 2026-07-18.
+  Authenticated publish/subscribe, anonymous and bad-password rejection, retained
+  Frigate availability, HA entity registration, HTTPS API reachability, and a real
+  `amcrest_105_50` person event with matching occupancy changes all passed. HA's
+  authenticated API-managed backup/restore path had already passed Phase 5 validation.
+
+Remaining Phase 4 work is Frigate camera tuning (motion masks, zones, object filters,
+and retention).
