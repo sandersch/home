@@ -6,6 +6,7 @@ metadata:
 data:
   RESTIC_REPOSITORY: /repo/nas/opt
   RESTIC_HOST: minis
+  RESTIC_TARGET_TAG: nas
   RESTIC_KEEP_DAILY: "14"
   RESTIC_KEEP_WEEKLY: "8"
   RESTIC_KEEP_MONTHLY: "12"
@@ -136,6 +137,14 @@ data:
     }
 
     run_restic() {
+      local target_tag="${RESTIC_TARGET_TAG:-nas}"
+      local -a retention_args=()
+
+      [ -n "${RESTIC_KEEP_DAILY:-}" ] && retention_args+=(--keep-daily "$RESTIC_KEEP_DAILY")
+      [ -n "${RESTIC_KEEP_WEEKLY:-}" ] && retention_args+=(--keep-weekly "$RESTIC_KEEP_WEEKLY")
+      [ -n "${RESTIC_KEEP_MONTHLY:-}" ] && retention_args+=(--keep-monthly "$RESTIC_KEEP_MONTHLY")
+      [ "${#retention_args[@]}" -gt 0 ] || die "at least one Restic retention value is required"
+
       log "checking Restic repository"
       restic snapshots --host "$RESTIC_HOST" >/dev/null
 
@@ -143,17 +152,15 @@ data:
       restic backup \
         --host "$RESTIC_HOST" \
         --tag opt \
-        --tag nas \
+        --tag "$target_tag" \
         /data/opt \
         "$HOT_DUMPS"
 
       log "applying Restic retention policy"
       restic forget \
         --host "$RESTIC_HOST" \
-        --tag opt \
-        --keep-daily "${RESTIC_KEEP_DAILY:-14}" \
-        --keep-weekly "${RESTIC_KEEP_WEEKLY:-8}" \
-        --keep-monthly "${RESTIC_KEEP_MONTHLY:-12}" \
+        --tag "$target_tag" \
+        "${retention_args[@]}" \
         --prune
     }
 

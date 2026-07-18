@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, and Frigate manifests plus validation/secret helper runbooks are present. Frigate's first camera, Coral detector, and Intel QSV path are validated on the live cluster. | Remaining workload validation/app setup, Frigate camera tuning, and Home Assistant manifests. |
-| 5 — observability + expansion | Backup-first manifests and runbooks are present: dedicated `/mnt/backups` NAS export, Restic image, monitoring Flux target, NAS CronJob, and restore validation. | Publish the backup image, generate live secrets, initialize the NAS repo, run the first backup/restore drill, then add B2, monitoring, alerting, and deferred apps. |
+| 5 — observability + expansion | NAS and B2 backup manifests/runbooks are present: dedicated `/mnt/backups` NAS export, Restic image, monitoring Flux target, independent CronJobs, and restore validation. | Publish the backup image; finish live NAS validation; provision B2, generate its encrypted Secret, run the offsite backup/restore drill, and then unsuspend the weekly job; add monitoring, alerting, and deferred apps. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
 phase validation scripts and gate below before declaring a phase complete.
@@ -638,10 +638,12 @@ configuration seeding.
 - **Loki + Promtail** for logs; **nut-exporter** for UPS metrics; **ntfy** pod for
   push alerts. Alert definitions and routing in
   [operations.md](./operations.md#monitoring--alerting).
-- **Restic CronJob** for backups — backup-first implementation is committed under
-  `infrastructure/monitoring` and `runbooks/phase5`. It starts with nightly NAS-local
-  `/opt` backups to `/mnt/backups/opt`; B2/offsite copy comes after the first restore
-  drill. Design and operating notes in [operations.md](./operations.md#backups).
+- **Restic CronJobs** for backups — the implementation under
+  `infrastructure/monitoring` and `runbooks/phase5` has nightly NAS-local `/opt`
+  backups to `/mnt/backups/opt` plus an independent weekly Backblaze B2 repository.
+  The B2 CronJob is committed suspended until its first manual backup and NAS-free
+  restore drill pass. Design and operating notes are in
+  [operations.md](./operations.md#backups).
 - **Immich (later)** — coordinate the initial import during a quiet window and watch
   memory (its ML container is the one big consumer). Originals on NAS; thumbs/ML on
   `/opt/immich`; benefits from Quick Sync.

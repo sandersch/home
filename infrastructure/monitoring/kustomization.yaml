@@ -5,3 +5,5 @@ resources:
 - restic-nas-config.yaml
 - restic-nas-cronjob.yaml
 - restic-nas.sops.yaml
+- restic-b2-cronjob.yaml
+- restic-b2.sops.yaml

@@ -11,7 +11,7 @@ Three categories of data, three different needs:
 |---|---|---|---|
 | age private key + bootstrap secrets | manual | password manager | once |
 | GitOps repo (all manifests) | git | GitHub | every commit |
-| App state (`/opt`, incl. SQLite DBs) | Restic CronJob | NAS now; Backblaze B2 next | nightly / weekly |
+| App state (`/opt`, incl. SQLite DBs) | independent Restic CronJobs | NAS + Backblaze B2 | nightly + weekly |
 | Frigate recordings | — (not backed up) | NAS is the store | — |
 | Media library | NAS-level (your call) | — | — |
 
@@ -22,19 +22,18 @@ the non-redundant local NVMe**.
 
 ### Restic CronJob (runs in-cluster)
 
-Restic runs as a Kubernetes **CronJob** (chosen over a host systemd timer to keep it
-in git and visible to monitoring). The Phase 5 backup-first implementation mounts
-`/opt` read-only and writes to a dedicated NAS export at `/mnt/backups`, with the
-Restic repository at `/mnt/backups/opt` from the host's point of view
-(`/repo/nas/opt` in the pod). Backblaze B2 is intentionally the next backup phase,
-after the NAS repo and restore drill are proven. B2 was chosen over Cloudflare R2:
-cheaper per-GB storage (~$6/TB vs ~$15/TB), and egress is irrelevant for an
-infrequently-restored backup. Switching providers later is a backend URL change —
-Restic supports B2/S3/R2/Wasabi natively, and rclone covers the rest.
+Restic runs as Kubernetes **CronJobs** (chosen over host systemd timers to keep them in
+git and visible to monitoring). The Phase 5 implementation mounts `/opt` read-only and
+creates independent snapshots in two repositories. The nightly NAS job writes to
+`/mnt/backups/opt` on the host (`/repo/nas/opt` in the pod) and keeps 14 daily, 8
+weekly, and 12 monthly snapshots. The Sunday 04:30 America/Chicago job writes directly
+to Backblaze's S3-compatible API and keeps 8 weekly and 12 monthly snapshots. Both run
+the same SQLite, Home Assistant, and RomM hot-backup workflow, but the B2 job and its
+restore validation have no NAS volume dependency.
 
 ```bash
-restic -r /mnt/backups/opt backup /data/opt   # local copy
-restic -r b2:bucket/opt    backup /data/opt   # future offsite copy
+restic -r /mnt/backups/opt backup /data/opt
+restic -r s3:https://s3.<region>.backblazeb2.com/<bucket>/opt backup /data/opt
 ```
 
 Required hardening on the CronJob so a failure is **loud**, not silently missing:
@@ -45,12 +44,20 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0              # fail fast, no silent retries
-      activeDeadlineSeconds: 3600  # kill a hung run after 1h
+      activeDeadlineSeconds: 3600  # NAS: kill a hung run after 1h; B2 uses 6h
 ```
 Plus the Alertmanager rule on failed jobs once monitoring lands. Credentials
-(`RESTIC_PASSWORD`, `HOME_ASSISTANT_TOKEN`, `ROMM_DB_PASSWORD`, and later B2 keys) are
+(`RESTIC_PASSWORD`, `HOME_ASSISTANT_TOKEN`, `ROMM_DB_PASSWORD`, and B2 S3 keys) are
 SOPS-encrypted Secrets. **`restic init` runs once** per repo before the first backup via
-`runbooks/phase5/03-init-restic-nas-repo.sh`.
+`runbooks/phase5/03-init-restic-nas-repo.sh` and
+`runbooks/phase5/07-init-restic-b2-repo.sh`.
+
+The B2 bucket is private, has default server-side encryption enabled, has Object Lock
+disabled so pruning works, and uses the lifecycle rule that keeps only the latest
+object version. Its non-expiring application key is bucket-scoped Read and Write with
+List All Bucket Names enabled for S3 compatibility. The cluster therefore holds delete
+authority for automatic pruning; hardened offline deletion is deferred. Setup and
+recovery commands are in [`runbooks/phase5/README.md`](../runbooks/phase5/README.md).
 
 ### SQLite hot backups (pre-hook)
 

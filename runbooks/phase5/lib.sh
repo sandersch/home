@@ -11,6 +11,8 @@ PHASE5_MONITORING_DIR="$REPO_ROOT/infrastructure/monitoring"
 # shellcheck disable=SC2034
 PHASE5_RESTIC_SECRET="$PHASE5_MONITORING_DIR/restic-nas.sops.yaml"
 # shellcheck disable=SC2034
+PHASE5_RESTIC_B2_SECRET="$PHASE5_MONITORING_DIR/restic-b2.sops.yaml"
+# shellcheck disable=SC2034
 PHASE5_ROMM_SECRET="$REPO_ROOT/apps/media/romm/romm.sops.yaml"
 # shellcheck disable=SC2034
 PHASE5_BACKUP_MOUNT="/mnt/backups"
@@ -33,11 +35,57 @@ assert_phase5_backup_tree() {
     infrastructure/monitoring/namespace.yaml \
     infrastructure/monitoring/restic-nas-config.yaml \
     infrastructure/monitoring/restic-nas-cronjob.yaml \
+    infrastructure/monitoring/restic-b2-cronjob.yaml \
     containers/restic-backup/Containerfile \
     apps/media/romm/mariadb-service.yaml; do
     [ -f "$REPO_ROOT/$f" ] || die "missing Phase 5 backup file: $f"
   done
   ok "Phase 5 backup tree is present"
+}
+
+assert_phase5_backup_invariants() {
+  local rendered="$1"
+
+  kustomize build "$PHASE5_MONITORING_DIR" >"$rendered"
+  yq -e 'select(.kind == "CronJob" and .metadata.name == "restic-nas-backup") |
+    .spec.schedule == "15 3 * * *" and
+    .spec.timeZone == "America/Chicago" and
+    .spec.suspend != true and
+    .spec.jobTemplate.spec.activeDeadlineSeconds == 3600' "$rendered" >/dev/null \
+    || die "NAS CronJob schedule or deadline changed unexpectedly"
+  yq -e 'select(.kind == "ConfigMap" and .metadata.name == "restic-nas-config") |
+    .data.RESTIC_REPOSITORY == "/repo/nas/opt" and
+    .data.RESTIC_TARGET_TAG == "nas" and
+    .data.RESTIC_KEEP_DAILY == "14" and
+    .data.RESTIC_KEEP_WEEKLY == "8" and
+    .data.RESTIC_KEEP_MONTHLY == "12"' "$rendered" >/dev/null \
+    || die "NAS repository, tag, or retention policy changed unexpectedly"
+  yq -e 'select(.kind == "CronJob" and .metadata.name == "restic-nas-backup") |
+    any(.spec.jobTemplate.spec.template.spec.volumes[];
+      .name == "backups" and .hostPath.path == "/mnt/backups")' "$rendered" >/dev/null \
+    || die "NAS CronJob no longer mounts /mnt/backups"
+  yq -e 'select(.kind == "CronJob" and .metadata.name == "restic-b2-backup") |
+    .spec.schedule == "30 4 * * 0" and
+    .spec.timeZone == "America/Chicago" and
+    .spec.suspend == true and
+    .spec.concurrencyPolicy == "Forbid" and
+    .spec.jobTemplate.spec.backoffLimit == 0 and
+    .spec.jobTemplate.spec.activeDeadlineSeconds == 21600 and
+    ([.spec.jobTemplate.spec.template.spec.volumes[] | select(has("hostPath")) | .hostPath.path] | index("/mnt/backups") | not)' "$rendered" >/dev/null \
+    || die "B2 CronJob schedule, safety settings, or volume independence is incorrect"
+  yq -e 'select(.kind == "CronJob" and .metadata.name == "restic-b2-backup") |
+    (.spec.jobTemplate.spec.template.spec.containers[0].env |
+      from_entries |
+      .RESTIC_TARGET_TAG == "b2" and
+      .RESTIC_KEEP_DAILY == "" and
+      .RESTIC_KEEP_WEEKLY == "8" and
+      .RESTIC_KEEP_MONTHLY == "12")' "$rendered" >/dev/null \
+    || die "B2 target tag or weekly/monthly retention policy is incorrect"
+  grep -Fq -- "--tag \"\$target_tag\"" "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not apply the selected target tag"
+  grep -Fq -- "\"\${retention_args[@]}\"" "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not build retention arguments dynamically"
+  ok "NAS and B2 backup invariants are intact"
 }
 
 assert_phase5_kustomize_builds() {
@@ -59,6 +107,16 @@ assert_phase5_restic_secret_present() {
   grep -q 'restic-nas.sops.yaml' "$PHASE5_MONITORING_DIR/kustomization.yaml" \
     || die "$PHASE5_RESTIC_SECRET is not included in infrastructure/monitoring/kustomization.yaml"
   ok "Restic NAS Secret manifest is SOPS-encrypted and included"
+}
+
+assert_phase5_restic_b2_secret_present() {
+  [ -f "$PHASE5_RESTIC_B2_SECRET" ] \
+    || die "missing $PHASE5_RESTIC_B2_SECRET; run runbooks/phase5/06-encrypt-restic-b2-secret.sh"
+  grep -q '^sops:' "$PHASE5_RESTIC_B2_SECRET" \
+    || die "$PHASE5_RESTIC_B2_SECRET is not SOPS-encrypted"
+  grep -q 'restic-b2.sops.yaml' "$PHASE5_MONITORING_DIR/kustomization.yaml" \
+    || die "$PHASE5_RESTIC_B2_SECRET is not included in infrastructure/monitoring/kustomization.yaml"
+  ok "Restic B2 Secret manifest is SOPS-encrypted and included"
 }
 
 wait_for_job() {
