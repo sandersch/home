@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, and Frigate manifests plus validation/secret helper runbooks are present. Frigate's first camera, Coral detector, and Intel QSV path are validated on the live cluster. | Remaining workload validation/app setup, Frigate camera tuning, and Home Assistant manifests. |
-| 5 — observability + expansion | NAS and B2 backup manifests/runbooks are present: dedicated `/mnt/backups` NAS export, Restic image, monitoring Flux target, independent CronJobs, and restore validation. | Publish the backup image; finish live NAS validation; provision B2, generate its encrypted Secret, run the offsite backup/restore drill, and then unsuspend the weekly job; add monitoring, alerting, and deferred apps. |
+| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated: the Restic image is published, both repositories and encrypted Secrets are configured, the independent CronJobs are enabled, and backup/restore drills have passed. | Add monitoring, alerting, and deferred apps. Confirm the first naturally scheduled weekly B2 run after enablement. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
 phase validation scripts and gate below before declaring a phase complete.

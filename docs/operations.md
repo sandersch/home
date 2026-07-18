@@ -71,7 +71,7 @@ backing up `/opt`.
 | App | Treatment | Notes |
 |---|---|---|
 | Plex | `sqlite3 .backup` of both `library.db` + `library.blobs.db` | precious; days to rebuild; validate with schema reads because Plex can define a custom SQLite tokenizer |
-| Home Assistant | call its **REST API** `homeassistant.backup` (not raw sqlite3) | HA manages its own WAL |
+| Home Assistant | call its **REST API** `backup.create_automatic` (not raw sqlite3) | HA manages its own WAL |
 | Frigate | `sqlite3 .backup` | small; already in `/opt` scope |
 | Radarr/Sonarr/Prowlarr | `sqlite3 .backup` | low-risk but be consistent |
 | Seerr | `sqlite3 .backup` | lightweight; loss = re-sync/rescan |
