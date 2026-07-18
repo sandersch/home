@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: overseerr-redirect
+  namespace: media
+  annotations:
+    nginx.ingress.kubernetes.io/permanent-redirect: https://seerr.worm.run$request_uri
+    nginx.ingress.kubernetes.io/permanent-redirect-code: "308"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - overseerr.worm.run
+  rules:
+    - host: overseerr.worm.run
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: seerr
+                port:
+                  name: http

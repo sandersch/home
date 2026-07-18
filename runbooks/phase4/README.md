@@ -114,7 +114,9 @@ For Seerr, validate the rollout and in-cluster service path:
 ```
 
 Then open `https://seerr.worm.run`, link Plex, and point Radarr/Sonarr at the
-Gluetun Service URLs from the migration runbook.
+Gluetun Service URLs from the migration runbook. The legacy
+`https://overseerr.worm.run` hostname is retained as a permanent redirect to the
+canonical Seerr URL.
 
 For RomM, validate the rollout, local state, database sidecar, service path, and
 NAS-backed library mount:
@@ -160,6 +162,8 @@ needed, and add Frigate with URL `http://frigate.frigate.svc.cluster.local:8971`
   workflow are operational.
 - Plex: validated on 2026-07-18. The migrated server and library are intact, and
   Quick Sync transcoding is operational.
+- Seerr: validated on 2026-07-18. The application, service path, Plex connection,
+  and download-stack integration are operational.
 - RomM: validated on 2026-07-18. The application, MariaDB sidecar, service path,
   local state, and NAS-backed library are operational.
 - Frigate: validated on 2026-06-30. `09-validate-frigate.sh` completed successfully,
@@ -168,6 +172,5 @@ needed, and add Frigate with URL `http://frigate.frigate.svc.cluster.local:8971`
   through `/dev/dri/renderD128`. `intel_gpu_top` on the host also confirmed
   hardware-accelerated ffmpeg activity.
 
-Remaining Phase 4 work is Seerr, Home Assistant, and MQTT application setup and
-validation, plus Frigate camera tuning (motion masks, zones, object filters, and
-retention).
+Remaining Phase 4 work is Home Assistant and MQTT application setup and validation,
+plus Frigate camera tuning (motion masks, zones, object filters, and retention).

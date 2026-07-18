@@ -22,7 +22,7 @@ manifests:
 | 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. | Live bootstrap health checks when rebuilding or changing credentials. |
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
-| 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. The download stack, Plex, RomM, and Frigate are validated on the live cluster, including the Frigate Coral detector and Intel QSV path. | Validate and finish setup for Seerr, Home Assistant, and MQTT; tune Frigate cameras. |
+| 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. The download stack, Plex, Seerr, RomM, and Frigate are validated on the live cluster, including the Frigate Coral detector and Intel QSV path. | Validate and finish setup for Home Assistant and MQTT; tune Frigate cameras. |
 | 5 — observability + expansion | NAS and B2 backups are implemented and live-validated: the Restic image is published, both repositories and encrypted Secrets are configured, the independent CronJobs are enabled, and backup/restore drills have passed. | Add monitoring, alerting, and deferred apps. Confirm the first naturally scheduled weekly B2 run after enablement. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
@@ -636,9 +636,10 @@ Assistant manifests are committed under `apps/home-assistant/` as a fresh instal
 host networking, local-NVMe config storage, ingress, and first-boot reverse-proxy
 configuration seeding.
 
-Status: RomM live validation passed on 2026-07-18, including its local state,
-MariaDB sidecar, service path, and NAS-backed library. Seerr and Home Assistant still
-need their remaining application setup and validation.
+Status: Seerr and RomM live validation passed on 2026-07-18. Seerr is connected to
+Plex and the download stack; RomM's local state, MariaDB sidecar, service path, and
+NAS-backed library are operational. Home Assistant still needs its remaining
+application setup and validation.
 
 ---
 

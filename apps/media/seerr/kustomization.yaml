@@ -4,4 +4,5 @@ resources:
   - storage.yaml
   - service.yaml
   - ingress.yaml
+  - overseerr-redirect.yaml
   - deployment.yaml
