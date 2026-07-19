@@ -43,5 +43,6 @@ Manual validation still required:
 - Open https://home-assistant.worm.run.
 - Complete onboarding and set the internal/external URLs if prompted.
 - Add LAN integrations discovered through mDNS/Zeroconf.
-- Add Zigbee/Z-Wave USB hostPath mounts only after the target device path is known.
+- Configure Z-Wave through the dedicated Z-Wave JS UI deployment and
+  runbooks/phase4/13-validate-zwave-js.sh; no USB hostPath is required.
 EOF

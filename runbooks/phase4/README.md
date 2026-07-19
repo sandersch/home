@@ -18,8 +18,8 @@ Frigate, and Home Assistant.
 - `/mnt/frigate` is mounted on `minis` before reconciling Frigate.
 - You have Mullvad WireGuard values from a device config.
 - You have the Frigate RTSP username and password for the camera at `192.168.105.50`.
-- Home Assistant starts as a fresh install; no Zigbee/Z-Wave USB stick is mounted
-  until the stable device path is known.
+- Home Assistant starts as a fresh install. Z-Wave JS UI connects to the
+  network-attached SLZB-MRW10U; no USB stick is mounted on `minis`.
 
 ## Secret generation
 
@@ -147,6 +147,16 @@ config, and in-cluster service path:
 
 Then open `https://home-assistant.worm.run`, complete onboarding, and add LAN
 integrations.
+
+For Z-Wave JS, reconcile the new workload, validate the network-controller path, and
+then complete the UI-managed Home Assistant integration:
+
+```bash
+./runbooks/phase4/13-validate-zwave-js.sh
+```
+
+The exact port-forward, security-key, WebSocket, and Home Assistant setup steps are
+in `apps/home-assistant/README.md`.
 
 For MQTT and the Frigate/Home Assistant connection, first confirm a current Home
 Assistant backup and take the normal `/opt` btrfs snapshot. Then:

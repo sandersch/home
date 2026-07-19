@@ -5,9 +5,12 @@ namespace: home-assistant
 resources:
   - namespace.yaml
   - storage.yaml
+  - zwave-js-storage.yaml
   - service.yaml
+  - zwave-js-service.yaml
   - ingress.yaml
   - deployment.yaml
+  - zwave-js-deployment.yaml
 
 configMapGenerator:
   - name: home-assistant-seed

@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zwave-js-ui
+  namespace: home-assistant
+  labels:
+    app.kubernetes.io/name: zwave-js-ui
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zwave-js-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zwave-js-ui
+    spec:
+      priorityClassName: homelab-critical
+      containers:
+        - name: zwave-js-ui
+          image: ghcr.io/zwave-js/zwave-js-ui:11.21.1
+          env:
+            - name: TZ
+              value: America/Chicago
+            # The SLZB-MRW10U presents its Z-Wave radio as serial-over-TCP.
+            # ZWAVE_PORT overrides UI serial discovery and requires no USB access.
+            - name: ZWAVE_PORT
+              value: tcp://slzb-mrw10u.iot.matrix:6638
+          ports:
+            - name: http
+              containerPort: 8091
+            - name: websocket
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: store
+              mountPath: /usr/src/app/store
+      volumes:
+        - name: store
+          persistentVolumeClaim:
+            claimName: zwave-js-ui-store-pvc

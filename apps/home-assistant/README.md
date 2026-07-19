@@ -6,13 +6,18 @@ integration, and real camera-event path are operational.
 
 - `hostNetwork: true` keeps LAN discovery paths such as mDNS/Zeroconf available.
 - State lives on local NVMe at `/opt/home-assistant/config`.
+- Z-Wave JS UI runs beside Home Assistant and stores its configuration, security keys,
+  logs, and controller backups at `/opt/zwave-js-ui/store`. It connects to the
+  SLZB-MRW10U over `tcp://slzb-mrw10u.iot.matrix:6638`; no USB passthrough or host
+  networking is required.
 - The repo copies of `configuration.yaml` and `automations.yaml` mirror the safe,
   recovery-relevant live YAML. The init container independently seeds either file when
   it is missing from the PVC. The recovery automation contains the live Frigate person
   detection notification for Charlie's iPhone; existing files are never overwritten,
   so later UI-managed changes remain authoritative.
-- No Zigbee/Z-Wave USB device is mounted yet; add an explicit hostPath once the
-  target device path is known.
+- The Z-Wave JS UI is intentionally cluster-internal. Its control panel is available
+  through a local port-forward, while Home Assistant uses its in-cluster WebSocket
+  Service.
 - Frigate is connected through the internal Mosquitto broker. Add Home Assistant's
   MQTT integration with `mosquitto.mqtt.svc.cluster.local:1883`, TCP transport, and
   TLS disabled. Use the Home Assistant-specific account from the SOPS-encrypted
@@ -57,6 +62,40 @@ Live validation passed on 2026-07-18: authenticated publish/subscribe, anonymous
 bad-password rejection, retained Frigate availability, HA integration and entity
 registration, valid HTTPS API reachability, and a real `amcrest_105_50` person event
 with matching occupancy changes all succeeded.
+
+## Z-Wave JS integration
+
+Z-Wave JS UI provides the server recommended for Home Assistant Container. The
+Kubernetes deployment fixes the controller endpoint with `ZWAVE_PORT`; UI-managed
+settings and Z-Wave security keys remain on the retained PVC and are protected by the
+normal `/opt` backup path.
+
+Before initial setup, confirm a current Home Assistant backup and take the normal
+`/opt` btrfs snapshot. Then:
+
+1. Reconcile the apps Kustomization and run
+   `./runbooks/phase4/13-validate-zwave-js.sh`.
+2. Open the Z-Wave JS UI locally:
+
+   ```bash
+   kubectl -n home-assistant port-forward svc/zwave-js-ui 8091:8091
+   ```
+
+   Browse to `http://127.0.0.1:8091`.
+3. In **Settings → Z-Wave**, confirm the serial port is
+   `tcp://slzb-mrw10u.iot.matrix:6638`. For a new Z-Wave network, generate all S0 and
+   S2 security keys, save, and keep an additional copy in the password manager. Never
+   add those keys to an unencrypted manifest.
+4. In **Settings → Home Assistant**, enable the WS Server on port `3000` and save.
+   MQTT is not needed for the native Home Assistant Z-Wave integration.
+5. In Home Assistant, add the **Z-Wave** integration. Do not select a Supervisor app;
+   use `ws://zwave-js-ui.home-assistant.svc.cluster.local:3000` as the server URL.
+6. Rerun `./runbooks/phase4/13-validate-zwave-js.sh`, then include the first device and
+   confirm its entities appear in Home Assistant.
+
+Home Assistant's integration entry and Z-Wave JS UI's settings are UI/PVC-managed by
+design. Back up the controller NVM after inclusions and before firmware or controller
+changes.
 
 Use `local-nvme` for app state. Device passthrough and host networking should be
 documented in the manifest comments when added.

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: zwave-js-ui-store-pv
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-nvme
+  hostPath:
+    path: /opt/zwave-js-ui/store
+    type: DirectoryOrCreate
+  claimRef:
+    namespace: home-assistant
+    name: zwave-js-ui-store-pvc
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - minis
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zwave-js-ui-store-pvc
+  namespace: home-assistant
+spec:
+  storageClassName: local-nvme
+  accessModes:
+    - ReadWriteOnce
+  volumeName: zwave-js-ui-store-pv
+  resources:
+    requests:
+      storage: 2Gi

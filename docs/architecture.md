@@ -179,6 +179,7 @@ The rule: **latency-sensitive state on local NVMe; bulk/regenerable data on NAS.
 | RomM | DB/metadata | `/opt/romm` | btrfs (NVMe) |
 | RomM | ROM library | NAS | NFS |
 | Home Assistant | Recorder DB + state | `/opt/home-assistant` | btrfs (NVMe) |
+| Z-Wave JS UI | Settings, security keys, logs + controller backups | `/opt/zwave-js-ui` | btrfs (NVMe) |
 | Immich (later) | Thumbnails + ML cache | `/opt/immich` | btrfs (NVMe) |
 | Immich (later) | Originals | NAS | NFS |
 
@@ -332,6 +333,7 @@ first.)
 |---|---|---|---|
 | **Frigate** | 2 / 4 | 2Gi / 4Gi | critical · non-evictable |
 | **Home Assistant** | 0.5 / 2 | 512Mi / 2Gi | critical · non-evictable |
+| **Z-Wave JS UI** | 0.1 / 1 | 256Mi / 1Gi | critical · non-evictable |
 | Plex | 1 / 6 | 1Gi / 4Gi | standard · burstable |
 | Gluetun + SABnzbd (download pod) | 0.5 / 2 | 512Mi / 1Gi | standard |
 | qBittorrent (container in the download pod) | 0.5 / 2 | 512Mi / 1Gi | standard |

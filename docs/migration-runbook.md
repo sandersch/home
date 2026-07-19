@@ -102,8 +102,9 @@ Update in each app's web UI after start (not by editing SQLite):
 **Seerr** and **RomM** start clean. After Seerr is up, link it to Plex via
 Plex OAuth (Settings → Plex → sign in) — the callback URL is tied to the new hostname,
 so this must be done on the new instance regardless. **Home Assistant** and **Frigate**
-are also fresh; HA needs `hostNetwork: true` for device discovery and hostPath mounts
-for any Zigbee/Z-Wave USB stick.
+are also fresh; HA needs `hostNetwork: true` for device discovery. Z-Wave JS UI uses
+the network-attached SLZB-MRW10U at `tcp://slzb-mrw10u.iot.matrix:6638`, so it needs
+no hostPath device mount.
 
 ---
 

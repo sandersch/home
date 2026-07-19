@@ -144,6 +144,10 @@ assert_phase4_home_assistant_tree() {
     apps/home-assistant/service.yaml \
     apps/home-assistant/ingress.yaml \
     apps/home-assistant/storage.yaml \
+    apps/home-assistant/zwave-js-deployment.yaml \
+    apps/home-assistant/zwave-js-service.yaml \
+    apps/home-assistant/zwave-js-storage.yaml \
+    runbooks/phase4/13-validate-zwave-js.sh \
     runbooks/phase4/10-validate-home-assistant.sh; do
     [ -f "$REPO_ROOT/$f" ] || die "missing Phase 4 Home Assistant file: $f"
   done

@@ -627,8 +627,9 @@ stream. Next Frigate work is operational tuning: motion masks, zones, object fil
 and retention.
 
 **4d — remaining stack.** Seerr (pointed at the *arrs via the Gluetun Service),
-RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery; plus any
-Zigbee/Z-Wave USB stick via hostPath, like the Coral).
+RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery), and Z-Wave
+JS UI. Z-Wave uses the network-attached SLZB-MRW10U serial endpoint at
+`tcp://slzb-mrw10u.iot.matrix:6638`; it does not need USB passthrough.
 
 Current repo state: Seerr and RomM manifests are committed under `apps/media/`; MQTT
 is committed under `apps/mqtt/`; Home Assistant manifests are committed under
