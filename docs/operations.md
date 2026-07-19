@@ -110,6 +110,7 @@ and its functionality moved to Grafana Alloy.
 | UPS on battery | NUT input-power loss | power event; act before clean shutdown |
 | Pod crash loop | repeated restarts, any namespace | catch failures early |
 | Restic backup failed | CronJob job failure | a broken backup must not hide for weeks |
+| Restic backup overdue | no successful snapshot within the expected schedule window | catch a CronJob that never starts or silently stops scheduling |
 
 ### ntfy and the node-down gap
 
