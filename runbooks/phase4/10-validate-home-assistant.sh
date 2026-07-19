@@ -23,7 +23,11 @@ ok "Home Assistant uses host networking and the critical priority class"
 step "Verify Home Assistant initial config"
 kubectl -n home-assistant exec deploy/home-assistant -- test -s /config/configuration.yaml
 kubectl -n home-assistant exec deploy/home-assistant -- grep -q trusted_proxies /config/configuration.yaml
-ok "Home Assistant has initial reverse-proxy config"
+kubectl -n home-assistant exec deploy/home-assistant -- grep -q '^automation: !include automations.yaml$' /config/configuration.yaml
+kubectl -n home-assistant exec deploy/home-assistant -- test -f /config/automations.yaml
+kubectl -n home-assistant exec deploy/home-assistant -- grep -q 'alias: Person detection notification' /config/automations.yaml
+kubectl -n home-assistant exec deploy/home-assistant -- grep -q 'entity_id: binary_sensor.amcrest_105_50_person_occupancy' /config/automations.yaml
+ok "Home Assistant has initial reverse-proxy config and the person-detection automation"
 
 step "Verify Home Assistant HTTP service"
 kubectl -n home-assistant run home-assistant-http-test --restart=Never --rm -i --image=busybox:1.36 \

@@ -432,7 +432,7 @@ directly as Flux `HelmRepository`, `HelmRelease`, and Kubernetes manifests.
 [structure in AGENTS.md](../AGENTS.md#repository-structure):
 `clusters/minis/{kustomization.yaml,infra-controllers.yaml,infra-configs.yaml,apps.yaml}`,
 `infrastructure/{controllers,configs,monitoring}`, and
-`apps/{media,frigate,home-assistant}`.
+`apps/{media,frigate,home-assistant,mqtt}`.
 The Flux target paths now contain real manifests rather than only placeholders:
 `infrastructure/controllers`, `infrastructure/configs`, and `apps` each have a
 `kustomization.yaml` and are included from `clusters/minis/`.
@@ -630,9 +630,10 @@ and retention.
 RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery; plus any
 Zigbee/Z-Wave USB stick via hostPath, like the Coral).
 
-Current repo state: Seerr and RomM manifests are committed under `apps/media/`; Home
-Assistant manifests are committed under `apps/home-assistant/` with host networking,
-local-NVMe config storage, ingress, and first-boot reverse-proxy configuration seeding.
+Current repo state: Seerr and RomM manifests are committed under `apps/media/`; MQTT
+is committed under `apps/mqtt/`; Home Assistant manifests are committed under
+`apps/home-assistant/` with host networking, local-NVMe config storage, ingress, and
+first-boot reverse-proxy and automation configuration seeding.
 
 Status: Seerr and RomM live validation passed on 2026-07-18. Seerr is connected to
 Plex and the download stack; RomM's local state, MariaDB sidecar, service path, and

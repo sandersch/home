@@ -29,19 +29,17 @@ spec:
             - |
               set -eu
               if [ ! -f /config/configuration.yaml ]; then
-                printf '%s\n' \
-                  'default_config:' \
-                  '' \
-                  'http:' \
-                  '  use_x_forwarded_for: true' \
-                  '  trusted_proxies:' \
-                  '    - 10.42.0.0/16' \
-                  '    - 10.43.0.0/16' \
-                  > /config/configuration.yaml
+                cp /seed/configuration.yaml /config/configuration.yaml
+              fi
+              if [ ! -f /config/automations.yaml ]; then
+                cp /seed/automations.yaml /config/automations.yaml
               fi
           volumeMounts:
             - name: config
               mountPath: /config
+            - name: seed-config
+              mountPath: /seed
+              readOnly: true
       containers:
         - name: home-assistant
           image: ghcr.io/home-assistant/home-assistant:stable
@@ -65,3 +63,6 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: home-assistant-config-pvc
+        - name: seed-config
+          configMap:
+            name: home-assistant-seed

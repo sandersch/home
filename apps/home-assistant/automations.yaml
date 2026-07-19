@@ -1,0 +1,19 @@
+- id: '1784424503156'
+  alias: Person detection notification
+  description: Notify Charlie’s iPhone when Frigate detects a person
+  triggers:
+  - trigger: state
+    entity_id: binary_sensor.amcrest_105_50_person_occupancy
+    from: 'off'
+    to: 'on'
+  conditions: []
+  actions:
+  - action: notify.mobile_app_charlies_iphone
+    data:
+      title: Person detected
+      message: Person detected at {{ now().strftime('%-I:%M %p') }}.
+      data:
+        entity_id: camera.amcrest_105_50
+        url: entityId:camera.amcrest_105_50
+        tag: amcrest_105_50_person
+  mode: single

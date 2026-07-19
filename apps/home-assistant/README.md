@@ -6,8 +6,11 @@ integration, and real camera-event path are operational.
 
 - `hostNetwork: true` keeps LAN discovery paths such as mDNS/Zeroconf available.
 - State lives on local NVMe at `/opt/home-assistant/config`.
-- The init container seeds `configuration.yaml` only when the PVC is empty so
-  ingress reverse-proxy headers work on first boot.
+- The repo copies of `configuration.yaml` and `automations.yaml` mirror the safe,
+  recovery-relevant live YAML. The init container independently seeds either file when
+  it is missing from the PVC. The recovery automation contains the live Frigate person
+  detection notification for Charlie's iPhone; existing files are never overwritten,
+  so later UI-managed changes remain authoritative.
 - No Zigbee/Z-Wave USB device is mounted yet; add an explicit hostPath once the
   target device path is known.
 - Frigate is connected through the internal Mosquitto broker. Add Home Assistant's
@@ -25,6 +28,12 @@ integration, and real camera-event path are operational.
 Home Assistant, HACS, and the Frigate integration store their UI-managed state on the
 Home Assistant PVC. Confirm a current Home Assistant backup and take the normal `/opt`
 btrfs snapshot before starting.
+
+This UI-managed state is the explicit exception to the repo's "changes are git
+commits" rule. Home Assistant integrations, automations, dashboards, HACS, and similar
+configuration are changed through Home Assistant and recovered from the Home
+Assistant-aware Restic backup; Kubernetes deployment, storage, networking, and seed
+configuration remain GitOps-managed here.
 
 1. Extract the `MOSQUITTO_HOME_ASSISTANT_*` values from
    `apps/mqtt/mosquitto-auth.sops.yaml`. SOPS removes the encryption layer, but values

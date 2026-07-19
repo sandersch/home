@@ -8,3 +8,9 @@ resources:
   - service.yaml
   - ingress.yaml
   - deployment.yaml
+
+configMapGenerator:
+  - name: home-assistant-seed
+    files:
+      - configuration.yaml
+      - automations.yaml

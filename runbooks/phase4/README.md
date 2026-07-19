@@ -50,7 +50,9 @@ The script also accepts `SCREENSCRAPER_USER`, `SCREENSCRAPER_PASSWORD`,
 DB/auth keys by decrypting the current SOPS file locally, so the matching age identity
 must be available in the shell.
 
-Create the SOPS-encrypted Frigate Secret before reconciling Frigate:
+The deployed Frigate camera credentials are stored in the SOPS-encrypted Secret. For
+a new installation or an intentional credential rotation, export the camera values
+and run:
 
 ```bash
 export FRIGATE_CAMERA_AMCREST_105_50_RTSP_USER=...
@@ -59,9 +61,9 @@ export FRIGATE_CAMERA_AMCREST_105_50_RTSP_PASSWORD=...
 ```
 
 The script writes `apps/frigate/frigate.sops.yaml` with camera-specific RTSP credentials
-and an auto-generated `FRIGATE_JWT_SECRET`. The committed encrypted file is only a
-placeholder until this script is rerun with the real camera credentials. Do not commit a
-plaintext Secret. Future cameras should use their own
+and an auto-generated `FRIGATE_JWT_SECRET`; do not rerun it during ordinary operation
+because doing so rotates that JWT secret. Do not commit a plaintext Secret. Future
+cameras should use their own
 `FRIGATE_CAMERA_<NAME>_RTSP_USER` and `FRIGATE_CAMERA_<NAME>_RTSP_PASSWORD` pair; the
 script includes exported matching pairs automatically.
 

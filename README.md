@@ -28,7 +28,7 @@ runbooks/          executable host/app phase runbooks
 host/minis/        canonical host-level config copied by the runbooks
 clusters/minis/    Flux entrypoint (flux-system + Kustomizations)
 infrastructure/    controllers, cluster configs, Phase 5 backups/monitoring
-apps/              media, frigate, home-assistant
+apps/              media, frigate, home-assistant, mqtt
 ```
 
 ## Docs
@@ -43,7 +43,10 @@ apps/              media, frigate, home-assistant
 
 ## Conventions (short version)
 
-Everything after the initial bootstrap is a git commit. Every workload sets resource
-requests/limits and a priority class. App state goes on local NVMe via the `local-nvme`
-StorageClass; bulk data lives on the NAS. Secrets are SOPS-encrypted before commit —
-the repo is private. Full detail in [AGENTS.md](./AGENTS.md).
+Declarative platform and workload changes after the initial bootstrap are git commits.
+Home Assistant is the explicit exception: its integrations, automations, HACS, and
+other UI-managed configuration live on the backed-up Home Assistant PVC. Every
+workload sets resource requests/limits and a priority class. App state goes on local
+NVMe via the `local-nvme` StorageClass; bulk data lives on the NAS. Secrets are
+SOPS-encrypted before commit — the repo is private. Full detail in
+[AGENTS.md](./AGENTS.md).

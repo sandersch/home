@@ -4,7 +4,7 @@ This file orients an AI coding session and any human working in this repo. Read 
 
 ## What this is
 
-A single-node, container-first homelab on a MINISFORUM MS-01, managed by GitOps. The goal is to reproduce (and extend) an existing ArgoCD + microk8s setup on fresh hardware, using **k3s + Flux CD**, while keeping operational complexity low and reliability high. Some one-time manual bootstrapping is acceptable; everything after the bootstrap is a git commit.
+A single-node, container-first homelab on a MINISFORUM MS-01, managed by GitOps. The goal is to reproduce (and extend) an existing ArgoCD + microk8s setup on fresh hardware, using **k3s + Flux CD**, while keeping operational complexity low and reliability high. Some one-time manual bootstrapping is acceptable; declarative platform and workload changes after bootstrap are git commits. **Home Assistant is the explicit exception:** integrations, automations, HACS, and other UI-managed configuration live on its PVC and are protected by Home Assistant-aware Restic backups rather than represented individually in git.
 
 The repo is operated alongside an AI coding session on a laptop, connected over SSH and/or the Tailnet. See [Working agreements](#working-agreements-for-an-ai-session).
 
