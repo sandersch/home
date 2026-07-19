@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. All are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Tune Frigate cameras. |
-| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated: the Restic image is published, both repositories and encrypted Secrets are configured, the independent CronJobs are enabled, and backup/restore drills have passed. | Add monitoring, alerting, and deferred apps. Confirm the first naturally scheduled weekly B2 run after enablement. |
+| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated: the Restic image is published, both repositories and encrypted Secrets are configured, backup/restore drills have passed, and both CronJobs have completed naturally scheduled runs. | Add monitoring, alerting, and deferred apps. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
 phase validation scripts and gate below before declaring a phase complete.
@@ -654,8 +654,9 @@ broker traffic, Frigate availability, entity registration, and a real person eve
 - **Restic CronJobs** for backups — the implementation under
   `infrastructure/monitoring` and `runbooks/phase5` has nightly NAS-local `/opt`
   backups to `/mnt/backups/opt` plus an independent weekly Backblaze B2 repository.
-  The first B2 backup, repository check, and NAS-free restore drill passed on
-  2026-07-18, and the weekly CronJob is enabled. Design and operating notes are in
+  The initial B2 backup, repository check, and NAS-free restore drill passed on
+  2026-07-18. The nightly NAS and first naturally scheduled weekly B2 runs both
+  completed successfully on 2026-07-19. Design and operating notes are in
   [operations.md](./operations.md#backups).
 - **Immich (later)** — coordinate the initial import during a quiet window and watch
   memory (its ML container is the one big consumer). Originals on NAS; thumbs/ML on

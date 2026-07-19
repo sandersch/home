@@ -31,6 +31,10 @@ to Backblaze's S3-compatible API and keeps 8 weekly and 12 monthly snapshots. Bo
 the same SQLite, Home Assistant, and RomM hot-backup workflow, but the B2 job and its
 restore validation have no NAS volume dependency.
 
+Validation status: initialization, manual backups, repository checks, and representative
+restore drills passed for both repositories. The nightly NAS and first naturally
+scheduled weekly B2 backups both completed successfully on 2026-07-19.
+
 ```bash
 restic -r /mnt/backups/opt backup /data/opt
 restic -r s3:https://s3.<region>.backblazeb2.com/<bucket>/opt backup /data/opt

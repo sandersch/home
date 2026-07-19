@@ -21,6 +21,10 @@ Run these after Phase 4 is validated and the NAS has a dedicated backup export a
 | `08-run-manual-b2-backup.sh` | Run the weekly B2 CronJob manually |
 | `09-validate-b2-restore.sh` | Restore representative B2 artifacts without the NAS |
 
+Both repositories have passed initialization, manual backup, and representative restore
+validation. The nightly NAS and first naturally scheduled weekly B2 backups both
+completed successfully on 2026-07-19.
+
 ## Secret generation
 
 Create a long-lived Home Assistant token dedicated to backups, then run:
