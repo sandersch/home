@@ -76,7 +76,7 @@ spec:
             description: Less than 20 percent of /opt is available on minis.
             summary: Local app-state filesystem is filling up
         - alert: NfsMountSetIncomplete
-          expr: absent(node_filesystem_size_bytes{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|roms|backups)"}) or count(node_filesystem_size_bytes{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|roms|backups)"}) < 4
+          expr: absent(node_filesystem_size_bytes{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|games|backups)"}) or count(node_filesystem_size_bytes{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|games|backups)"}) < 4
           for: 5m
           labels:
             severity: critical
@@ -84,7 +84,7 @@ spec:
             description: One or more expected host NFS mounts is missing from node-exporter metrics.
             summary: Expected NFS mount is missing
         - alert: NfsFilesystemDeviceError
-          expr: node_filesystem_device_error{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|roms|backups)"} == 1
+          expr: node_filesystem_device_error{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|games|backups)"} == 1
           for: 5m
           labels:
             severity: critical
