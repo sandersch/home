@@ -41,7 +41,7 @@ spec:
         probe_scope: ingress
         service_tier: standard
       static:
-        - https://plex.worm.run
+        - https://plex.worm.run/identity
         - https://seerr.worm.run
         - https://romm.worm.run
 ---
