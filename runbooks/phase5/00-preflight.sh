@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 5 preflight - verify backup manifests and local prerequisites.
+# Phase 5 preflight - verify backup/observability manifests and local prerequisites.
 # shellcheck source=runbooks/phase5/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -11,6 +11,10 @@ assert_phase5_backup_tree
 
 step "Verify local kustomize output"
 assert_phase5_kustomize_builds
+assert_phase5_observability_builds
+
+step "Verify observability safety invariants"
+assert_phase5_observability_invariants
 
 step "Verify NAS behavior and B2 safety invariants"
 tmpdir="$(mktemp -d)"
@@ -31,4 +35,4 @@ else
   warn "Restic B2 Secret is not generated yet; run 06-encrypt-restic-b2-secret.sh after provisioning B2"
 fi
 
-ok "Phase 5 backup preflight complete"
+ok "Phase 5 backup and observability preflight complete"

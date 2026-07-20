@@ -1,0 +1,100 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-alerts
+  namespace: monitoring
+spec:
+  groups:
+    - name: homelab.blackbox
+      rules:
+        - alert: CriticalEndpointDown
+          expr: probe_success{service_tier="critical"} == 0
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            description: "{{ $labels.instance }} has failed its blackbox probe for at least three minutes."
+            summary: Critical endpoint is unavailable
+        - alert: StandardEndpointDown
+          expr: probe_success{service_tier="standard"} == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            description: "{{ $labels.instance }} has failed its blackbox probe for at least ten minutes."
+            summary: Standard endpoint is unavailable
+        - alert: IngressCertificateExpiringSoon
+          expr: (probe_ssl_earliest_cert_expiry{probe_scope="ingress"} - time() < 14 * 24 * 60 * 60) and probe_ssl_earliest_cert_expiry{probe_scope="ingress"} > 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            description: "The TLS certificate seen at {{ $labels.instance }} expires in less than 14 days."
+            summary: Ingress certificate is close to expiry
+    - name: homelab.backups
+      rules:
+        - alert: ResticBackupFailed
+          expr: kube_job_status_failed{namespace="monitoring",job_name=~"restic-(nas|b2)-backup-.*"} > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            description: "{{ $labels.job_name }} has failed."
+            summary: Restic backup job failed
+        - alert: ResticNasBackupOverdue
+          expr: time() - kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-nas-backup"} > 30 * 60 * 60
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            description: The nightly NAS Restic CronJob has no successful run in the last 30 hours.
+            summary: NAS Restic backup is overdue
+        - alert: ResticB2BackupOverdue
+          expr: time() - kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-b2-backup"} > 8 * 24 * 60 * 60
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            description: The weekly B2 Restic CronJob has no successful run in the last eight days.
+            summary: B2 Restic backup is overdue
+        - alert: ResticBackupSuspended
+          expr: kube_cronjob_spec_suspend{namespace="monitoring",cronjob=~"restic-(nas|b2)-backup"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            description: "{{ $labels.cronjob }} is suspended."
+            summary: Restic backup schedule is suspended
+    - name: homelab.node-and-apps
+      rules:
+        - alert: OptFilesystemFillingUp
+          expr: node_filesystem_avail_bytes{mountpoint="/opt"} / node_filesystem_size_bytes{mountpoint="/opt"} < 0.20
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            description: Less than 20 percent of /opt is available on minis.
+            summary: Local app-state filesystem is filling up
+        - alert: NfsMountSetIncomplete
+          expr: absent(node_filesystem_size_bytes{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|roms|backups)"}) or count(node_filesystem_size_bytes{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|roms|backups)"}) < 4
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            description: One or more expected host NFS mounts is missing from node-exporter metrics.
+            summary: Expected NFS mount is missing
+        - alert: NfsFilesystemDeviceError
+          expr: node_filesystem_device_error{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|roms|backups)"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            description: "node-exporter cannot read the NFS filesystem mounted at {{ $labels.mountpoint }}."
+            summary: NFS filesystem reports a device error
+        - alert: GluetunRestarted
+          expr: increase(kube_pod_container_status_restarts_total{namespace="media",container="gluetun"}[15m]) > 0
+          labels:
+            severity: warning
+          annotations:
+            description: Gluetun restarted in the last 15 minutes; verify the VPN tunnel and kill switch.
+            summary: Download VPN container restarted

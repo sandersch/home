@@ -1,0 +1,68 @@
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: critical-ingress
+  namespace: monitoring
+spec:
+  interval: 30s
+  jobName: blackbox-critical-ingress
+  module: http_2xx
+  prober:
+    path: /probe
+    scheme: http
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      labels:
+        probe_scope: ingress
+        service_tier: critical
+      static:
+        - https://home-assistant.worm.run
+        - https://frigate.worm.run
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: standard-ingress
+  namespace: monitoring
+spec:
+  interval: 60s
+  jobName: blackbox-standard-ingress
+  module: http_2xx
+  prober:
+    path: /probe
+    scheme: http
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      labels:
+        probe_scope: ingress
+        service_tier: standard
+      static:
+        - https://plex.worm.run
+        - https://seerr.worm.run
+        - https://romm.worm.run
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: mqtt
+  namespace: monitoring
+spec:
+  interval: 30s
+  jobName: blackbox-mqtt
+  module: tcp_connect
+  prober:
+    path: /probe
+    scheme: http
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      labels:
+        probe_scope: cluster-service
+        service_tier: critical
+      static:
+        - mosquitto.mqtt.svc.cluster.local:1883

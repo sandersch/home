@@ -1,0 +1,27 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: deadmanssnitch
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: homelab-monitoring
+spec:
+  route:
+    groupBy:
+      - alertname
+    groupInterval: 5m
+    groupWait: 0s
+    matchers:
+      - matchType: "="
+        name: alertname
+        value: Watchdog
+    receiver: deadmanssnitch
+    repeatInterval: 5m
+  receivers:
+    - name: deadmanssnitch
+      webhookConfigs:
+        - sendResolved: false
+          timeout: 10s
+          urlSecret:
+            name: deadmanssnitch
+            key: url

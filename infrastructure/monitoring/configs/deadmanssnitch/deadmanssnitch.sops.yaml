@@ -1,0 +1,22 @@
+apiVersion: v1
+data:
+    url: ENC[AES256_GCM,data:kLOoo04NjGr0Td7YFqcVzBar4T9iUz6W/WWw+WefEEu1zgSsn4r5kg==,iv:TLb10uQc+GyS5lPn+9y+F+MFzsbY2flb8HtlT0UyKFI=,tag:oDP9uyEKAvUdMMiYMSllKQ==,type:str]
+kind: Secret
+metadata:
+    name: deadmanssnitch
+    namespace: monitoring
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBOUUFQRUxsMjMzR0hJSjVT
+            Z05vOWZ3LzJvMTlYZzZhNnhycVdBQlUrK21JCjdOa2lscG5zb1pjU25Id3dRcmRh
+            U3I2NFg5QkFHekhNV1BvbmluVnN2M0kKLS0tIFJsbG1FNFR1ak5zcjVyUDM0aGVW
+            Q2xJZmZQMnZ4c0k4R1dkK0pYWEpLKzgK3I5bc4rqRPEANYmSPJAMrJx3mKQ1iV1x
+            pgfMwMFa0xONgea2TC5aq2bsA1vtYN0mitOdMT6/r9bDsYBHvp61YA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age18cxm2hs3ctq0s735h7z9lj7w7ag37f2vleesglcw6lezlhy5v9nsatkxex
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-07-20T03:32:42Z"
+    mac: ENC[AES256_GCM,data:upsO/0F9L8pY6sULSo2KCRNylAYKgcp8JErUSfmM6ov2zYayqgSZY3WWLZkHviSz79RjefdhmBTrnWktLVCe50qefPx3jRBTUT/NHSFeqw4mat/vykWKP3obj5fwM5TJazuwpCi/H+Omho3eus3ZSBQqN7sceUSDXJV3eNi1b9Q=,iv:RHIi6vZf2psd23q67MLsI5T1VAodPL6Z4Z0o8YJwHrM=,tag:yNh93+moG3qBSdmvLu4xoA==,type:str]
+    version: 3.13.1

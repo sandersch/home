@@ -50,7 +50,8 @@ spec:
       backoffLimit: 0              # fail fast, no silent retries
       activeDeadlineSeconds: 3600  # NAS: kill a hung run after 1h; B2 uses 6h
 ```
-Plus the Alertmanager rule on failed jobs once monitoring lands. Credentials
+The committed Alertmanager rules cover failed, overdue, and accidentally suspended
+backup jobs once the observability slice is reconciled. Credentials
 (`RESTIC_PASSWORD`, `HOME_ASSISTANT_TOKEN`, `ROMM_DB_PASSWORD`, and B2 S3 keys) are
 SOPS-encrypted Secrets. **`restic init` runs once** per repo before the first backup via
 `runbooks/phase5/03-init-restic-nas-repo.sh` and
@@ -94,45 +95,89 @@ fails with MariaDB error 1045, rerun
 
 ## Monitoring & alerting
 
-Stack: **kube-prometheus-stack** (Prometheus + Grafana + Alertmanager) + **Loki with
-Grafana Alloy** for log collection + **nut-exporter** for UPS metrics. Alerts route to
-**ntfy** (self-hosted) for phone push. Promtail is not part of the target: it reached
-[end of life in March 2026](https://grafana.com/docs/loki/latest/send-data/promtail/)
+Phase one is deliberately metrics-first:
+
+- **kube-prometheus-stack** provides Prometheus, Grafana, Alertmanager, node-exporter,
+  kube-state-metrics, the Prometheus Operator, and the upstream Kubernetes rules and
+  dashboards. The chart is pinned, CRDs are upgraded through Flux, and k3s-only
+  nonexistent control-plane scrape targets are disabled.
+- **prometheus-blackbox-exporter** checks the authenticated/user-facing ingress path
+  for Home Assistant, Frigate, Plex, Seerr, and RomM, plus the internal MQTT TCP path.
+  These probes exercise DNS, ingress, TLS, Services, and applications instead of only
+  observing that pods exist.
+- A Flux `PodMonitor` exposes GitOps controller health. Local rules cover blackbox
+  failures and certificate expiry, `/opt`, NFS, Gluetun restarts, and Restic failures,
+  suspension, and overdue schedules; upstream rules cover Kubernetes crash loops and
+  resource failures.
+- The upstream always-firing `Watchdog` alert checks in with **Dead Man's Snitch** via
+  Alertmanager every five minutes. The URL is a SOPS Secret. This is the required
+  off-node signal: if the node, Prometheus, Alertmanager, DNS, or outbound path fails,
+  the hosted service notices the missing heartbeat.
+
+The manifests are committed and locally rendered, but this slice is not considered
+complete until it is reconciled and live-validated. **nut-exporter** and the UPS
+on-battery rule are the remaining phase-one monitoring work.
+
+Grafana is exposed at `https://grafana.worm.run`; its `admin` password is generated
+once and stored only in `infrastructure/monitoring/base/grafana-admin.sops.yaml`. Read
+it locally when needed (the decrypted `data` value is base64-encoded):
+
+```bash
+sops --decrypt infrastructure/monitoring/base/grafana-admin.sops.yaml \
+  | yq -r '.data["admin-password"]' | base64 --decode
+```
+
+**Optional phase two:** add **Loki with Grafana Alloy** only if cross-pod log search is
+worth its storage and memory cost, and add **ntfy** only if phone push for actionable
+in-cluster alerts is useful. Kubernetes logs and the external dead-man remain adequate
+phase-one fallbacks. If centralized logs are added, Promtail is not an option: it
+reached [end of life in March 2026](https://grafana.com/docs/loki/latest/send-data/promtail/)
 and its functionality moved to Grafana Alloy.
 
-### Alerts to define
+### Alert coverage
 
-| Alert | Trigger | Why it matters |
+| Alert | Trigger | State |
 |---|---|---|
-| NVMe usage > 80% | `/opt` (or any local mount) filling | single non-redundant disk; running out is disruptive |
-| NFS mount lost | NAS mount unhealthy | Plex **and** Frigate both depend on it |
-| Gluetun pod restart | VPN container restarted | tunnel likely dropped; kill switch engaged |
-| UPS on battery | NUT input-power loss | power event; act before clean shutdown |
-| Pod crash loop | repeated restarts, any namespace | catch failures early |
-| Restic backup failed | CronJob job failure | a broken backup must not hide for weeks |
-| Restic backup overdue | no successful snapshot within the expected schedule window | catch a CronJob that never starts or silently stops scheduling |
+| Critical/standard endpoint down | blackbox HTTPS or MQTT TCP probe fails beyond its tier window | committed |
+| Ingress certificate expiring | blackbox sees fewer than 14 days remaining | committed |
+| NVMe usage > 80% | `/opt` filling | committed |
+| NFS mount lost/error | expected host NFS mount disappears or reports a device error | committed |
+| Gluetun pod restart | VPN container restarted in the last 15 minutes | committed |
+| Pod crash loop | repeated restarts, any namespace | upstream kube-prometheus rule |
+| Restic backup failed | CronJob job failure | committed |
+| Restic backup overdue/suspended | no success within 30 hours (NAS) or 8 days (B2), or schedule suspended | committed |
+| Monitoring pipeline absent | Dead Man's Snitch misses the Alertmanager Watchdog | committed; account URL activation required |
+| UPS on battery | NUT input-power loss | pending nut-exporter |
 
-### ntfy and the node-down gap
+### External dead-man setup and notification routing
 
-ntfy is a tiny self-hosted pub/sub push service: Alertmanager POSTs to a topic, the
-phone app subscribed to that topic gets a notification. Free, self-hosted, no
-third-party dependency. Chosen over Pushover (paid, third-party), Discord (channel, not
-real push), and email (slow, ignorable).
+Create a Snitch named for the Prometheus Watchdog in the existing account, choose a
+10-minute Basic interval, and run:
 
-**Caveat — chicken-and-egg:** a self-hosted alerter can't notify you about *its own*
-node going down. App-level alerts (disk, crashloops, VPN, backups) work fine because
-the node is still up. For true node-down/total-failure, either accept the gap (a
-single-node failure is self-evident fast — Plex stops working) or point **only** the
-UPS/node-health alerts at the hosted `ntfy.sh` as an off-node fallback. Default:
-self-host everything, accept the gap.
+```bash
+./runbooks/phase5/10-setup-deadmanssnitch.sh
+```
+
+The helper prompts without echo, validates the `https://nosnch.in/...` URL, creates a
+SOPS-encrypted Secret, and activates the matching `AlertmanagerConfig`. Reconcile
+`monitoring-configs`, confirm `Watchdog` is firing in Alertmanager, and confirm the
+Snitch turns healthy. Do not put the unique check-in URL in Helm values or plaintext
+git history.
+
+Until optional ntfy routing is added, non-Watchdog alerts are retained and visible in
+Prometheus, Alertmanager, and Grafana but do not generate phone push. That is an
+explicit phase-one tradeoff, not an accidental routing gap. If ntfy is added in phase
+two, it receives actionable warning/critical alerts; it does not replace Dead Man's
+Snitch because an in-cluster ntfy pod cannot report the node hosting it being down.
 
 ## UPS / NUT
 
 NUT runs as a **host systemd service** (configured in
 [Phase 0.5](./build-plan.md#phase-0--os-baseline-)), before k3s, so a clean shutdown
-fires even if the cluster is degraded. The **nut-exporter** pod scrapes it into
-Prometheus for the Grafana dashboard and the "UPS on battery" alert — so a power event
-is visible even when the node rides it out and you weren't watching.
+fires even if the cluster is degraded. The remaining phase-one **nut-exporter** pod
+will scrape it into Prometheus for the Grafana dashboard and the "UPS on battery"
+alert — so a power event is visible even when the node rides it out and you weren't
+watching.
 
 ### UPS telemetry fan-out (one upsd, many read-only clients)
 
@@ -168,8 +213,9 @@ The [allocation table](./architecture.md#resource-allocation) values are conserv
 starting points. After ~1 week of real data:
 
 - In Grafana, compare actual CPU/memory per workload against its requests/limits.
-- Raise requests where a pod is consistently throttled; lower limits where headroom is
-  wasted. Each change is a one-line manifest edit Flux reconciles.
+- Raise CPU limits when a pod is throttled; raise requests when sustained usage needs a
+  larger guaranteed share. Lower consistently over-provisioned requests to release
+  scheduler reservation, while keeping memory limits safely above observed peaks.
 - Re-check after adding Immich — its ML container is the one likely to shift the memory
   picture.
 - Only if Frigate detection latency suffers under load: consider the static

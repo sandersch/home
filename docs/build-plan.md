@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. All are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Tune Frigate cameras. |
-| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated: the Restic image is published, both repositories and encrypted Secrets are configured, backup/restore drills have passed, and both CronJobs have completed naturally scheduled runs. | Add monitoring, alerting, and deferred apps. |
+| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, and SOPS-safe Dead Man's Snitch workflow are committed. | Reconcile and live-validate observability, activate the account-specific Snitch URL, add UPS metrics, then consider optional phase-two logs/push and deferred apps. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
 phase validation scripts and gate below before declaring a phase complete.
@@ -444,46 +444,32 @@ install those CRDs:
 - `infra-configs` → `./infrastructure/configs`, `dependsOn: infra-controllers`,
   `wait: true`, SOPS decryption enabled
 - `apps` → `./apps`, `dependsOn: infra-configs`, SOPS decryption enabled
+- `monitoring-base` → `./infrastructure/monitoring/base`,
+  `dependsOn: infra-configs`; owns the namespace and bootstrap secrets
+- `monitoring-controllers` → `./infrastructure/monitoring/controllers`,
+  `dependsOn: monitoring-base`; installs the Prometheus Operator CRDs and stack
+- `monitoring-configs` → `./infrastructure/monitoring/configs`,
+  `dependsOn: monitoring-controllers`; applies blackbox, probes, rules, and routing
+- `monitoring` → `./infrastructure/monitoring`, `dependsOn: apps` and
+  `monitoring-base`; this legacy-named slice owns the validated backup resources
 
-```yaml
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata: { name: infra-controllers, namespace: flux-system }
-spec:
-  interval: 10m
-  path: ./infrastructure/controllers
-  prune: true
-  sourceRef: { kind: GitRepository, name: flux-system }
-  wait: true
----
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata: { name: infra-configs, namespace: flux-system }
-spec:
-  dependsOn: [{ name: infra-controllers }]
-  decryption:
-    provider: sops
-    secretRef: { name: sops-age }
-  interval: 10m
-  path: ./infrastructure/configs
-  prune: true
-  sourceRef: { kind: GitRepository, name: flux-system }
-  wait: true
----
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata: { name: apps, namespace: flux-system }
-spec:
-  dependsOn: [{ name: infra-configs }]
-  decryption:
-    provider: sops
-    secretRef: { name: sops-age }
-  interval: 10m
-  path: ./apps
-  prune: true
-  sourceRef: { kind: GitRepository, name: flux-system }
-  wait: true
+The resulting graph keeps metrics and alerting independent of application readiness,
+while backups cannot be blocked by a monitoring-controller failure:
+
+```mermaid
+flowchart LR
+    IC[infra-controllers] --> CFG[infra-configs]
+    CFG --> APPS[apps]
+    CFG --> BASE[monitoring-base]
+    APPS --> BACKUPS["monitoring (backups)"]
+    BASE --> BACKUPS
+    BASE --> MC[monitoring-controllers]
+    MC --> MCFG[monitoring-configs]
 ```
+
+The files under `clusters/minis/` are the canonical Kustomization specs; keep the graph
+here descriptive rather than maintaining a second inline copy that can drift.
+
 From here: write a Secret, `sops --encrypt --in-place secret.yaml`, commit — Flux
 decrypts at apply time.
 
@@ -647,10 +633,18 @@ broker traffic, Frigate availability, entity registration, and a real person eve
 
 ## Phase 5 — observability + expansion 📦
 
-- **kube-prometheus-stack** (Prometheus + Grafana + Alertmanager) via HelmRelease.
-- **Loki + Grafana Alloy** for logs; **nut-exporter** for UPS metrics; **ntfy** pod for
-  push alerts. Alert definitions and routing in
+- **Phase one metrics and alert pipeline (committed, pending live validation):** pinned
+  **kube-prometheus-stack** (Prometheus + Grafana + Alertmanager), pinned
+  **prometheus-blackbox-exporter**, internal HTTPS/TCP probes, Flux controller metrics,
+  operational alert rules, and an external **Dead Man's Snitch** Watchdog route. The
+  Snitch URL is activated only through the SOPS helper in `runbooks/phase5`.
+- **Phase one remaining:** add **nut-exporter** for UPS metrics and its on-battery rule.
+  Alert definitions, routing, and validation are in
   [operations.md](./operations.md#monitoring--alerting).
+- **Optional phase two:** **Loki + Grafana Alloy** for centralized logs and **ntfy** for
+  phone push of actionable alerts. Neither is required for phase-one monitoring; logs
+  remain available through Kubernetes and Dead Man's Snitch provides the off-node
+  failure signal.
 - **Restic CronJobs** for backups — the implementation under
   `infrastructure/monitoring` and `runbooks/phase5` has nightly NAS-local `/opt`
   backups to `/mnt/backups/opt` plus an independent weekly Backblaze B2 repository.

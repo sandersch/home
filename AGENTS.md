@@ -18,8 +18,10 @@ Phases 0-5, Flux bootstrap output exists under
 controllers/configs are committed, and manifests exist for the media stack, Frigate,
 Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
 integration have passed live validation; both Restic backup repositories have also
-passed backup/restore drills. Treat remaining work as Frigate tuning,
-observability/alerting, and deferred apps—not as a greenfield scaffold.
+passed backup/restore drills. The first observability manifests (Prometheus, Grafana,
+Alertmanager, blackbox probes, and external dead-man routing) are committed but not yet
+live-validated. Treat remaining work as that reconciliation/validation, UPS metrics,
+Frigate tuning, and deferred apps—not as a greenfield scaffold.
 
 ## Hardware (summary)
 
@@ -45,7 +47,7 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | Media server | **Plex** (lifetime pass) | Wife-acceptance + existing 100 GB metadata |
 | Storage (local) | **LVM under everything**; btrfs on `/opt`; **TopoLVM** for scratch | One VG: manual LVs for OS + `/opt` (btrfs snapshots + zstd); TopoLVM provisions enforced, resizable ext4 scratch LVs (Frigate cache, SABnzbd staging) from VG free space. Supersedes the earlier "no LVM" call — partition count + up-front sizing anxiety outweighed the abstraction overlap |
 | Backups | **Restic** → NAS nightly + **Backblaze B2** weekly | Cheap, deduplicating, offsite copy |
-| Alerting | **ntfy** (self-hosted) → phone push | Free, self-hosted, simple |
+| Alerting | **Dead Man's Snitch** for the off-node Watchdog; **ntfy** is optional phase two | The external heartbeat covers total node/monitoring failure; self-hosted push can later deliver actionable in-cluster alerts without being a phase-one dependency |
 | Camera segment addressing | **`192.168.105.0/24`, host at `.1`**, per-camera NTP target `192.168.105.1` | Frozen once cameras are provisioned: the subnet, the host's NIC2 address, and the NTP server are typed into each camera's web UI (1.3) and baked into DHCP/Frigate, so renumbering means hand-touching every camera. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
 
 Deferred / revisit later (see [operations.md](./docs/operations.md#follow-ups)):
@@ -77,14 +79,17 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │       ├── infra-controllers.yaml # Kustomization → ../../infrastructure/controllers
 │       ├── infra-configs.yaml     # Kustomization → ../../infrastructure/configs
 │       ├── apps.yaml              # Kustomization → ../../apps (dependsOn configs)
-│       └── monitoring.yaml        # Kustomization → ../../infrastructure/monitoring
+│       ├── monitoring-base.yaml   # namespace + bootstrap monitoring secrets
+│       ├── monitoring-controllers.yaml # kube-prometheus-stack / CRDs
+│       ├── monitoring-configs.yaml # blackbox, probes, rules, routing
+│       └── monitoring.yaml        # backup slice; legacy name retained for safe ownership
 ├── infrastructure/
 │   ├── controllers/           # HelmRepos + HelmReleases for metallb,
 │   │                          #   ingress-nginx, cert-manager, tailscale-operator,
 │   │                          #   topolvm; Intel GPU plugin via upstream Kustomization
 │   ├── configs/               # ClusterIssuer, MetalLB pool, StorageClass,
 │   │                          #   PriorityClasses, cluster-wide config
-│   └── monitoring/            # Phase 5 backups now; monitoring/alerting next
+│   └── monitoring/            # Phase 5 base, controllers, configs, and live backups
 └── apps/
     ├── media/                 # namespace + Plex, download pod (gluetun+
     │                          #   sabnzbd+*arr), seerr, romm

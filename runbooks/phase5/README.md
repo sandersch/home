@@ -1,6 +1,6 @@
-# Phase 5 - NAS and offsite backups
+# Phase 5 - backups and observability
 
-Scripts for the backup-first slice of
+Scripts for the backup and first observability slices of
 [build-plan.md Phase 5](../../docs/build-plan.md#phase-5--observability--expansion-).
 
 ## Order
@@ -20,10 +20,37 @@ Run these after Phase 4 is validated and the NAS has a dedicated backup export a
 | `07-init-restic-b2-repo.sh` | Reconcile monitoring and initialize the B2 repository idempotently |
 | `08-run-manual-b2-backup.sh` | Run the weekly B2 CronJob manually |
 | `09-validate-b2-restore.sh` | Restore representative B2 artifacts without the NAS |
+| `10-setup-deadmanssnitch.sh` | SOPS-encrypt the external heartbeat URL and activate Alertmanager Watchdog routing |
 
 Both repositories have passed initialization, manual backup, and representative restore
 validation. The nightly NAS and first naturally scheduled weekly B2 backups both
 completed successfully on 2026-07-19.
+
+## External monitoring heartbeat
+
+Create a Snitch in the existing Dead Man's Snitch account for the Prometheus
+`Watchdog`. A 10-minute Basic interval is recommended because Alertmanager checks in
+every 5 minutes; using a wider service interval leaves room for scheduling and network
+jitter. Then run:
+
+```bash
+./runbooks/phase5/10-setup-deadmanssnitch.sh
+```
+
+The script prompts without echoing the unique `https://nosnch.in/...` URL (or accepts
+it from `DEADMANS_SNITCH_URL`), writes plaintext only in a temporary directory,
+creates `infrastructure/monitoring/configs/deadmanssnitch/deadmanssnitch.sops.yaml`,
+and adds the complete component to `monitoring-configs`. Commit those changes before
+reconciling:
+
+```bash
+flux reconcile kustomization monitoring-configs --with-source
+```
+
+Confirm that `Watchdog` is firing in Alertmanager and that the Snitch becomes healthy.
+This tests the Prometheus → Alertmanager → external-network path end to end. The other
+phase-one alerts remain visible in Prometheus, Alertmanager, and Grafana; optional
+phase-two ntfy routing is what will add phone push for them.
 
 ## Secret generation
 

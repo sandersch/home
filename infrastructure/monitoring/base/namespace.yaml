@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  annotations:
+    # The namespace used to belong to the backup Flux target. Disabling prune
+    # makes the one-time ownership transfer safe and keeps namespace deletion
+    # deliberate after the transfer is complete.
+    kustomize.toolkit.fluxcd.io/prune: disabled

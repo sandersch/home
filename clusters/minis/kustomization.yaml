@@ -4,5 +4,8 @@ resources:
   - flux-system
   - infra-controllers.yaml
   - infra-configs.yaml
+  - monitoring-base.yaml
+  - monitoring-controllers.yaml
+  - monitoring-configs.yaml
   - apps.yaml
   - monitoring.yaml

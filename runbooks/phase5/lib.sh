@@ -9,6 +9,14 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 # shellcheck disable=SC2034
 PHASE5_MONITORING_DIR="$REPO_ROOT/infrastructure/monitoring"
 # shellcheck disable=SC2034
+PHASE5_OBSERVABILITY_CONFIG_DIR="$PHASE5_MONITORING_DIR/configs"
+# shellcheck disable=SC2034
+PHASE5_DEADMANS_SNITCH_DIR="$PHASE5_OBSERVABILITY_CONFIG_DIR/deadmanssnitch"
+# shellcheck disable=SC2034
+PHASE5_DEADMANS_SNITCH_SECRET="$PHASE5_DEADMANS_SNITCH_DIR/deadmanssnitch.sops.yaml"
+# shellcheck disable=SC2034
+PHASE5_GRAFANA_SECRET="$PHASE5_MONITORING_DIR/base/grafana-admin.sops.yaml"
+# shellcheck disable=SC2034
 PHASE5_RESTIC_SECRET="$PHASE5_MONITORING_DIR/restic-nas.sops.yaml"
 # shellcheck disable=SC2034
 PHASE5_RESTIC_B2_SECRET="$PHASE5_MONITORING_DIR/restic-b2.sops.yaml"
@@ -32,7 +40,7 @@ assert_phase5_backup_tree() {
   for f in \
     clusters/minis/monitoring.yaml \
     infrastructure/monitoring/kustomization.yaml \
-    infrastructure/monitoring/namespace.yaml \
+    infrastructure/monitoring/base/namespace.yaml \
     infrastructure/monitoring/restic-nas-config.yaml \
     infrastructure/monitoring/restic-nas-cronjob.yaml \
     infrastructure/monitoring/restic-b2-cronjob.yaml \
@@ -41,6 +49,42 @@ assert_phase5_backup_tree() {
     [ -f "$REPO_ROOT/$f" ] || die "missing Phase 5 backup file: $f"
   done
   ok "Phase 5 backup tree is present"
+}
+
+assert_phase5_observability_builds() {
+  local target
+  for target in \
+    infrastructure/monitoring/base \
+    infrastructure/monitoring/controllers \
+    infrastructure/monitoring/configs \
+    clusters/minis; do
+    kustomize build "$REPO_ROOT/$target" >/dev/null
+    ok "kustomize build $target"
+  done
+}
+
+assert_phase5_observability_invariants() {
+  yq -e '.spec.chart.spec.version == "87.17.0" and
+    .spec.install.crds == "CreateReplace" and
+    .spec.upgrade.crds == "CreateReplace"' \
+    "$PHASE5_MONITORING_DIR/controllers/kube-prometheus-stack.yaml" >/dev/null \
+    || die "kube-prometheus-stack version or CRD policy changed unexpectedly"
+  yq -e '.spec.chart.spec.version == "11.15.1"' \
+    "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-exporter.yaml" >/dev/null \
+    || die "blackbox exporter version changed unexpectedly"
+  yq -e 'select(.kind == "Probe" and .metadata.name == "critical-ingress") |
+    .spec.targets.staticConfig.static ==
+      ["https://home-assistant.worm.run", "https://frigate.worm.run"]' \
+    "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
+    || die "critical ingress blackbox targets changed unexpectedly"
+  yq -e 'select(.kind == "Probe" and .metadata.name == "mqtt") |
+    .spec.targets.staticConfig.static == ["mosquitto.mqtt.svc.cluster.local:1883"]' \
+    "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
+    || die "MQTT blackbox target changed unexpectedly"
+  yq -e '.data["admin-password"] | startswith("ENC[AES256_GCM")' \
+    "$PHASE5_GRAFANA_SECRET" >/dev/null \
+    || die "Grafana administrator password is missing or not SOPS-encrypted"
+  ok "observability versions, probes, and encrypted Grafana credentials are intact"
 }
 
 assert_phase5_backup_invariants() {

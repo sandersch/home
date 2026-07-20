@@ -1,18 +1,17 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: monitoring
+  name: monitoring-base
   namespace: flux-system
 spec:
   dependsOn:
-    - name: apps
-    - name: monitoring-base
+    - name: infra-configs
   decryption:
     provider: sops
     secretRef:
       name: sops-age
   interval: 10m
-  path: ./infrastructure/monitoring
+  path: ./infrastructure/monitoring/base
   prune: true
   sourceRef:
     kind: GitRepository

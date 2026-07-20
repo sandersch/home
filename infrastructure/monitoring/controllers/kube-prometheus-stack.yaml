@@ -1,0 +1,227 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus-stack
+  namespace: flux-system
+spec:
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      reconcileStrategy: ChartVersion
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+      version: 87.17.0
+  install:
+    createNamespace: false
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  interval: 30m
+  releaseName: kube-prometheus-stack
+  targetNamespace: monitoring
+  timeout: 15m
+  upgrade:
+    cleanupOnFail: true
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    # k3s on this host uses SQLite and does not expose the separate upstream
+    # scheduler/controller-manager/proxy/etcd metrics endpoints expected by
+    # kube-prometheus-stack. Keep the useful rules without permanent false alarms.
+    defaultRules:
+      rules:
+        etcd: false
+        kubeControllerManager: false
+        kubeProxy: false
+        kubeSchedulerAlerting: false
+        kubeSchedulerRecording: false
+        windows: false
+    kubeControllerManager:
+      enabled: false
+    kubeEtcd:
+      enabled: false
+    kubeProxy:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    windowsMonitoring:
+      enabled: false
+
+    alertmanager:
+      # Selected AlertmanagerConfig objects add receivers below this safe null
+      # default. In particular, 10-setup-deadmanssnitch.sh adds the Watchdog route.
+      config:
+        global:
+          resolve_timeout: 5m
+        route:
+          group_by:
+            - namespace
+            - alertname
+          group_wait: 30s
+          group_interval: 5m
+          repeat_interval: 12h
+          receiver: "null"
+          # The chart default sends Watchdog to null before merged
+          # AlertmanagerConfig routes are evaluated. Clear it so the optional
+          # Dead Man's Snitch route can receive the heartbeat.
+          routes: []
+        receivers:
+          - name: "null"
+      alertmanagerSpec:
+        alertmanagerConfigMatcherStrategy:
+          type: None
+        alertmanagerConfigSelector:
+          matchLabels:
+            app.kubernetes.io/part-of: homelab-monitoring
+        priorityClassName: homelab-standard
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 128Mi
+        storage:
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 1Gi
+              storageClassName: topolvm-scratch
+
+    grafana:
+      admin:
+        existingSecret: grafana-admin
+        passwordKey: admin-password
+        userKey: admin-user
+      grafana.ini:
+        server:
+          root_url: https://grafana.worm.run
+        users:
+          allow_sign_up: false
+      ingress:
+        enabled: true
+        ingressClassName: nginx
+        hosts:
+          - grafana.worm.run
+        path: /
+        tls:
+          - hosts:
+              - grafana.worm.run
+      initChownData:
+        resources:
+          requests:
+            cpu: 5m
+            memory: 16Mi
+          limits:
+            cpu: 25m
+            memory: 32Mi
+      persistence:
+        accessModes:
+          - ReadWriteOnce
+        enabled: true
+        size: 2Gi
+        storageClassName: topolvm-scratch
+        type: sts
+      priorityClassName: homelab-standard
+      resources:
+        requests:
+          cpu: 100m
+          memory: 192Mi
+        limits:
+          cpu: 300m
+          memory: 384Mi
+      sidecar:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+      testFramework:
+        resources:
+          requests:
+            cpu: 5m
+            memory: 16Mi
+          limits:
+            cpu: 25m
+            memory: 32Mi
+
+    kube-state-metrics:
+      priorityClassName: homelab-standard
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 150m
+          memory: 128Mi
+
+    prometheus:
+      prometheusSpec:
+        podMonitorSelectorNilUsesHelmValues: false
+        priorityClassName: homelab-standard
+        probeSelectorNilUsesHelmValues: false
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 750m
+            memory: 1280Mi
+        retention: 15d
+        retentionSize: 16GB
+        ruleSelectorNilUsesHelmValues: false
+        serviceMonitorSelectorNilUsesHelmValues: false
+        storageSpec:
+          volumeClaimTemplate:
+            spec:
+              accessModes:
+                - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 20Gi
+              storageClassName: topolvm-scratch
+
+    prometheus-node-exporter:
+      priorityClassName: homelab-standard
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 64Mi
+
+    prometheusOperator:
+      admissionWebhooks:
+        patch:
+          priorityClassName: homelab-standard
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 25m
+              memory: 32Mi
+      priorityClassName: homelab-standard
+      prometheusConfigReloader:
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
