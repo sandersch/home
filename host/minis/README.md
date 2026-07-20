@@ -28,6 +28,7 @@ phase order. All paths are owned by `root`; set the perms noted per file.
 | `etc/nut/upsd.conf` | `/etc/nut/upsd.conf` | `root:nut` `640` | " |
 | `etc/nut/upsmon.conf` | `/etc/nut/upsmon.conf` | `root:nut` `640` | " (**redacted secret**) |
 | `etc/nut/upsd.users` | `/etc/nut/upsd.users` | `root:nut` `640` | " (**redacted secret**) |
+| `etc/systemd/system/nut-server.service.d/10-wait-online.conf` | same | `root:root` `644` | `sudo systemctl daemon-reload && sudo systemctl restart nut-server` (orders upsd after network-online — its lan0 `LISTEN` must not race address assignment) |
 | `etc/fstab` | `/etc/fstab` | `root:root` `644` | reconcile the `/boot/efi` UUID with this disk (see Phase 0.4), then create the listed mountpoints, `sudo mount -a`, and verify the NFS mounts needed for the current phase |
 
 **SSH (key-only):** `sshd_config.d/10-homelab.conf` sets `PasswordAuthentication no` and
@@ -70,8 +71,10 @@ with `upsc cp1500`. The driver/port (`usbhid-ups`/`auto`) and battery model
 **redacted here** as `__REPLACE_WITH_UPSMON_PASSWORD__` per the repo's no-plaintext-secrets
 rule. On restore, replace **both** with the value from the password manager — they must
 match or `upsmon` can't authenticate to `upsd` and the clean-shutdown-on-power-loss
-hook silently won't work. (It's a localhost-only credential — `upsd` listens on
-`127.0.0.1` — but the rule stands regardless.)
+hook silently won't work. (`upsd` also listens on lan0's IP for read-only in-cluster
+telemetry clients — see [operations.md → UPS / NUT](../../docs/operations.md#ups--nut) —
+so this credential is reachable beyond loopback, though only the `upsmon` role ever
+uses it.)
 
 ### Phase 1 — camera-segment isolation
 
@@ -81,7 +84,7 @@ to describe the real rebuild path.
 
 | Repo file | Destination | Owner / perms | Apply |
 |---|---|---|---|
-| `etc/nftables.conf` | `/etc/nftables.conf` | `root:root` `644` | `sudo systemctl enable --now nftables` (replaces the stock default; manages only the `camera_isolation` table — no `flush ruleset`, so k3s's own nft chains survive a reload) |
+| `etc/nftables.conf` | `/etc/nftables.conf` | `root:root` `644` | `sudo systemctl enable --now nftables` (replaces the stock default; manages only the `camera_isolation` and `ups_access` tables — no `flush ruleset`, so k3s's own nft chains survive a reload) |
 | `etc/sysctl.d/99-camera-no-ipv6.conf` | same | `root:root` `644` | `sudo sysctl --system` (disables IPv6 on NIC2) |
 | `etc/dnsmasq.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl enable --now dnsmasq` (DHCP-only, NIC2; `port=0` so no `:53` clash with systemd-resolved) |
 | `etc/chrony/conf.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl enable --now chrony && sudo systemctl restart chrony` (serve NTP to the segment) |

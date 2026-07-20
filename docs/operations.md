@@ -134,6 +134,34 @@ fires even if the cluster is degraded. The **nut-exporter** pod scrapes it into
 Prometheus for the Grafana dashboard and the "UPS on battery" alert — so a power event
 is visible even when the node rides it out and you weren't watching.
 
+### UPS telemetry fan-out (one upsd, many read-only clients)
+
+Both monitoring consumers poll the **same host `upsd`** directly — never one through
+the other (routing UPS state via HA or Prometheus would couple the power-loss alert to
+that intermediary's health, exactly what the alert exists to catch):
+
+- **Home Assistant** — native NUT integration (UI-managed, lives on the HA PVC per
+  repo convention) pointing at `10.137.20.5:3493`, UPS `cp1500`.
+- **Prometheus** — the nut-exporter pod polling the same server/UPS.
+
+Host-side plumbing (canonical copies in `host/minis/etc/`):
+
+- `nut/upsd.conf` adds `LISTEN 10.137.20.5 3493` alongside loopback so pods can
+  reach it. Reads are anonymous — NUT auth is only needed for commands and the
+  `upsmon` role — which is acceptable because…
+- `nftables.conf` (`ups_access` table) pins TCP 3493 to loopback + the k3s pod CIDR
+  (`10.42.0.0/16`) and drops everything else, keeping the LAN and camera segment out.
+- `systemd/system/nut-server.service.d/10-wait-online.conf` orders `nut-server` after
+  `network-online.target` so the non-loopback bind can't race address assignment at
+  boot (a lost race would leave telemetry silently blind while loopback/upsmon still
+  worked).
+
+Apply (next host touch): copy the three files into place, then
+`sudo systemctl daemon-reload && sudo systemctl restart nut-server && sudo systemctl reload nftables`.
+Verify with `ss -ltn | grep 3493` (both addresses) and `upsc cp1500@10.137.20.5`
+(works from the host — local traffic arrives via `lo`, which the nftables table
+accepts).
+
 ## Resource tuning
 
 The [allocation table](./architecture.md#resource-allocation) values are conservative
