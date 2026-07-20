@@ -34,15 +34,31 @@ spec:
     - name: homelab.backups
       rules:
         - alert: ResticBackupFailed
-          expr: kube_job_status_failed{namespace="monitoring",job_name=~"restic-(nas|b2)-backup-.*"} > 0
+          expr: |
+            max by (namespace, owner_name) (
+              (
+                kube_job_created{namespace="monitoring",job_name=~"restic-(nas|b2)-backup-.*"}
+                * on (namespace, job_name) group_left(owner_name)
+                  kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name=~"restic-(nas|b2)-backup"}
+              )
+              and on (namespace, job_name)
+                (kube_job_status_failed{namespace="monitoring",job_name=~"restic-(nas|b2)-backup-.*"} > 0)
+            )
+            > on (namespace, owner_name)
+            label_replace(
+              kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob=~"restic-(nas|b2)-backup"},
+              "owner_name", "$1", "cronjob", "(.*)"
+            )
           for: 5m
           labels:
             severity: critical
           annotations:
-            description: "{{ $labels.job_name }} has failed."
+            description: "{{ $labels.owner_name }} has a failed run newer than its last successful run."
             summary: Restic backup job failed
         - alert: ResticNasBackupOverdue
-          expr: time() - kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-nas-backup"} > 30 * 60 * 60
+          expr: |
+            (time() - kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-nas-backup"} > 30 * 60 * 60)
+            or absent(kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-nas-backup"})
           for: 15m
           labels:
             severity: critical
@@ -50,7 +66,9 @@ spec:
             description: The nightly NAS Restic CronJob has no successful run in the last 30 hours.
             summary: NAS Restic backup is overdue
         - alert: ResticB2BackupOverdue
-          expr: time() - kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-b2-backup"} > 8 * 24 * 60 * 60
+          expr: |
+            (time() - kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-b2-backup"} > 8 * 24 * 60 * 60)
+            or absent(kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-b2-backup"})
           for: 30m
           labels:
             severity: critical

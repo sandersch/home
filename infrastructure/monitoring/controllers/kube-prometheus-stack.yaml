@@ -31,6 +31,8 @@ spec:
     # scheduler/controller-manager/proxy/etcd metrics endpoints expected by
     # kube-prometheus-stack. Keep the useful rules without permanent false alarms.
     defaultRules:
+      disabled:
+        CPUThrottlingHigh: true
       rules:
         etcd: false
         kubeControllerManager: false
@@ -139,10 +141,10 @@ spec:
         resources:
           requests:
             cpu: 10m
-            memory: 32Mi
+            memory: 64Mi
           limits:
             cpu: 50m
-            memory: 64Mi
+            memory: 128Mi
       testFramework:
         resources:
           requests:
