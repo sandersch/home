@@ -114,8 +114,13 @@ Phase one is deliberately metrics-first:
   off-node signal: if the node, Prometheus, Alertmanager, DNS, or outbound path fails,
   the hosted service notices the missing heartbeat.
 
-The manifests are committed and locally rendered, but this slice is not considered
-complete until it is reconciled and live-validated. **nut-exporter** and the UPS
+The initial metrics and alert pipeline passed live validation on 2026-07-20. All four
+monitoring Flux Kustomizations and the kube-prometheus-stack HelmRelease were ready;
+all 24 active scrape targets (including four Flux controllers) and all six blackbox
+probes were healthy; 229 rules in 33 groups loaded without evaluation errors; Grafana's
+HTTPS ingress reached its login page with valid TLS; and `Watchdog` was the only firing
+alert. Alertmanager loaded the Dead Man's Snitch route, delivered its webhook without
+failures, and the account-side Snitch became healthy. **nut-exporter** and the UPS
 on-battery rule are the remaining phase-one monitoring work.
 
 Grafana is exposed at `https://grafana.worm.run`; its `admin` password is generated
@@ -146,13 +151,14 @@ and its functionality moved to Grafana Alloy.
 | Pod crash loop | repeated restarts, any namespace | upstream kube-prometheus rule |
 | Restic backup failed | CronJob job failure | committed |
 | Restic backup overdue/suspended | no success within 30 hours (NAS) or 8 days (B2), or schedule suspended | committed |
-| Monitoring pipeline absent | Dead Man's Snitch misses the Alertmanager Watchdog | committed; account URL activation required |
+| Monitoring pipeline absent | Dead Man's Snitch misses the Alertmanager Watchdog | deployed and live-validated; external check healthy 2026-07-20 |
 | UPS on battery | NUT input-power loss | pending nut-exporter |
 
 ### External dead-man setup and notification routing
 
-Create a Snitch named for the Prometheus Watchdog in the existing account, choose a
-10-minute Basic interval, and run:
+The Prometheus Watchdog Snitch is active with a 10-minute Basic interval and was
+confirmed healthy on 2026-07-20. For a rebuild or check-in URL rotation, create or
+update the Snitch in the existing account and run:
 
 ```bash
 ./runbooks/phase5/10-setup-deadmanssnitch.sh
@@ -161,8 +167,8 @@ Create a Snitch named for the Prometheus Watchdog in the existing account, choos
 The helper prompts without echo, validates the `https://nosnch.in/...` URL, creates a
 SOPS-encrypted Secret, and activates the matching `AlertmanagerConfig`. Reconcile
 `monitoring-configs`, confirm `Watchdog` is firing in Alertmanager, and confirm the
-Snitch turns healthy. Do not put the unique check-in URL in Helm values or plaintext
-git history.
+Snitch turns healthy again. Do not put the unique check-in URL in Helm values or
+plaintext git history.
 
 Until optional ntfy routing is added, non-Watchdog alerts are retained and visible in
 Prometheus, Alertmanager, and Grafana but do not generate phone push. That is an

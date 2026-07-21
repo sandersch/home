@@ -20,9 +20,13 @@ Committed now:
 The B2 repository initialization, manual backup, repository check, and NAS-independent
 restore validation passed on 2026-07-18. The nightly NAS and first naturally scheduled
 weekly B2 backups both completed successfully on 2026-07-19. Both encrypted Secrets are
-included and both CronJobs are enabled. The observability manifests have rendered
-successfully locally but are not yet reconciled or live-validated.
+included and both CronJobs are enabled. The observability stack passed live validation
+on 2026-07-20: Flux and Helm were ready, all scrape targets and blackbox probes were
+healthy, Grafana worked through its HTTPS ingress, the rules loaded without errors,
+and the Alertmanager Watchdog route delivered successfully to a healthy Dead Man's
+Snitch check.
 
-Still planned for phase one: nut-exporter, the UPS alert, and live validation. Loki with
-Grafana Alloy and ntfy are optional phase-two additions; the phase-one system does not
-depend on either centralized logs or a self-hosted notification path.
+Still planned for phase one: nut-exporter, the UPS alert, and resource tuning after
+roughly one week of real metrics. Loki with Grafana Alloy and ntfy are optional
+phase-two additions; the phase-one system does not depend on either centralized logs
+or a self-hosted notification path.

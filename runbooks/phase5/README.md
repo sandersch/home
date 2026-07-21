@@ -26,12 +26,17 @@ Both repositories have passed initialization, manual backup, and representative 
 validation. The nightly NAS and first naturally scheduled weekly B2 backups both
 completed successfully on 2026-07-19.
 
+The initial observability stack passed live validation on 2026-07-20. Prometheus,
+Grafana, Alertmanager, blackbox probes, Flux metrics, and rules were healthy, and the
+Alertmanager Watchdog reached a healthy Dead Man's Snitch check.
+
 ## External monitoring heartbeat
 
-Create a Snitch in the existing Dead Man's Snitch account for the Prometheus
-`Watchdog`. A 10-minute Basic interval is recommended because Alertmanager checks in
-every 5 minutes; using a wider service interval leaves room for scheduling and network
-jitter. Then run:
+The current Prometheus `Watchdog` Snitch is active and healthy with a 10-minute Basic
+interval. For a rebuild or check-in URL rotation, create or update the Snitch in the
+existing Dead Man's Snitch account. Keep the 10-minute interval because Alertmanager
+checks in every 5 minutes; the wider service interval leaves room for scheduling and
+network jitter. Then run:
 
 ```bash
 ./runbooks/phase5/10-setup-deadmanssnitch.sh
@@ -47,7 +52,8 @@ reconciling:
 flux reconcile kustomization monitoring-configs --with-source
 ```
 
-Confirm that `Watchdog` is firing in Alertmanager and that the Snitch becomes healthy.
+Confirm that `Watchdog` is firing in Alertmanager and that the Snitch becomes healthy
+again.
 This tests the Prometheus → Alertmanager → external-network path end to end. The other
 phase-one alerts remain visible in Prometheus, Alertmanager, and Grafana; optional
 phase-two ntfy routing is what will add phone push for them.

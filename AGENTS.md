@@ -10,18 +10,20 @@ The repo is operated alongside an AI coding session on a laptop, connected over 
 
 ## Current status
 
-**Active build.** The repo is no longer planning-only: Phases 0-4 of the
-[build plan](./docs/build-plan.md) are largely implemented. Host-level Phase 0-1
-config lives under [`host/minis/etc`](./host/minis/etc), executable runbooks cover
-Phases 0-5, Flux bootstrap output exists under
+**Active build.** The repo is no longer planning-only: Phases 0-4 and the initial
+Phase 5 backup/observability slice of the [build plan](./docs/build-plan.md) are
+largely implemented. Host-level Phase 0-1 config lives under
+[`host/minis/etc`](./host/minis/etc), executable runbooks cover Phases 0-5, Flux
+bootstrap output exists under
 [`clusters/minis/flux-system`](./clusters/minis/flux-system), infrastructure
 controllers/configs are committed, and manifests exist for the media stack, Frigate,
 Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
 integration have passed live validation; both Restic backup repositories have also
-passed backup/restore drills. The first observability manifests (Prometheus, Grafana,
-Alertmanager, blackbox probes, and external dead-man routing) are committed but not yet
-live-validated. Treat remaining work as that reconciliation/validation, UPS metrics,
-Frigate tuning, and deferred apps—not as a greenfield scaffold.
+passed backup/restore drills. The initial observability stack (Prometheus, Grafana,
+Alertmanager, blackbox probes, Flux metrics, rules, and external dead-man routing)
+passed live validation on 2026-07-20, including a healthy Dead Man's Snitch check.
+Treat remaining work as UPS metrics, one-week resource tuning, Frigate tuning, and
+deferred apps—not as a greenfield scaffold.
 
 ## Hardware (summary)
 

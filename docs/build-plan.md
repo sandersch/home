@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. All are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Tune Frigate cameras. |
-| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, and SOPS-safe Dead Man's Snitch workflow are committed. | Reconcile and live-validate observability, activate the account-specific Snitch URL, add UPS metrics, then consider optional phase-two logs/push and deferred apps. |
+| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, and SOPS-safe Dead Man's Snitch route are deployed and passed live validation on 2026-07-20; the external Snitch is healthy. | Add UPS metrics and its on-battery rule, tune resources after roughly one week of data, then consider optional phase-two logs/push and deferred apps. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
 phase validation scripts and gate below before declaring a phase complete.
@@ -633,11 +633,14 @@ broker traffic, Frigate availability, entity registration, and a real person eve
 
 ## Phase 5 — observability + expansion 📦
 
-- **Phase one metrics and alert pipeline (committed, pending live validation):** pinned
+- **Phase one metrics and alert pipeline (deployed and live-validated 2026-07-20):** pinned
   **kube-prometheus-stack** (Prometheus + Grafana + Alertmanager), pinned
   **prometheus-blackbox-exporter**, internal HTTPS/TCP probes, Flux controller metrics,
   operational alert rules, and an external **Dead Man's Snitch** Watchdog route. The
-  Snitch URL is activated only through the SOPS helper in `runbooks/phase5`.
+  Snitch URL was activated through the SOPS helper in `runbooks/phase5`, and the
+  account-side check is healthy. Validation covered Flux/Helm readiness, bound PVCs,
+  Grafana's HTTPS login path, every configured scrape target and blackbox probe, rule
+  evaluation without errors, and successful Watchdog delivery through Alertmanager.
 - **Phase one remaining:** add **nut-exporter** for UPS metrics and its on-battery rule.
   Alert definitions, routing, and validation are in
   [operations.md](./operations.md#monitoring--alerting).
