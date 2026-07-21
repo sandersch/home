@@ -1,0 +1,68 @@
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: pushover
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: homelab-monitoring
+spec:
+  route:
+    groupBy:
+      - namespace
+      - alertname
+    groupInterval: 5m
+    groupWait: 30s
+    matchers:
+      - matchType: "!="
+        name: alertname
+        value: Watchdog
+      - matchType: "=~"
+        name: severity
+        value: ^(warning|critical)$
+    receiver: pushover-warning
+    repeatInterval: 12h
+    routes:
+      - matchers:
+          - matchType: "="
+            name: severity
+            value: critical
+        receiver: pushover-critical
+  receivers:
+    - name: pushover-warning
+      pushoverConfigs:
+        - message: |-
+            {{ range .Alerts }}{{ with .Annotations.summary }}{{ . }}{{ end }}{{ with .Annotations.description }}
+            {{ . }}{{ end }}{{ with .Labels.namespace }}
+            Namespace: {{ . }}{{ end }}{{ with .Labels.instance }}
+            Instance: {{ . }}{{ end }}
+            {{ end }}
+          priority: '{{ if eq .Status "firing" }}0{{ else }}-1{{ end }}'
+          sendResolved: true
+          title: '{{ .Status }} [{{ .CommonLabels.severity }}] {{ .CommonLabels.alertname }}'
+          token:
+            key: api-token
+            name: pushover
+          url: https://grafana.worm.run
+          urlTitle: Open Grafana
+          userKey:
+            key: user-key
+            name: pushover
+    - name: pushover-critical
+      pushoverConfigs:
+        - message: |-
+            {{ range .Alerts }}{{ with .Annotations.summary }}{{ . }}{{ end }}{{ with .Annotations.description }}
+            {{ . }}{{ end }}{{ with .Labels.namespace }}
+            Namespace: {{ . }}{{ end }}{{ with .Labels.instance }}
+            Instance: {{ . }}{{ end }}
+            {{ end }}
+          priority: '{{ if eq .Status "firing" }}1{{ else }}-1{{ end }}'
+          sendResolved: true
+          title: '{{ .Status }} [{{ .CommonLabels.severity }}] {{ .CommonLabels.alertname }}'
+          token:
+            key: api-token
+            name: pushover
+          url: https://grafana.worm.run
+          urlTitle: Open Grafana
+          userKey:
+            key: user-key
+            name: pushover

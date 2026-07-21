@@ -53,7 +53,8 @@ spec:
 
     alertmanager:
       # Selected AlertmanagerConfig objects add receivers below this safe null
-      # default. In particular, 10-setup-deadmanssnitch.sh adds the Watchdog route.
+      # default. The Phase 5 setup helpers activate the independent Watchdog and
+      # actionable Pushover routes only after their encrypted Secrets exist.
       config:
         global:
           resolve_timeout: 5m

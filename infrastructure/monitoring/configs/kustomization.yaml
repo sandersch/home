@@ -6,3 +6,4 @@ resources:
 - alert-rules.yaml
 - flux-podmonitor.yaml
 - deadmanssnitch
+- pushover

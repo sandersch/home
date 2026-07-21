@@ -10,8 +10,13 @@ Committed now:
   also use small scratch PVCs because their durable configuration lives in git.
 - `configs/`: pinned blackbox exporter, HTTPS probes for Home Assistant, Frigate, Plex,
   Seerr, and RomM, an MQTT TCP probe, Flux controller metrics, and operational rules.
-- `configs/deadmanssnitch/`: a dormant Alertmanager Watchdog route. Run
+- `configs/deadmanssnitch/`: an opt-in Alertmanager Watchdog route, currently active.
+  Run
   `runbooks/phase5/10-setup-deadmanssnitch.sh` to encrypt the unique check-in URL and
+  atomically include the component.
+- `configs/pushover/`: a dormant actionable-alert route with explicit normal/high
+  firing priorities and quiet recovery notifications. Run
+  `runbooks/phase5/11-setup-pushover.sh` to encrypt the recipient/application keys and
   atomically include the component.
 - Restic NAS backup CronJob for `/opt` app state.
 - Enabled weekly Backblaze B2 CronJob for the independent offsite repository.
@@ -26,7 +31,7 @@ healthy, Grafana worked through its HTTPS ingress, the rules loaded without erro
 and the Alertmanager Watchdog route delivered successfully to a healthy Dead Man's
 Snitch check.
 
-Still planned for phase one: nut-exporter, the UPS alert, and resource tuning after
-roughly one week of real metrics. Loki with Grafana Alloy and ntfy are optional
-phase-two additions; the phase-one system does not depend on either centralized logs
-or a self-hosted notification path.
+Still planned for phase one: activating and validating the hosted Pushover route,
+nut-exporter, the UPS alert, and resource tuning after roughly one week of real
+metrics. Loki with Grafana Alloy is an optional phase-two addition; notification
+delivery does not require another cluster workload.

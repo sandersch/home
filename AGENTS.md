@@ -49,7 +49,7 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | Media server | **Plex** (lifetime pass) | Wife-acceptance + existing 100 GB metadata |
 | Storage (local) | **LVM under everything**; btrfs on `/opt`; **TopoLVM** for scratch | One VG: manual LVs for OS + `/opt` (btrfs snapshots + zstd); TopoLVM provisions enforced, resizable ext4 scratch LVs (Frigate cache, SABnzbd staging) from VG free space. Supersedes the earlier "no LVM" call — partition count + up-front sizing anxiety outweighed the abstraction overlap |
 | Backups | **Restic** → NAS nightly + **Backblaze B2** weekly | Cheap, deduplicating, offsite copy |
-| Alerting | **Dead Man's Snitch** for the off-node Watchdog; **ntfy** is optional phase two | The external heartbeat covers total node/monitoring failure; self-hosted push can later deliver actionable in-cluster alerts without being a phase-one dependency |
+| Alerting | **Dead Man's Snitch** for the off-node Watchdog; hosted **Pushover** for actionable alerts | The independent heartbeat covers total node/monitoring failure; Pushover delivers warning/critical phone notifications without adding a same-node workload or relay |
 | Camera segment addressing | **`192.168.105.0/24`, host at `.1`**, per-camera NTP target `192.168.105.1` | Frozen once cameras are provisioned: the subnet, the host's NIC2 address, and the NTP server are typed into each camera's web UI (1.3) and baked into DHCP/Frigate, so renumbering means hand-touching every camera. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
 
 Deferred / revisit later (see [operations.md](./docs/operations.md#follow-ups)):

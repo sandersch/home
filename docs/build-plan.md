@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. All are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Tune Frigate cameras. |
-| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, and SOPS-safe Dead Man's Snitch route are deployed and passed live validation on 2026-07-20; the external Snitch is healthy. | Add UPS metrics and its on-battery rule, tune resources after roughly one week of data, then consider optional phase-two logs/push and deferred apps. |
+| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, and SOPS-safe Dead Man's Snitch route are deployed and passed live validation on 2026-07-20; the external Snitch is healthy. A dormant SOPS-safe Pushover component and setup/test helpers are committed for actionable alerts. | Activate and live-validate Pushover, add UPS metrics and its on-battery rule, tune resources after roughly one week of data, then consider optional phase-two logs and deferred apps. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
 phase validation scripts and gate below before declaring a phase complete.
@@ -642,12 +642,13 @@ broker traffic, Frigate availability, entity registration, and a real person eve
   Grafana's HTTPS login path, every configured scrape target and blackbox probe, rule
   evaluation without errors, and successful Watchdog delivery through Alertmanager.
 - **Phase one remaining:** add **nut-exporter** for UPS metrics and its on-battery rule.
-  Alert definitions, routing, and validation are in
+  Activate hosted **Pushover** for actionable warning/critical alerts after its
+  credentials are provisioned. Alert definitions, routing, and validation are in
   [operations.md](./operations.md#monitoring--alerting).
-- **Optional phase two:** **Loki + Grafana Alloy** for centralized logs and **ntfy** for
-  phone push of actionable alerts. Neither is required for phase-one monitoring; logs
-  remain available through Kubernetes and Dead Man's Snitch provides the off-node
-  failure signal.
+- **Optional phase two:** **Loki + Grafana Alloy** for centralized logs. It is not
+  required for phase-one monitoring; logs remain available through Kubernetes,
+  Pushover handles actionable phone notifications, and Dead Man's Snitch provides the
+  independent off-node failure signal.
 - **Restic CronJobs** for backups — the implementation under
   `infrastructure/monitoring` and `runbooks/phase5` has nightly NAS-local `/opt`
   backups to `/mnt/backups/opt` plus an independent weekly Backblaze B2 repository.

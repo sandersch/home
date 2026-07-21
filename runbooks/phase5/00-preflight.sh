@@ -6,6 +6,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_not_root
 require_tools kustomize yq
 
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
 step "Verify Phase 5 backup tree"
 assert_phase5_backup_tree
 
@@ -15,10 +18,9 @@ assert_phase5_observability_builds
 
 step "Verify observability safety invariants"
 assert_phase5_observability_invariants
+assert_phase5_pushover_invariants "$tmpdir/pushover-rendered.yaml"
 
 step "Verify NAS behavior and B2 safety invariants"
-tmpdir="$(mktemp -d)"
-trap 'rm -rf "$tmpdir"' EXIT
 assert_phase5_backup_invariants "$tmpdir/monitoring.yaml"
 
 if [ -f "$PHASE5_RESTIC_SECRET" ]; then

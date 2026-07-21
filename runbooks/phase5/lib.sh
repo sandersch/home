@@ -15,6 +15,12 @@ PHASE5_DEADMANS_SNITCH_DIR="$PHASE5_OBSERVABILITY_CONFIG_DIR/deadmanssnitch"
 # shellcheck disable=SC2034
 PHASE5_DEADMANS_SNITCH_SECRET="$PHASE5_DEADMANS_SNITCH_DIR/deadmanssnitch.sops.yaml"
 # shellcheck disable=SC2034
+PHASE5_PUSHOVER_DIR="$PHASE5_OBSERVABILITY_CONFIG_DIR/pushover"
+# shellcheck disable=SC2034
+PHASE5_PUSHOVER_CONFIG="$PHASE5_PUSHOVER_DIR/alertmanagerconfig.yaml"
+# shellcheck disable=SC2034
+PHASE5_PUSHOVER_SECRET="$PHASE5_PUSHOVER_DIR/pushover.sops.yaml"
+# shellcheck disable=SC2034
 PHASE5_GRAFANA_SECRET="$PHASE5_MONITORING_DIR/base/grafana-admin.sops.yaml"
 # shellcheck disable=SC2034
 PHASE5_RESTIC_SECRET="$PHASE5_MONITORING_DIR/restic-nas.sops.yaml"
@@ -85,6 +91,91 @@ assert_phase5_observability_invariants() {
     "$PHASE5_GRAFANA_SECRET" >/dev/null \
     || die "Grafana administrator password is missing or not SOPS-encrypted"
   ok "observability versions, probes, and encrypted Grafana credentials are intact"
+}
+
+assert_phase5_pushover_invariants() {
+  local rendered="$1" component_active secret_included
+
+  [ -f "$PHASE5_PUSHOVER_CONFIG" ] || die "missing dormant Pushover AlertmanagerConfig"
+  [ -f "$PHASE5_PUSHOVER_DIR/kustomization.yaml" ] || die "missing Pushover kustomization"
+  kustomize build "$PHASE5_PUSHOVER_DIR" >/dev/null
+
+  yq -e '
+    .apiVersion == "monitoring.coreos.com/v1alpha1" and
+    .kind == "AlertmanagerConfig" and
+    .metadata.name == "pushover" and
+    .metadata.namespace == "monitoring" and
+    .spec.route.groupWait == "30s" and
+    .spec.route.repeatInterval == "12h" and
+    any(.spec.route.matchers[];
+      .name == "alertname" and .matchType == "!=" and .value == "Watchdog") and
+    any(.spec.route.matchers[];
+      .name == "severity" and .matchType == "=~" and .value == "^(warning|critical)$") and
+    any(.spec.route.routes[];
+      .receiver == "pushover-critical" and
+      any(.matchers[];
+        .name == "severity" and .matchType == "=" and .value == "critical"))
+  ' "$PHASE5_PUSHOVER_CONFIG" >/dev/null \
+    || die "Pushover must route only warning/critical alerts and explicitly exclude Watchdog"
+
+  yq -e '
+    (.spec.receivers[] | select(.name == "pushover-warning") |
+      .pushoverConfigs[0].sendResolved == true and
+      .pushoverConfigs[0].priority == "{{ if eq .Status \"firing\" }}0{{ else }}-1{{ end }}" and
+      .pushoverConfigs[0].url == "https://grafana.worm.run" and
+      .pushoverConfigs[0].userKey == {"key": "user-key", "name": "pushover"} and
+      .pushoverConfigs[0].token == {"key": "api-token", "name": "pushover"}) and
+    (.spec.receivers[] | select(.name == "pushover-critical") |
+      .pushoverConfigs[0].sendResolved == true and
+      .pushoverConfigs[0].priority == "{{ if eq .Status \"firing\" }}1{{ else }}-1{{ end }}" and
+      .pushoverConfigs[0].url == "https://grafana.worm.run" and
+      .pushoverConfigs[0].userKey == {"key": "user-key", "name": "pushover"} and
+      .pushoverConfigs[0].token == {"key": "api-token", "name": "pushover"})
+  ' "$PHASE5_PUSHOVER_CONFIG" >/dev/null \
+    || die "Pushover priorities, recovery delivery, link, or Secret selectors changed unexpectedly"
+
+  component_active=0
+  secret_included=0
+  if yq -e '.resources | index("pushover") != null' \
+    "$PHASE5_OBSERVABILITY_CONFIG_DIR/kustomization.yaml" >/dev/null; then
+    component_active=1
+  fi
+  if yq -e '.resources | index("pushover.sops.yaml") != null' \
+    "$PHASE5_PUSHOVER_DIR/kustomization.yaml" >/dev/null; then
+    secret_included=1
+  fi
+
+  if [ -f "$PHASE5_PUSHOVER_SECRET" ]; then
+    [ "$component_active" -eq 1 ] && [ "$secret_included" -eq 1 ] \
+      || die "the Pushover Secret exists but the complete component is not activated"
+    grep -q '^sops:' "$PHASE5_PUSHOVER_SECRET" \
+      || die "$PHASE5_PUSHOVER_SECRET is not SOPS-encrypted"
+    yq -e '
+      (.data["user-key"] | startswith("ENC[AES256_GCM")) and
+      (.data["api-token"] | startswith("ENC[AES256_GCM"))
+    ' "$PHASE5_PUSHOVER_SECRET" >/dev/null \
+      || die "Pushover credentials are missing or not SOPS-encrypted"
+  else
+    [ "$component_active" -eq 0 ] && [ "$secret_included" -eq 0 ] \
+      || die "Pushover is activated without its SOPS-encrypted Secret"
+  fi
+
+  kustomize build "$PHASE5_OBSERVABILITY_CONFIG_DIR" >"$rendered"
+  if [ "$component_active" -eq 1 ]; then
+    yq -e 'select(.kind == "Secret" and .metadata.name == "pushover")' "$rendered" >/dev/null \
+      || die "the activated Pushover Secret is missing from rendered monitoring configs"
+    yq -e 'select(.kind == "AlertmanagerConfig" and .metadata.name == "pushover")' "$rendered" >/dev/null \
+      || die "the activated Pushover AlertmanagerConfig is missing from rendered monitoring configs"
+    ok "Pushover is activated with encrypted credentials and explicit 0/1/-1 priorities"
+  else
+    if yq -e 'select(.kind == "Secret" and .metadata.name == "pushover")' "$rendered" >/dev/null; then
+      die "the dormant Pushover Secret unexpectedly renders"
+    fi
+    if yq -e 'select(.kind == "AlertmanagerConfig" and .metadata.name == "pushover")' "$rendered" >/dev/null; then
+      die "the dormant Pushover AlertmanagerConfig unexpectedly renders"
+    fi
+    ok "Pushover is dormant until its encrypted Secret is generated"
+  fi
 }
 
 assert_phase5_backup_invariants() {

@@ -19,7 +19,7 @@ phase section there first, then run the scripts.
 | 3 | [`phase3/`](./phase3/) | SOPS-encrypted infra secrets, Flux reconciliation, and platform validation gate |
 | 3.5 | [`phase3.5/`](./phase3.5/) | Final stopped-host app-data copy from the NAS archive into `/opt` |
 | 4 | [`phase4/`](./phase4/) | Secret helpers, host config install, and validation for download stack, Plex, Seerr, RomM, and Frigate |
-| 5 | [`phase5/`](./phase5/) | NAS and Backblaze B2 Restic setup, encrypted Secrets, repo init, manual backups, and restore validation |
+| 5 | [`phase5/`](./phase5/) | NAS/B2 Restic setup and validation plus encrypted external-heartbeat and Pushover notification workflows |
 
 ## Assumptions
 

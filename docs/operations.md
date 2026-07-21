@@ -113,6 +113,10 @@ Phase one is deliberately metrics-first:
   Alertmanager every five minutes. The URL is a SOPS Secret. This is the required
   off-node signal: if the node, Prometheus, Alertmanager, DNS, or outbound path fails,
   the hosted service notices the missing heartbeat.
+- Hosted **Pushover** is the actionable phone-notification destination. Its dormant
+  component routes only `severity=warning|critical`, explicitly excludes `Watchdog`,
+  and becomes active only after the SOPS-encrypted recipient/application keys exist.
+  This adds no cluster workload or same-node notification dependency.
 
 The initial metrics and alert pipeline passed live validation on 2026-07-20. All four
 monitoring Flux Kustomizations and the kube-prometheus-stack HelmRelease were ready;
@@ -121,7 +125,8 @@ probes were healthy; 229 rules in 33 groups loaded without evaluation errors; Gr
 HTTPS ingress reached its login page with valid TLS; and `Watchdog` was the only firing
 alert. Alertmanager loaded the Dead Man's Snitch route, delivered its webhook without
 failures, and the account-side Snitch became healthy. **nut-exporter** and the UPS
-on-battery rule are the remaining phase-one monitoring work.
+on-battery rule remain, along with Pushover credential activation and phone-delivery
+validation.
 
 Grafana is exposed at `https://grafana.worm.run`; its `admin` password is generated
 once and stored only in `infrastructure/monitoring/base/grafana-admin.sops.yaml`. Read
@@ -133,10 +138,11 @@ sops --decrypt infrastructure/monitoring/base/grafana-admin.sops.yaml \
 ```
 
 **Optional phase two:** add **Loki with Grafana Alloy** only if cross-pod log search is
-worth its storage and memory cost, and add **ntfy** only if phone push for actionable
-in-cluster alerts is useful. Kubernetes logs and the external dead-man remain adequate
-phase-one fallbacks. If centralized logs are added, Promtail is not an option: it
-reached [end of life in March 2026](https://grafana.com/docs/loki/latest/send-data/promtail/)
+worth its storage and memory cost. Kubernetes logs remain the phase-one fallback;
+hosted Pushover handles actionable phone push and the external dead-man independently
+detects monitoring-path failure. If centralized logs are added, Promtail is not an
+option: it reached
+[end of life in March 2026](https://grafana.com/docs/loki/latest/send-data/promtail/),
 and its functionality moved to Grafana Alloy.
 
 ### Alert coverage
@@ -154,7 +160,7 @@ and its functionality moved to Grafana Alloy.
 | Monitoring pipeline absent | Dead Man's Snitch misses the Alertmanager Watchdog | deployed and live-validated; external check healthy 2026-07-20 |
 | UPS on battery | NUT input-power loss | pending nut-exporter |
 
-### External dead-man setup and notification routing
+### External dead-man and actionable notification routing
 
 The Prometheus Watchdog Snitch is active with a 10-minute Basic interval and was
 confirmed healthy on 2026-07-20. For a rebuild or check-in URL rotation, create or
@@ -170,11 +176,29 @@ SOPS-encrypted Secret, and activates the matching `AlertmanagerConfig`. Reconcil
 Snitch turns healthy again. Do not put the unique check-in URL in Helm values or
 plaintext git history.
 
-Until optional ntfy routing is added, non-Watchdog alerts are retained and visible in
-Prometheus, Alertmanager, and Grafana but do not generate phone push. That is an
-explicit phase-one tradeoff, not an accidental routing gap. If ntfy is added in phase
-two, it receives actionable warning/critical alerts; it does not replace Dead Man's
-Snitch because an in-cluster ntfy pod cannot report the node hosting it being down.
+Pushover handles the separate actionable path without weakening this heartbeat. Create
+one Pushover application named `Homelab Alertmanager` for the individual iOS recipient,
+store its application token and the account user key in the password manager, then run:
+
+```bash
+./runbooks/phase5/11-setup-pushover.sh
+```
+
+The helper accepts `PUSHOVER_USER_KEY` and `PUSHOVER_API_TOKEN` or prompts without
+echo, preserves omitted existing values during rotation, uses temporary plaintext
+files only, and activates the component after its SOPS Secret and full render validate.
+Commit the result and reconcile only `monitoring-configs`. Warning firing alerts use
+normal priority `0`; critical firing alerts use high priority `1`, which bypasses quiet
+hours without emergency acknowledgement retries; resolved alerts use quiet priority
+`-1`. All messages show state, severity, alert name, summary, description, available
+namespace/instance context, and a Grafana link. `Watchdog` is explicitly excluded.
+
+After initial activation, each credential rotation, and periodic monitoring drills,
+run `runbooks/phase5/12-test-pushover.sh`. Confirm the warning, critical, and quiet
+recovery notifications; confirm the critical alert does not request acknowledgement;
+confirm no `Watchdog` notification appears; and confirm Dead Man's Snitch remains
+healthy. Keep the Snitch and Pushover tests together: Pushover delivers symptoms while
+the independent heartbeat detects loss of the entire local monitoring path.
 
 ## UPS / NUT
 

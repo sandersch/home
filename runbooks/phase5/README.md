@@ -10,7 +10,7 @@ Run these after Phase 4 is validated and the NAS has a dedicated backup export a
 
 | Script | Purpose |
 |---|---|
-| `00-preflight.sh` | Validate Phase 5 backup manifests and kustomize output |
+| `00-preflight.sh` | Validate Phase 5 backup/monitoring manifests, including dormant or active Pushover invariants |
 | `01-backups-nfs-mount.sh` | Add `/mnt/backups` to `/etc/fstab`, mount it, and verify write access |
 | `02-encrypt-restic-secret.sh` | Create the SOPS-encrypted `monitoring/restic-nas` Secret |
 | `03-init-restic-nas-repo.sh` | Initialize `/mnt/backups/opt` as a Restic repo |
@@ -21,6 +21,8 @@ Run these after Phase 4 is validated and the NAS has a dedicated backup export a
 | `08-run-manual-b2-backup.sh` | Run the weekly B2 CronJob manually |
 | `09-validate-b2-restore.sh` | Restore representative B2 artifacts without the NAS |
 | `10-setup-deadmanssnitch.sh` | SOPS-encrypt the external heartbeat URL and activate Alertmanager Watchdog routing |
+| `11-setup-pushover.sh` | SOPS-encrypt Pushover keys and atomically activate actionable phone notifications |
+| `12-test-pushover.sh` | Inject and resolve synthetic warning/critical alerts through Alertmanager |
 
 Both repositories have passed initialization, manual backup, and representative restore
 validation. The nightly NAS and first naturally scheduled weekly B2 backups both
@@ -54,9 +56,59 @@ flux reconcile kustomization monitoring-configs --with-source
 
 Confirm that `Watchdog` is firing in Alertmanager and that the Snitch becomes healthy
 again.
-This tests the Prometheus → Alertmanager → external-network path end to end. The other
-phase-one alerts remain visible in Prometheus, Alertmanager, and Grafana; optional
-phase-two ntfy routing is what will add phone push for them.
+This tests the Prometheus → Alertmanager → external-network path end to end. Dead Man's
+Snitch remains separate from Pushover so loss of the node, monitoring stack, DNS, or
+outbound path is still detected when no actionable phone notification can be sent.
+
+## Actionable Pushover notifications
+
+Install and purchase Pushover on the one recipient iPhone, then register one Pushover
+application named `Homelab Alertmanager`. Store the account's individual user key and
+the application's API token in the password manager. Pushover is hosted and adds no
+cluster workload; its iOS/iPadOS license is a one-time purchase and the service allows
+10,000 application messages per month. See [Pushover pricing](https://pushover.net/pricing).
+
+Activate the dormant component with silent prompts, or provide both values through the
+environment:
+
+```bash
+export PUSHOVER_USER_KEY=...
+export PUSHOVER_API_TOKEN=...
+./runbooks/phase5/11-setup-pushover.sh
+```
+
+On reruns, omitted values are recovered from the existing encrypted Secret and
+preserved. Plaintext exists only in a mode-0700 directory under `/tmp`; the helper
+encrypts before writing the Secret into the repo, validates the complete render, and
+adds `pushover` to `monitoring-configs` last. Commit the encrypted Secret, component
+kustomizations, and manifest changes, then reconcile only the configs slice:
+
+```bash
+flux reconcile kustomization monitoring-configs --with-source
+flux get kustomization monitoring-configs
+kubectl -n monitoring logs statefulset/alertmanager-kube-prometheus-stack-alertmanager \
+  -c alertmanager --since=10m
+```
+
+Only `severity=warning|critical` reaches Pushover, and `Watchdog` is explicitly
+excluded. Warning firing notifications use priority `0`, critical firing notifications
+use priority `1` (high priority without emergency acknowledgement retries), and both
+resolve at quiet priority `-1`. The route keeps the 30-second group wait and 12-hour
+repeat interval and links to `https://grafana.worm.run`.
+
+After first activation, every credential rotation, and periodic monitoring drills, run:
+
+```bash
+./runbooks/phase5/12-test-pushover.sh
+```
+
+The helper opens a local port-forward, injects short-lived synthetic warning and
+critical alerts through Alertmanager, then resolves them. Confirm ordinary/high firing
+notifications and quiet recovery notifications arrive on the iPhone, the critical
+notification does not demand acknowledgement or repeat, `Watchdog` never appears in
+Pushover, and the account-side Dead Man's Snitch remains healthy. Recovery delivery
+inherits Alertmanager's five-minute group interval, so the full drill takes about six
+minutes.
 
 ## Secret generation
 

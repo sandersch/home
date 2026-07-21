@@ -1,0 +1,23 @@
+apiVersion: v1
+data:
+    api-token: ENC[AES256_GCM,data:52cU9NyScbyvFK2Siu9id+O+vZwWvCwM7fwWMkEGb7pV9itg/NX3ag==,iv:+9TPfQ9Vomjhx9wp9A/3o8a06JqGxUh9rZKarq6YmDg=,tag:9kzL59pl468LD5UXLu0frw==,type:str]
+    user-key: ENC[AES256_GCM,data:F889czRCptFVpfL9ABxvIYewqxFcicxe2VtSLEddHPnhmq/mlflorw==,iv:bIhRM9NRjIC8W/FRx6c/zruUERGHEyYzEDV1YRjeXPQ=,tag:/vUzSklCTCrnJte6x1mxyw==,type:str]
+kind: Secret
+metadata:
+    name: pushover
+    namespace: monitoring
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBsdG93NEtsVENFZ1N0QThB
+            djJyOCt6eEozSlZrMVRmMytISy8yZ1YxL1cwCjRCMHA5MzRsR3ZNbGV3Si8zR0Fx
+            b2ZMVC9RbG04UzVxTjc3OTlJL0xURFkKLS0tIDNubHoyclJyeXdtTDFhNXVvZU9U
+            aWtZQmlwMUtBK3BMK0lsY1NISFVGT28KcVFV8BAnZZhm5yMqJWUJnQVbgKZ+Hvny
+            T6WxaosrOTsL0Fcu5aE9ALTgiVVahoEyDfxS4OO5d75fAPVGNpLpTA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age18cxm2hs3ctq0s735h7z9lj7w7ag37f2vleesglcw6lezlhy5v9nsatkxex
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-07-21T04:02:28Z"
+    mac: ENC[AES256_GCM,data:E1nFFw52y6u/SUULF/Kmg5itm9JZ6y54iqpEcJnbYSXTZdrn5dhCZDBjzphHyWkGshKEwG6czD63+1taqbYkK+SksA2vPjSWexboN+DOkbiHt8aeia0CX0OoJMBLz3Y5IcB3sJjXJk36a8Gr/m3ns8pfDMmOlGHm+xychwdeFrQ=,iv:TDlLsNxEgnzkeW9SMb1yuPmmAu/tFG46G8QojqaucUc=,tag:bhjhwcpzmqGW+z5fGq7nmA==,type:str]
+    version: 3.13.1
