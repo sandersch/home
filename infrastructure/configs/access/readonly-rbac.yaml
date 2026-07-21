@@ -1,0 +1,70 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: homelab-cluster-observer
+rules:
+  # The built-in view role intentionally omits several cluster-scoped resources
+  # that are useful for routine diagnostics. Keep this list read-only and exclude
+  # Secrets; namespaced workload and Flux access comes from the separate view
+  # binding below.
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/status
+      - persistentvolumes
+      - persistentvolumes/status
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources:
+      - customresourcedefinitions
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - csidrivers
+      - csinodes
+      - csistoragecapacities
+      - storageclasses
+      - volumeattachments
+      - volumeattachments/status
+      - volumeattributesclasses
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["scheduling.k8s.io"]
+    resources:
+      - priorityclasses
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["node.k8s.io"]
+    resources:
+      - runtimeclasses
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs:
+      - /healthz
+      - /livez
+      - /readyz
+      - /version
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: homelab-readonly-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: homelab-readonly
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: homelab-readonly-cluster-observer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: homelab-cluster-observer
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: User
+    name: homelab-readonly
