@@ -113,10 +113,10 @@ Phase one is deliberately metrics-first:
   Alertmanager every five minutes. The URL is a SOPS Secret. This is the required
   off-node signal: if the node, Prometheus, Alertmanager, DNS, or outbound path fails,
   the hosted service notices the missing heartbeat.
-- Hosted **Pushover** is the actionable phone-notification destination. Its dormant
-  component routes only `severity=warning|critical`, explicitly excludes `Watchdog`,
-  and becomes active only after the SOPS-encrypted recipient/application keys exist.
-  This adds no cluster workload or same-node notification dependency.
+- Hosted **Pushover** is the active actionable phone-notification destination. It
+  routes only `severity=warning|critical`, explicitly excludes `Watchdog`, and reads
+  its recipient/application keys from a SOPS-encrypted Secret. This adds no cluster
+  workload or same-node notification dependency.
 
 The initial metrics and alert pipeline passed live validation on 2026-07-20. All four
 monitoring Flux Kustomizations and the kube-prometheus-stack HelmRelease were ready;
@@ -124,9 +124,10 @@ all 24 active scrape targets (including four Flux controllers) and all six black
 probes were healthy; 229 rules in 33 groups loaded without evaluation errors; Grafana's
 HTTPS ingress reached its login page with valid TLS; and `Watchdog` was the only firing
 alert. Alertmanager loaded the Dead Man's Snitch route, delivered its webhook without
-failures, and the account-side Snitch became healthy. **nut-exporter** and the UPS
-on-battery rule remain, along with Pushover credential activation and phone-delivery
-validation.
+failures, and the account-side Snitch became healthy. The Pushover component was then
+activated and reconciled; synthetic warning and critical firing notifications and
+their resolved notifications reached the iPhone. **nut-exporter** and the UPS
+on-battery rule are the remaining phase-one monitoring work.
 
 Grafana is exposed at `https://grafana.worm.run`; its `admin` password is generated
 once and stored only in `infrastructure/monitoring/base/grafana-admin.sops.yaml`. Read
@@ -157,6 +158,7 @@ and its functionality moved to Grafana Alloy.
 | Pod crash loop | repeated restarts, any namespace | upstream kube-prometheus rule |
 | Restic backup failed | CronJob job failure | committed |
 | Restic backup overdue/suspended | no success within 30 hours (NAS) or 8 days (B2), or schedule suspended | committed |
+| Actionable warning/critical alert | Alertmanager sends firing and resolved notifications to Pushover | deployed and live-validated 2026-07-20 |
 | Monitoring pipeline absent | Dead Man's Snitch misses the Alertmanager Watchdog | deployed and live-validated; external check healthy 2026-07-20 |
 | UPS on battery | NUT input-power loss | pending nut-exporter |
 
@@ -176,9 +178,10 @@ SOPS-encrypted Secret, and activates the matching `AlertmanagerConfig`. Reconcil
 Snitch turns healthy again. Do not put the unique check-in URL in Helm values or
 plaintext git history.
 
-Pushover handles the separate actionable path without weakening this heartbeat. Create
-one Pushover application named `Homelab Alertmanager` for the individual iOS recipient,
-store its application token and the account user key in the password manager, then run:
+Pushover handles the separate actionable path without weakening this heartbeat. It is
+active and passed a synthetic warning/critical firing and resolution drill on
+2026-07-20. For a rebuild or credential rotation, use the existing Pushover application
+named `Homelab Alertmanager`, update the password manager, then run:
 
 ```bash
 ./runbooks/phase5/11-setup-pushover.sh

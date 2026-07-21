@@ -22,6 +22,8 @@ integration have passed live validation; both Restic backup repositories have al
 passed backup/restore drills. The initial observability stack (Prometheus, Grafana,
 Alertmanager, blackbox probes, Flux metrics, rules, and external dead-man routing)
 passed live validation on 2026-07-20, including a healthy Dead Man's Snitch check.
+Hosted Pushover routing also passed live validation on 2026-07-20 with synthetic
+warning/critical firing and resolved notifications delivered to the iPhone.
 Treat remaining work as UPS metrics, one-week resource tuning, Frigate tuning, and
 deferred apps—not as a greenfield scaffold.
 

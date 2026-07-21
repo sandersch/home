@@ -14,7 +14,7 @@ Committed now:
   Run
   `runbooks/phase5/10-setup-deadmanssnitch.sh` to encrypt the unique check-in URL and
   atomically include the component.
-- `configs/pushover/`: a dormant actionable-alert route with explicit normal/high
+- `configs/pushover/`: the active actionable-alert route with explicit normal/high
   firing priorities and quiet recovery notifications. Run
   `runbooks/phase5/11-setup-pushover.sh` to encrypt the recipient/application keys and
   atomically include the component.
@@ -29,9 +29,10 @@ included and both CronJobs are enabled. The observability stack passed live vali
 on 2026-07-20: Flux and Helm were ready, all scrape targets and blackbox probes were
 healthy, Grafana worked through its HTTPS ingress, the rules loaded without errors,
 and the Alertmanager Watchdog route delivered successfully to a healthy Dead Man's
-Snitch check.
+Snitch check. The hosted Pushover route subsequently passed its synthetic drill:
+warning and critical firing notifications and their resolved notifications reached the
+iPhone.
 
-Still planned for phase one: activating and validating the hosted Pushover route,
-nut-exporter, the UPS alert, and resource tuning after roughly one week of real
-metrics. Loki with Grafana Alloy is an optional phase-two addition; notification
-delivery does not require another cluster workload.
+Still planned for phase one: nut-exporter, the UPS alert, and resource tuning after
+roughly one week of real metrics. Loki with Grafana Alloy is an optional phase-two
+addition; notification delivery does not require another cluster workload.

@@ -30,7 +30,9 @@ completed successfully on 2026-07-19.
 
 The initial observability stack passed live validation on 2026-07-20. Prometheus,
 Grafana, Alertmanager, blackbox probes, Flux metrics, and rules were healthy, and the
-Alertmanager Watchdog reached a healthy Dead Man's Snitch check.
+Alertmanager Watchdog reached a healthy Dead Man's Snitch check. The Pushover route was
+then activated and its synthetic warning/critical firing and resolved notifications
+were delivered successfully to the iPhone.
 
 ## External monitoring heartbeat
 
@@ -62,14 +64,17 @@ outbound path is still detected when no actionable phone notification can be sen
 
 ## Actionable Pushover notifications
 
+The Pushover component is active and passed its initial firing/resolution drill on
+2026-07-20. The following setup procedure is for a rebuild or credential rotation.
+
 Install and purchase Pushover on the one recipient iPhone, then register one Pushover
 application named `Homelab Alertmanager`. Store the account's individual user key and
 the application's API token in the password manager. Pushover is hosted and adds no
 cluster workload; its iOS/iPadOS license is a one-time purchase and the service allows
 10,000 application messages per month. See [Pushover pricing](https://pushover.net/pricing).
 
-Activate the dormant component with silent prompts, or provide both values through the
-environment:
+Create or rotate its encrypted Secret with silent prompts, or provide both values
+through the environment:
 
 ```bash
 export PUSHOVER_USER_KEY=...
