@@ -9,7 +9,8 @@ Committed now:
   15 days (up to 16 GB) on a 20 GiB `topolvm-scratch` PVC; Alertmanager and Grafana
   also use small scratch PVCs because their durable configuration lives in git.
 - `configs/`: pinned blackbox exporter, HTTPS probes for Home Assistant, Frigate, Plex,
-  Seerr, and RomM, an MQTT TCP probe, Flux controller metrics, and operational rules.
+  Seerr, and RomM, an MQTT TCP probe, Flux controller metrics, a hardened nut-exporter
+  workload and ServiceMonitor, the CP1500 Grafana dashboard, and operational rules.
 - `configs/deadmanssnitch/`: an opt-in Alertmanager Watchdog route, currently active.
   Run
   `runbooks/phase5/10-setup-deadmanssnitch.sh` to encrypt the unique check-in URL and
@@ -33,6 +34,9 @@ Snitch check. The hosted Pushover route subsequently passed its synthetic drill:
 warning and critical firing notifications and their resolved notifications reached the
 iPhone.
 
-Still planned for phase one: nut-exporter, the UPS alert, and resource tuning after
-roughly one week of real metrics. Loki with Grafana Alloy is an optional phase-two
-addition; notification delivery does not require another cluster workload.
+The nut-exporter workload, CP1500 dashboard, and one-minute critical on-battery alert
+were added on 2026-07-22. They remain deliberately marked unvalidated until
+`runbooks/phase5/13-validate-nut-exporter.sh` passes after reconciliation and an
+operator completes its optional physical mains-loss drill. Resource tuning remains
+after roughly one week of real metrics. Loki with Grafana Alloy is an optional
+phase-two addition; notification delivery does not require another cluster workload.

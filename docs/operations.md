@@ -105,6 +105,9 @@ Phase one is deliberately metrics-first:
   for Home Assistant, Frigate, Plex, Seerr, and RomM, plus the internal MQTT TCP path.
   These probes exercise DNS, ingress, TLS, Services, and applications instead of only
   observing that pods exist.
+- **nut-exporter** anonymously polls the host NUT server for the `cp1500` UPS. Its
+  ServiceMonitor records charge, runtime, voltage, load, and status every 30 seconds;
+  a repo-owned Grafana dashboard uses only telemetry exposed by this CyberPower model.
 - A Flux `PodMonitor` exposes GitOps controller health. Local rules cover blackbox
   failures and certificate expiry, `/opt`, NFS, Gluetun restarts, and Restic failures,
   suspension, and overdue schedules; upstream rules cover Kubernetes crash loops and
@@ -126,8 +129,9 @@ HTTPS ingress reached its login page with valid TLS; and `Watchdog` was the only
 alert. Alertmanager loaded the Dead Man's Snitch route, delivered its webhook without
 failures, and the account-side Snitch became healthy. The Pushover component was then
 activated and reconciled; synthetic warning and critical firing notifications and
-their resolved notifications reached the iPhone. **nut-exporter** and the UPS
-on-battery rule are the remaining phase-one monitoring work.
+their resolved notifications reached the iPhone. The nut-exporter workload, dashboard,
+and critical on-battery rule were added to git on 2026-07-22; reconciliation and the
+controlled physical mains-loss drill remain before that slice is live-validated.
 
 Grafana is exposed at `https://grafana.worm.run`; its `admin` password is generated
 once and stored only in `infrastructure/monitoring/base/grafana-admin.sops.yaml`. Read
@@ -160,7 +164,7 @@ and its functionality moved to Grafana Alloy.
 | Restic backup overdue/suspended | no success within 30 hours (NAS) or 8 days (B2), or schedule suspended | committed |
 | Actionable warning/critical alert | Alertmanager sends firing and resolved notifications to Pushover | deployed and live-validated 2026-07-20 |
 | Monitoring pipeline absent | Dead Man's Snitch misses the Alertmanager Watchdog | deployed and live-validated; external check healthy 2026-07-20 |
-| UPS on battery | NUT input-power loss | pending nut-exporter |
+| UPS on battery | `cp1500` reports `OB=1` for one minute | committed; live mains-loss/Pushover drill pending |
 
 ### External dead-man and actionable notification routing
 
@@ -207,10 +211,11 @@ the independent heartbeat detects loss of the entire local monitoring path.
 
 NUT runs as a **host systemd service** (configured in
 [Phase 0.5](./build-plan.md#phase-0--os-baseline-)), before k3s, so a clean shutdown
-fires even if the cluster is degraded. The remaining phase-one **nut-exporter** pod
-will scrape it into Prometheus for the Grafana dashboard and the "UPS on battery"
-alert — so a power event is visible even when the node rides it out and you weren't
-watching.
+fires even if the cluster is degraded. The repo-managed **nut-exporter** pod polls it
+for Prometheus and the `UPS / NUT — CP1500` Grafana dashboard. If the `OB` flag remains
+set for one minute, `UPSOnBattery` fires at critical severity through the existing
+Pushover route; recovery is sent quietly when mains returns. Existing kube-prometheus
+`TargetDown` coverage reports exporter or NUT connectivity loss separately.
 
 ### UPS telemetry fan-out (one upsd, many read-only clients)
 
@@ -234,11 +239,28 @@ Host-side plumbing (canonical copies in `host/minis/etc/`):
   boot (a lost race would leave telemetry silently blind while loopback/upsmon still
   worked).
 
-Apply (next host touch): copy the three files into place, then
-`sudo systemctl daemon-reload && sudo systemctl restart nut-server && sudo systemctl reload nftables`.
-Verify with `ss -ltn | grep 3493` (both addresses) and `upsc cp1500@10.137.20.5`
-(works from the host — local traffic arrives via `lo`, which the nftables table
-accepts).
+This host plumbing was applied and re-verified on 2026-07-21: `nut-server` and
+`nftables` were active, both listener addresses were present, and
+`upsc cp1500@10.137.20.5` returned live telemetry. After future host changes, repeat
+`ss -ltn | grep 3493` and `upsc cp1500@10.137.20.5`; host-local traffic arrives via
+`lo`, which the nftables table accepts.
+
+After committing and pushing the monitoring manifests, reconcile and run the
+automated validation with an admin kubeconfig context:
+
+```bash
+flux reconcile kustomization monitoring-configs --with-source
+./runbooks/phase5/13-validate-nut-exporter.sh
+```
+
+The helper validates the exporter endpoint, current online status, Prometheus target
+and rule health, and Grafana dashboard provisioning without changing UPS state. For
+the final end-to-end acceptance test, have an operator present and run
+`NUT_POWER_DRILL=1 ./runbooks/phase5/13-validate-nut-exporter.sh`. The helper requires
+confirmation before and after manually disconnecting **only the UPS mains input**, and
+checks the transition to `OB=1`, the firing critical alert, return to online state,
+and resolution. Confirm the critical firing and quiet recovery notifications on the
+iPhone and that Dead Man's Snitch remains healthy.
 
 ## Resource tuning
 

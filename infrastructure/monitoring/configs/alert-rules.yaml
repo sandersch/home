@@ -83,6 +83,16 @@ spec:
           annotations:
             description: "{{ $labels.cronjob }} is suspended."
             summary: Restic backup schedule is suspended
+    - name: homelab.ups
+      rules:
+        - alert: UPSOnBattery
+          expr: network_ups_tools_ups_status{ups="cp1500",flag="OB"} == 1
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            description: "UPS {{ $labels.ups }} has been running on battery for at least one minute."
+            summary: UPS is running on battery
     - name: homelab.node-and-apps
       rules:
         - alert: OptFilesystemFillingUp

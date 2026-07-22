@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. All are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Tune Frigate cameras. |
-| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. | Add UPS metrics and its on-battery rule, tune resources after roughly one week of data, then consider optional phase-two logs and deferred apps. |
+| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, critical on-battery rule, and validation helper are implemented in git but not yet live-validated. | Reconcile and run the UPS telemetry plus controlled mains-loss drill, tune resources after roughly one week of data, then consider optional phase-two logs and deferred apps. |
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
 phase validation scripts and gate below before declaring a phase complete.
@@ -642,9 +642,12 @@ broker traffic, Frigate availability, entity registration, and a real person eve
   bound PVCs, Grafana's HTTPS login path, every configured scrape target and blackbox
   probe, rule evaluation without errors, successful Watchdog delivery, and synthetic
   Pushover warning/critical firing and resolved notifications delivered to the iPhone.
-- **Phase one remaining:** add **nut-exporter** for UPS metrics and its on-battery rule.
-  Alert definitions, routing, and validation are in
-  [operations.md](./operations.md#monitoring--alerting).
+- **Phase one UPS slice implemented in git, live validation pending:** a hardened
+  **nut-exporter** Deployment polls the host `upsd` anonymously, a ServiceMonitor
+  exposes CP1500 telemetry, Grafana gets a focused UPS dashboard, and one minute on
+  battery raises a critical Pushover-routed alert. Run the automated checks and the
+  operator-gated mains-loss drill documented in
+  [operations.md](./operations.md#ups--nut) before marking it live-validated.
 - **Optional phase two:** **Loki + Grafana Alloy** for centralized logs. It is not
   required for phase-one monitoring; logs remain available through Kubernetes,
   Pushover handles actionable phone notifications, and Dead Man's Snitch provides the

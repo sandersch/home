@@ -23,6 +23,7 @@ Run these after Phase 4 is validated and the NAS has a dedicated backup export a
 | `10-setup-deadmanssnitch.sh` | SOPS-encrypt the external heartbeat URL and activate Alertmanager Watchdog routing |
 | `11-setup-pushover.sh` | SOPS-encrypt Pushover keys and atomically activate actionable phone notifications |
 | `12-test-pushover.sh` | Inject and resolve synthetic warning/critical alerts through Alertmanager |
+| `13-validate-nut-exporter.sh` | Validate UPS telemetry, Prometheus/Grafana integration, and optionally run the physical mains-loss alert drill |
 
 Both repositories have passed initialization, manual backup, and representative restore
 validation. The nightly NAS and first naturally scheduled weekly B2 backups both
@@ -33,6 +34,37 @@ Grafana, Alertmanager, blackbox probes, Flux metrics, and rules were healthy, an
 Alertmanager Watchdog reached a healthy Dead Man's Snitch check. The Pushover route was
 then activated and its synthetic warning/critical firing and resolved notifications
 were delivered successfully to the iPhone.
+
+## UPS telemetry and alert drill
+
+The nut-exporter manifests use anonymous read-only access to the host NUT server at
+`10.137.20.5:3493`, UPS name `cp1500`. No Kubernetes Secret is required. After the
+manifests are committed and pushed, switch explicitly to an admin kubeconfig context,
+reconcile the configs slice, and run the non-disruptive checks:
+
+```bash
+flux reconcile kustomization monitoring-configs --with-source
+./runbooks/phase5/13-validate-nut-exporter.sh
+```
+
+The helper verifies the hardened Deployment and rendered invariants, checks the live
+exporter metrics, confirms the Prometheus target and `UPSOnBattery` rule are healthy,
+and authenticates to Grafana with the existing local SOPS Secret to verify dashboard
+provisioning. It does not print the decrypted Grafana credentials.
+
+The physical drill is opt-in and must be run with an operator present:
+
+```bash
+NUT_POWER_DRILL=1 ./runbooks/phase5/13-validate-nut-exporter.sh
+```
+
+Follow the prompts to disconnect only the UPS mains input while leaving the protected
+load attached, confirm the high-priority Pushover alert after `OB=1` has persisted for
+one minute, then restore mains. The helper verifies Prometheus returns to `OB=0` and
+the alert resolves. Confirm the quiet recovery notification arrives within the
+inherited five-minute Alertmanager group interval and Dead Man's Snitch stays healthy.
+If the script is interrupted after the drill begins, restore mains before doing
+anything else.
 
 ## External monitoring heartbeat
 

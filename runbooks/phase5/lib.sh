@@ -11,6 +11,10 @@ PHASE5_MONITORING_DIR="$REPO_ROOT/infrastructure/monitoring"
 # shellcheck disable=SC2034
 PHASE5_OBSERVABILITY_CONFIG_DIR="$PHASE5_MONITORING_DIR/configs"
 # shellcheck disable=SC2034
+PHASE5_NUT_EXPORTER_CONFIG="$PHASE5_OBSERVABILITY_CONFIG_DIR/nut-exporter.yaml"
+# shellcheck disable=SC2034
+PHASE5_NUT_EXPORTER_DASHBOARD="$PHASE5_OBSERVABILITY_CONFIG_DIR/nut-exporter-dashboard.json"
+# shellcheck disable=SC2034
 PHASE5_DEADMANS_SNITCH_DIR="$PHASE5_OBSERVABILITY_CONFIG_DIR/deadmanssnitch"
 # shellcheck disable=SC2034
 PHASE5_DEADMANS_SNITCH_SECRET="$PHASE5_DEADMANS_SNITCH_DIR/deadmanssnitch.sops.yaml"
@@ -87,10 +91,85 @@ assert_phase5_observability_invariants() {
     .spec.targets.staticConfig.static == ["mosquitto.mqtt.svc.cluster.local:1883"]' \
     "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
     || die "MQTT blackbox target changed unexpectedly"
+  # shellcheck disable=SC2016 # $pod/$container are jq variables, not shell variables.
+  yq -e '
+    select(.kind == "Deployment" and .metadata.name == "nut-exporter") |
+    .spec.template.spec as $pod |
+    $pod.priorityClassName == "homelab-standard" and
+    $pod.automountServiceAccountToken == false and
+    $pod.securityContext.runAsNonRoot == true and
+    $pod.securityContext.seccompProfile.type == "RuntimeDefault" and
+    ($pod.containers[0] as $container |
+      $container.image == "ghcr.io/druggeri/nut_exporter:3.3.0" and
+      $container.livenessProbe.httpGet.path == "/metrics" and
+      $container.readinessProbe.httpGet.path == "/metrics" and
+      $container.resources.requests.cpu == "20m" and
+      $container.resources.requests.memory == "32Mi" and
+      $container.resources.limits.cpu == "100m" and
+      $container.resources.limits.memory == "64Mi" and
+      $container.securityContext.allowPrivilegeEscalation == false and
+      $container.securityContext.readOnlyRootFilesystem == true and
+      any($container.env[];
+        .name == "NUT_EXPORTER_SERVER" and .value == "10.137.20.5") and
+      any($container.env[];
+        .name == "NUT_EXPORTER_SERVERPORT" and .value == "3493") and
+      any($container.env[];
+        .name == "NUT_EXPORTER_VARIABLES" and
+        (.value | contains("battery.runtime")) and
+        (.value | contains("ups.status"))))
+  ' "$PHASE5_NUT_EXPORTER_CONFIG" >/dev/null \
+    || die "nut-exporter image, endpoint, resources, probes, or security settings changed unexpectedly"
+  yq -e '
+    select(.kind == "ServiceMonitor" and .metadata.name == "nut-exporter") |
+    .spec.endpoints[0].port == "http" and
+    .spec.endpoints[0].path == "/ups_metrics" and
+    .spec.endpoints[0].interval == "30s" and
+    .spec.endpoints[0].scrapeTimeout == "10s" and
+    .spec.endpoints[0].params.ups == ["cp1500"] and
+    any(.spec.endpoints[0].relabelings[];
+      .sourceLabels == ["__param_ups"] and .targetLabel == "ups")
+  ' "$PHASE5_NUT_EXPORTER_CONFIG" >/dev/null \
+    || die "nut-exporter ServiceMonitor no longer scrapes or labels cp1500 at the expected interval"
+  yq -e '
+    select(.kind == "PrometheusRule" and .metadata.name == "homelab-alerts") |
+    any(.spec.groups[];
+      .name == "homelab.ups" and
+      any(.rules[];
+        .alert == "UPSOnBattery" and
+        .expr == "network_ups_tools_ups_status{ups=\"cp1500\",flag=\"OB\"} == 1" and
+        .for == "1m" and
+        .labels.severity == "critical"))
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
+    || die "UPS on-battery alert expression, delay, or severity changed unexpectedly"
+  jq -e '
+    .uid == "nut-exporter" and
+    .title == "UPS / NUT — CP1500" and
+    .editable == false and
+    .refresh == "30s" and
+    all(.panels[]; .datasource.uid == "prometheus") and
+    ([.panels[].targets[]?.expr] | join(" ") |
+      contains("network_ups_tools_ups_status") and
+      contains("network_ups_tools_battery_charge") and
+      contains("network_ups_tools_battery_runtime") and
+      contains("network_ups_tools_ups_load"))
+  ' "$PHASE5_NUT_EXPORTER_DASHBOARD" >/dev/null \
+    || die "nut-exporter Grafana dashboard UID, datasource, refresh, or core panels changed unexpectedly"
+  yq -e '
+    .resources | index("nut-exporter.yaml") != null
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/kustomization.yaml" >/dev/null \
+    || die "nut-exporter resources are not included in monitoring-configs"
+  kustomize build "$PHASE5_OBSERVABILITY_CONFIG_DIR" \
+    | yq -e '
+        select(.kind == "ConfigMap" and .metadata.name == "nut-exporter-dashboard") |
+        .metadata.namespace == "monitoring" and
+        .metadata.labels.grafana_dashboard == "1" and
+        (.data | has("nut-exporter-dashboard.json"))
+      ' >/dev/null \
+    || die "nut-exporter dashboard ConfigMap is not rendered for Grafana discovery"
   yq -e '.data["admin-password"] | startswith("ENC[AES256_GCM")' \
     "$PHASE5_GRAFANA_SECRET" >/dev/null \
     || die "Grafana administrator password is missing or not SOPS-encrypted"
-  ok "observability versions, probes, and encrypted Grafana credentials are intact"
+  ok "observability versions, probes, UPS telemetry, dashboard, alert, and encrypted Grafana credentials are intact"
 }
 
 assert_phase5_pushover_invariants() {

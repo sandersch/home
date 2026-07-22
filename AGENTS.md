@@ -24,8 +24,11 @@ Alertmanager, blackbox probes, Flux metrics, rules, and external dead-man routin
 passed live validation on 2026-07-20, including a healthy Dead Man's Snitch check.
 Hosted Pushover routing also passed live validation on 2026-07-20 with synthetic
 warning/critical firing and resolved notifications delivered to the iPhone.
-Treat remaining work as UPS metrics, one-week resource tuning, Frigate tuning, and
-deferred apps—not as a greenfield scaffold.
+The repo now also contains the nut-exporter workload, CP1500 Grafana dashboard,
+critical on-battery rule, and an operator-gated validation drill; live reconciliation
+and the physical mains-loss drill are still pending. Treat remaining work as that UPS
+validation, one-week resource tuning, Frigate tuning, and deferred apps—not as a
+greenfield scaffold.
 
 ## Hardware (summary)
 

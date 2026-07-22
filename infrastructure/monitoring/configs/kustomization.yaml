@@ -3,7 +3,17 @@ kind: Kustomization
 resources:
 - blackbox-exporter.yaml
 - blackbox-probes.yaml
+- nut-exporter.yaml
 - alert-rules.yaml
 - flux-podmonitor.yaml
 - deadmanssnitch
 - pushover
+configMapGenerator:
+- name: nut-exporter-dashboard
+  namespace: monitoring
+  files:
+  - nut-exporter-dashboard.json
+  options:
+    disableNameSuffixHash: true
+    labels:
+      grafana_dashboard: "1"
