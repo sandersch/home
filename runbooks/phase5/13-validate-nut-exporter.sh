@@ -149,7 +149,9 @@ curl --fail --silent --show-error \
   "http://127.0.0.1:$prometheus_port/api/v1/targets?state=active" \
   | jq -e '
       [.data.activeTargets[] |
-        select((.scrapeUrl | contains("nut-exporter")) and
+        select(.labels.namespace == "monitoring" and
+          .labels.service == "nut-exporter" and
+          .labels.ups == "cp1500" and
           .health == "up" and .lastError == "")] |
       length == 1
     ' >/dev/null \
