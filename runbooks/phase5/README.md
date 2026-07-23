@@ -49,8 +49,9 @@ flux reconcile kustomization monitoring-configs --with-source
 
 The helper verifies the hardened Deployment and rendered invariants, checks the live
 exporter metrics, confirms the Prometheus target and `UPSOnBattery` rule are healthy,
-and authenticates to Grafana with the existing local SOPS Secret to verify dashboard
-provisioning. It does not print the decrypted Grafana credentials.
+and authenticates to Grafana with the deployed `grafana-admin` Secret to verify
+dashboard provisioning. It does not print the decoded Grafana credentials; access to
+that Secret is one reason this runbook requires an admin kubeconfig context.
 
 The physical drill is opt-in and must be run with an operator present:
 

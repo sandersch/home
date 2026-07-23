@@ -12,7 +12,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root
-require_tools base64 curl jq kubectl kustomize seq sops yq
+require_tools base64 curl jq kubectl kustomize seq yq
 
 exporter_port="${NUT_EXPORTER_LOCAL_PORT:-19199}"
 prometheus_port="${NUT_PROMETHEUS_LOCAL_PORT:-19090}"
@@ -166,23 +166,24 @@ curl --fail --silent --show-error \
 ok "Prometheus scrapes nut-exporter and evaluates UPSOnBattery without errors"
 
 step "Verify Grafana provisioned the UPS dashboard"
+grafana_secret="$(kubectl -n monitoring get secret grafana-admin -o json)"
 grafana_user="$(
-  sops --decrypt "$PHASE5_GRAFANA_SECRET" \
-    | yq -r '.data["admin-user"]' | base64 --decode
+  printf '%s' "$grafana_secret" \
+    | jq -r '.data["admin-user"]' | base64 --decode
 )"
 grafana_password="$(
-  sops --decrypt "$PHASE5_GRAFANA_SECRET" \
-    | yq -r '.data["admin-password"]' | base64 --decode
+  printf '%s' "$grafana_secret" \
+    | jq -r '.data["admin-password"]' | base64 --decode
 )"
 [ -n "$grafana_user" ] && [ -n "$grafana_password" ] \
-  || die "could not decrypt Grafana administrator credentials"
+  || die "could not read deployed Grafana administrator credentials"
 curl --fail --silent --show-error \
   --user "$grafana_user:$grafana_password" \
   "$grafana_url/api/dashboards/uid/nut-exporter" \
   | jq -e '.dashboard.uid == "nut-exporter" and .dashboard.title == "UPS / NUT — CP1500"' \
     >/dev/null \
   || die "Grafana has not provisioned the UPS dashboard"
-unset grafana_user grafana_password
+unset grafana_secret grafana_user grafana_password
 ok "Grafana serves the UPS / NUT — CP1500 dashboard"
 
 if [ "$power_drill" -eq 1 ]; then
