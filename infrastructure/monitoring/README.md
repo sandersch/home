@@ -35,8 +35,10 @@ warning and critical firing notifications and their resolved notifications reach
 iPhone.
 
 The nut-exporter workload, CP1500 dashboard, and one-minute critical on-battery alert
-were added on 2026-07-22. They remain deliberately marked unvalidated until
-`runbooks/phase5/13-validate-nut-exporter.sh` passes after reconciliation and an
-operator completes its optional physical mains-loss drill. Resource tuning remains
-after roughly one week of real metrics. Loki with Grafana Alloy is an optional
-phase-two addition; notification delivery does not require another cluster workload.
+were added on 2026-07-22 and passed live validation on 2026-07-25. Validation covered
+the exporter endpoint and UPS telemetry, Prometheus target and rule health, Grafana
+dashboard provisioning, and the operator-gated physical mains-loss drill. The drill
+produced the expected critical Pushover firing notification and quiet recovery
+notification. Resource tuning remains after roughly one week of real metrics. Loki
+with Grafana Alloy is an optional phase-two addition; notification delivery does not
+require another cluster workload.

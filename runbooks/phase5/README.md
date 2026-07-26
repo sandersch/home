@@ -35,6 +35,11 @@ Alertmanager Watchdog reached a healthy Dead Man's Snitch check. The Pushover ro
 then activated and its synthetic warning/critical firing and resolved notifications
 were delivered successfully to the iPhone.
 
+The nut-exporter, CP1500 dashboard, and `UPSOnBattery` rule passed live validation on
+2026-07-25. The operator-gated physical mains-loss drill confirmed the on-battery
+transition, critical Pushover firing notification, return to online state, alert
+resolution, and quiet recovery notification.
+
 ## UPS telemetry and alert drill
 
 The nut-exporter manifests use anonymous read-only access to the host NUT server at

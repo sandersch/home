@@ -130,8 +130,10 @@ alert. Alertmanager loaded the Dead Man's Snitch route, delivered its webhook wi
 failures, and the account-side Snitch became healthy. The Pushover component was then
 activated and reconciled; synthetic warning and critical firing notifications and
 their resolved notifications reached the iPhone. The nut-exporter workload, dashboard,
-and critical on-battery rule were added to git on 2026-07-22; reconciliation and the
-controlled physical mains-loss drill remain before that slice is live-validated.
+and critical on-battery rule were added to git on 2026-07-22 and passed live validation
+on 2026-07-25. The controlled physical mains-loss drill confirmed the on-battery
+transition, critical Pushover firing notification, return to online state, alert
+resolution, and quiet recovery notification.
 
 Grafana is exposed at `https://grafana.worm.run`; its `admin` password is generated
 once and stored only in `infrastructure/monitoring/base/grafana-admin.sops.yaml`. Read
@@ -164,7 +166,7 @@ and its functionality moved to Grafana Alloy.
 | Restic backup overdue/suspended | no success within 30 hours (NAS) or 8 days (B2), or schedule suspended | committed |
 | Actionable warning/critical alert | Alertmanager sends firing and resolved notifications to Pushover | deployed and live-validated 2026-07-20 |
 | Monitoring pipeline absent | Dead Man's Snitch misses the Alertmanager Watchdog | deployed and live-validated; external check healthy 2026-07-20 |
-| UPS on battery | `cp1500` reports `OB=1` for one minute | committed; live mains-loss/Pushover drill pending |
+| UPS on battery | `cp1500` reports `OB=1` for one minute | deployed and live-validated; mains-loss/Pushover drill passed 2026-07-25 |
 
 ### External dead-man and actionable notification routing
 
@@ -216,6 +218,13 @@ for Prometheus and the `UPS / NUT — CP1500` Grafana dashboard. If the `OB` fla
 set for one minute, `UPSOnBattery` fires at critical severity through the existing
 Pushover route; recovery is sent quietly when mains returns. Existing kube-prometheus
 `TargetDown` coverage reports exporter or NUT connectivity loss separately.
+
+The full UPS monitoring path passed live validation on 2026-07-25. The automated
+checks confirmed exporter telemetry, a healthy Prometheus target and rule, and Grafana
+dashboard provisioning. During the operator-gated drill, disconnecting the UPS mains
+input changed Prometheus to `OB=1`, fired `UPSOnBattery` and its critical Pushover
+notification, and left the protected load running. Restoring mains returned the UPS
+to online state, resolved the alert, and delivered the quiet recovery notification.
 
 ### UPS telemetry fan-out (one upsd, many read-only clients)
 
