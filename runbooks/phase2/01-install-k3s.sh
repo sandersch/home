@@ -8,6 +8,9 @@ require_sudo
 require_tools curl systemctl
 
 kubeconfig_dest="$HOME/.kube/config"
+k3s_config_src="$HOST_ETC/rancher/k3s/config.yaml"
+k3s_config_dest="/etc/rancher/k3s/config.yaml"
+k3s_config_changed=0
 
 setup_user_kubeconfig() {
   local kube_dir
@@ -23,12 +26,28 @@ step "Verify host prerequisites"
 assert_hostname_minis
 assert_no_swap
 
+step "Install k3s server configuration"
+require_host_etc
+if [ ! -f "$k3s_config_dest" ] || ! sudo cmp -s "$k3s_config_src" "$k3s_config_dest"; then
+  k3s_config_changed=1
+fi
+install_file rancher/k3s/config.yaml "$k3s_config_dest" root:root 600
+
 if systemctl is-active --quiet k3s; then
-  warn "k3s is already active; skipping installer and validating the node"
+  if [ "$k3s_config_changed" -eq 1 ]; then
+    warn "k3s is already active and its server configuration changed"
+    confirm "Restart k3s now to apply the new configuration?" \
+      || die "configuration installed but not active; restart k3s before continuing"
+    sudo systemctl restart k3s
+    ok "restarted k3s"
+  else
+    warn "k3s is already active; skipping installer and validating the node"
+  fi
 else
   cat <<'EOF'
 k3s will be installed with:
   --disable traefik --disable servicelb --node-name minis
+  kube-controller-manager terminated Pod GC threshold: 20
 
 The node name is load-bearing because app PV nodeAffinity pins to the kubelet's
 kubernetes.io/hostname label.

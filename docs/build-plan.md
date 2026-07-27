@@ -375,6 +375,10 @@ that changes Kubernetes state is reconciled by Flux from git in Phase 3.
 
 **2.1 Install k3s.**
 ```bash
+sudo install -D -o root -g root -m 600 \
+  host/minis/etc/rancher/k3s/config.yaml \
+  /etc/rancher/k3s/config.yaml
+
 curl -sfL https://get.k3s.io | sh -s - \
   --disable traefik --disable servicelb \
   --node-name minis          # node name drives the kubelet-set kubernetes.io/hostname
@@ -382,6 +386,13 @@ curl -sfL https://get.k3s.io | sh -s - \
                              #   Do NOT override that label via --node-label — it conflicts.
 kubectl get nodes            # minis Ready
 ```
+
+The canonical k3s config passes
+`terminated-pod-gc-threshold=20` to kube-controller-manager. The upstream default of
+12,500 is excessive for this small cluster and leaves terminal Pods from hardware
+device-plugin admission races around effectively forever. PodGC applies cluster-wide
+and removes the oldest `Failed` or `Succeeded` Pods once their total exceeds 20, so
+old Pod logs are intentionally bounded too.
 
 **2.2 age keypair.**
 ```bash

@@ -31,7 +31,7 @@ after bootstrap has settled.
 | Script | Build-plan step | What it does | Interactive? |
 |---|---|---|---|
 | `00-preflight.sh` | - | Read-only sanity checks for host, repo, and tool posture | no |
-| `01-install-k3s.sh` | 2.1 | Installs k3s with Traefik and servicelb disabled, node name `minis`; copies kubeconfig to the runbook user's `~/.kube/config` as `0600` | install prompt |
+| `01-install-k3s.sh` | 2.1 | Installs the canonical k3s server config, installs k3s with Traefik and servicelb disabled and node name `minis`, then copies kubeconfig to the runbook user's `~/.kube/config` as `0600` | install prompt; restart prompt when changing an active server |
 | `02-age-keypair.sh` | 2.2 | Creates or reuses `age.key`, prints public key, requires backup confirmation | backup prompt |
 | `03-sops-age-secret.sh` | 2.3 | Creates or validates `flux-system/sops-age` from `age.key` | no |
 | `04-sops-config.sh` | 2.4 | Writes `.sops.yaml` using the generated public key | overwrite prompt if needed |
@@ -42,6 +42,10 @@ after bootstrap has settled.
 
 - `age.key` is intentionally local-only. Back it up to the password manager and do
   not commit it.
+- `host/minis/etc/rancher/k3s/config.yaml` bounds cluster-wide terminal Pod objects
+  at 20 via `terminated-pod-gc-threshold`. PodGC removes the oldest `Failed` or
+  `Succeeded` Pods after the total exceeds that threshold, so their old logs are not
+  retained indefinitely.
 - `.sops.yaml` contains only the public age recipient and is committed normally.
 - `run-all.sh` stops after `.sops.yaml` is written. Review, commit, and push the
   repo changes before running `05-flux-bootstrap.sh` manually.

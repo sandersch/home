@@ -99,6 +99,17 @@ daemon (`timedatectl` / `chronyc sources`) before relying on this file. The conf
 a camera is provisioned, and repeat the lease-stability and isolation checks before
 adding that camera to Frigate.
 
+### Phase 2 — k3s server configuration
+
+| Repo file | Destination | Owner / perms | Apply |
+|---|---|---|---|
+| `etc/rancher/k3s/config.yaml` | `/etc/rancher/k3s/config.yaml` | `root:root` `600` | `sudo systemctl restart k3s` |
+
+The k3s config sets the cluster-wide terminal Pod garbage-collection threshold to 20.
+This bounds the failed Pods left by the upstream device-plugin reboot admission race,
+as well as other `Failed` and `Succeeded` Pod objects. Once the total exceeds 20,
+PodGC deletes the oldest terminal Pods, including their retained logs.
+
 ## Keeping these in sync
 
 These are the source of truth, but they're hand-synced with the host — there's no

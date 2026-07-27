@@ -1,0 +1,5 @@
+# Keep terminal Pod API objects bounded for this small cluster. The upstream
+# kube-controller-manager default is 12,500, which leaves failed device-plugin
+# admission Pods around effectively forever.
+kube-controller-manager-arg:
+  - "terminated-pod-gc-threshold=20"
