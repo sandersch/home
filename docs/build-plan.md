@@ -23,7 +23,32 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. All are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Tune Frigate cameras. |
-| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. | Tune resources after roughly one week of data, then consider optional phase-two logs and deferred apps. |
+| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. | Complete the direct-attached bulk-storage migration below, then tune resources and Frigate before optional phase-two logs or deferred apps. |
+
+## Immediate next step: direct-attached bulk storage migration
+
+Move the existing RAID6 enclosure from Morpheus's SAS HBA to the installed LSI
+9207-8e in `minis`, importing the existing mdadm/LVM/ext4 stack without copying or
+reformatting data. The attended procedure, health gates, commands, and rollback path
+are in the
+[direct-attached storage migration runbook](./direct-attached-storage-migration.md).
+
+Do not begin until the current md check and all-disk SMART tests pass and the
+hard-to-replace backup has been restored successfully. The milestone is complete
+only when:
+
+- md3 is healthy with 13 active members and two spares after a MINIS reboot;
+- `/mnt/media`, `/mnt/games`, `/mnt/frigate`, and `/mnt/backups` resolve to their
+  recorded ext4 UUIDs on MINIS;
+- all four filesystems pass forced offline checks and application validation;
+- a new Restic backup and representative restore pass;
+- 24–48 hours of observation show no RAID, SAS, filesystem, or workload errors; and
+- Morpheus's old mounts, exports, md checks, and automatic array assembly are
+  disabled while its recovery configuration remains preserved off-host.
+
+This is a retrofit to the running production platform, not a new numbered build
+phase. Resource tuning, Frigate tuning, optional centralized logs, and deferred apps
+follow it.
 
 Do not read a committed manifest as proof that the live cluster is healthy. Use the
 phase validation scripts and gate below before declaring a phase complete.
