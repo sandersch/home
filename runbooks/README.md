@@ -1,12 +1,16 @@
 # Runbooks
 
 Executable, idempotent scripts that carry out the **manual host phases** of the
-[build plan](../docs/build-plan.md), one subdirectory per phase. They run **on the
-host** (`minis`) and deploy the canonical config from
+[build plan](../docs/build-plan.md), one subdirectory per phase. Phase scripts run
+**on the host** (`minis`) and deploy the canonical config from
 [`host/minis/etc/`](../host/minis/) into place — they do not duplicate that config,
 they copy it, so `host/minis/etc/` stays the single source of truth.
 Shared shell helpers live in [`lib.sh`](./lib.sh); each phase keeps only its
 phase-specific assertions in its own `lib.sh`.
+
+The attended
+[`direct-attached-storage-migration/`](./direct-attached-storage-migration/)
+helpers are the exception: run them on the host that currently owns the enclosure.
 
 These complement the prose in `docs/build-plan.md`; they don't replace it. Read the
 phase section there first, then run the scripts.
