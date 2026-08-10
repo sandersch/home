@@ -2,10 +2,12 @@
 
 This is the off-host evidence log for the attended migration described in
 [`direct-attached-storage-migration.md`](./direct-attached-storage-migration.md).
-Command output was collected from Morpheus on 2026-08-09 CDT before the enclosure
-was disconnected. No command recorded here changed md, LVM, or filesystem state.
+Initial evidence was collected from Morpheus on 2026-08-09 CDT before the enclosure
+was disconnected. Later sections record the attended physical handoff and controlled
+MINIS import, including state-changing md/LVM operations. No filesystem write or
+production mount has occurred during the MINIS import as of the latest entry.
 
-## Pre-cutover status
+## Morpheus pre-cutover status
 
 - MINIS is intentionally powered off.
 - Morpheus NFS was intentionally stopped and `nfs-kernel-server` masked after its
@@ -104,22 +106,91 @@ verify the four NFS sources on MINIS before restoring workloads.
 
 ## SMART and remaining gates
 
-- Operator decision: all 15 extended SMART tests may run concurrently. This is an
+- Operator decision: all 15 extended SMART tests could run concurrently. This was an
   explicit, accepted deviation from the runbook's conservative two-test limit. The
-  enclosure remains powered while the tests run; md/LVM/filesystem activity will be
-  stopped as soon as the release gates pass.
+  enclosure remained powered on Morpheus while the tests ran.
 - `WD-WCC4E7KFCARZ`: SMART overall health passed; 33 historical device errors, the
   newest at 64,350 power-on hours versus 91,747 current hours; zero reallocated,
   pending, offline-uncorrectable, or CRC errors. Its md error count remains at the
   recorded 24. An extended test started successfully on 2026-08-09 with an expected
   completion time of 17:59 CDT.
 - `WD-WX42D540749F`: clean pre-test baseline with zero media, pending-defect, or
-  interface errors and a temperature of 26 C. Extended-test completion evidence is
-  not yet recorded here.
-- Extended tests and post-test SMART reports remain required for all 15 disks, at
-  no more than two tests concurrently.
-- MINIS `AUTO -all` prep, repository preparation, and MINIS HBA/tool validation
-  remain open gates.
+  interface errors and a temperature of 26 C.
+- On 2026-08-09, the operator confirmed that all 15 extended SMART tests completed
+  successfully. No self-test failure was reported. The tests ran concurrently per
+  the accepted operator decision above.
+- Repository preparation, temporary read-only content verification, offline
+  filesystem checks, and service restoration remain open. MINIS `AUTO -all`
+  preparation and HBA/tool validation passed their pre-attach checks.
+
+## MINIS pre-attach preparation
+
+Captured after MINIS booted on 2026-08-09 while the enclosure remained connected
+only to Morpheus:
+
+- LSI 9207-8e / SAS2308 at PCI `01:00.0`, bound to `mpt3sas`; firmware
+  `20.00.07.00`, chip revision `0x05`.
+- No md array assembled and no bulk filesystem mounted.
+- mdadm 4.3, LVM 2.03.16, e2fsprogs 1.47.0, and smartmontools are installed.
+- Effective LVM default is `use_devicesfile=0`; no system devices file exists.
+- `/etc/mdadm/mdadm.conf` contains the temporary `AUTO -all` policy and no `ARRAY`
+  stanza. Its original was preserved as `mdadm.conf.pre-direct-storage`, and the
+  running-kernel initramfs was regenerated at 17:36 CDT.
+- The parent `flux-system` Kustomization and the `apps`/`monitoring` children are
+  suspended. Restic CronJobs are suspended with no active jobs. Frigate, Plex,
+  RomM, and Gluetun deployments have zero desired replicas.
+- A boot-started B2 job failed after quiescing because it reached the RomM MariaDB
+  dump after RomM had been scaled to zero. It had already created 17 SQLite hot
+  backups and a Home Assistant artifact. This expected maintenance-race failure
+  does not replace or invalidate the previously passed B2 backup/restore gate.
+- Bare `/mnt/media`, `/mnt/games`, `/mnt/frigate`, and `/mnt/backups` are empty,
+  root-owned `0755` mountpoints. The old root-owned Frigate preview-cache artifacts,
+  all dated 2026-06-28, were moved intact to
+  `/mnt/frigate.root-fallback-20260628`; nothing was deleted.
+- After the quarantine, `/proc/mdstat` still showed no assembled array.
+
+## MINIS enclosure handoff and controlled import
+
+Captured on MINIS on 2026-08-09 CDT after all 15 extended SMART tests passed and
+the enclosure was moved intact from the Morpheus HBA to the MINIS HBA:
+
+- The disks are exposed through the SAS HBA with numeric
+  `/dev/disk/by-id/scsi-3...` WWID paths rather than Morpheus's `ata-...` aliases.
+- On the first boot with the enclosure attached, the array unexpectedly
+  autoassembled as `/dev/md127` despite the temporary `AUTO -all` policy. It was
+  `read-auto`, clean, idle, and non-degraded, with all 13 active members and both
+  spares present. No bulk filesystem was mounted.
+- Udev also autoactivated all five `hoardvg` LVs. The operator chose to proceed from
+  the known-clean state rather than investigate the autoassembly path. A controlled
+  `vgchange -an hoardvg` left every LV at `-wi-------`, and
+  `mdadm --stop /dev/md127` stopped the array cleanly. `/proc/mdstat` was empty and
+  `/sys/block/md127` was absent afterward.
+- Two member-superblock spot checks after the stop agreed on array UUID
+  `74071d44:3bf857f0:85a3a734:9391a964`, update time
+  `2026-08-09 11:48:32 CDT`, event counter `590370`, complete array state, and their
+  expected active roles 0 and 1.
+- The 15 matching numeric SCSI WWID member paths were selected by the exact recorded
+  array UUID. The array was then explicitly assembled as `/dev/md3` with
+  `--readonly`, reporting 13 drives and two spares.
+- Controlled `/dev/md3` state is `readonly`, `sync_action=idle`, `degraded=0`, and
+  clean RAID6 with `[13/13] [UUUUUUUUUUUUU]`. It has 13 active devices, 15 working
+  devices, zero failed devices, two spares, UUID
+  `74071d44:3bf857f0:85a3a734:9391a964`, and event counter `590370`. No resync,
+  recovery, reshape, or check is running.
+- LVM exposed the four intended filesystem LVs. `blkid` confirmed ext4 with 4096-byte
+  blocks and exact filesystem UUIDs:
+
+  | LV | Filesystem UUID |
+  |---|---|
+  | `medialv` | `0a94d86c-76a0-44b5-bc52-930d97ab155f` |
+  | `games` | `b43f1bcc-0556-4ed5-b038-765134aba7d3` |
+  | `frigate` | `0b69665d-53ac-4380-815d-6969713940d6` |
+  | `backuplv` | `cc1cedb8-ef22-44b5-b1d0-5ca020d72669` |
+
+- `maverick-vdisk0-rootlv` remains explicitly out of scope and must not be mounted.
+- Next gate: mount each intended LV individually at `/mnt/migration-check` with
+  `ro,noload`, compare ownership, ACLs, shallow directory counts, and representative
+  hashes to the baselines below, and unmount it before checking the next LV.
 
 ## Low-I/O pre-unmount fingerprints
 
