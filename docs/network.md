@@ -353,9 +353,6 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 | `minis.matrix`               | `10.137.20.5`  | 20   | Homelab / Frigate NVR (server-side NIC)         |
 | `ryze.matrix`                | `10.137.30.6`  | 30   | Desktop workstation / VLAN 10 jumpbox           |
 | | | |
-| `media.nfs.service.matrix`   | `10.137.20.2`  | 20   | NFS media share on `morpheus`                   |
-| `games.nfs.service.matrix`   | `10.137.20.2`  | 20   | NFS games share on `morpheus`                   |
-| `frigate.nfs.service.matrix` | `10.137.20.2`  | 20   | NFS frigate share on `morpheus`                 |
 | `ntp.service.matrix`         | `10.137.20.2`  | 20   | NTP server on `morpheus`                        |
 | `worm.run`                   | `10.137.20.10` | 20   | minis cluster load balancer                     |
 | `*.worm.run`                 | `10.137.20.10` | 20   | minis cluster load balancer                     |

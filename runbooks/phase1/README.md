@@ -10,7 +10,7 @@ separately because it belongs on the Catalyst, not on the Ubuntu host.
 - Phase 0 is complete and the host has rebooted once after netplan, so `lan0` and
   `cam0` are active names.
 - `lan0` has `10.137.20.5/24`; `cam0` has `192.168.105.1/24` and `192.168.1.2/24`.
-- Phase 0.3 packages are installed: `nftables`, `dnsmasq`, `chrony`, and `iperf3`.
+- Phase 0.3 packages are installed: `nftables`, `dnsmasq`, and `chrony`.
 - A test laptop/device is available for validation on the camera segment.
 - Catalyst camera-port isolation is configured or ready to validate before any real
   camera is connected.
@@ -26,7 +26,7 @@ Run the host-side scripts in numeric order, or run `./run-all.sh` for steps 00-0
 | `02-camera-dhcp-ntp.sh` | 1.2, 1.3 | Installs DHCP-only dnsmasq config and chrony camera NTP config | no |
 | `catalyst-camera-isolation.md` | 1.1b | Manual Catalyst protected-port checklist and traffic validation | yes, off-host |
 | `03-camera-segment-validation.sh` | 1.1-1.3 | Validates DHCP/NTP/input-chain isolation with a test device | yes |
-| `04-nas-throughput.sh` | 1.4 | Runs iperf3 client and NFS read/write spot checks | prompts |
+| `04-direct-storage-throughput.sh` | 1.4 | Verifies the media UUID/device mapping and runs a 256 MiB local read/write probe | prompts |
 
 ## Notes
 

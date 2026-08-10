@@ -9,7 +9,7 @@ require_tools awk du df find findmnt grep install rsync setpriv sqlite3 stat tai
 
 step "Verify Phase 3.5 copy prerequisites"
 assert_hostname_minis
-assert_nas_archive_mounted
+assert_archive_mounted
 assert_phase35_sources_present
 assert_opt_capacity
 assert_destinations_safe

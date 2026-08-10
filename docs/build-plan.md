@@ -23,24 +23,20 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. All are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Tune Frigate cameras. |
-| 5 — observability + expansion | NAS and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. | Complete the direct-attached bulk-storage migration below, then tune resources and Frigate before optional phase-two logs or deferred apps. |
+| 5 — observability + expansion | Direct-array and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. | Complete post-cutover observation, then tune resources and Frigate before optional phase-two logs or deferred apps. |
 
-## Immediate next step: direct-attached bulk storage migration
+## Direct-attached bulk storage migration (cutover completed 2026-08-10)
 
-Move the existing RAID6 enclosure from Morpheus's SAS HBA to the installed LSI
+The existing RAID6 enclosure was moved from Morpheus's SAS HBA to the installed LSI
 9207-8e in `minis`, importing the existing mdadm/LVM/ext4 stack without copying or
-reformatting data. The attended procedure, health gates, commands, and rollback path
-are in the
+reformatting data. The attended procedure, health gates, commands, rollback path, and
+executed evidence are in the
 [direct-attached storage migration runbook](./direct-attached-storage-migration.md).
 
-Do not begin until the current md check and all-disk SMART tests pass and the
-hard-to-replace backup has been restored successfully. The milestone is complete
-only when:
+All-disk SMART tests, pre-cutover backups/restores, exact mount identity, offline
+filesystem checks, reboot assembly, read/write probes, and application cutover tests
+passed. The remaining completion gates are:
 
-- md3 is healthy with 13 active members and two spares after a MINIS reboot;
-- `/mnt/media`, `/mnt/games`, `/mnt/frigate`, and `/mnt/backups` resolve to their
-  recorded ext4 UUIDs on MINIS;
-- all four filesystems pass forced offline checks and application validation;
 - a new Restic backup and representative restore pass;
 - 24–48 hours of observation show no RAID, SAS, filesystem, or workload errors; and
 - Morpheus's old mounts, exports, md checks, and automatic array assembly are
@@ -117,7 +113,7 @@ confirm both interfaces are up.
 **0.3 System prep + hardware checks.**
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl git vim nfs-common sqlite3 jq age iperf3 nftables dnsmasq nut chrony
+sudo apt install -y curl git vim sqlite3 jq age nftables dnsmasq nut chrony mdadm lvm2 smartmontools
 sudo timedatectl set-timezone America/Chicago   # set the HOST tz explicitly — Frigate event
                             #   timestamps and cross-log correlation depend on it; the default
                             #   is often UTC. (chrony in 1.3 serves time to cameras; this sets
@@ -138,19 +134,15 @@ access, not PCI passthrough (see 0.0). Only if you later add true PCI passthroug
 `intel_iommu=on` in `GRUB_CMDLINE_LINUX` (`/etc/default/grub`), `sudo update-grub`, reboot —
 and capture the grub file into `host/minis/etc/default/grub` so a restore stays a copy.
 
-**0.4 NFS mounts.** [`host/minis/etc/fstab`](../host/minis/etc/fstab) is the full fstab
+**0.4 Direct-attached bulk storage.** [`host/minis/etc/fstab`](../host/minis/etc/fstab) is the full fstab
 from this host. The root/`var`/`opt` entries are LVM device paths the Phase 0.1 layout
 reproduces, but the `/boot/efi` line carries a disk-specific UUID — reconcile it with
-this disk (`blkid`) before use. Restore the file (or just append the
-`media.nfs.service.matrix:/mnt/media` line on an existing install), then `sudo mount -a`
-and verify `/mnt/media`. `nofail` is essential — a NAS outage at boot must not block k3s.
-Additional mounts are added when the apps that need them are configured
-(`/mnt/games` for RomM, `/mnt/frigate` for Frigate, `/mnt/backups` for Phase 5 Restic). Completed downloads are *not* a separate export — SABnzbd
-and qBittorrent hand off under `/mnt/media` so the download dir and the *arr library share one filesystem
-(hardlink/atomic-move imports). The NAS hostname `media.nfs.service.matrix` resolves via the
-router nameserver (`10.137.20.1`, set in 0.2) — there is no `/etc/hosts` fallback, so the
-boot-time mount depends on the router's DNS; confirm it resolves (`getent hosts
-media.nfs.service.matrix`) before `mount -a`.
+this disk (`blkid`) before use. Install the canonical `mdadm.conf`, update initramfs,
+install the mdcheck timer drop-ins, and append the four UUID-based ext4 automounts on
+an existing install. Verify each mount resolves to its expected `hoardvg` mapper and
+filesystem UUID. `nofail` and bounded device/mount timeouts let the host boot with the
+enclosure absent. Completed downloads remain under `/mnt/media`, so their handoff and
+the *arr library share one filesystem for hardlink/atomic-move imports.
 
 **0.5 UPS via NUT.** Apply the configs in [`host/minis/etc/nut/`](../host/minis/etc/nut/) (`nut.conf`,
 `ups.conf`, `upsd.conf`, `upsmon.conf`, `upsd.users`; mode `640 root:nut`). The driver
@@ -381,14 +373,12 @@ generally ignore the DHCP option 42 hint, so a misconfigured camera will silentl
 and corrupt Frigate event timestamps. ⚑ After setup, confirm each camera's clock is in
 sync (visible in the camera UI / on Frigate's first snapshots).
 
-**1.4 NAS throughput.** ⚑ Run `iperf3 -s` on the NAS (it's a Linux box), then
-`iperf3 -c media.nfs.service.matrix` from the node. **Current expectation ~940 Mbps**,
-not line rate: `minis` and the NAS both attach directly to the UDM Pro's 1 GbE RJ45 LAN
-ports (no intermediate switch in this path), so 2.5GbE can't be realized end-to-end until
-both hosts move off those 1G RJ45 ports onto faster links (e.g. SFP+) — don't chase the
-2.3 Gbps figure yet. iperf3 measures raw TCP; the metric Plex/Frigate actually care about is
-NFS read/write, so once the mounts are up (Phase 0.4) also spot-check with `fio`/`dd`
-over `/mnt/media`. Diagnose anything well under ~940 Mbps before proceeding.
+**1.4 Direct-storage spot check.** ⚑ Verify `/mnt/media` resolves to
+`/dev/mapper/hoardvg-medialv`, ext4 UUID `0a94d86c-76a0-44b5-bc52-930d97ab155f`,
+then run the bounded 256 MiB write/read/delete probe in
+`runbooks/phase1/04-direct-storage-throughput.sh`. This catches missing automounts,
+root-directory fallthrough, wrong device mappings, and immediate I/O failures before
+workloads depend on the array.
 
 ---
 
@@ -560,7 +550,7 @@ these are green:
       exist before config resources apply
 - [ ] ingress-nginx + cert-manager pods Running; ClusterIssuer Ready
 - [ ] `kubectl get svc -n ingress-nginx` shows LoadBalancer IP `10.137.20.10`
-- [ ] NFS mounts readable from a test pod
+- [ ] Direct-attached `/mnt/media` has the expected LVM/ext4 identity and is readable from a test pod
 - [ ] `/dev/dri/renderD128` visible in a **privileged test pod** (Quick Sync path)
 - [ ] Coral device visible in a privileged test pod
 - [ ] Camera segment **cannot** reach internet or LAN (ping `8.8.8.8` + a `10.137.20.x` host both fail). **Run this with k3s up (ip_forward=1) from a test device with a static IP + manual gateway `192.168.105.1`** — otherwise the forward drop is untested (see 1.1) and `cam-drop-fwd-*` should appear in the journal
@@ -602,11 +592,10 @@ Executable host-side scripts for the stopped-host archive copy live in
 ## Phase 4 — core workloads 📦
 
 GitOps from here. Every pod sets resource requests/limits + a priorityClassName.
-Deploy workloads with NAS media mounts read-only initially where practical. Validate
+Deploy workloads with direct bulk-storage mounts read-only initially where practical. Validate
 the copied app state and hardware paths first; only after validation do you cut over,
-flip NAS writes on, and run the final rsync for app-config changes made during the
-parallel run. `/mnt/frigate` and `/mnt/games` are not mounted in Phase 0, so add them
-to the host fstab during this phase before deploying Frigate or RomM.
+flip bulk-storage writes on, and run the final rsync for app-config changes made during the
+parallel run. All four UUID-based bulk-storage mounts are installed in Phase 0.4.
 
 **4a — download pod: Gluetun + Mullvad + SABnzbd + qBittorrent + *arr (deploy first).** One pod in
 `media`: Gluetun plus SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr sharing its
@@ -623,7 +612,7 @@ Then, in parallel once VPN is validated:
 **4b — Plex** (standard/burstable). Quick Sync is exposed through Intel's GPU device
 plugin by requesting `gpu.intel.com/i915: "1"`; keep the render supplemental group for
 host compatibility, but do not mount `/dev/dri` directly. Media is mounted from
-`/mnt/media` (NFS mounted on host by fstab in Phase 0.4); metadata lives under
+`/mnt/media` (direct ext4 automount from Phase 0.4); metadata lives under
 `/opt/plex`. ⚑ Confirm the migrated library/metadata is intact, then run a 1080p
 transcode and confirm GPU use with `intel_gpu_top` on the host.
 
@@ -660,7 +649,7 @@ first-boot reverse-proxy and automation configuration seeding.
 
 Status: Seerr and RomM live validation passed on 2026-07-18. Seerr is connected to
 Plex and the download stack; RomM's local state, MariaDB sidecar, service path, and
-NAS-backed library are operational. Home Assistant's authenticated API-managed backup
+direct-attached library are operational. Home Assistant's authenticated API-managed backup
 plus representative restore validation passed as part of Phase 5. Its MQTT and HACS
 Frigate integrations passed live validation on 2026-07-18, including authenticated
 broker traffic, Frigate availability, entity registration, and a real person event.
@@ -689,14 +678,14 @@ broker traffic, Frigate availability, entity registration, and a real person eve
   Pushover handles actionable phone notifications, and Dead Man's Snitch provides the
   independent off-node failure signal.
 - **Restic CronJobs** for backups — the implementation under
-  `infrastructure/monitoring` and `runbooks/phase5` has nightly NAS-local `/opt`
+  `infrastructure/monitoring` and `runbooks/phase5` has nightly direct-array `/opt`
   backups to `/mnt/backups/opt` plus an independent weekly Backblaze B2 repository.
-  The initial B2 backup, repository check, and NAS-free restore drill passed on
-  2026-07-18. The nightly NAS and first naturally scheduled weekly B2 runs both
+  The initial B2 backup, repository check, and local-volume-free restore drill passed on
+  2026-07-18. The nightly local and first naturally scheduled weekly B2 runs both
   completed successfully on 2026-07-19. Design and operating notes are in
   [operations.md](./operations.md#backups).
 - **Immich (later)** — coordinate the initial import during a quiet window and watch
-  memory (its ML container is the one big consumer). Originals on NAS; thumbs/ML on
+  memory (its ML container is the one big consumer). Originals on the direct bulk array; thumbs/ML on
   `/opt/immich`; benefits from Quick Sync.
 - **Tune resource limits** from real Grafana data after ~1 week.
 
@@ -833,14 +822,14 @@ spec:
           # SERVER_COUNTRIES=USA
           # FIREWALL_INPUT_PORTS=8080,8090,9696,7878,8989 # inbound: UIs, Seerr
           # FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,10.137.20.0/24
-          #   (k3s pod + Service CIDRs, LAN — keeps cluster DNS/NAS/Plex reachable)
+          #   (k3s pod + Service CIDRs, LAN — keeps cluster DNS/Plex reachable)
         - name: sabnzbd                          # localhost:8080
           image: lscr.io/linuxserver/sabnzbd
           # no special networking — inherits gluetun's namespace (as do the *arrs)
           volumeMounts:
             - { name: sabnzbd-config, mountPath: /config }      # /opt/sabnzbd (btrfs NVMe)
             - { name: sabnzbd-incomplete, mountPath: /incomplete } # topolvm-scratch PVC (ext4 LV)
-            - { name: downloads, mountPath: /downloads }         # NAS NFS
+            - { name: downloads, mountPath: /downloads }         # direct bulk array
         - name: qbittorrent                     # localhost:8090
           image: lscr.io/linuxserver/qbittorrent
           # WEBUI_PORT=8090, TORRENTING_PORT=6881. The Web UI is published through
@@ -849,7 +838,7 @@ spec:
           volumeMounts:
             - { name: qbittorrent-config, mountPath: /config }      # /opt/qbittorrent (btrfs NVMe)
             - { name: qbittorrent-incomplete, mountPath: /incomplete } # topolvm-scratch PVC
-            - { name: media, mountPath: /media }                     # NAS NFS
+            - { name: media, mountPath: /media }                     # direct bulk array
         - name: prowlarr                         # localhost:9696
           image: lscr.io/linuxserver/prowlarr
           volumeMounts: [{ name: prowlarr-config, mountPath: /config }]
@@ -857,7 +846,7 @@ spec:
           image: lscr.io/linuxserver/radarr
           volumeMounts:
             - { name: radarr-config, mountPath: /config }
-            - { name: media, mountPath: /media }             # NAS NFS
+            - { name: media, mountPath: /media }             # direct bulk array
         - name: sonarr                           # localhost:8989
           image: lscr.io/linuxserver/sonarr
           volumeMounts:
@@ -873,9 +862,9 @@ spec:
         # TopoLVM scratch LV — size-enforced, high-write, not snapshotted (see architecture.md)
         - { name: sabnzbd-incomplete, persistentVolumeClaim: { claimName: sabnzbd-incomplete-pvc } }
         - { name: qbittorrent-incomplete, persistentVolumeClaim: { claimName: qbittorrent-incomplete-pvc } }
-        # NAS paths — NFS mounted on host via fstab (Phase 0.4); pods use hostPath, no NFS PVC
+        # Direct mdadm/LVM/ext4 paths mounted by host fstab (Phase 0.4); pods use hostPath
         - { name: media,     hostPath: { path: /mnt/media,           type: Directory } }
-        # SABnzbd/qBittorrent completed-download handoff lives under the SAME /mnt/media export, so the
+        # SABnzbd/qBittorrent completed-download handoff lives on the SAME /mnt/media filesystem, so the
         # *arr library and the download dir are one filesystem — required for hardlink/atomic-move
         # imports. Mount it at a path consistent with the *arrs (or set an *arr remote-path
         # mapping) so they see the complete dirs and the library on the same mount.

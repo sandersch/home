@@ -3,8 +3,8 @@
 Scripts for [build-plan.md Phase 3.5](../../docs/build-plan.md#phase-35--app-data-migration-).
 Run them on `minis` after the Phase 3 validation gate is complete.
 
-The old hosts are stopped, and their container config directories are available on
-the NAS at `/mnt/media/to_archive/config`. This phase copies that stopped-host state
+The old hosts are stopped, and their container config directories are available at
+`/mnt/media/to_archive/config` on the bulk array. This phase copies that stopped-host state
 to local NVMe under `/opt`. It does not deploy workloads or change Kubernetes state.
 
 ## Prerequisites
@@ -33,7 +33,7 @@ Run scripts in numeric order, or run `./run-all.sh`.
 
 | Script | What it does | Mutates host? |
 |---|---|---|
-| `00-preflight.sh` | Checks host, NFS archive, source files, `/opt` capacity, and empty destinations | no |
+| `00-preflight.sh` | Checks host, exact direct media mount, archive, source files, `/opt` capacity, and empty destinations | no |
 | `01-copy-configs.sh` | Copies configs with `rsync -aHAX --numeric-ids --delete` and fixes ownership | yes |
 | `02-validate-copy.sh` | Checks expected files, Plex DB readability, *arr SQLite integrity, ownership, and `/opt` usage | no |
 
@@ -50,8 +50,8 @@ Run scripts in numeric order, or run `./run-all.sh`.
 - Plex `lost+found` and `Library/Application Support/Plex Media Server/Cache/Shaders`
   are excluded. The shader cache is regenerable and may not be readable from the
   archive.
-- The NAS export may root-squash `sudo`, so the copy script detects each archive
-  directory's numeric owner and runs `rsync` as that UID/GID. This lets it read
+- The copy script detects each archive directory's numeric owner and runs `rsync` as
+  that UID/GID. This preserves access to
   restrictive files such as Plex `0600`/`0660` config and cache files.
 - Plex library DB validation uses schema/table read checks instead of
   `PRAGMA integrity_check` because Plex can define a custom SQLite tokenizer that

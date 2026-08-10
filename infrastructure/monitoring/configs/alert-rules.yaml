@@ -55,7 +55,7 @@ spec:
           annotations:
             description: "{{ $labels.owner_name }} has a failed run newer than its last successful run."
             summary: Restic backup job failed
-        - alert: ResticNasBackupOverdue
+        - alert: ResticLocalBackupOverdue
           expr: |
             (time() - kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-nas-backup"} > 30 * 60 * 60)
             or absent(kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-nas-backup"})
@@ -63,8 +63,8 @@ spec:
           labels:
             severity: critical
           annotations:
-            description: The nightly NAS Restic CronJob has no successful run in the last 30 hours.
-            summary: NAS Restic backup is overdue
+            description: The nightly direct-array Restic CronJob has no successful run in the last 30 hours.
+            summary: Local Restic backup is overdue
         - alert: ResticB2BackupOverdue
           expr: |
             (time() - kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-b2-backup"} > 8 * 24 * 60 * 60)
@@ -103,22 +103,37 @@ spec:
           annotations:
             description: Less than 20 percent of /opt is available on minis.
             summary: Local app-state filesystem is filling up
-        - alert: NfsMountSetIncomplete
-          expr: absent(node_filesystem_size_bytes{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|games|backups)"}) or count(node_filesystem_size_bytes{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|games|backups)"}) < 4
+        - alert: BulkStorageMountSetIncomplete
+          expr: |
+            absent(node_filesystem_size_bytes{device="/dev/mapper/hoardvg-medialv",fstype="ext4",mountpoint="/mnt/media"})
+            or absent(node_filesystem_size_bytes{device="/dev/mapper/hoardvg-games",fstype="ext4",mountpoint="/mnt/games"})
+            or absent(node_filesystem_size_bytes{device="/dev/mapper/hoardvg-frigate",fstype="ext4",mountpoint="/mnt/frigate"})
+            or absent(node_filesystem_size_bytes{device="/dev/mapper/hoardvg-backuplv",fstype="ext4",mountpoint="/mnt/backups"})
           for: 5m
           labels:
             severity: critical
           annotations:
-            description: One or more expected host NFS mounts is missing from node-exporter metrics.
-            summary: Expected NFS mount is missing
-        - alert: NfsFilesystemDeviceError
-          expr: node_filesystem_device_error{fstype=~"nfs.*",mountpoint=~"/mnt/(media|frigate|games|backups)"} == 1
+            description: One or more expected direct-attached LVM/ext4 mounts is missing or mapped to the wrong device.
+            summary: Expected bulk-storage mount is missing
+        - alert: BulkStorageFilesystemDeviceError
+          expr: node_filesystem_device_error{device=~"/dev/mapper/hoardvg-(medialv|games|frigate|backuplv)",fstype="ext4",mountpoint=~"/mnt/(media|games|frigate|backups)"} == 1
           for: 5m
           labels:
             severity: critical
           annotations:
-            description: "node-exporter cannot read the NFS filesystem mounted at {{ $labels.mountpoint }}."
-            summary: NFS filesystem reports a device error
+            description: "node-exporter cannot read the direct-attached filesystem mounted at {{ $labels.mountpoint }}."
+            summary: Bulk-storage filesystem reports a device error
+        - alert: RaidCheckStalled
+          expr: |
+            node_md_state{device="md3",state="check"} == 1
+            and on(instance, device)
+            changes(node_md_blocks_synced{device="md3"}[30m]) == 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            description: The md3 consistency check has made no block progress for at least 45 minutes.
+            summary: RAID consistency check is stalled
         - alert: GluetunRestarted
           expr: increase(kube_pod_container_status_restarts_total{namespace="media",container="gluetun"}[15m]) > 0
           labels:

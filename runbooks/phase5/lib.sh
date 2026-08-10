@@ -35,7 +35,9 @@ PHASE5_ROMM_SECRET="$REPO_ROOT/apps/media/romm/romm.sops.yaml"
 # shellcheck disable=SC2034
 PHASE5_BACKUP_MOUNT="/mnt/backups"
 # shellcheck disable=SC2034
-PHASE5_BACKUP_SOURCE="backups.nfs.service.matrix:/mnt/backups"
+PHASE5_BACKUP_SOURCE="/dev/mapper/hoardvg-backuplv"
+# shellcheck disable=SC2034
+PHASE5_BACKUP_UUID="cc1cedb8-ef22-44b5-b1d0-5ca020d72669"
 
 require_flux_cli() {
   if command -v flux >/dev/null; then
@@ -141,6 +143,37 @@ assert_phase5_observability_invariants() {
         .labels.severity == "critical"))
   ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
     || die "UPS on-battery alert expression, delay, or severity changed unexpectedly"
+  yq -e '
+    select(.kind == "PrometheusRule" and .metadata.name == "homelab-alerts") |
+    any(.spec.groups[].rules[];
+      .alert == "ResticLocalBackupOverdue" and
+      .for == "15m" and
+      .labels.severity == "critical" and
+      (.expr | contains("cronjob=\"restic-nas-backup\""))) and
+    any(.spec.groups[].rules[];
+      .alert == "BulkStorageMountSetIncomplete" and
+      .for == "5m" and
+      .labels.severity == "critical" and
+      (.expr | contains("device=\"/dev/mapper/hoardvg-medialv\",fstype=\"ext4\",mountpoint=\"/mnt/media\"")) and
+      (.expr | contains("device=\"/dev/mapper/hoardvg-games\",fstype=\"ext4\",mountpoint=\"/mnt/games\"")) and
+      (.expr | contains("device=\"/dev/mapper/hoardvg-frigate\",fstype=\"ext4\",mountpoint=\"/mnt/frigate\"")) and
+      (.expr | contains("device=\"/dev/mapper/hoardvg-backuplv\",fstype=\"ext4\",mountpoint=\"/mnt/backups\""))) and
+    any(.spec.groups[].rules[];
+      .alert == "BulkStorageFilesystemDeviceError" and
+      .for == "5m" and
+      .labels.severity == "critical")
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
+    || die "local backup or direct-attached bulk-storage alerts changed unexpectedly"
+  yq -e '
+    select(.kind == "PrometheusRule" and .metadata.name == "homelab-alerts") |
+    any(.spec.groups[].rules[];
+      .alert == "RaidCheckStalled" and
+      .for == "15m" and
+      .labels.severity == "warning" and
+      (.expr | contains("node_md_state{device=\"md3\",state=\"check\"} == 1")) and
+      (.expr | contains("changes(node_md_blocks_synced{device=\"md3\"}[30m]) == 0")))
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
+    || die "RAID check-stall alert expression, delay, or severity changed unexpectedly"
   jq -e '
     .uid == "nut-exporter" and
     .title == "UPS / NUT — CP1500" and
@@ -169,7 +202,7 @@ assert_phase5_observability_invariants() {
   yq -e '.data["admin-password"] | startswith("ENC[AES256_GCM")' \
     "$PHASE5_GRAFANA_SECRET" >/dev/null \
     || die "Grafana administrator password is missing or not SOPS-encrypted"
-  ok "observability versions, probes, UPS telemetry, dashboard, alert, and encrypted Grafana credentials are intact"
+  ok "observability versions, probes, UPS/RAID/storage alerts, dashboard, and encrypted Grafana credentials are intact"
 }
 
 assert_phase5_pushover_invariants() {
@@ -266,18 +299,18 @@ assert_phase5_backup_invariants() {
     .spec.timeZone == "America/Chicago" and
     .spec.suspend != true and
     .spec.jobTemplate.spec.activeDeadlineSeconds == 3600' "$rendered" >/dev/null \
-    || die "NAS CronJob schedule or deadline changed unexpectedly"
+    || die "local Restic CronJob schedule or deadline changed unexpectedly"
   yq -e 'select(.kind == "ConfigMap" and .metadata.name == "restic-nas-config") |
     .data.RESTIC_REPOSITORY == "/repo/nas/opt" and
     .data.RESTIC_TARGET_TAG == "nas" and
     .data.RESTIC_KEEP_DAILY == "14" and
     .data.RESTIC_KEEP_WEEKLY == "8" and
     .data.RESTIC_KEEP_MONTHLY == "12"' "$rendered" >/dev/null \
-    || die "NAS repository, tag, or retention policy changed unexpectedly"
+    || die "local repository, legacy tag, or retention policy changed unexpectedly"
   yq -e 'select(.kind == "CronJob" and .metadata.name == "restic-nas-backup") |
     any(.spec.jobTemplate.spec.template.spec.volumes[];
       .name == "backups" and .hostPath.path == "/mnt/backups")' "$rendered" >/dev/null \
-    || die "NAS CronJob no longer mounts /mnt/backups"
+    || die "local Restic CronJob no longer mounts /mnt/backups"
   yq -e 'select(.kind == "CronJob" and .metadata.name == "restic-b2-backup") |
     .spec.schedule == "30 4 * * 0" and
     .spec.timeZone == "America/Chicago" and
@@ -305,7 +338,7 @@ assert_phase5_backup_invariants() {
   grep -Fq -- "home_assistant_backup_set_has_new_file \"\$HA_BACKUPS_BEFORE\" \"\$HA_BACKUPS_AFTER\"" \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "shared Restic backup script does not compare Home Assistant backup filename sets"
-  ok "NAS and B2 backup invariants are intact"
+  ok "local and B2 backup invariants are intact"
 }
 
 assert_phase5_kustomize_builds() {
@@ -326,7 +359,7 @@ assert_phase5_restic_secret_present() {
     || die "$PHASE5_RESTIC_SECRET is not SOPS-encrypted"
   grep -q 'restic-nas.sops.yaml' "$PHASE5_MONITORING_DIR/kustomization.yaml" \
     || die "$PHASE5_RESTIC_SECRET is not included in infrastructure/monitoring/kustomization.yaml"
-  ok "Restic NAS Secret manifest is SOPS-encrypted and included"
+  ok "local Restic Secret manifest is SOPS-encrypted and included (legacy restic-nas name)"
 }
 
 assert_phase5_restic_b2_secret_present() {

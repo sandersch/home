@@ -94,25 +94,40 @@ assert_mount_layout() {
   ok "$mount is $expected_source ($expected_fstype)"
 }
 
-assert_nfs_mount_layout() {
-  local mount="$1" expected_source="$2" expected_fstype="$3"
-  local mounts mount_summary
+assert_direct_mount_layout() {
+  local mount="$1" expected_source="$2" expected_uuid="$3"
+  local mounts mount_summary expected_real uuid_real source fstype source_real matched=0
 
   # The fstab entry uses x-systemd.automount, so findmnt may show an autofs
   # wrapper until the path is touched. Trigger it first, and only validate the
   # real backing filesystem so the autofs layer does not look like a mismatch.
   timeout 20 ls -la "$mount" >/dev/null \
-    || die "$mount is not readable; fix NAS DNS/export/reachability before continuing"
+    || die "$mount is not readable; verify md3, hoardvg, and the filesystem before continuing"
 
   mounts="$(findmnt -rn --real -o SOURCE,FSTYPE --target "$mount" 2>/dev/null || true)"
   [ -n "$mounts" ] || die "$mount has no real mounted filesystem"
-  if ! printf '%s\n' "$mounts" | awk -v src="$expected_source" -v fs="$expected_fstype" \
-    '$1 == src && $2 == fs { found = 1 } END { exit !found }'; then
+
+  expected_real="$(readlink -f "$expected_source" 2>/dev/null || true)"
+  uuid_real="$(readlink -f "/dev/disk/by-uuid/$expected_uuid" 2>/dev/null || true)"
+  [ -n "$expected_real" ] || die "cannot resolve expected source $expected_source"
+  [ -n "$uuid_real" ] || die "cannot resolve filesystem UUID $expected_uuid"
+  [ "$expected_real" = "$uuid_real" ] \
+    || die "$expected_source does not carry expected filesystem UUID $expected_uuid"
+
+  while read -r source fstype; do
+    source_real="$(readlink -f "$source" 2>/dev/null || true)"
+    if [ "$fstype" = ext4 ] && [ "$source_real" = "$expected_real" ]; then
+      matched=1
+      break
+    fi
+  done <<<"$mounts"
+
+  if [ "$matched" -ne 1 ]; then
     mount_summary="$(printf '%s\n' "$mounts" | paste -sd '; ' -)"
-    die "$mount is mounted as $mount_summary, expected $expected_source $expected_fstype"
+    die "$mount is mounted as $mount_summary, expected $expected_source ext4 (UUID=$expected_uuid)"
   fi
 
-  ok "$mount is $expected_source ($expected_fstype)"
+  ok "$mount is $expected_source (ext4, UUID=$expected_uuid)"
 }
 
 assert_interface_has_address() {

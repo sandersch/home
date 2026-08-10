@@ -9,7 +9,7 @@ require_tools awk du df find findmnt grep rsync setpriv sqlite3 stat tail timeou
 
 step "Verify target host and mounts"
 assert_hostname_minis
-assert_nas_archive_mounted
+assert_archive_mounted
 
 step "Verify archive contents"
 assert_phase35_sources_present

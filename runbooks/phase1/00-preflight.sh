@@ -8,14 +8,14 @@ step "Phase 1 preflight checks"
 require_not_root
 require_sudo
 require_host_etc
-require_tools ip systemctl nft sysctl dnsmasq chronyc journalctl timeout getent findmnt
+require_tools ip systemctl nft sysctl dnsmasq chronyc journalctl timeout findmnt
 assert_phase1_source_files
 assert_phase0_network_settled
 
 step "Verify required packages are installed"
-dpkg -s nftables dnsmasq chrony iperf3 >/dev/null 2>&1 \
-  || die "nftables, dnsmasq, chrony, and iperf3 must be installed by Phase 0.3"
-ok "nftables, dnsmasq, chrony, and iperf3 packages are installed"
+dpkg -s nftables dnsmasq chrony >/dev/null 2>&1 \
+  || die "nftables, dnsmasq, and chrony must be installed by Phase 0.3"
+ok "nftables, dnsmasq, and chrony packages are installed"
 
 step "Check current service posture"
 if systemctl is-enabled --quiet dnsmasq 2>/dev/null || systemctl is-active --quiet dnsmasq; then
@@ -37,7 +37,7 @@ Run the Phase 1 steps in order:
   02-camera-dhcp-ntp.sh         dnsmasq DHCP-only + chrony NTP
   catalyst-camera-isolation.md  switch-side protected-port validation
   03-camera-segment-validation.sh
-  04-nas-throughput.sh
+  04-direct-storage-throughput.sh
 
 The forward-chain drop must be re-tested after k3s flips ip_forward=1 in Phase 2.
 EOF

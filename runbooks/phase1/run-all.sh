@@ -29,6 +29,6 @@ cat <<'EOF'
 Remaining Phase 1 work:
   - Complete/confirm catalyst-camera-isolation.md before connecting real cameras.
   - Run 03-camera-segment-validation.sh with a test device on VLAN 105.
-  - Run 04-nas-throughput.sh with iperf3 server running on the NAS.
+  - Run 04-direct-storage-throughput.sh for a local read/write spot check.
   - After Phase 2/k3s, re-test camera forwarding with gateway 192.168.105.1.
 EOF

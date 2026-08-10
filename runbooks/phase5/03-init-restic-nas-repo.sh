@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 5.3 - initialize the NAS Restic repository once.
+# Phase 5.3 - initialize the direct-array Restic repository once (legacy resource name: nas).
 # shellcheck source=runbooks/phase5/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

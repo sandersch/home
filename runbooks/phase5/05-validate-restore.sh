@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 5.5 - validate that the latest NAS Restic snapshot is restorable.
+# Phase 5.5 - validate that the latest direct-array Restic snapshot is restorable.
 # shellcheck source=runbooks/phase5/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 

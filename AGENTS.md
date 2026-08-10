@@ -26,15 +26,15 @@ Hosted Pushover routing also passed live validation on 2026-07-20 with synthetic
 warning/critical firing and resolved notifications delivered to the iPhone.
 The nut-exporter workload, CP1500 Grafana dashboard, and critical on-battery rule
 passed live validation on 2026-07-25, including the controlled physical mains-loss
-drill and Pushover firing and recovery notifications. The immediate next operational
-step is the attended migration of the bulk-storage RAID enclosure from Morpheus to
-the SAS HBA installed in `minis`; resource tuning, Frigate tuning, and deferred apps
-follow it. This remains a retrofit to a running production cluster, not a greenfield
-scaffold.
+drill and Pushover firing and recovery notifications. The bulk-storage RAID enclosure
+was migrated intact from Morpheus to the SAS HBA in `minis` on 2026-08-10. Array,
+filesystem, reboot-assembly, and application cutover gates passed; post-cutover
+observation, resource tuning, Frigate tuning, and deferred apps follow it. This
+remains a retrofit to a running production cluster, not a greenfield scaffold.
 
 ## Hardware (summary)
 
-MINISFORUM MS-01 · Intel Core i5-12600H (6 P-cores + 4 E-cores, 12 threads) · 32 GB DDR5 · 1 TB NVMe · LSI 9207-8e SAS HBA · 2×2.5GbE ports in use, negotiating at 1Gb today · 2×10Gb SFP+ (unused) · Intel Coral USB accelerator · UPS in rack. Quick Sync iGPU drives Plex transcoding. Media and camera recordings currently live on the Morpheus-hosted RAID enclosure and reach MINIS over NFS; the next milestone moves that enclosure intact to the MINIS HBA. Full detail in [architecture.md](./docs/architecture.md) and the [direct-attached storage migration runbook](./docs/direct-attached-storage-migration.md).
+MINISFORUM MS-01 · Intel Core i5-12600H (6 P-cores + 4 E-cores, 12 threads) · 32 GB DDR5 · 1 TB NVMe · LSI 9207-8e SAS HBA · directly attached 44 TB raw RAID6 enclosure · 2×2.5GbE ports in use, negotiating at 1Gb today · 2×10Gb SFP+ (unused) · Intel Coral USB accelerator · UPS in rack. Quick Sync iGPU drives Plex transcoding. Full detail in [architecture.md](./docs/architecture.md) and the [direct-attached storage migration runbook](./docs/direct-attached-storage-migration.md).
 
 ## Decision log
 
@@ -55,7 +55,7 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | VPN (downloads) | **Mullvad** via **Gluetun**, WireGuard | Strong privacy track record; provider is swappable |
 | Media server | **Plex** (lifetime pass) | Wife-acceptance + existing 100 GB metadata |
 | Storage (local) | **LVM under everything**; btrfs on `/opt`; **TopoLVM** for scratch | One VG: manual LVs for OS + `/opt` (btrfs snapshots + zstd); TopoLVM provisions enforced, resizable ext4 scratch LVs (Frigate cache, SABnzbd staging) from VG free space. Supersedes the earlier "no LVM" call — partition count + up-front sizing anxiety outweighed the abstraction overlap |
-| Backups | **Restic** → NAS nightly + **Backblaze B2** weekly | Cheap, deduplicating, offsite copy |
+| Backups | **Restic** → direct backup LV nightly + **Backblaze B2** weekly | Cheap, deduplicating, offsite copy |
 | Alerting | **Dead Man's Snitch** for the off-node Watchdog; hosted **Pushover** for actionable alerts | The independent heartbeat covers total node/monitoring failure; Pushover delivers warning/critical phone notifications without adding a same-node workload or relay |
 | Camera segment addressing | **`192.168.105.0/24`, host at `.1`**, per-camera NTP target `192.168.105.1` | Frozen once cameras are provisioned: the subnet, the host's NIC2 address, and the NTP server are typed into each camera's web UI (1.3) and baked into DHCP/Frigate, so renumbering means hand-touching every camera. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
 
@@ -114,7 +114,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 - **Every workload pod sets resource `requests`/`limits` and a `priorityClassName`.** Tiers and exact values are in [architecture.md → Resource allocation](./docs/architecture.md#resource-allocation). Frigate and Home Assistant are `homelab-critical` (non-evictable); most else is `homelab-standard`; backups are best-effort.
 - **App state uses the `local-nvme` StorageClass** via a per-app PV + PVC pointing at `/opt/<app>/...`. The PV is a `hostPath` volume with `type: DirectoryOrCreate`, so the kubelet creates the directory on first mount and adding storage for a new app is a pure git change (no SSH). **Scratch data uses the `topolvm-scratch` StorageClass** instead — a PVC alone dynamically provisions an enforced, resizable ext4 LV from VG free space (no PV manifest). Pattern in [build-plan.md → Storage pattern](./docs/build-plan.md#storage-pattern).
 - **Secrets are SOPS-encrypted before commit**, always. The repo is private, but treat encryption as mandatory anyway — private is a safety net, not a license to commit plaintext, and the repo may be selectively shared later. `data`/`stringData` fields are encrypted via `.sops.yaml`. Encrypt with `sops --encrypt --in-place path/to/secret.yaml`. The only secret that lives outside git is the `sops-age` key itself (in-cluster + backed up to a password manager).
-- **Latency-sensitive state on local NVMe; bulk data on the RAID enclosure.** Plex metadata, Frigate DB, app configs → `/opt` (btrfs). Media, ROMs, recordings, Immich originals → the mdadm/LVM/ext4 array, currently exported by Morpheus over NFS and scheduled for direct attachment to MINIS without changing `/mnt/...` paths. Scratch (Frigate cache, SABnzbd staging) → `topolvm-scratch` PVCs (ext4 LVs, enforced, throwaway).
+- **Latency-sensitive state on local NVMe; bulk data on the RAID enclosure.** Plex metadata, Frigate DB, app configs → `/opt` (btrfs). Media, ROMs, recordings, Immich originals → the mdadm/LVM/ext4 array directly attached to MINIS and exposed to pods through `/mnt/...` hostPaths. Scratch (Frigate cache, SABnzbd staging) → `topolvm-scratch` PVCs (ext4 LVs, enforced, throwaway).
 - **Helm charts** are referenced via `HelmRepository` + `HelmRelease` CRDs (Flux), not installed imperatively. Phase 2 only installs k3s, creates `flux-system/sops-age`, and bootstraps Flux.
 
 ## Working agreements for an AI session
@@ -154,7 +154,7 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 
 ## Where to go next
 
-1. [docs/direct-attached-storage-migration.md](./docs/direct-attached-storage-migration.md) — the next operational milestone: move the RAID enclosure from Morpheus to MINIS.
+1. [docs/direct-attached-storage-migration-worklog.md](./docs/direct-attached-storage-migration-worklog.md) — completed cutover evidence and post-migration follow-ups.
 2. [docs/build-plan.md](./docs/build-plan.md) — phased path, current status, and completion gates.
 3. [docs/architecture.md](./docs/architecture.md) — the design and its rationale.
 4. [docs/migration-runbook.md](./docs/migration-runbook.md) — moving Plex + *arr data.

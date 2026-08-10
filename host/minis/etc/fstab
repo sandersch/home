@@ -10,7 +10,8 @@
 /dev/vg0/opt /opt btrfs defaults,noatime,compress=zstd:1 0 0
 # /boot/efi was on /dev/nvme0n1p1 during curtin installation
 /dev/disk/by-uuid/87BD-380A /boot/efi vfat defaults 0 2
-media.nfs.service.matrix:/mnt/media    /mnt/media    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
-games.nfs.service.matrix:/mnt/games    /mnt/games    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
-frigate.nfs.service.matrix:/mnt/frigate    /mnt/frigate    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
-backups.nfs.service.matrix:/mnt/backups    /mnt/backups    nfs  defaults,nofail,_netdev,x-systemd.automount  0 0
+# Direct-attached mdadm/LVM/ext4 bulk storage
+UUID=0a94d86c-76a0-44b5-bc52-930d97ab155f /mnt/media   ext4 defaults,nofail,x-systemd.automount,x-systemd.device-timeout=60s,x-systemd.mount-timeout=60s 0 2
+UUID=b43f1bcc-0556-4ed5-b038-765134aba7d3 /mnt/games    ext4 defaults,nofail,x-systemd.automount,x-systemd.device-timeout=60s,x-systemd.mount-timeout=60s 0 2
+UUID=0b69665d-53ac-4380-815d-6969713940d6 /mnt/frigate  ext4 defaults,nofail,x-systemd.automount,x-systemd.device-timeout=60s,x-systemd.mount-timeout=60s 0 2
+UUID=cc1cedb8-ef22-44b5-b1d0-5ca020d72669 /mnt/backups  ext4 defaults,nofail,x-systemd.automount,x-systemd.device-timeout=60s,x-systemd.mount-timeout=60s 0 2

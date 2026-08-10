@@ -5,13 +5,13 @@ Scripts for the backup and first observability slices of
 
 ## Order
 
-Run these after Phase 4 is validated and the NAS has a dedicated backup export at
-`backups.nfs.service.matrix:/mnt/backups`.
+Run these after Phase 4 is validated and the direct-attached backup filesystem is
+available as `/dev/mapper/hoardvg-backuplv` at `/mnt/backups`.
 
 | Script | Purpose |
 |---|---|
 | `00-preflight.sh` | Validate Phase 5 backup/monitoring manifests, including dormant or active Pushover invariants |
-| `01-backups-nfs-mount.sh` | Add `/mnt/backups` to `/etc/fstab`, mount it, and verify write access |
+| `01-backups-mount.sh` | Add `/mnt/backups` to `/etc/fstab`, verify its exact UUID/device mapping, and test UID 65534 write access |
 | `02-encrypt-restic-secret.sh` | Create the SOPS-encrypted `monitoring/restic-nas` Secret |
 | `03-init-restic-nas-repo.sh` | Initialize `/mnt/backups/opt` as a Restic repo |
 | `04-run-manual-backup.sh` | Run one backup immediately from the CronJob |
@@ -19,14 +19,14 @@ Run these after Phase 4 is validated and the NAS has a dedicated backup export a
 | `06-encrypt-restic-b2-secret.sh` | Generate the independent SOPS-encrypted B2 repository Secret |
 | `07-init-restic-b2-repo.sh` | Reconcile monitoring and initialize the B2 repository idempotently |
 | `08-run-manual-b2-backup.sh` | Run the weekly B2 CronJob manually |
-| `09-validate-b2-restore.sh` | Restore representative B2 artifacts without the NAS |
+| `09-validate-b2-restore.sh` | Restore representative B2 artifacts without the local backup volume |
 | `10-setup-deadmanssnitch.sh` | SOPS-encrypt the external heartbeat URL and activate Alertmanager Watchdog routing |
 | `11-setup-pushover.sh` | SOPS-encrypt Pushover keys and atomically activate actionable phone notifications |
 | `12-test-pushover.sh` | Inject and resolve synthetic warning/critical alerts through Alertmanager |
 | `13-validate-nut-exporter.sh` | Validate UPS telemetry, Prometheus/Grafana integration, and optionally run the physical mains-loss alert drill |
 
 Both repositories have passed initialization, manual backup, and representative restore
-validation. The nightly NAS and first naturally scheduled weekly B2 backups both
+validation. The nightly local and first naturally scheduled weekly B2 backups both
 completed successfully on 2026-07-19.
 
 The initial observability stack passed live validation on 2026-07-20. Prometheus,
@@ -213,7 +213,7 @@ The script writes plaintext only inside a temporary directory. It creates
 `RESTIC_REPOSITORY=s3:<endpoint>/<bucket>/opt`, generates a distinct repository
 password when one is not supplied, preserves every existing value on reruns, and adds
 the encrypted Secret to the monitoring kustomization. The weekly job reads the
-existing NAS Secret for the Home Assistant token and RomM password instead of
+existing local-repository Secret (`restic-nas`, retained as a legacy name) for the Home Assistant token and RomM password instead of
 duplicating them.
 
 Commit the encrypted Secret, reconcile and validate while the CronJob is suspended:

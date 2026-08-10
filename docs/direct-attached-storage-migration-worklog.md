@@ -119,9 +119,12 @@ verify the four NFS sources on MINIS before restoring workloads.
 - On 2026-08-09, the operator confirmed that all 15 extended SMART tests completed
   successfully. No self-test failure was reported. The tests ran concurrently per
   the accepted operator decision above.
-- Repository preparation, temporary read-only content verification, offline
-  filesystem checks, and service restoration remain open. MINIS `AUTO -all`
-  preparation and HBA/tool validation passed their pre-attach checks.
+- Repository conversion and storage-consumer restoration are complete. MINIS
+  `AUTO -all` preparation, HBA/tool validation, temporary read-only content
+  verification, offline filesystem checks, direct-mount activation, write probes,
+  attended reboot validation, and application cutover checks have passed. Remaining
+  live gates are Flux/monitoring/backup restoration, a fresh backup/restore drill,
+  the observation window, and final Morpheus retirement work.
 
 ## MINIS pre-attach preparation
 
@@ -188,9 +191,152 @@ the enclosure was moved intact from the Morpheus HBA to the MINIS HBA:
   | `backuplv` | `cc1cedb8-ef22-44b5-b1d0-5ca020d72669` |
 
 - `maverick-vdisk0-rootlv` remains explicitly out of scope and must not be mounted.
-- Next gate: mount each intended LV individually at `/mnt/migration-check` with
-  `ro,noload`, compare ownership, ACLs, shallow directory counts, and representative
-  hashes to the baselines below, and unmount it before checking the next LV.
+- Each intended LV was mounted individually at `/mnt/migration-check` with
+  `ro,noload` (reported by the kernel as `ro,norecovery`) and unmounted before the
+  next LV was checked. All four matched the baselines below exactly:
+
+  | LV | Owner/mode | Shallow directories | Representative hash |
+  |---|---|---:|---|
+  | `frigate` | `1000:1000` / `2775` | 47 | matched |
+  | `games` | `1000:1000` / `0755` | 40 | matched |
+  | `backuplv` | `65534:65534` / `0755` | 50 | matched |
+  | `medialv` | `1000:100` / `0775` | 1,094 | matched |
+
+  The ACL output contained only owner/group/other entries. After the final unmount,
+  `/dev/md3` remained `readonly` with `sync_action=idle`.
+- After confirming all four filesystems were unmounted, `/dev/md3` was made writable
+  for forced offline `e2fsck -f -p` checks. Results, in execution order:
+
+  | LV | First status | Action/result | Final status | MINIS log |
+  |---|---:|---|---:|---|
+  | `frigate` | 1 | Created missing standard `/lost+found`; verification rerun clean | 0 | `~/e2fsck-frigate-20260809.log` |
+  | `games` | 1 | Created missing standard `/lost+found`; verification rerun clean | 0 | `~/e2fsck-games-20260809.log` |
+  | `backuplv` | 0 | Clean on first run | 0 | `~/e2fsck-backuplv-20260809.log` |
+  | `medialv` | 0 | Clean; several narrower-extent-tree optimization notices were explicitly ignored by e2fsck | 0 | `~/e2fsck-medialv-20260809.log` |
+
+  The two intentional `/lost+found` creations increase the Frigate and games shallow
+  directory baselines to 48 and 41 respectively. Before the media check,
+  `sync_action=idle` and `degraded=0`.
+- The reviewed target configuration was staged on MINIS as
+  `~/direct-storage-mdadm.conf` and `~/direct-storage-fstab`. The fstab validated
+  with zero parse errors and resolved all four UUIDs to their exact intended
+  `hoardvg` LVs. Canonical copies are maintained at
+  `host/minis/etc/mdadm/mdadm.conf` and `host/minis/etc/fstab`.
+- After installation, initramfs regeneration, systemd reload, and removal of the
+  temporary mount-unit masks, all four automounts activated successfully. Each
+  target has the expected stacked `autofs` trigger and read-write ext4 mount:
+
+  | Target | Active ext4 source |
+  |---|---|
+  | `/mnt/media` | `/dev/mapper/hoardvg-medialv` |
+  | `/mnt/games` | `/dev/mapper/hoardvg-games` |
+  | `/mnt/frigate` | `/dev/mapper/hoardvg-frigate` |
+  | `/mnt/backups` | `/dev/mapper/hoardvg-backuplv` |
+
+- After direct-mount activation, `/dev/md3` remained clean RAID6 with 13 active
+  members, 15 working devices, zero failed devices, two spares, and
+  `[13/13] [UUUUUUUUUUUUU]`. Its UUID remained
+  `74071d44:3bf857f0:85a3a734:9391a964`; the expected first writable event advanced
+  the counter to `590371`, with update time `2026-08-10 00:03:07 CDT`.
+- Ownership-aware create/read/remove probes passed on all four mounts after guarding
+  each operation with its exact expected ext4 source. Media, games, and Frigate were
+  tested as UID 1000; backups was tested as UID/GID 65534. Every probe was read back
+  and removed, with zero failures. Media's probe inherited Charlie's primary GID
+  1000 rather than the filesystem root's GID 100 because `/mnt/media` is not setgid;
+  this is expected.
+- Final pre-reboot verification found `/dev/md3` clean with `sync_action=idle`,
+  `degraded=0`, `[13/13] [UUUUUUUUUUUUU]`, and both spares. The installed fstab and
+  mdadm configuration exactly matched their staged reviewed copies. The running
+  kernel's initramfs was regenerated at `2026-08-10 00:02:31 CDT`; all four generated
+  automounts were enabled and active.
+- Immediately before reboot, the parent `flux-system` Kustomization and the
+  `apps`/`monitoring` children remained suspended, both Restic CronJobs remained
+  suspended with no active job, and Frigate, Plex, RomM, and Gluetun remained at
+  zero desired replicas.
+- MINIS rebooted at `2026-08-10 00:08:55 CDT`. The explicit configuration
+  automatically assembled the array under the required `/dev/md3` name, not
+  `/dev/md127`. It was clean with `sync_action=idle`, `degraded=0`, stable event
+  counter `590371`, all 13 active devices, both spares, and no failed device.
+- LVM automatically rediscovered PV UUID
+  `ZH6Abs-MP7f-ACXX-wqrK-lGXW-chYe-oBYvng` on `/dev/md3`, associated it with
+  `hoardvg`, and activated all five LVs. `maverick-vdisk0-rootlv` remained unmounted.
+- Triggering the four automounts after reboot produced the same exact read-write ext4
+  source mapping recorded above.
+- The node returned Kubernetes `Ready`. The parent and child Flux Kustomizations,
+  Restic CronJobs, and four storage consumers retained their maintenance state.
+- `systemctl --failed` reported zero failed units. Kernel boot logs contained the
+  expected initial per-disk power-on/reset discovery and an HBA ASPM-control warning,
+  but the targeted search found no HBA fault, repeated reset, I/O error, task abort,
+  or offline device.
+- Next gate: restore and validate Frigate, Plex, RomM, and the Gluetun/download stack
+  in order while reconciliation and scheduled backups remain suspended.
+
+## Consumer restoration
+
+- Frigate was restored first. Its rollout completed with one current `1/1 Running`
+  pod. Inside the container, `/media/frigate` resolved to ext4 on
+  `/dev/mapper/hoardvg-frigate`; the recording path was writable, Intel render access
+  passed, and a Coral USB character device was available.
+- Frigate started its recording, review, camera processor, and capture processes;
+  the EdgeTPU initialized successfully with `TPU found`, and its API passed the
+  blackbox probe. The expected read-only ConfigMap migration warning and a one-time
+  preview-cache restore failure did not prevent startup.
+- The operator confirmed live view and playback of a new post-restart recording.
+- Plex was restored second. Both `/media` and `/mnt/media` resolved inside the
+  container to ext4 on `/dev/mapper/hoardvg-medialv`; both library mounts retained
+  their intentional read-only policy. The `abc` service user could read the library
+  and read/write `/dev/dri/renderD128`.
+- Plex reported a claimed server from its loopback identity endpoint. The operator
+  confirmed the existing libraries, playback, and a forced hardware transcode all
+  work.
+- RomM was restored third. Its rollout completed with all three containers ready and
+  no restart. The MariaDB health check passed, `/romm/library` resolved to ext4 on
+  `/dev/mapper/hoardvg-games`, and the RomM container ran as UID/GID `1000:1000`
+  with read/write library access. The operator confirmed the existing library is
+  browsable.
+- The Gluetun/download stack was restored last. All six containers became ready with
+  zero restarts. Gluetun established its Mullvad WireGuard tunnel, enabled its
+  firewall and DNS, and reported VPN egress through `149.40.50.102`. SABnzbd and
+  qBittorrent responded through their shared localhost network namespace.
+- `/media` inside the download pod resolved to ext4 on
+  `/dev/mapper/hoardvg-medialv` and passed read/write checks. The operator also
+  confirmed a successful post-cutover Sonarr download and import, providing the real
+  application-level download/handoff/library validation in place of a synthetic
+  hardlink/rename probe.
+- All four storage-consuming application groups are restored and passed their
+  migration validation. Remaining gates are repository reconciliation, monitoring
+  and backup restoration, a fresh backup/restore validation, and the observation
+  period.
+
+## Repository convergence
+
+- The canonical host fstab now contains only UUID-based ext4 automounts for the four
+  bulk filesystems. The canonical mdadm configuration pins the array UUID to
+  `/dev/md3` and rejects unlisted arrays.
+- Canonical systemd drop-ins schedule the monthly md consistency check for the first
+  Sunday at 10:00 local time and unfinished-check continuation daily at 10:00. Both
+  calendars passed `systemd-analyze calendar` parsing.
+- Phase 0 now installs mdadm/LVM/SMART tooling, the array identity, initramfs update,
+  mdcheck timers, and all four direct mounts. Shared runbook validation requires the
+  expected ext4 filesystem, exact `hoardvg` mapper, and exact UUID, preventing an
+  unmounted root-directory fallback from passing.
+- Phase 1, Phase 2, Phase 3, the stopped-host archive copy, and Phase 5 mount setup
+  now validate direct storage. The old NFS mount and NAS-throughput scripts were
+  replaced by direct-storage equivalents; Phase 5 tests backup writes as UID 65534.
+- Monitoring replaced the NFS presence/error rules with exact direct LVM/ext4 mount
+  and device-error rules. `RaidCheckStalled` complements the chart's upstream RAID
+  degraded/disk-failure rules by detecting an active `md3` check with no block
+  progress for 45 minutes. The local backup overdue alert now uses direct-storage
+  language while the `restic-nas-*` Kubernetes object names remain stable legacy
+  identifiers.
+- Active architecture, build, operations, host, workload, and runbook documentation
+  no longer describes the bulk workload path as NFS. Historical migration and
+  rollback sections retain NFS details intentionally.
+- Validation passed: all runbook scripts parse with `bash -n`; edited scripts pass
+  ShellCheck (excluding the repo's standard dynamic-source notice); Phase 5
+  observability invariants pass; all four monitoring/cluster Kustomize targets
+  render; the Prometheus 3.13.1 `promtool` parser reports 13 valid rules; JSON/YAML,
+  timer calendars, stale-reference search, and `git diff --check` pass.
 
 ## Low-I/O pre-unmount fingerprints
 

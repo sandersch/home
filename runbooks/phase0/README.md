@@ -25,7 +25,7 @@ open** across steps 01–02 (they restart sshd and reconfigure the network).
 | `01-hostname-ssh.sh` | 0.1 | hostname → `minis`; install key-only-auth drop-in; `sshd -t`; restart sshd | restart prompt |
 | `02-networking.sh` | 0.2 | static netplan (lan0/cam0 by MAC); disable cloud-init net; `netplan apply` | apply prompt |
 | `03-system-prep.sh` | 0.3 | apt upgrade; packages; tz `America/Chicago`; swap-off; hw checks; rfkill wifi/bt | swap-removal prompt |
-| `04-nfs-mounts.sh` | 0.4 | append NAS NFS line to fstab (does **not** overwrite the EFI-UUID fstab); mount/read-check `/mnt/media` only | no |
+| `04-bulk-storage-mounts.sh` | 0.4 | install md3 identity/check timers; append four UUID mounts without overwriting the EFI-UUID fstab; verify exact LVM/ext4 mappings | no |
 | `05-ups-nut.sh` | 0.5 | install NUT configs; restore redacted password (prompt); enable stack; `upsc` | password prompt |
 | `06-coral-udev.sh` | 0.6 | install Coral udev rule; reload/trigger; check USB | no |
 
@@ -45,10 +45,11 @@ open** across steps 01–02 (they restart sshd and reconfigure the network).
   swap entries remain in `/etc/fstab`; k3s will not run correctly otherwise.
 - **Quick Sync is a Phase 0 gate.** Step 03 fails if `/dev/dri`, `i915`, or the
   `render` group is missing. If it adds `i915` to `/etc/modules`, reboot and re-run.
-- **NFS must be readable.** Step 04 triggers the `/mnt/media` automount with a bounded
-  read and fails if the NAS export is not usable.
+- **Bulk storage identity is strict.** Step 04 triggers all four automounts and checks
+  both the expected `hoardvg` device and filesystem UUID; root-directory fallthrough
+  or an unexpected filesystem fails the runbook.
 - **fstab is not overwritten.** The repo's `fstab` carries a disk-specific `/boot/efi`
-  UUID; step 04 only appends the NAS mount line if missing, per the build plan.
+  UUID; step 04 only appends the four canonical bulk-storage lines if missing.
 - **NUT password.** The repo ships `__REPLACE_WITH_UPSMON_PASSWORD__`; step 05 prompts
   and substitutes it into a temp file on first install — never committed, and the
   placeholder is never written onto a live file. On rerun, it extracts the existing

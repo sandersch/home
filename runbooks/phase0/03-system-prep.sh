@@ -18,7 +18,7 @@ step "Install base packages"
 # the rest are host-level deps for later phases. usbutils (lsusb) + rfkill back the
 # Coral check and radio-blocking below — not guaranteed on a minimal server image.
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  curl git vim nfs-common sqlite3 jq age iperf3 nftables dnsmasq nut chrony \
+  curl git vim sqlite3 jq age nftables dnsmasq nut chrony mdadm lvm2 smartmontools \
   usbutils rfkill
 ok "packages installed"
 

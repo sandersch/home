@@ -45,7 +45,7 @@ Run the steps in order (or use run-all.sh):
   01-hostname-ssh.sh   set hostname=minis, harden SSH         (restarts sshd)
   02-networking.sh     static netplan + disable cloud-init net (rename on reboot)
   03-system-prep.sh    apt upgrade, packages, tz, swap, hw checks, rfkill
-  04-nfs-mounts.sh     add the NAS NFS mount to fstab + mount
+  04-bulk-storage-mounts.sh  install md3 identity/check schedule + direct mounts
   05-ups-nut.sh        NUT/UPS configs + enable               (prompts for secret)
   06-coral-udev.sh     Coral udev rule + reload
 

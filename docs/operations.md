@@ -11,28 +11,28 @@ Three categories of data, three different needs:
 |---|---|---|---|
 | age private key + bootstrap secrets | manual | password manager | once |
 | GitOps repo (all manifests) | git | GitHub | every commit |
-| App state (`/opt`, incl. SQLite DBs) | independent Restic CronJobs | NAS + Backblaze B2 | nightly + weekly |
-| Frigate recordings | — (not backed up) | NAS is the store | — |
-| Media library | NAS-level (your call) | — | — |
+| App state (`/opt`, incl. SQLite DBs) | independent Restic CronJobs | direct backup LV + Backblaze B2 | nightly + weekly |
+| Frigate recordings | — (not backed up) | direct bulk array | — |
+| Media library | — (not backed up) | direct bulk array | — |
 
 What is **already covered** and needs no backup job: cluster/GitOps config (it's in
 git — rebuild = reinstall k3s + re-bootstrap Flux), and recordings/media (regenerable
-or the NAS is already the system of record). The job below exists for **app state on
+or the bulk array is already the system of record). The job below exists for **app state on
 the non-redundant local NVMe**.
 
 ### Restic CronJob (runs in-cluster)
 
 Restic runs as Kubernetes **CronJobs** (chosen over host systemd timers to keep them in
 git and visible to monitoring). The Phase 5 implementation mounts `/opt` read-only and
-creates independent snapshots in two repositories. The nightly NAS job writes to
+creates independent snapshots in two repositories. The nightly local job writes to
 `/mnt/backups/opt` on the host (`/repo/nas/opt` in the pod) and keeps 14 daily, 8
 weekly, and 12 monthly snapshots. The Sunday 04:30 America/Chicago job writes directly
 to Backblaze's S3-compatible API and keeps 8 weekly and 12 monthly snapshots. Both run
 the same SQLite, Home Assistant, and RomM hot-backup workflow, but the B2 job and its
-restore validation have no NAS volume dependency.
+restore validation have no local backup-volume dependency.
 
 Validation status: initialization, manual backups, repository checks, and representative
-restore drills passed for both repositories. The nightly NAS and first naturally
+restore drills passed for both repositories. The nightly local and first naturally
 scheduled weekly B2 backups both completed successfully on 2026-07-19.
 
 ```bash
@@ -48,7 +48,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0              # fail fast, no silent retries
-      activeDeadlineSeconds: 3600  # NAS: kill a hung run after 1h; B2 uses 6h
+      activeDeadlineSeconds: 3600  # local repository: kill a hung run after 1h; B2 uses 6h
 ```
 The committed Alertmanager rules cover failed, overdue, and accidentally suspended
 backup jobs once the observability slice is reconciled. Credentials
@@ -109,9 +109,10 @@ Phase one is deliberately metrics-first:
   ServiceMonitor records charge, runtime, voltage, load, and status every 30 seconds;
   a repo-owned Grafana dashboard uses only telemetry exposed by this CyberPower model.
 - A Flux `PodMonitor` exposes GitOps controller health. Local rules cover blackbox
-  failures and certificate expiry, `/opt`, NFS, Gluetun restarts, and Restic failures,
-  suspension, and overdue schedules; upstream rules cover Kubernetes crash loops and
-  resource failures.
+  failures and certificate expiry, `/opt`, exact direct bulk-storage mounts,
+  filesystem errors, stalled md checks, Gluetun restarts, and Restic failures,
+  suspension, and overdue schedules; upstream rules cover degraded/failing RAID,
+  Kubernetes crash loops, and resource failures.
 - The upstream always-firing `Watchdog` alert checks in with **Dead Man's Snitch** via
   Alertmanager every five minutes. The URL is a SOPS Secret. This is the required
   off-node signal: if the node, Prometheus, Alertmanager, DNS, or outbound path fails,
@@ -159,11 +160,13 @@ and its functionality moved to Grafana Alloy.
 | Critical/standard endpoint down | blackbox HTTPS or MQTT TCP probe fails beyond its tier window | committed |
 | Ingress certificate expiring | blackbox sees fewer than 14 days remaining | committed |
 | NVMe usage > 80% | `/opt` filling | committed |
-| NFS mount lost/error | expected host NFS mount disappears or reports a device error | committed |
+| Bulk-storage mount lost/error | an expected `hoardvg` ext4 mount disappears, maps incorrectly, or reports a device error | committed |
+| RAID degraded/disk failure | md array is degraded or reports failed component disks | upstream kube-prometheus rule |
+| RAID check stalled | active md3 consistency check makes no block progress for 45 minutes | committed |
 | Gluetun pod restart | VPN container restarted in the last 15 minutes | committed |
 | Pod crash loop | repeated restarts, any namespace | upstream kube-prometheus rule |
 | Restic backup failed | CronJob job failure | committed |
-| Restic backup overdue/suspended | no success within 30 hours (NAS) or 8 days (B2), or schedule suspended | committed |
+| Restic backup overdue/suspended | no success within 30 hours (local) or 8 days (B2), or schedule suspended | committed |
 | Actionable warning/critical alert | Alertmanager sends firing and resolved notifications to Pushover | deployed and live-validated 2026-07-20 |
 | Monitoring pipeline absent | Dead Man's Snitch misses the Alertmanager Watchdog | deployed and live-validated; external check healthy 2026-07-20 |
 | UPS on battery | `cp1500` reports `OB=1` for one minute | deployed and live-validated; mains-loss/Pushover drill passed 2026-07-25 |
@@ -271,6 +274,31 @@ checks the transition to `OB=1`, the firing critical alert, return to online sta
 and resolution. Confirm the critical firing and quiet recovery notifications on the
 iPhone and that Dead Man's Snitch remains healthy.
 
+## Direct-attached bulk storage
+
+The canonical mdadm identity, filesystem automounts, and md check schedule live under
+`host/minis/etc/`. The RAID6 array must assemble as `/dev/md3` with 13 active members,
+two spares, and no degraded members. The four workload mountpoints must resolve to the
+exact `hoardvg` mapper and ext4 UUID recorded in `host/minis/etc/fstab`; a directory on
+the root filesystem is not a valid fallback.
+
+The first-Sunday check starts at 10:00 local time. Ubuntu's stock mdcheck service runs
+for up to six hours; an unfinished check records continuation state under
+`/var/lib/mdcheck/` and retries daily at 10:00. Inspect the live posture with:
+
+```bash
+cat /proc/mdstat
+cat /sys/block/md3/md/{array_state,sync_action,degraded}
+systemctl list-timers mdcheck_start.timer mdcheck_continue.timer
+```
+
+The upstream `NodeRAIDDegraded` and `NodeRAIDDiskFailure` rules cover array/device
+failure. Repo-owned `BulkStorageMountSetIncomplete` and
+`BulkStorageFilesystemDeviceError` rules cover the exact direct mount layer;
+`RaidCheckStalled` warns when an active check has made no synced-block progress for
+45 minutes. Treat HBA resets, I/O errors, a nonzero degraded count, or an unexpected
+resync/recovery as immediate investigation conditions.
+
 ## Resource tuning
 
 The [allocation table](./architecture.md#resource-allocation) values are conservative
@@ -315,7 +343,7 @@ Deferred deliberately; revisit when the trigger condition is met.
 |---|---|
 | **Second node** | Only on a *measured* need: HA must survive main-node maintenance, or Frigate outgrows the Coral/CPU budget. Repo layout already supports it via `nodeSelector`/affinity. |
 | **Tailscale Funnel for Plex** | If sharing with non-Tailnet users / casting to uncontrolled client devices becomes a real need. Cleaner than Plex native remote access. |
-| **Immich** | When ready — coordinate the initial import in a quiet window, watch memory. Originals on NAS, thumbs/ML on `/opt/immich`. |
+| **Immich** | When ready — coordinate the initial import in a quiet window, watch memory. Originals on the direct bulk array, thumbs/ML on `/opt/immich`. |
 
 > **Camera switch isolation (Catalyst 3850)** was previously listed here as deferred
 > work. It became a Phase 1 blocker and was satisfied before the deployed camera went

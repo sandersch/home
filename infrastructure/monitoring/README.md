@@ -19,12 +19,13 @@ Committed now:
   firing priorities and quiet recovery notifications. Run
   `runbooks/phase5/11-setup-pushover.sh` to encrypt the recipient/application keys and
   atomically include the component.
-- Restic NAS backup CronJob for `/opt` app state.
+- Restic direct-array backup CronJob for `/opt` app state (the `restic-nas-*` object
+  names are retained as stable legacy identifiers).
 - Enabled weekly Backblaze B2 CronJob for the independent offsite repository.
 - Backup script ConfigMap with SQLite, Home Assistant, and RomM hot-backup steps.
 
-The B2 repository initialization, manual backup, repository check, and NAS-independent
-restore validation passed on 2026-07-18. The nightly NAS and first naturally scheduled
+The B2 repository initialization, manual backup, repository check, and local-volume-independent
+restore validation passed on 2026-07-18. The nightly local and first naturally scheduled
 weekly B2 backups both completed successfully on 2026-07-19. Both encrypted Secrets are
 included and both CronJobs are enabled. The observability stack passed live validation
 on 2026-07-20: Flux and Helm were ready, all scrape targets and blackbox probes were

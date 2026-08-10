@@ -29,7 +29,10 @@ phase order. All paths are owned by `root`; set the perms noted per file.
 | `etc/nut/upsmon.conf` | `/etc/nut/upsmon.conf` | `root:nut` `640` | " (**redacted secret**) |
 | `etc/nut/upsd.users` | `/etc/nut/upsd.users` | `root:nut` `640` | " (**redacted secret**) |
 | `etc/systemd/system/nut-server.service.d/10-wait-online.conf` | same | `root:root` `644` | `sudo systemctl daemon-reload && sudo systemctl restart nut-server` (orders upsd after network-online — its lan0 `LISTEN` must not race address assignment) |
-| `etc/fstab` | `/etc/fstab` | `root:root` `644` | reconcile the `/boot/efi` UUID with this disk (see Phase 0.4), then create the listed mountpoints, `sudo mount -a`, and verify the NFS mounts needed for the current phase |
+| `etc/mdadm/mdadm.conf` | `/etc/mdadm/mdadm.conf` | `root:root` `644` | install, then `sudo update-initramfs -u`; pins array UUID `74071d44:3bf857f0:85a3a734:9391a964` to `/dev/md3` |
+| `etc/systemd/system/mdcheck_start.timer.d/override.conf` | same | `root:root` `644` | `sudo systemctl daemon-reload && sudo systemctl enable --now mdcheck_start.timer` |
+| `etc/systemd/system/mdcheck_continue.timer.d/override.conf` | same | `root:root` `644` | `sudo systemctl daemon-reload && sudo systemctl enable --now mdcheck_continue.timer` |
+| `etc/fstab` | `/etc/fstab` | `root:root` `644` | reconcile the `/boot/efi` UUID with this disk (see Phase 0.4), create the four `/mnt/...` mountpoints, and verify every direct mount against its LVM device and ext4 UUID |
 
 **SSH (key-only):** `sshd_config.d/10-homelab.conf` sets `PasswordAuthentication no` and
 `PermitRootLogin no`. On restore, **copy your public key up and confirm a key login works
@@ -49,15 +52,21 @@ downstream host config (`nftables.conf`, `dnsmasq.d/cameras.conf`,
 `sysctl.d/99-camera-no-ipv6.conf`, `chrony/conf.d/cameras.conf`) references `cam0`, so
 these names are now load-bearing — renaming again means sweeping all four in lockstep.
 
-**Phase 0.4 (fstab):** `etc/fstab` is the full file from this host. The root/`var`/`opt`
+**Phase 0.4 (bulk storage):** `etc/fstab` is the full file from this host. The root/`var`/`opt`
 entries are LVM device paths (`/dev/vg0/*`) that the Phase 0.1 partition layout
 reproduces, so they restore as-is — but the `/boot/efi` line is keyed by a
 **disk-specific UUID** (`/dev/disk/by-uuid/...`) generated at install time. After a
 fresh install, replace that UUID with this disk's EFI partition UUID (`blkid`) before
-relying on the file, or the boot mount fails. The Phase 0 runbook appends and verifies
-only `/mnt/media`; later phases add their own NAS mounts here as they are implemented:
-`/mnt/games` for RomM, `/mnt/frigate` for Frigate, and `/mnt/backups` for Phase 5
-Restic.
+relying on the file, or the boot mount fails. The Phase 0 runbook installs the md3
+identity, updates initramfs, installs the attended monthly consistency-check schedule,
+and appends all four UUID-based automount entries without replacing the OS fstab.
+It verifies `/mnt/media`, `/mnt/games`, `/mnt/frigate`, and `/mnt/backups` against
+their exact `hoardvg` devices and filesystem UUIDs.
+
+The monthly RAID check starts on the first Sunday at 10:00 local time. If the stock
+six-hour mdadm check window cannot finish, the continuation timer retries daily at
+10:00 while `/var/lib/mdcheck/MD_UUID_*` state exists. Prometheus alerts when an active
+`md3` check makes no block progress for 45 minutes.
 
 **Phase 0.5 (NUT):** the configs are the *effective* (non-comment) settings, not a
 byte-for-byte copy of the stock files. After placing them, enable the stack:

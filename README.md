@@ -3,10 +3,9 @@
 Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 
 > **Status: active build.** Phases 0-4 and the initial Phase 5 backup/observability
-> stack are largely implemented and live-validated. The next operational step is to
-> move the bulk-storage RAID enclosure from Morpheus to the SAS HBA in `minis`; see
-> the [build plan](./docs/build-plan.md#immediate-next-step-direct-attached-bulk-storage-migration)
-> for its completion gates.
+> stack are largely implemented and live-validated. The bulk-storage RAID enclosure
+> was moved intact from Morpheus to the SAS HBA in `minis` on 2026-08-10; the array,
+> filesystems, reboot assembly, and dependent workloads passed cutover validation.
 
 ## Stack at a glance
 
@@ -15,10 +14,10 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 - **Current workload manifests:** Plex (Quick Sync), Frigate (Coral),
   Radarr/Sonarr/Prowlarr/SABnzbd/qBittorrent behind Mullvad/Gluetun, Seerr, RomM,
   Home Assistant, and Mosquitto
-- **Backups:** nightly NAS Restic plus an independent weekly Backblaze B2 copy;
+- **Backups:** nightly direct-array Restic plus an independent weekly Backblaze B2 copy;
   manual backup/restore validation has passed for both repositories
-- **Next:** direct-attached bulk-storage migration; then resource and Frigate tuning,
-  optional Loki/Alloy logs, and deferred apps
+- **Next:** post-cutover observation, resource and Frigate tuning, optional Loki/Alloy
+  logs, and deferred apps
 
 ## Layout
 
@@ -49,6 +48,6 @@ Declarative platform and workload changes after the initial bootstrap are git co
 Home Assistant is the explicit exception: its integrations, automations, HACS, and
 other UI-managed configuration live on the backed-up Home Assistant PVC. Every
 workload sets resource requests/limits and a priority class. App state goes on local
-NVMe via the `local-nvme` StorageClass; bulk data currently reaches the Morpheus-hosted
-array over NFS and is scheduled to move intact to the MINIS SAS HBA. Secrets are
+NVMe via the `local-nvme` StorageClass; bulk data is on the mdadm/LVM/ext4 array
+directly attached to the MINIS SAS HBA. Secrets are
 SOPS-encrypted before commit — the repo is private. Full detail in [AGENTS.md](./AGENTS.md).

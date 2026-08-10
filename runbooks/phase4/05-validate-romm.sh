@@ -37,5 +37,5 @@ Manual validation still required:
 - Complete the setup wizard.
 - Start a library scan and confirm ROMs appear.
 - Add metadata-provider credentials with `sops apps/media/romm/romm.sops.yaml` if needed.
-- Keep `/romm/library` read-only unless RomM should write imports/uploads to the NAS.
+- Keep `/romm/library` read-only unless RomM should write imports/uploads to the bulk array.
 EOF

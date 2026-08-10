@@ -12,7 +12,7 @@ STEPS=(
   01-hostname-ssh.sh
   02-networking.sh
   03-system-prep.sh
-  04-nfs-mounts.sh
+  04-bulk-storage-mounts.sh
   05-ups-nut.sh
   06-coral-udev.sh
 )

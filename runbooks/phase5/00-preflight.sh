@@ -20,7 +20,7 @@ step "Verify observability safety invariants"
 assert_phase5_observability_invariants
 assert_phase5_pushover_invariants "$tmpdir/pushover-rendered.yaml"
 
-step "Verify NAS behavior and B2 safety invariants"
+step "Verify local-repository behavior and B2 safety invariants"
 assert_phase5_backup_invariants "$tmpdir/monitoring.yaml"
 
 if [ -f "$PHASE5_RESTIC_SECRET" ]; then

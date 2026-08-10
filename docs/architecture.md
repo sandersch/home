@@ -21,16 +21,17 @@ In priority order, these guide every tradeoff below:
 | Chassis | MINISFORUM MS-01 |
 | CPU | Intel Core i5-12600H — 6 P-cores + 4 E-cores, 12 threads |
 | RAM | 32 GB DDR5 |
-| Storage | 1 TB local NVMe (OS + containers + app state + Frigate cache) |
+| Storage | 1 TB local NVMe plus 44 TB raw direct-attached RAID6 enclosure |
 | GPU | Intel iGPU (Quick Sync) for Plex hardware transcoding |
 | Accelerator | Intel Coral USB (Frigate object detection) — owned, working |
 | Network | 2×2.5GbE ports in use, negotiating at 1Gb today · 2×10Gb SFP+ present, unused for now |
 | Power | UPS already in rack |
 | Wi-Fi | Disabled unless needed |
 
-Media library and Frigate recordings live on a **remote NAS with spinning disks**,
-reached over NFS. The local NVMe is reserved for the OS, container images, Frigate
-cache/temp, and low-latency application state.
+Media, ROMs, Frigate recordings, and the on-site Restic repository live on a
+**direct-attached mdadm RAID6/LVM/ext4 array** connected through the LSI 9207-8e.
+The local NVMe is reserved for the OS, container images, scratch volumes, and
+low-latency application state.
 
 The 10Gb SFP+ backplane exists but is **not** a current requirement. The host NICs are
 2.5GbE-capable, but the current router/switch ports they attach to are 1GbE, so the
@@ -59,6 +60,22 @@ vg0/opt    100 GB  btrfs /opt   ALL low-latency app state (snapshots + zstd)
 vg0 free  ~650 GB  —     —      TopoLVM device-class: scratch PVCs + lvextend headroom
 ```
 
+The external enclosure is a separate storage stack and is never allocated to
+TopoLVM:
+
+```
+md3       RAID6  13 active × 4 TB + 2 hot spares  ~40 TiB usable
+hoardvg   LVM2   PV /dev/md3
+medialv   ext4   /mnt/media    25 TiB
+games     ext4   /mnt/games   250 GiB
+frigate   ext4   /mnt/frigate 100 GiB
+backuplv  ext4   /mnt/backups   1 TiB
+```
+
+`maverick-vdisk0-rootlv` remains present in `hoardvg` as historical data but is not
+mounted or consumed by the current platform. The array identity is pinned to
+`/dev/md3` by UUID in the canonical mdadm configuration.
+
 Rationale for the splits:
 
 - **`/var` 100 GB** — container image layers for ~10 apps plus k3s/etcd state and
@@ -78,7 +95,7 @@ Rationale for the splits:
   dir (large NZBs downloaded and unpacked in place), each an ext4 LV provisioned
   from VG free space by a PVC. The LV boundary is a kernel-enforced per-PVC cap —
   a runaway download queue cannot eat the headroom Frigate's cache needs during a
-  NAS outage — and `allowVolumeExpansion` makes growing one an online PVC edit,
+  enclosure outage — and `allowVolumeExpansion` makes growing one an online PVC edit,
   i.e. a git commit. Kept off btrfs so the churn doesn't pollute `/opt` snapshot
   bookkeeping. Frigate's DB and SABnzbd's config stay on `/opt` (snapshotted).
 - **~650 GB VG free space** — generic headroom: new scratch PVCs (e.g. a future
@@ -92,7 +109,7 @@ Dual-NIC design separating trusted traffic from cameras.
 
 | Interface | Role | Address | Notes |
 |---|---|---|---|
-| NIC1 (`lan0`) | Primary LAN | `10.137.20.5/24` | Internet, NAS NFS, host SSH, k3s API |
+| NIC1 (`lan0`) | Primary LAN | `10.137.20.5/24` | Internet, host SSH, k3s API |
 | NIC2 (`cam0`) | Camera segment | `192.168.105.1/24` | Isolated; serves DHCP; Frigate only |
 
 > The 2.5GbE ports (Intel I226-V) are pinned to `lan0`/`cam0` by MAC, so their raw
@@ -149,42 +166,39 @@ service needs no new DNS record, just an Ingress manifest. Confirm the router su
 *true wildcard* records (most capable routers do; some consumer ones only allow
 explicit hostnames) — test with a throwaway hostname before depending on it.
 
-**NAS throughput.** Validate the NAS link with `iperf3` before deploying Plex/Frigate —
-both depend on it. The *design target* is 2.5GbE end-to-end (~2.3 Gbps), but `minis`
-and the NAS both attach directly to the UDM Pro's **1 GbE RJ45 LAN ports** (Ports 3 and
-2 respectively — no intermediate switch in this path), so the realistic interim
-expectation is **~940 Mbps**; 2.5GbE can't be realized until both hosts move off those
-1G RJ45 ports onto faster links (e.g. SFP+). Don't chase the 2.3 Gbps figure until then — see
-[build-plan.md → 1.4](./build-plan.md#phase-1--networking-isolation-).
+Bulk-storage traffic no longer traverses the LAN. Validate the direct storage path
+with the Phase 1.4 read/write probe and watch md/SAS/filesystem metrics under load.
 
 ## Storage architecture
 
-The rule: **latency-sensitive state on local NVMe; bulk/regenerable data on NAS.**
+The rule: **latency-sensitive state on local NVMe; bulk data on the direct array.**
 
 | App | Data | Location | Filesystem |
 |---|---|---|---|
 | Plex | Metadata/DB (~100 GB) | `/opt/plex` | btrfs (NVMe) |
-| Plex | Media library | NAS | NFS |
+| Plex | Media library | `/mnt/media` | direct mdadm/LVM/ext4 |
 | Frigate | DB + config | `/opt/frigate` | btrfs (NVMe) |
 | Frigate | Cache / temp | `topolvm-scratch` PVC | ext4 LV (NVMe) |
-| Frigate | Recordings/clips | NAS | NFS |
+| Frigate | Recordings/clips | `/mnt/frigate` | direct mdadm/LVM/ext4 |
 | Radarr/Sonarr/Prowlarr | Config + SQLite | `/opt/<app>` | btrfs (NVMe) |
 | SABnzbd | Config + DB | `/opt/sabnzbd` | btrfs (NVMe) |
 | SABnzbd | Incomplete (staging) | `topolvm-scratch` PVC | ext4 LV (NVMe) |
-| SABnzbd | Complete (handoff) | NAS, under `/mnt/media` (same export as the library — one filesystem, so *arr imports are hardlink/atomic-move) | NFS |
+| SABnzbd | Complete (handoff) | `/mnt/media` (same filesystem as the library, so *arr imports are hardlink/atomic-move) | direct mdadm/LVM/ext4 |
 | qBittorrent | Config + DB | `/opt/qbittorrent` | btrfs (NVMe) |
 | qBittorrent | Incomplete (staging) | `topolvm-scratch` PVC | ext4 LV (NVMe) |
-| qBittorrent | Complete (handoff) | NAS, under `/mnt/media/downloads/torrents` (same export as the library — one filesystem, so *arr imports are hardlink/atomic-move) | NFS |
+| qBittorrent | Complete (handoff) | `/mnt/media/downloads/torrents` (same filesystem as the library, so *arr imports are hardlink/atomic-move) | direct mdadm/LVM/ext4 |
 | Seerr | Request DB | `/opt/seerr` | btrfs (NVMe) |
 | RomM | DB/metadata | `/opt/romm` | btrfs (NVMe) |
-| RomM | ROM library | NAS | NFS |
+| RomM | ROM library | `/mnt/games` | direct mdadm/LVM/ext4 |
 | Home Assistant | Recorder DB + state | `/opt/home-assistant` | btrfs (NVMe) |
 | Z-Wave JS UI | Settings, security keys, logs + controller backups | `/opt/zwave-js-ui` | btrfs (NVMe) |
 | Immich (later) | Thumbnails + ML cache | `/opt/immich` | btrfs (NVMe) |
-| Immich (later) | Originals | NAS | NFS |
+| Immich (later) | Originals | direct bulk array | mdadm/LVM/ext4 |
 
-NFS mounts use `nofail,_netdev,x-systemd.automount` so a NAS hiccup at boot doesn't
-block k3s from starting.
+The four UUID-based ext4 mounts use `nofail,x-systemd.automount` plus bounded device
+and mount timeouts. This lets the host boot if the enclosure is absent while exact
+device/UUID validation prevents an unmounted hostPath directory from masquerading as
+bulk storage.
 
 ### Local-storage provisioning pattern
 
@@ -278,7 +292,7 @@ callers can reach them. Gluetun's **kill switch**
 (on by default) drops WAN traffic if the tunnel fails — leave it on. Two firewall
 settings are both required for reachability: `FIREWALL_OUTBOUND_SUBNETS` (cluster
 pod/Service CIDRs plus the LAN subnet) permits connections the pod *initiates*
-toward those ranges (cluster DNS, NAS, Plex), and `FIREWALL_INPUT_PORTS=8080,8090,9696,7878,8989`
+toward those ranges (cluster DNS and Plex), and `FIREWALL_INPUT_PORTS=8080,8090,9696,7878,8989`
 permits connections initiated *into* the pod (browsers, Seerr → the *arrs) —
 the outbound setting alone does not allow inbound. These non-secret Gluetun settings
 live in a plaintext ConfigMap; the SOPS Secret only carries the WireGuard address and

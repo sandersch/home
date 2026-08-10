@@ -114,7 +114,7 @@ spec:
 YAML
 
 if grep -q '/mnt/backups\|name: backups' "$tmpdir/restic-b2-restore-validate.yaml"; then
-  die "B2 restore validation Job must not depend on the NAS backup volume"
+  die "B2 restore validation Job must not depend on the local backup volume"
 fi
 
 step "Run independent B2 restore validation job"

@@ -40,10 +40,12 @@ step "Storage classes"
 kubectl get storageclass local-nvme local-path topolvm-scratch
 ok "storage classes exist"
 
-step "NFS readable from a test pod"
-kubectl run phase3-nfs-test --restart=Never --rm -i --image=busybox:1.36 \
-  --overrides='{"spec":{"volumes":[{"name":"media","hostPath":{"path":"/mnt/media","type":"Directory"}}],"containers":[{"name":"phase3-nfs-test","image":"busybox:1.36","command":["sh","-c","ls -la /media >/dev/null"],"volumeMounts":[{"name":"media","mountPath":"/media"}]}]}}'
-ok "/mnt/media is readable from a test pod"
+step "Direct-attached media filesystem readable from a test pod"
+assert_direct_mount_layout /mnt/media /dev/mapper/hoardvg-medialv \
+  0a94d86c-76a0-44b5-bc52-930d97ab155f
+kubectl run phase3-media-test --restart=Never --rm -i --image=busybox:1.36 \
+  --overrides='{"spec":{"volumes":[{"name":"media","hostPath":{"path":"/mnt/media","type":"Directory"}}],"containers":[{"name":"phase3-media-test","image":"busybox:1.36","command":["sh","-c","df -T -P /media | tail -n 1 | grep -Eq \"^/dev/mapper/hoardvg-medialv[[:space:]]+ext4[[:space:]]\" && ls -la /media >/dev/null"],"volumeMounts":[{"name":"media","mountPath":"/media"}]}]}}'
+ok "direct-attached /mnt/media is readable from a test pod"
 
 step "Device passthrough visibility"
 kubectl get node minis -o jsonpath="{.status.allocatable['gpu.intel.com/i915']}" \

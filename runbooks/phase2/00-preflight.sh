@@ -13,7 +13,8 @@ require_tools curl git age age-keygen ip findmnt swapon hostname timeout awk
 assert_hostname_minis
 assert_no_swap
 assert_phase0_network_settled
-assert_nfs_mount_layout /mnt/media media.nfs.service.matrix:/mnt/media nfs4
+assert_direct_mount_layout /mnt/media /dev/mapper/hoardvg-medialv \
+  0a94d86c-76a0-44b5-bc52-930d97ab155f
 
 step "Verify repo bootstrap state"
 assert_phase2_cluster_skeleton

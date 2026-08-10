@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Phase 3.5 helpers.
 #
-# Phase 3.5 copies stopped-host application config from the NAS archive into
+# Phase 3.5 copies stopped-host application config from the bulk-storage archive into
 # local /opt on minis. It does not deploy workloads or change Kubernetes state.
 
 # shellcheck source=runbooks/lib.sh
@@ -70,16 +70,13 @@ phase35_db_path() {
   esac
 }
 
-assert_nas_archive_mounted() {
-  local fstype
+assert_archive_mounted() {
   [ -d "$PHASE35_SRC" ] || die "archive source missing: $PHASE35_SRC"
+  assert_direct_mount_layout /mnt/media /dev/mapper/hoardvg-medialv \
+    0a94d86c-76a0-44b5-bc52-930d97ab155f
   timeout 20 ls -la "$PHASE35_SRC" >/dev/null \
-    || die "$PHASE35_SRC is not readable; fix the NAS mount before continuing"
-
-  fstype="$(findmnt -rn --real -o FSTYPE --target "$PHASE35_SRC" 2>/dev/null | tail -1 || true)"
-  [ -n "$fstype" ] || die "$PHASE35_SRC is not on a mounted filesystem"
-  [[ "$fstype" == nfs* ]] || die "$PHASE35_SRC is on filesystem type '$fstype', expected NFS"
-  ok "$PHASE35_SRC is readable on $fstype"
+    || die "$PHASE35_SRC is not readable"
+  ok "$PHASE35_SRC is readable from the direct-attached media filesystem"
 }
 
 assert_phase35_sources_present() {
@@ -165,9 +162,8 @@ rsync_phase35_app() {
   uid="${owner%%:*}"
   gid="${owner##*:}"
 
-  # NFS exports commonly use root-squash. Reading as the archive owner avoids
-  # permission denied on 0600/0660 files while the final chown below normalizes
-  # everything for the target LinuxServer containers.
+  # Preserve numeric-owner access while copying restrictive 0600/0660 files; the
+  # final chown below normalizes everything for the target LinuxServer containers.
   sudo chown -R "$owner" "$PHASE35_DEST_ROOT/$app"
 
   if [ "$app" = "plex" ]; then

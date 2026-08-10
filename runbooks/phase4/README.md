@@ -121,7 +121,7 @@ Gluetun Service URLs from the migration runbook. The legacy
 canonical Seerr URL.
 
 For RomM, validate the rollout, local state, database sidecar, service path, and
-NAS-backed library mount:
+direct-attached library mount:
 
 ```bash
 ./runbooks/phase4/05-validate-romm.sh
@@ -197,7 +197,7 @@ alone do not roll either Deployment.
 - Seerr: validated on 2026-07-18. The application, service path, Plex connection,
   and download-stack integration are operational.
 - RomM: validated on 2026-07-18. The application, MariaDB sidecar, service path,
-  local state, and NAS-backed library are operational.
+  local state, and direct-attached library are operational.
 - Frigate: validated on 2026-06-30. `09-validate-frigate.sh` completed successfully,
   `amcrest_105_50` is live, Frigate logs show the Coral USB detector loaded (`TPU
   found`), `/api/stats` reports active Coral inference, and ffmpeg is using Intel QSV

@@ -2,7 +2,7 @@
 
 Frigate runs in its own namespace with `hostNetwork: true` so RTSP connections to the
 isolated camera segment originate from the host's `cam0` address. Keep valuable state
-on `local-nvme`, recordings on NAS NFS at `/mnt/frigate`, and cache/scratch data on
+on `local-nvme`, recordings on the direct-attached ext4 array at `/mnt/frigate`, and cache/scratch data on
 `topolvm-scratch`.
 
 Quick Sync is exposed through Intel's GPU device plugin by requesting

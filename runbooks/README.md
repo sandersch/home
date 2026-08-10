@@ -17,13 +17,13 @@ phase section there first, then run the scripts.
 
 | Phase | Dir | Covers |
 |---|---|---|
-| 0 | [`phase0/`](./phase0/) | OS baseline from SSH-ready: hostname, SSH hardening, networking, system prep, NFS, UPS/NUT, Coral udev |
-| 1 | [`phase1/`](./phase1/) | Camera-segment isolation: nftables, DHCP-only dnsmasq, chrony NTP, Catalyst checklist, validation, NAS throughput |
+| 0 | [`phase0/`](./phase0/) | OS baseline from SSH-ready: hostname, SSH hardening, networking, system prep, direct bulk storage, UPS/NUT, Coral udev |
+| 1 | [`phase1/`](./phase1/) | Camera-segment isolation: nftables, DHCP-only dnsmasq, chrony NTP, Catalyst checklist, validation, direct-storage probe |
 | 2 | [`phase2/`](./phase2/) | k3s install, SOPS age key/secret, `.sops.yaml`, and Flux bootstrap |
 | 3 | [`phase3/`](./phase3/) | SOPS-encrypted infra secrets, Flux reconciliation, and platform validation gate |
-| 3.5 | [`phase3.5/`](./phase3.5/) | Final stopped-host app-data copy from the NAS archive into `/opt` |
+| 3.5 | [`phase3.5/`](./phase3.5/) | Final stopped-host app-data copy from the bulk-storage archive into `/opt` |
 | 4 | [`phase4/`](./phase4/) | Secret helpers, host config install, and validation for download stack, Plex, Seerr, RomM, and Frigate |
-| 5 | [`phase5/`](./phase5/) | NAS/B2 Restic setup and validation plus encrypted external-heartbeat and Pushover notification workflows |
+| 5 | [`phase5/`](./phase5/) | Direct-array/B2 Restic setup and validation plus encrypted external-heartbeat and Pushover notification workflows |
 
 ## Assumptions
 

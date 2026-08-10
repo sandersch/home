@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Phase 5.4 - run the Restic NAS backup CronJob immediately and wait for it.
+# Phase 5.4 - run the direct-array Restic backup CronJob immediately and wait for it.
 # shellcheck source=runbooks/phase5/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
