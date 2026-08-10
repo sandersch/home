@@ -210,6 +210,8 @@ table inet camera_isolation {
                                                             #   `ip protocol icmp` allow would also let a
                                                             #   camera send the host ICMP redirects. Host→camera
                                                             #   ping replies still pass via `established`.
+    iifname "cam0" udp dport 53 counter drop             # expected camera DNS retries; keep blocked but quiet
+    iifname "cam0" tcp dport 53 counter drop
     iifname "cam0" limit rate 10/minute log prefix "cam-drop-input "  # all other camera→host
     iifname "cam0" counter drop
   }

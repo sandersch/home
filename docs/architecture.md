@@ -135,10 +135,10 @@ camera on `192.168.105.1`. Plex uses normal pod networking with Service/Ingress/
 access unless a future requirement justifies otherwise. The input chain allows only
 `ct state established,related` (RTSP replies — Frigate initiates, so this is the
 return path), DHCP (`udp dport 67`), NTP (`udp dport 123`), and IPv4 ICMP echo-request
-for ping diagnostics, then drops the rest from `cam0`. The drops are logged
-(rate-limited `cam-drop-*` prefixes) so a compromised camera's blocked traffic is
-visible in the journal rather than silently discarded. The segment is IPv4-only (IPv6
-disabled on `cam0`); any ICMPv6 falls to the drop. `policy accept` is intentional —
+for ping diagnostics, then drops the rest from `cam0`. Expected DNS retries to TCP or
+UDP port 53 are silently dropped; other drops are logged (rate-limited `cam-drop-*`
+prefixes) so unusual blocked traffic remains visible in the journal. The segment is
+IPv4-only (IPv6 disabled on `cam0`); any ICMPv6 falls to the drop. `policy accept` is intentional —
 `policy drop` would break k3s pod networking, because every hook chain (these and
 k3s's own iptables-nft chains) is evaluated independently for each packet, and a drop
 verdict in any chain is final even when another chain accepts. Frigate runs with
