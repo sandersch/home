@@ -129,6 +129,10 @@ rfkill block wifi           # WiFi (wlpXYs0) is unused; block it to shrink attac
                             #   `rfkill` state persists across reboots on Ubuntu.
 rfkill block bluetooth      # Bluetooth (hci0) is likewise unused — block it too.
 ```
+Install [`host/minis/etc/sysctl.d/99-inotify.conf`](../host/minis/etc/sysctl.d/99-inotify.conf)
+and run `sudo sysctl --system`; Phase 0.3 verifies `fs.inotify.max_user_watches=524288`
+and `fs.inotify.max_user_instances=8192` after applying it.
+
 IOMMU is **not** needed for this build — the iGPU and Coral are reached by hostPath device
 access, not PCI passthrough (see 0.0). Only if you later add true PCI passthrough: set
 `intel_iommu=on` in `GRUB_CMDLINE_LINUX` (`/etc/default/grub`), `sudo update-grub`, reboot —

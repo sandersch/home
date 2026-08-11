@@ -7,7 +7,8 @@
 # shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-require_not_root; require_sudo
+require_not_root; require_sudo; require_host_etc
+require_tools sysctl
 
 step "apt update + upgrade"
 sudo apt-get update
@@ -31,6 +32,15 @@ step "Set host timezone (America/Chicago)"
 # Frigate event timestamps + cross-log correlation depend on a non-UTC host tz.
 sudo timedatectl set-timezone America/Chicago
 ok "timezone: $(timedatectl show -p Timezone --value)"
+
+step "Install and apply inotify limits"
+install_file sysctl.d/99-inotify.conf /etc/sysctl.d/99-inotify.conf root:root 644
+sudo sysctl --system >/dev/null
+[ "$(sysctl -n fs.inotify.max_user_watches)" = "524288" ] \
+  || die "fs.inotify.max_user_watches did not apply"
+[ "$(sysctl -n fs.inotify.max_user_instances)" = "8192" ] \
+  || die "fs.inotify.max_user_instances did not apply"
+ok "inotify limits: 524288 watches, 8192 instances per user"
 
 step "Confirm swap is OFF (kubelet refuses swap)"
 if [ -n "$(swapon --show)" ]; then

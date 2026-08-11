@@ -23,6 +23,7 @@ phase order. All paths are owned by `root`; set the perms noted per file.
 | `etc/netplan/00-installer-config.yaml` | `/etc/netplan/00-installer-config.yaml` | `root:root` **`600`** | `sudo netplan generate && sudo netplan apply` |
 | `etc/cloud/cloud.cfg.d/99-disable-network-config.cfg` | same | `root:root` `644` | (takes effect next boot; stops cloud-init re-rendering netplan) |
 | `etc/udev/rules.d/99-coral.rules` | same | `root:root` `644` | `sudo udevadm control --reload-rules && sudo udevadm trigger` |
+| `etc/sysctl.d/99-inotify.conf` | same | `root:root` `644` | `sudo sysctl --system` (raises per-user capacity to 524288 watches and 8192 instances) |
 | `etc/nut/nut.conf` | `/etc/nut/nut.conf` | `root:nut` `640` | see NUT note below |
 | `etc/nut/ups.conf` | `/etc/nut/ups.conf` | `root:nut` `640` | " |
 | `etc/nut/upsd.conf` | `/etc/nut/upsd.conf` | `root:nut` `640` | " |

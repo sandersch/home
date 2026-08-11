@@ -24,7 +24,7 @@ open** across steps 01–02 (they restart sshd and reconfigure the network).
 | `00-preflight.sh` | — | Read-only sanity checks (OS, NIC MACs, sudo, repo) | no |
 | `01-hostname-ssh.sh` | 0.1 | hostname → `minis`; install key-only-auth drop-in; `sshd -t`; restart sshd | restart prompt |
 | `02-networking.sh` | 0.2 | static netplan (lan0/cam0 by MAC); disable cloud-init net; `netplan apply` | apply prompt |
-| `03-system-prep.sh` | 0.3 | apt upgrade; packages; tz `America/Chicago`; swap-off; hw checks; rfkill wifi/bt | swap-removal prompt |
+| `03-system-prep.sh` | 0.3 | apt upgrade; packages; tz `America/Chicago`; inotify limits; swap-off; hw checks; rfkill wifi/bt | swap-removal prompt |
 | `04-bulk-storage-mounts.sh` | 0.4 | install md3 identity/check timers; append four UUID mounts without overwriting the EFI-UUID fstab; verify exact LVM/ext4 mappings | no |
 | `05-ups-nut.sh` | 0.5 | install NUT configs; restore redacted password (prompt); enable stack; `upsc` | password prompt |
 | `06-coral-udev.sh` | 0.6 | install Coral udev rule; reload/trigger; check USB | no |
@@ -43,6 +43,8 @@ open** across steps 01–02 (they restart sshd and reconfigure the network).
   as btrfs on `/opt`, and at least 500 GiB free in `vg0` for TopoLVM scratch.
 - **Swap must be fully off.** Step 03 stops if any swap remains active or if active
   swap entries remain in `/etc/fstab`; k3s will not run correctly otherwise.
+- **Inotify capacity is raised.** Step 03 installs the canonical sysctl drop-in and
+  verifies 524288 watches and 8192 instances per user after applying it.
 - **Quick Sync is a Phase 0 gate.** Step 03 fails if `/dev/dri`, `i915`, or the
   `render` group is missing. If it adds `i915` to `/etc/modules`, reboot and re-run.
 - **Bulk storage identity is strict.** Step 04 triggers all four automounts and checks
