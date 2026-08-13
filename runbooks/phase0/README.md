@@ -25,7 +25,7 @@ open** across steps 01–02 (they restart sshd and reconfigure the network).
 | `01-hostname-ssh.sh` | 0.1 | hostname → `minis`; install key-only-auth drop-in; `sshd -t`; restart sshd | restart prompt |
 | `02-networking.sh` | 0.2 | static netplan (lan0/cam0 by MAC); disable cloud-init net; `netplan apply` | apply prompt |
 | `03-system-prep.sh` | 0.3 | apt upgrade; packages; tz `America/Chicago`; inotify limits; swap-off; hw checks; rfkill wifi/bt | swap-removal prompt |
-| `04-bulk-storage-mounts.sh` | 0.4 | install md3 identity/check timers; append four UUID mounts without overwriting the EFI-UUID fstab; verify exact LVM/ext4 mappings | no |
+| `04-bulk-storage-mounts.sh` | 0.4 | install md3 identity, attended check timers, and check-only speed cap; append four UUID mounts without overwriting the EFI-UUID fstab; verify exact LVM/ext4 mappings | no |
 | `05-ups-nut.sh` | 0.5 | install NUT configs; restore redacted password (prompt); enable stack; `upsc` | password prompt |
 | `06-coral-udev.sh` | 0.6 | install Coral udev rule; reload/trigger; check USB | no |
 

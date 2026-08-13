@@ -318,9 +318,11 @@ the enclosure was moved intact from the Morpheus HBA to the MINIS HBA:
   Sunday at 10:00 local time and unfinished-check continuation daily at 10:00. Both
   calendars passed `systemd-analyze calendar` parsing.
 - Phase 0 now installs mdadm/LVM/SMART tooling, the array identity, initramfs update,
-  mdcheck timers, and all four direct mounts. Shared runbook validation requires the
-  expected ext4 filesystem, exact `hoardvg` mapper, and exact UUID, preventing an
-  unmounted root-directory fallback from passing.
+  mdcheck timer and check-throttle service drop-ins, and all four direct mounts. The
+  service drop-ins cap scheduled checks at `50000` KiB/s and restore the system
+  default afterward. Shared runbook validation requires the expected ext4 filesystem,
+  exact `hoardvg` mapper, and exact UUID, preventing an unmounted root-directory
+  fallback from passing.
 - Phase 1, Phase 2, Phase 3, the stopped-host archive copy, and Phase 5 mount setup
   now validate direct storage. The old NFS mount and NAS-throughput scripts were
   replaced by direct-storage equivalents; Phase 5 tests backup writes as UID 65534.
@@ -338,6 +340,43 @@ the enclosure was moved intact from the Morpheus HBA to the MINIS HBA:
   observability invariants pass; all four monitoring/cluster Kustomize targets
   render; the Prometheus 3.13.1 `promtool` parser reports 13 valid rules; JSON/YAML,
   timer calendars, stale-reference search, and `git diff --check` pass.
+
+## Post-cutover closeout
+
+- A fresh B2 snapshot completed at `2026-08-10 17:32 CDT`; its validation restored
+  the RomM SQL dump, a Home Assistant backup artifact, and a SQLite hot backup, whose
+  integrity check passed. The validation completed at 17:35 CDT.
+- A fresh direct-array snapshot completed at `2026-08-10 17:45 CDT`. Its validation
+  listed and read the latest snapshot, checked repository metadata plus a 1% data
+  subset, dumped representative RomM and SQLite artifacts, verified SQLite integrity,
+  and found the Home Assistant backup artifacts. It completed at 17:51 CDT.
+- Scheduled direct-array backups then completed on August 11, 12, and 13; the August
+  13 job also completed retention and prune successfully.
+- The initial direct-array consistency check ran in stock six-hour windows from
+  `2026-08-10 17:36` to 23:36 CDT and from `2026-08-11 04:33` to 09:04 CDT. It
+  completed with `mismatch_cnt=0`, `degraded=0`, and all 13 active members plus both
+  spares present. No HBA reset, task abort, offline device, filesystem error, or md
+  recovery followed it.
+- The check nevertheless saturated most active members and produced 122–245-second
+  blocked-task reports for the Frigate ext4 journal, writeback, `ffmpeg`, and
+  `frigate.recording`. Historical Prometheus data also recorded
+  `NodeDiskIOSaturation` across the active members. This was an operational scrub
+  tuning finding, not evidence of array inconsistency.
+- More than 48 hours after the check completed, the 2026-08-13 closeout found `md3`
+  active and idle with `[13/13]`, both spares, `degraded=0`, and `mismatch_cnt=0`;
+  all four exact `hoardvg`/ext4 mounts were read-write, systemd had no failed units,
+  all Flux Kustomizations and HelmReleases were Ready, every current workload was
+  available, and only the expected Watchdog alert was firing. This closed the
+  migration's backup/restore and observation gates.
+- The live host had not loaded the already committed deterministic timer overrides;
+  it was still using Ubuntu's randomized schedules. On 2026-08-13, both timer
+  overrides and new start/continue service overrides were checksum-verified and
+  installed. The next monthly start is `2026-09-06 10:00 CDT`, unfinished checks
+  continue daily at 10:00, and scheduled check windows set `md3/sync_speed_max` to
+  `50000` KiB/s before restoring `system` afterward. Installation did not start a
+  check: `sync_action` remained `idle`, the services remained inactive, and the live
+  value remained `200000 (system)`. Per operator decision, attended cap validation is
+  deferred to the next check window.
 
 ## Morpheus retirement
 

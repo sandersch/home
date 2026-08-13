@@ -284,13 +284,24 @@ the root filesystem is not a valid fallback.
 
 The first-Sunday check starts at 10:00 local time. Ubuntu's stock mdcheck service runs
 for up to six hours; an unfinished check records continuation state under
-`/var/lib/mdcheck/` and retries daily at 10:00. Inspect the live posture with:
+`/var/lib/mdcheck/` and retries daily at 10:00. Service drop-ins set the per-array
+`sync_speed_max` to `50000` KiB/s while either service runs, then restore `system` so
+a rebuild or recovery is not left throttled. Inspect the live posture with:
 
 ```bash
 cat /proc/mdstat
 cat /sys/block/md3/md/{array_state,sync_action,degraded}
+cat /sys/block/md3/md/sync_speed_max
 systemctl list-timers mdcheck_start.timer mdcheck_continue.timer
+systemctl show mdcheck_start.service mdcheck_continue.service -p DropInPaths
 ```
+
+At idle, `sync_speed_max` displays the current system value followed by `(system)`;
+during a scheduled check it must display `50000`. The first direct-array check on
+2026-08-10/11 completed with `mismatch_cnt=0` but saturated the active members and
+blocked Frigate filesystem tasks for 122–245 seconds. The cap was installed on
+2026-08-13; its attended workload-impact validation is intentionally deferred to the
+next check window.
 
 The upstream `NodeRAIDDegraded` and `NodeRAIDDiskFailure` rules cover array/device
 failure. Repo-owned `BulkStorageMountSetIncomplete` and

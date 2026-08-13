@@ -30,9 +30,14 @@ drill and Pushover firing and recovery notifications. The bulk-storage RAID encl
 was migrated intact from Morpheus to the SAS HBA in `minis` on 2026-08-10. Array,
 filesystem, reboot-assembly, and application cutover gates passed. Morpheus was
 retired the same day and remains powered off, but network-connected, as a cold spare;
-it is no longer required for normal network operation. Post-cutover observation,
-resource tuning, Frigate tuning, and deferred apps follow the migration. This remains
-a retrofit to a running production cluster, not a greenfield scaffold.
+it is no longer required for normal network operation. Fresh local and B2 backups and
+representative restores passed on 2026-08-10, and more than 48 hours of post-check
+observation closed the migration gates on 2026-08-13. The first direct-array
+consistency check completed cleanly but caused Frigate I/O stalls; deterministic
+timers and a check-only `50000` KiB/s cap are installed, with attended cap validation
+deferred to the next check window. Resource tuning, Frigate tuning, and deferred apps
+follow the migration. This remains a retrofit to a running production cluster, not a
+greenfield scaffold.
 
 ## Hardware (summary)
 

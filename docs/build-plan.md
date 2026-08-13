@@ -21,11 +21,11 @@ manifests:
 | 1 — networking isolation | Host nftables, dnsmasq, chrony, sysctl config, Catalyst checklist, and validation runbooks are present. Host forwarding isolation, DHCP-only dnsmasq, and the deployed camera path were live-validated during Phase 4; the Amcrest camera is pinned at `192.168.105.50`. | Add a reservation and repeat the camera-specific checks whenever another camera is provisioned; keep Catalyst/live config in sync. |
 | 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. | Live bootstrap health checks when rebuilding or changing credentials. |
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
-| 3.5 — data migration | Stopped-host archive copy runbooks are present. | Final copy validation and any last quiesced sync required before cutover. |
+| 3.5 — data migration | Stopped-host archive copy runbooks are present; final copy validation and the quiesced cutover passed. | Re-run only for a future migration or rebuild. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. All are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Tune Frigate cameras. |
-| 5 — observability + expansion | Direct-array and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. | Complete post-cutover observation, then tune resources and Frigate before optional phase-two logs or deferred apps. |
+| 5 — observability + expansion | Direct-array and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. Post-cutover backup/restore and observation gates passed on 2026-08-13. | Validate the new mdcheck cap during the next attended check, then tune resources and Frigate before optional phase-two logs or deferred apps. |
 
-## Direct-attached bulk storage migration (cutover completed 2026-08-10)
+## Direct-attached bulk storage migration (completed 2026-08-13)
 
 The existing RAID6 enclosure was moved from Morpheus's SAS HBA to the installed LSI
 9207-8e in `minis`, importing the existing mdadm/LVM/ext4 stack without copying or
@@ -38,10 +38,16 @@ filesystem checks, reboot assembly, read/write probes, and application cutover t
 passed. Morpheus's old mounts, exports, md checks, and automatic array assembly were
 disabled, its recovery configuration was preserved off-host, and the machine was
 retired on 2026-08-10. It remains powered off as a network-connected cold spare and
-is not required for normal operation. The remaining completion gates are:
+is not required for normal operation. Fresh local and B2 snapshots plus representative
+restores passed on 2026-08-10. The initial consistency check finished with
+`mismatch_cnt=0`, and more than 48 hours after that check completed showed no further
+RAID, SAS, filesystem, or workload errors. These final gates closed on 2026-08-13.
 
-- a new Restic backup and representative restore pass;
-- 24–48 hours of observation show no RAID, SAS, filesystem, or workload errors.
+The check did expose maintenance-induced I/O saturation and 122–245-second Frigate
+filesystem stalls. On 2026-08-13, the committed deterministic timer drop-ins and a
+check-only `50000` KiB/s cap were installed on `minis`; the cap resets to the system
+default when each check window ends so recovery remains unrestricted. Per operator
+decision, attended validation of the cap is deferred to the next check window.
 
 This is a retrofit to the running production platform, not a new numbered build
 phase. Resource tuning, Frigate tuning, optional centralized logs, and deferred apps
@@ -143,11 +149,13 @@ and capture the grub file into `host/minis/etc/default/grub` so a restore stays 
 from this host. The root/`var`/`opt` entries are LVM device paths the Phase 0.1 layout
 reproduces, but the `/boot/efi` line carries a disk-specific UUID — reconcile it with
 this disk (`blkid`) before use. Install the canonical `mdadm.conf`, update initramfs,
-install the mdcheck timer drop-ins, and append the four UUID-based ext4 automounts on
-an existing install. Verify each mount resolves to its expected `hoardvg` mapper and
-filesystem UUID. `nofail` and bounded device/mount timeouts let the host boot with the
-enclosure absent. Completed downloads remain under `/mnt/media`, so their handoff and
-the *arr library share one filesystem for hardlink/atomic-move imports.
+install the mdcheck timer and check-throttle service drop-ins, and append the four
+UUID-based ext4 automounts on an existing install. Verify each mount resolves to its
+expected `hoardvg` mapper and filesystem UUID. The service drop-ins cap scheduled
+checks at `50000` KiB/s and restore the system default afterward. `nofail` and bounded
+device/mount timeouts let the host boot with the enclosure absent. Completed downloads
+remain under `/mnt/media`, so their handoff and the *arr library share one filesystem
+for hardlink/atomic-move imports.
 
 **0.5 UPS via NUT.** Apply the configs in [`host/minis/etc/nut/`](../host/minis/etc/nut/) (`nut.conf`,
 `ups.conf`, `upsd.conf`, `upsmon.conf`, `upsd.users`; mode `640 root:nut`). The driver

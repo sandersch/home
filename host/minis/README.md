@@ -33,6 +33,8 @@ phase order. All paths are owned by `root`; set the perms noted per file.
 | `etc/mdadm/mdadm.conf` | `/etc/mdadm/mdadm.conf` | `root:root` `644` | install, then `sudo update-initramfs -u`; pins array UUID `74071d44:3bf857f0:85a3a734:9391a964` to `/dev/md3` |
 | `etc/systemd/system/mdcheck_start.timer.d/override.conf` | same | `root:root` `644` | `sudo systemctl daemon-reload && sudo systemctl enable --now mdcheck_start.timer` |
 | `etc/systemd/system/mdcheck_continue.timer.d/override.conf` | same | `root:root` `644` | `sudo systemctl daemon-reload && sudo systemctl enable --now mdcheck_continue.timer` |
+| `etc/systemd/system/mdcheck_start.service.d/override.conf` | same | `root:root` `644` | caps scheduled `md3` checks at `50000` KiB/s and restores the system default afterward |
+| `etc/systemd/system/mdcheck_continue.service.d/override.conf` | same | `root:root` `644` | applies the same cap to each continuation window; `sudo systemctl daemon-reload` after install |
 | `etc/fstab` | `/etc/fstab` | `root:root` `644` | reconcile the `/boot/efi` UUID with this disk (see Phase 0.4), create the four `/mnt/...` mountpoints, and verify every direct mount against its LVM device and ext4 UUID |
 
 **SSH (key-only):** `sshd_config.d/10-homelab.conf` sets `PasswordAuthentication no` and
@@ -66,8 +68,10 @@ their exact `hoardvg` devices and filesystem UUIDs.
 
 The monthly RAID check starts on the first Sunday at 10:00 local time. If the stock
 six-hour mdadm check window cannot finish, the continuation timer retries daily at
-10:00 while `/var/lib/mdcheck/MD_UUID_*` state exists. Prometheus alerts when an active
-`md3` check makes no block progress for 45 minutes.
+10:00 while `/var/lib/mdcheck/MD_UUID_*` state exists. Service drop-ins cap only the
+active `md3` check at `50000` KiB/s and restore `sync_speed_max=system` when each
+window ends, so a future recovery is not permanently throttled. Prometheus alerts
+when an active `md3` check makes no block progress for 45 minutes.
 
 **Phase 0.5 (NUT):** the configs are the *effective* (non-comment) settings, not a
 byte-for-byte copy of the stock files. After placing them, enable the stack:

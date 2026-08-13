@@ -5,7 +5,8 @@
 # root/var/opt entries are LVM device paths the install reproduces, but the
 # /boot/efi line carries a disk-specific UUID generated at install time. So we do
 # NOT overwrite the freshly-installed fstab. We install the array identity, md check
-# schedule, and append only the four UUID-based bulk-storage lines when absent.
+# schedule/throttle policy, and append only the four UUID-based bulk-storage lines
+# when absent.
 # shellcheck source=runbooks/phase0/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -31,10 +32,26 @@ install_file systemd/system/mdcheck_start.timer.d/override.conf \
   /etc/systemd/system/mdcheck_start.timer.d/override.conf root:root 644
 install_file systemd/system/mdcheck_continue.timer.d/override.conf \
   /etc/systemd/system/mdcheck_continue.timer.d/override.conf root:root 644
+install_file systemd/system/mdcheck_start.service.d/override.conf \
+  /etc/systemd/system/mdcheck_start.service.d/override.conf root:root 644
+install_file systemd/system/mdcheck_continue.service.d/override.conf \
+  /etc/systemd/system/mdcheck_continue.service.d/override.conf root:root 644
 sudo update-initramfs -u
 sudo systemctl daemon-reload
 sudo systemctl enable --now mdcheck_start.timer mdcheck_continue.timer
-ok "md3 identity and attended monthly-check timers installed"
+
+declare -A MDCHECK_DROPINS=(
+  [mdcheck_start.timer]=/etc/systemd/system/mdcheck_start.timer.d/override.conf
+  [mdcheck_continue.timer]=/etc/systemd/system/mdcheck_continue.timer.d/override.conf
+  [mdcheck_start.service]=/etc/systemd/system/mdcheck_start.service.d/override.conf
+  [mdcheck_continue.service]=/etc/systemd/system/mdcheck_continue.service.d/override.conf
+)
+for unit in "${!MDCHECK_DROPINS[@]}"; do
+  dropins="$(systemctl show "$unit" -p DropInPaths --value)"
+  [[ " $dropins " == *" ${MDCHECK_DROPINS[$unit]} "* ]] \
+    || die "$unit did not load canonical drop-in ${MDCHECK_DROPINS[$unit]}"
+done
+ok "md3 identity, attended check timers, and 50000 KiB/s check cap installed"
 
 step "Ensure all direct-storage filesystems are in /etc/fstab"
 for mount in /mnt/media /mnt/games /mnt/frigate /mnt/backups; do

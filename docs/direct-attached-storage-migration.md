@@ -411,6 +411,8 @@ The migration is not complete until the repository matches the live design:
   it on the host.
 - Schedule md checks for 10:00 local on the first Sunday of each month, with a daily
   10:00 continuation while a check remains incomplete.
+- Cap scheduled and continued `md3` checks at `50000` KiB/s with service drop-ins,
+  restoring `sync_speed_max=system` after each window so recovery stays unrestricted.
 - Convert NFS-specific Phase 0, Phase 1, Phase 2, Phase 3, and Phase 5 validations to
   verify the exact direct-mounted UUIDs and reject root-filesystem fallthrough.
 - Replace NFS-only alerts with mount-path filesystem alerts. Retain the upstream
