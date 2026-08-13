@@ -352,16 +352,22 @@ first.)
 | **Frigate** | 2 / 4 | 2Gi / 4Gi | critical · non-evictable |
 | **Home Assistant** | 0.5 / 2 | 512Mi / 2Gi | critical · non-evictable |
 | **Z-Wave JS UI** | 0.1 / 1 | 256Mi / 1Gi | critical · non-evictable |
-| Plex | 1 / 6 | 1Gi / 4Gi | standard · burstable |
-| Gluetun + SABnzbd (download pod) | 0.5 / 2 | 512Mi / 1Gi | standard |
-| qBittorrent (container in the download pod) | 0.5 / 2 | 512Mi / 1Gi | standard |
-| *arr (each, containers in the download pod) | 0.25 / 1 | 256Mi / 512Mi | standard |
-| Seerr / RomM | 0.1 / 0.5 | 128Mi / 512Mi | standard |
+| Plex | 1 / 6 | 1536Mi / 4Gi | standard · burstable |
+| Gluetun | 25m / 2 | 96Mi / 1Gi | standard · download pod |
+| SABnzbd | 125m / 2 | 256Mi / 1Gi | standard · download pod |
+| qBittorrent | 25m / 2 | 64Mi / 1Gi | standard · download pod |
+| Prowlarr | 50m / 1 | 256Mi / 512Mi | standard · download pod |
+| Radarr | 150m / 1 | 384Mi / 768Mi | standard · download pod |
+| Sonarr | 100m / 1 | 512Mi / 768Mi | standard · download pod |
+| Seerr | 50m / 1 | 512Mi / 768Mi | standard |
+| RomM | 100m / 500m | 384Mi / 768Mi | standard |
+| MariaDB (RomM sidecar) | 100m / 500m | 256Mi / 768Mi | standard |
+| Valkey (RomM sidecar) | 50m / 250m | 64Mi / 256Mi | standard |
 | Monitoring stack | 0.5 / 2 | 1Gi / 3Gi | standard |
 | Restic CronJob | 0.25 / 1 | 256Mi / 1Gi | low · best-effort |
 
-Sum of requests ≈ **5.7 cores / ~8.5 Gi** — comfortably under capacity, leaving room
-to burst. ~6 GB RAM is reserved as headroom for the OS, k3s, and spikes.
+The media rows reserve exactly **1.775 cores / 4320Mi**. Their limits intentionally
+leave room to burst while host RAM remains available for the OS, k3s, and spikes.
 
 Key reasoning:
 

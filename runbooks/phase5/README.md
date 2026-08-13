@@ -24,6 +24,7 @@ available as `/dev/mapper/hoardvg-backuplv` at `/mnt/backups`.
 | `11-setup-pushover.sh` | SOPS-encrypt Pushover keys and atomically activate actionable phone notifications |
 | `12-test-pushover.sh` | Inject and resolve synthetic warning/critical alerts through Alertmanager |
 | `13-validate-nut-exporter.sh` | Validate UPS telemetry, Prometheus/Grafana integration, and optionally run the physical mains-loss alert drill |
+| `14-audit-resources.sh` | Audit current reservations and historical CPU, throttling, memory, and OOM metrics |
 
 Both repositories have passed initialization, manual backup, and representative restore
 validation. The nightly local and first naturally scheduled weekly B2 backups both
@@ -39,6 +40,52 @@ The nut-exporter, CP1500 dashboard, and `UPSOnBattery` rule passed live validati
 2026-07-25. The operator-gated physical mains-loss drill confirmed the on-battery
 transition, critical Pushover firing notification, return to online state, alert
 resolution, and quiet recovery notification.
+
+## Resource audit
+
+Run the audit with a kubeconfig context allowed to port-forward to Prometheus. Keep
+captured reports outside git:
+
+```bash
+./runbooks/phase5/14-audit-resources.sh \
+  > /tmp/resource-audit-$(date +%F).tsv
+```
+
+`RESOURCE_AUDIT_WINDOW` defaults to `14d`; `RESOURCE_AUDIT_LOCAL_PORT` defaults to
+`19090`. The report is stable TSV with one row per currently Running/Pending
+container and a `__TOTAL__` row per namespace. It covers `media`, `frigate`,
+`home-assistant`, and `mqtt`, and includes current CPU/memory requests and limits,
+5-minute CPU p95/max, aggregate CFS throttling percentage, working-set memory
+p95/max, and cgroup OOM events. Status goes to stderr so stdout can be redirected or
+piped safely.
+
+The helper exits nonzero for invalid overrides, an unavailable port-forward or
+metric, a failed Prometheus response, or any tracked container that cannot be joined
+across the required metrics. Thresholds are deliberately observational. The
+unchanged-cluster baseline captured on 2026-08-13 included:
+
+```text
+NAMESPACE  CONTAINER  CPU_REQUEST_CORES  CPU_LIMIT_CORES  MEMORY_REQUEST_MIB  MEMORY_LIMIT_MIB
+media      __TOTAL__  3.6                16.75            4032                11008
+```
+
+After the media tuning rollout, current reservations/limits should read:
+
+```text
+NAMESPACE  CONTAINER  CPU_REQUEST_CORES  CPU_LIMIT_CORES  MEMORY_REQUEST_MIB  MEMORY_LIMIT_MIB
+media      __TOTAL__  1.775              17.25            4320                11776
+```
+
+After seven complete days, capture the observation report with:
+
+```bash
+RESOURCE_AUDIT_WINDOW=7d ./runbooks/phase5/14-audit-resources.sh \
+  > /tmp/resource-audit-7d-$(date +%F).tsv
+```
+
+Require zero OOM events or resource-related restarts, memory maximum below 85% of
+each media container's limit, aggregate throttling below 5% per media container, and
+no Plex, download/import, Seerr, or RomM regression before closing the gate.
 
 ## UPS telemetry and alert drill
 

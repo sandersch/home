@@ -312,8 +312,43 @@ resync/recovery as immediate investigation conditions.
 
 ## Resource tuning
 
-The [allocation table](./architecture.md#resource-allocation) values are conservative
-starting points. After ~1 week of real data:
+`runbooks/phase5/14-audit-resources.sh` is the repeatable audit path. It opens a
+temporary Prometheus port-forward and emits TSV for currently Running/Pending
+containers in `media`, `frigate`, `home-assistant`, and `mqtt`. Current requests and
+limits come from kube-state-metrics joined to Running/Pending pod phases, preventing
+retained Failed/Succeeded pods from inflating reservation totals. Historical columns
+use 5-minute CPU rates, CFS throttled/total periods, memory working set, and cgroup
+OOM counters over `RESOURCE_AUDIT_WINDOW` (default `14d`). Reports belong under
+`/tmp` or another path outside git.
+
+The pre-change 14-day baseline captured on 2026-08-13 showed zero OOM events. Media
+reserved `3.6` CPU cores and `4032Mi`; the sustained memory working sets justified a
+small reservation increase while the low CPU usage justified releasing scheduler
+guarantees. Key container observations were:
+
+| Container | CPU 5m p95 / max | Throttling | Memory p95 / max |
+|---|---:|---:|---:|
+| Plex | 1.005579 / 3.838676 cores | 0.058% | 1174.969 / 3241.359Mi |
+| Gluetun | 0.000265 / 0.000949 cores | 0% | 56.289 / 70.281Mi |
+| SABnzbd | 0.000355 / 0.111655 cores | 0% | 227.441 / 409.008Mi |
+| qBittorrent | 0.000396 / 0.001674 cores | 0% | 50.898 / 50.902Mi |
+| Prowlarr | 0.001189 / 0.032714 cores | 0.006% | 224.921 / 228.980Mi |
+| Radarr | 0.002070 / 0.102894 cores | 0.147% | 333.785 / 347.715Mi |
+| Sonarr | 0.002191 / 0.072910 cores | 0.143% | 445.282 / 500.883Mi |
+| Seerr | 0.001496 / 0.039060 cores | 10.263% | 419.543 / 641.602Mi |
+| RomM | 0.001970 / 0.082399 cores | 0.024% | 280.102 / 280.539Mi |
+| MariaDB | 0.002081 / 0.007546 cores | 0.029% | 165.793 / 168.188Mi |
+| Valkey | 0.001783 / 0.006310 cores | 0.008% | 27.383 / 27.828Mi |
+
+The resulting media allocation reserves `1.775` CPU cores and `4320Mi`. It was
+deployed on 2026-08-13 and remains open until the seven-complete-day audit gate passes.
+At that gate, require exact reservation totals, zero OOM/resource-related restarts,
+maximum memory below 85% of each limit, throttling below 5% per container, and no
+user-visible regression. If only memory fails, set that limit to 1.5 times the
+observed maximum rounded up to the next `256Mi`; if only throttling fails, double that
+container's CPU limit and repeat the seven-day gate.
+
+For future tuning:
 
 - In Grafana, compare actual CPU/memory per workload against its requests/limits.
 - Raise CPU limits when a pod is throttled; raise requests when sustained usage needs a
