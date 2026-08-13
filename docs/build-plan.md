@@ -35,12 +35,13 @@ executed evidence are in the
 
 All-disk SMART tests, pre-cutover backups/restores, exact mount identity, offline
 filesystem checks, reboot assembly, read/write probes, and application cutover tests
-passed. The remaining completion gates are:
+passed. Morpheus's old mounts, exports, md checks, and automatic array assembly were
+disabled, its recovery configuration was preserved off-host, and the machine was
+retired on 2026-08-10. It remains powered off as a network-connected cold spare and
+is not required for normal operation. The remaining completion gates are:
 
 - a new Restic backup and representative restore pass;
-- 24–48 hours of observation show no RAID, SAS, filesystem, or workload errors; and
-- Morpheus's old mounts, exports, md checks, and automatic array assembly are
-  disabled while its recovery configuration remains preserved off-host.
+- 24–48 hours of observation show no RAID, SAS, filesystem, or workload errors.
 
 This is a retrofit to the running production platform, not a new numbered build
 phase. Resource tuning, Frigate tuning, optional centralized logs, and deferred apps

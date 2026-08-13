@@ -40,7 +40,7 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
 | **Native VLAN 99 is an empty blackhole** on the Catalyst trunk | Untagged/rogue frames land in an empty, unrouted VLAN instead of a live data VLAN. | — |
 | **Camera VLAN 105 is fully isolated** (no gateway, off-trunk, reached only via the dual-homed `minis` NVR NIC, no bridging) | Cameras can't reach the internet or any other VLAN; only the NVR sees them. Strong containment for untrusted camera firmware. | — |
 | **IoT (VLAN 60) gets full outbound internet** | Most IoT devices depend on vendor cloud to function. Unsolicited inbound and lateral movement remain blocked. | Block/allowlist egress — revisit if you want to cut off chatty or untrusted devices. |
-| **Admin (VLAN 10) uses `morpheus` for local NTP** | Keeps management gear time-synced without opening general VLAN 10 WAN egress. UniFi DHCP option 42 advertises `morpheus` (`10.137.20.2`) as the NTP server; the firewall allows only VLAN 10 → `morpheus` UDP/123 for time sync. | Allow VLAN 10 UDP/123 directly to selected internet NTP servers — revisit only if the internal NTP service is removed. |
+| **VLAN 10 temporarily has no designated NTP source** | Morpheus was retired on 2026-08-10, so its DHCP option 42 advertisement and VLAN 10 → Morpheus UDP/123 exception are removed rather than pointing clients at a powered-off host. Camera NTP on `minis` is separate and remains active. | Select a replacement internal NTP source before restoring DHCP option 42 or adding a new firewall exception. |
 | **Static-first addressing on VLAN 20 (servers), VLAN 10 management, and VLAN 105 cameras, with DHCP fallback reservations** | Infrastructure gets stable, known IPs; DHCP fallback maps known MACs to the same intended addresses if a host, management device, or camera requests a lease. Static addresses live outside the dynamic DHCP pools. | — |
 | **General wired ports default to Trusted VLAN 30** | Convenience: anything plugged in just works. Physical access to trusted Ethernet is treated as outside the threat model. | Park unused ports in VLAN 99 — revisit if the physical-access assumption changes. |
 | **Admin (VLAN 10) is jumpbox-only via `ryze`** | No direct management access from `m5c` or other clients; shrinks the management attack surface to one host. `ryze` has full management access inside VLAN 10. | — |
@@ -68,7 +68,7 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
              │ Port 1   │ Port 2   │ Port 3    │ Port 10     │Port 11
              ▼ (V30)    ▼ (V20)    ▼ (V20)     ▼ (10G SFP+)  ▼ (10G SFP+)
           [ryze]    [morpheus]  [minis Host]   │ DAC Trunk   │
-         .30.6 wired .20.2 NAS  .20.5 Server   │             ▼
+         .30.6 wired .20.2 cold .20.5 Server   │             ▼
                                                │       [YuanLey Switch]
                                                │             │ [PoE+]
                                                │             ▼
@@ -113,7 +113,7 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
          ▼              ▼              ▼              │ DAC  │ Fiber
       ┌──────┐      ┌──────────┐   ┌───────┐          │      │
       │ ryze │      │ morpheus │   │ minis │          │      │
-      │ .30.6│      │  .20.2   │   │ .20.5 │          │      │
+      │ .30.6│      │ .20.2 off│   │ .20.5 │          │      │
       └──────┘      └──────────┘   └───────┘          │      │
                                                       │      ▼
   ┌───────────────────────────────────────────────────┘  ┌───────────┐
@@ -167,7 +167,7 @@ The Cisco Catalyst 3850 acts **strictly as an L2 switch**. All inter-VLAN routin
 * **Addressing:** All known VLAN 10 infrastructure should have static IPs configured outside the dynamic DHCP pool. UDM DHCP reservations are fallback/onboarding only.
 * **Internet egress:** VLAN 10 has no general-purpose internet access. Allow only tightly scoped infrastructure egress for the UDM Pro, UniFi U7 Pro, approved IPMI/IPKVM devices, and other approved management infrastructure.
 * **DNS:** VLAN 10 clients use the UDM gateway (`10.137.10.1`) as their DNS resolver. Do not open direct internet DNS egress from VLAN 10 clients.
-* **NTP:** NTP is served by `morpheus` (`10.137.20.2`) and advertised to VLAN 10 clients via UniFi DHCP option 42. Do not open per-device NTP egress from VLAN 10 to the WAN.
+* **NTP:** VLAN 10 temporarily has no designated NTP source. Morpheus no longer serves NTP, and its UniFi DHCP option 42 advertisement and UDP/123 firewall exception are retired. Select a replacement internal source before advertising NTP again. Camera NTP remains independently served by `minis` on the isolated camera segment.
 * **UniFi cloud/controller services:** Keep any required UniFi cloud, controller, firmware, or update exceptions scoped to the UDM Pro and UniFi U7 Pro unless a specific additional VLAN 10 device needs them. Identify the exact service requirements during implementation rather than granting blanket VLAN 10 internet access.
 * **Management access:** Only `ryze` can route into VLAN 10. `ryze` has full all-protocol management access indefinitely.
 * **Jumpbox rule:** `m5c` administration of VLAN 10 network gear uses `ryze` as a jumpbox. This rule is specific to VLAN 10 management access; server administration on VLAN 20 does not need to be jumpbox-mediated.
@@ -188,14 +188,13 @@ Rule order matters. In UniFi, place specific allow rules above broader drop rule
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 100 | Yes | Allow `ryze` to Admin | Allow | All | `ryze` `10.137.30.6` | Admin / Management `VLAN 10` | Any | `ryze` has full all-protocol management access to VLAN 10 indefinitely. |
 | 110 | Yes | Allow Trusted to Servers | Allow | All | Trusted / Fastlane `VLAN 30` | Servers `VLAN 20` | Any | Broad trusted-client access to internal services and direct server administration. |
-| 120 | Yes | Allow Admin NTP to `morpheus` | Allow | UDP | Admin / Management `VLAN 10` | `morpheus` `10.137.20.2` | `123` | Supports DHCP option 42 for VLAN 10 clients. No broader VLAN 10 → VLAN 20 access is implied. |
 | 130+ | As needed | Allow selected Trusted to IoT services | Allow | Service-specific | Trusted / Fastlane `VLAN 30` | IoT / Home Integrated `VLAN 60` | Service-specific | Add only for justified setup, control, casting, or device-management flows. |
 | 140+ | As needed | Allow selected Servers to IoT services | Allow | Service-specific | Servers `VLAN 20` | IoT / Home Integrated `VLAN 60` | Service-specific | Add only for Home Assistant or other server-driven device-control flows. |
 | 150+ | As needed | Allow selected IoT to Server services | Allow | Service-specific | IoT / Home Integrated `VLAN 60` | Servers `VLAN 20` | Service-specific | Add only for intentionally exposed services such as Home Assistant, Plex, or similar local endpoints. |
 | 900 | Yes | Drop Guest to internal networks | Drop | All | Guest / Internet Only `VLAN 80` | Internal VLANs / RFC1918 | Any | Guest is internet-only with no casting/local discovery. |
 | 910 | Yes | Drop IoT to internal networks | Drop | All | IoT / Home Integrated `VLAN 60` | Internal VLANs / RFC1918 | Any | Blocks unsolicited IoT lateral movement except explicit allow rules above. |
 | 920 | Yes | Drop Servers to internal networks | Drop | All | Servers `VLAN 20` | Internal VLANs / RFC1918 | Any | Servers are denied access into management and other internal client VLANs by default. Place any justified server-to-IoT allows above this rule. |
-| 930 | Yes | Drop Admin to internal networks | Drop | All | Admin / Management `VLAN 10` | Internal VLANs / RFC1918 | Any | Placed below Rule 120 so VLAN 10 NTP to `morpheus` still works. |
+| 930 | Yes | Drop Admin to internal networks | Drop | All | Admin / Management `VLAN 10` | Internal VLANs / RFC1918 | Any | No VLAN 10 → VLAN 20 NTP exception remains after Morpheus retirement. |
 | 940 | Yes | Drop Trusted to Admin | Drop | All | Trusted / Fastlane `VLAN 30` | Admin / Management `VLAN 10` | Any | Placed below Rule 100 so `ryze` remains the only Trusted client admitted to VLAN 10. |
 | 950 | Yes | Drop Trusted to IoT | Drop | All | Trusted / Fastlane `VLAN 30` | IoT / Home Integrated `VLAN 60` | Any | Placed below Rule 130+ so only justified Trusted-to-IoT exceptions are allowed. |
 | 960 | Yes | Drop internal networks to Guest | Drop | All | Internal VLANs `10/20/30/60` | Guest / Internet Only `VLAN 80` | Any | Net-new effect is blocking **Trusted/VLAN 30 → Guest** — Trusted has no other blanket internal-drop rule, while Rules 910/920/930 already drop IoT/Servers/Admin to the Guest subnet (it is RFC1918). Together these make Guest unreachable from every internal VLAN. |
@@ -208,7 +207,7 @@ Rule order matters. In UniFi, place specific allow rules above broader drop rule
 | 1010 | Yes | Allow Trusted to Internet | Allow | All | Trusted / Fastlane `VLAN 30` | Internet | Any | Normal client internet access. |
 | 1020 | Yes | Allow IoT to Internet | Allow | All | IoT / Home Integrated `VLAN 60` | Internet | Any | Full outbound internet permitted; do not block external DNS/DoH by design. |
 | 1030 | Yes | Allow Guest to Internet | Allow | All | Guest / Internet Only `VLAN 80` | Internet | Any | Internet-only by definition; local access remains blocked by LAN rules and client isolation. |
-| 1040 | Yes | Allow Admin infrastructure egress | Allow | Service-specific | UDM Pro / UniFi U7 Pro / approved VLAN 10 infrastructure, including approved IPMI/IPKVM devices | Internet | Firmware/update and UniFi cloud/controller services as needed | VLAN 10 clients use the UDM as DNS resolver; do not allow direct internet DNS from VLAN 10 clients. No per-device internet NTP egress is opened; VLAN 10 gear syncs from `morpheus` via Rule 120. |
+| 1040 | Yes | Allow Admin infrastructure egress | Allow | Service-specific | UDM Pro / UniFi U7 Pro / approved VLAN 10 infrastructure, including approved IPMI/IPKVM devices | Internet | Firmware/update and UniFi cloud/controller services as needed | VLAN 10 clients use the UDM as DNS resolver; do not allow direct internet DNS from VLAN 10 clients. No per-device internet NTP egress is open; a replacement internal NTP source remains deferred. |
 | 1990 | Yes | Drop Admin general Internet | Drop | All | Admin / Management `VLAN 10` | Internet | Any | Other management devices are updated manually/on demand. |
 | N/A | N/A | Cameras to Internet | N/A | N/A | Cameras `VLAN 105` | Internet | N/A | Physically isolated, gateway-less segment. No routed path to the WAN exists. |
 
@@ -284,7 +283,7 @@ interface range GigabitEthernet1/0/1-4
 | Port | Media | Role | VLAN Config | Connected Device |
 | --- | --- | --- | --- | --- |
 | **Port 1** | 1G RJ45 LAN | Client | Native/Access VLAN 30 | `ryze` desktop (`10.137.30.6`) |
-| **Port 2** | 1G RJ45 LAN | Client | Native/Access VLAN 20 | `morpheus` NAS (`10.137.20.2`) |
+| **Port 2** | 1G RJ45 LAN | Client | Native/Access VLAN 20 | `morpheus` cold spare (`10.137.20.2`; powered off, cable retained) |
 | **Port 3** | 1G RJ45 LAN | Client | Native/Access VLAN 20 | `minis` server NIC (`10.137.20.5`) |
 | **Ports 4–7** | 1G RJ45 LAN | Unused | — | Available |
 | **Port 8** | 1G RJ45 | WAN2 | — | Spectrum (failover) |
@@ -334,7 +333,7 @@ Use this table when creating DHCP reservations, static host records, ISP records
 | UDM Pro WAN2 / Spectrum | WAN | ISP-assigned | `f4:92:bf:75:d5:b1` | WAN interface MAC |
 | Cisco Catalyst management SVI | 10 | `10.137.10.2` | TBD | Static switch SVI |
 | UniFi U7 Pro WAP management | 10 | `10.137.10.7` | `28:70:4e:31:17:f9` | Static-first; UDM reservation fallback |
-| `morpheus` NAS | 20 | `10.137.20.2` | `b4:2e:99:33:d6:0b` | Static-first; UDM reservation fallback |
+| `morpheus` cold spare | 20 | `10.137.20.2` | `b4:2e:99:33:d6:0b` | Retained static DNS and UDM reservation; powered off |
 | `minis` server NIC | 20 | `10.137.20.5` | `38:05:25:35:fb:d3` | Static-first; UDM reservation fallback |
 | `minis` camera-side NIC | 105 | `192.168.105.1` | `38:05:25:35:fb:d2` | Static local NVR/NTP endpoint |
 | `ryze` desktop | 30 | `10.137.30.6` | `a8:a1:59:51:47:4e` | Static or UDM DHCP reservation |
@@ -349,19 +348,18 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 | `udm.mgmt.matrix`            | `10.137.10.1`  | 10   | UDM Pro — gateway / firewall / UniFi controller |
 | `catalyst.mgmt.matrix`       | `10.137.10.2`  | 10   | Cisco Catalyst 3850 management SVI              |
 | `u7pro.mgmt.matrix`          | `10.137.10.7`  | 10   | UniFi U7 Pro WAP management                     |
-| `morpheus.matrix`            | `10.137.20.2`  | 20   | NAS (also the VLAN 10 NTP server)               |
+| `morpheus.matrix`            | `10.137.20.2`  | 20   | Retired host retained as a cold spare           |
 | `minis.matrix`               | `10.137.20.5`  | 20   | Homelab / Frigate NVR (server-side NIC)         |
 | `ryze.matrix`                | `10.137.30.6`  | 30   | Desktop workstation / VLAN 10 jumpbox           |
 | | | |
-| `ntp.service.matrix`         | `10.137.20.2`  | 20   | NTP server on `morpheus`                        |
 | `worm.run`                   | `10.137.20.10` | 20   | minis cluster load balancer                     |
 | `*.worm.run`                 | `10.137.20.10` | 20   | minis cluster load balancer                     |
 
-> **Two NTP servers, by design.** `morpheus` (`10.137.20.2`, `ntp.service.matrix`) serves
-> the VLAN 10 management gear via UDM DHCP option 42. The cameras instead sync from `minis`
-> at `192.168.105.1` (local `chrony` on the camera-side NIC) — **not** `morpheus` — because
-> VLAN 105 is fully isolated and cannot reach the `10.137.20.0/24` subnet. The two NTP
-> sources are independent and intentional; do not point cameras at `morpheus`.
+> **NTP gap after Morpheus retirement.** The cameras still sync from `minis` at
+> `192.168.105.1` using local `chrony` on the isolated camera-side NIC. VLAN 10 has no
+> designated NTP source until a replacement is selected. `ntp.service.matrix`, the
+> old DHCP option 42 advertisement, and the Morpheus UDP/123 exception must remain
+> absent; do not repurpose the camera-only service implicitly.
 
 **Deliberately excluded:**
 
@@ -382,11 +380,11 @@ Create these forward (A) records on the UDM resolver. The network's local domain
   * *Admin Access:* Does not receive direct VLAN 10 administrative access. SSH to `ryze` and use it as a jumpbox when VLAN 10 network-gear management access is required. Direct VLAN 20 server administration from `m5c` is allowed by the Trusted → Servers policy.
 
 
-* **morpheus (Central NAS)**
-  * *Role:* Primary NAS (core workload), internal NTP service for VLAN 10, and some minor services available locally
+* **morpheus (Retired cold spare)**
+  * *Role:* Powered-off cold spare since 2026-08-10; not required for normal network operation and no longer serving NTP, NFS, or other production workloads
   * *Connection:* Wired → UDM Port 2 (Native VLAN 20)
   * *IP / MAC:* `10.137.20.2` | `b4:2e:99:33:d6:0b`
-  * *Link speed:* Operates at 1G.
+  * *Reservation:* Keep `morpheus.matrix` and the UDM DHCP reservation for near-term recovery use. The cable remains connected while the host is powered off.
 
 
 * **minis (Homelab + Frigate NVR)**
@@ -394,6 +392,7 @@ Create these forward (A) records on the UDM resolver. The network's local domain
   * *Server Link:* UDM Port 3 (Native VLAN 20) | `10.137.20.5` | `38:05:25:35:fb:d3` (NIC `lan0`)
   * *Camera Link:* Catalyst Port `Gi1/0/48` (Access VLAN 105) | Static `192.168.105.1` | `38:05:25:35:fb:d2` (NIC `cam0`)
   * *Link speed:* Both `minis` NICs are 2.5GbE, but the ports they connect to are only 1GbE — UDM Port 3 (`lan0` server-side) and Catalyst `Gi1/0/48` (`cam0` camera-side) — so both links negotiate at 1G.
+  * *NFS:* No bulk filesystem is currently exported. A future service may export `/mnt/media` and `/mnt/games`; `/mnt/frigate` remains local-only and `/mnt/backups` stays unexported until a concrete consumer exists.
 
 ---
 
@@ -404,15 +403,15 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 * [X] Verify WAN failover prioritization: Primary = AT&T (Port 9), Failover = Spectrum (Port 8). This is **failover only** (not load-balancing); Spectrum sits idle until AT&T fails. Intentional for now — keeps a stable primary IP and avoids per-session path issues. Note: both WANs run on RJ45 ports (9 + 8), leaving the SFP+ WAN port (Port 10) free to be reassigned to LAN — this is confirmed working in the current setup. Since AT&T is 1G symmetric, the RJ45 WAN imposes no bottleneck.
 * [X] Build out virtual networks/VLAN scopes (10, 20, 30, 60, 80). Set management IP gateway to `10.137.10.1`. Set each dynamic DHCP pool to `.100-.199` within its subnet. Also create **VLAN 99 as a "VLAN Only" network** (no gateway, no DHCP) so it can be selected as the native VLAN on the Port 10 trunk profile — UniFi requires the network to exist before it can be assigned as a native VLAN, so the blackhole trunk config below cannot be applied without it. Do **not** build VLAN 105 on the controller (it is an isolated, gateway-less segment that lives only on the Catalyst).
 * [ ] Configure the UniFi U7 Pro management address as static-first at `10.137.10.7`, with a VLAN 10 UDM DHCP reservation for the same address as fallback.
-* [ ] Configure VLAN 10 DHCP option 42 to advertise `morpheus` (`10.137.20.2`) as the NTP server. Keep VLAN 10 client NTP pointed internally; do not open VLAN 10 UDP/123 egress to the WAN.
+* [ ] Confirm VLAN 10 DHCP option 42 no longer advertises `10.137.20.2`, remove `ntp.service.matrix`, and remove the obsolete VLAN 10 → Morpheus UDP/123 firewall exception. Keep the host-level `morpheus.matrix` record and DHCP reservation for cold-spare recovery use.
 * [X] Define the **DNS resolver strategy**: clients use the UDM per-VLAN gateway (`10.137.<vlan>.1`) as their resolver by default, and the UDM remains the long-term default resolver. VLAN 10 management devices and VLAN 20 hosts are static-first, but UDM DHCP reservations should map each known MAC to its intended address as fallback. Static addresses must be outside their dynamic DHCP pools. Set DNS manually on static hosts and point them at the UDM gateway unless a specific host has a deliberate exception. IoT (60) and Guest (80) are not forced through a specific upstream resolver, and external DNS/DoH is not blocked by design.
 * [X] Commit custom port mapping profiles on UDM built-in interfaces (Port 1 → V30, Port 2 → V20, Port 3 → V20).
 * [X] Configure UDM Port 10 as the Catalyst trunk profile: **Native/Untagged VLAN 99** (blackhole) to match the Catalyst's `switchport trunk native vlan 99`, plus tagged VLANs 10, 20, 30, 60, and 80. Both ends must agree on native VLAN 99 — a native-VLAN mismatch here would land untagged traffic in a live VLAN and defeat the blackhole design.
 * [X] Configure UDM Port 11 as the WAP uplink profile: Native/Untagged VLAN 10 for AP management; Tagged VLANs 30, 60, and 80 for SSID client traffic.
 * [X] **Verify VLAN tag-transparency through the unmanaged YuanLey switch:** connect a client to the Guest SSID and confirm it receives a `10.137.80.x` address (and an IoT-SSID client a `10.137.60.x` address) — *not* a `10.137.10.x` management address. A management-range lease means the YuanLey is stripping tags and the SSID separation has silently collapsed onto the management VLAN. If this fails, replace the YuanLey with a managed 2.5G PoE switch or temporarily move the AP to a Catalyst 1G port while preserving SSID VLAN separation.
-* [ ] Deploy the numbered firewall rules from the Firewall & Traffic Flow Matrix in order: specific allows first, broad inter-VLAN drops second, WAN/internet egress policy separately. Confirm all-protocol `ryze`-only access into VLAN 10, default deny for VLAN 20 → VLAN 10, VLAN 10 → `morpheus` (`10.137.20.2`) UDP/123 only for NTP, Guest/VLAN 80 unreachable from every internal VLAN, and tightly scoped VLAN 10 outbound access for UDM Pro / UniFi U7 Pro / approved IPMI/IPKVM updates and infrastructure services.
+* [ ] Deploy the numbered firewall rules from the Firewall & Traffic Flow Matrix in order: specific allows first, broad inter-VLAN drops second, WAN/internet egress policy separately. Confirm all-protocol `ryze`-only access into VLAN 10, default deny in both directions between VLAN 10 and VLAN 20 (including no obsolete Morpheus NTP exception), Guest/VLAN 80 unreachable from every internal VLAN, and tightly scoped VLAN 10 outbound access for UDM Pro / UniFi U7 Pro / approved IPMI/IPKVM updates and infrastructure services.
 * [ ] Verify `ryze` can reach VLAN 10 management endpoints and that other Trusted/VLAN 30 clients, including `m5c`, cannot reach VLAN 10 directly.
-* [ ] Verify a VLAN 10 client receives DHCP option 42 for `10.137.20.2`, can sync NTP from `morpheus`, and cannot reach arbitrary VLAN 20 services or internet NTP servers.
+* [ ] Verify a VLAN 10 client is not directed to `10.137.20.2` for NTP and cannot reach arbitrary VLAN 20 services or internet NTP servers. Record the lack of a designated VLAN 10 NTP source until the deferred replacement is implemented.
 
 ### Network Step 2: Cisco Catalyst 3850 Initialization
 

@@ -168,6 +168,10 @@ explicit hostnames) — test with a throwaway hostname before depending on it.
 
 Bulk-storage traffic no longer traverses the LAN. Validate the direct storage path
 with the Phase 1.4 read/write probe and watch md/SAS/filesystem metrics under load.
+Nothing currently exports the bulk filesystems over NFS. A deferred NFS service on
+`minis` may expose `/mnt/media` and `/mnt/games` when a remote consumer needs them;
+`/mnt/frigate` remains local to the colocated Frigate workload, and `/mnt/backups`
+stays unexported unless a concrete use appears.
 
 ## Storage architecture
 

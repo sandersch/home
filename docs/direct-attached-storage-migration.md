@@ -1,13 +1,15 @@
 # Direct-Attached Bulk Storage Migration Runbook
 
 Move the existing RAID6 array from Morpheus's SAS HBA to the LSI 9207-8e in
-`minis`, then mount its ext4 filesystems directly in the same locations currently
-provided by NFS. This is the next operational milestone in the
-[build plan](./build-plan.md#immediate-next-step-direct-attached-bulk-storage-migration).
+`minis`, then mount its ext4 filesystems directly in the same locations previously
+provided by NFS. This completed milestone is recorded in the
+[build plan](./build-plan.md#direct-attached-bulk-storage-migration-cutover-completed-2026-08-10).
 
-**Status:** planned, not yet executed. This is an attended maintenance procedure,
-not an unattended script. Record command output in an off-host work log as each
-gate passes.
+**Status:** completed 2026-08-10. The enclosure now belongs to `minis`. Morpheus's
+old mounts, NFS exports, md checks, and automatic array assembly were disabled before
+it was powered off. Morpheus remains network-connected as a cold spare but is not
+required for normal operation. The attended procedure and rollback material below
+are retained as historical evidence and recovery guidance.
 
 ## Scope and expected impact
 
@@ -395,10 +397,10 @@ Verify Prometheus sees all four filesystems and md3, and that no filesystem-devi
 RAID alerts fire. Observe SMART, SAS, mdadm, filesystem, workload, and backup health
 for 24–48 hours.
 
-After the observation gate passes, disable Morpheus's four fstab entries, NFS
-exports, mdcheck timers, and mdadm autoassembly (`AUTO -all`). Preserve its original
-configuration in the off-host recovery bundle, but do not leave Morpheus able to
-claim the array automatically.
+Retirement cleanup completed on 2026-08-10: Morpheus's four fstab entries, NFS
+exports, mdcheck timers, and mdadm autoassembly were disabled, and its original
+configuration was preserved in the off-host recovery bundle. Morpheus must not be
+left able to claim the array automatically if it is temporarily powered on.
 
 ## 7. Post-migration repository work
 

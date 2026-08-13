@@ -28,9 +28,11 @@ The nut-exporter workload, CP1500 Grafana dashboard, and critical on-battery rul
 passed live validation on 2026-07-25, including the controlled physical mains-loss
 drill and Pushover firing and recovery notifications. The bulk-storage RAID enclosure
 was migrated intact from Morpheus to the SAS HBA in `minis` on 2026-08-10. Array,
-filesystem, reboot-assembly, and application cutover gates passed; post-cutover
-observation, resource tuning, Frigate tuning, and deferred apps follow it. This
-remains a retrofit to a running production cluster, not a greenfield scaffold.
+filesystem, reboot-assembly, and application cutover gates passed. Morpheus was
+retired the same day and remains powered off, but network-connected, as a cold spare;
+it is no longer required for normal network operation. Post-cutover observation,
+resource tuning, Frigate tuning, and deferred apps follow the migration. This remains
+a retrofit to a running production cluster, not a greenfield scaffold.
 
 ## Hardware (summary)
 
@@ -60,7 +62,8 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | Camera segment addressing | **`192.168.105.0/24`, host at `.1`**, per-camera NTP target `192.168.105.1` | Frozen once cameras are provisioned: the subnet, the host's NIC2 address, and the NTP server are typed into each camera's web UI (1.3) and baked into DHCP/Frigate, so renumbering means hand-touching every camera. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
 
 Deferred / revisit later (see [operations.md](./docs/operations.md#follow-ups)):
-a possible second node, Tailscale Funnel for Plex, Immich.
+a replacement NTP source for VLAN 10, selected NFS exports from `minis`, a possible
+second node, Tailscale Funnel for Plex, and Immich.
 
 ## Repository structure
 

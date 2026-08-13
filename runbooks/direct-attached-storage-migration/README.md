@@ -2,8 +2,10 @@
 
 Attended helpers for the SMART gate in
 [`docs/direct-attached-storage-migration.md`](../../docs/direct-attached-storage-migration.md).
-Run them on Morpheus while it owns the enclosure, or on whichever host currently
-has direct access to all 15 recorded disks.
+The migration completed on 2026-08-10; Morpheus is now a powered-off cold spare and
+does not own the enclosure. These helpers are retained for historical evidence and
+may be run only on whichever host currently has direct access to all 15 recorded
+disks.
 
 | Script | Purpose |
 |---|---|

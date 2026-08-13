@@ -6,6 +6,7 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 > stack are largely implemented and live-validated. The bulk-storage RAID enclosure
 > was moved intact from Morpheus to the SAS HBA in `minis` on 2026-08-10; the array,
 > filesystems, reboot assembly, and dependent workloads passed cutover validation.
+> Morpheus was retired the same day and remains powered off as a cold spare.
 
 ## Stack at a glance
 

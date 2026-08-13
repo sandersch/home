@@ -341,6 +341,8 @@ Deferred deliberately; revisit when the trigger condition is met.
 
 | Item | When to do it |
 |---|---|
+| **VLAN 10 NTP replacement** | Replace the retired Morpheus service when an appropriate internal time source is selected. Until then, VLAN 10 has no designated NTP source; do not restore the obsolete DHCP option 42 advertisement or Morpheus firewall exception. Camera NTP remains independently served by `minis` at `192.168.105.1`. |
+| **Selected NFS exports from `minis`** | When a real remote consumer appears, export only `/mnt/media` and `/mnt/games` from `minis` with an explicit client/access policy. Nothing exports bulk storage over NFS today. Keep `/mnt/frigate` local-only; do not export `/mnt/backups` without a concrete use. |
 | **Second node** | Only on a *measured* need: HA must survive main-node maintenance, or Frigate outgrows the Coral/CPU budget. Repo layout already supports it via `nodeSelector`/affinity. |
 | **Tailscale Funnel for Plex** | If sharing with non-Tailnet users / casting to uncontrolled client devices becomes a real need. Cleaner than Plex native remote access. |
 | **Immich** | When ready — coordinate the initial import in a quiet window, watch memory. Originals on the direct bulk array, thumbs/ML on `/opt/immich`. |

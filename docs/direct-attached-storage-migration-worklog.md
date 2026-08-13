@@ -4,8 +4,8 @@ This is the off-host evidence log for the attended migration described in
 [`direct-attached-storage-migration.md`](./direct-attached-storage-migration.md).
 Initial evidence was collected from Morpheus on 2026-08-09 CDT before the enclosure
 was disconnected. Later sections record the attended physical handoff and controlled
-MINIS import, including state-changing md/LVM operations. No filesystem write or
-production mount has occurred during the MINIS import as of the latest entry.
+MINIS import, including state-changing md/LVM operations, application restoration,
+repository convergence, and Morpheus's retirement.
 
 ## Morpheus pre-cutover status
 
@@ -119,11 +119,12 @@ verify the four NFS sources on MINIS before restoring workloads.
 - On 2026-08-09, the operator confirmed that all 15 extended SMART tests completed
   successfully. No self-test failure was reported. The tests ran concurrently per
   the accepted operator decision above.
-- Repository conversion and storage-consumer restoration are complete. MINIS
+- Repository conversion and storage-consumer restoration were complete at this
+  stage. MINIS
   `AUTO -all` preparation, HBA/tool validation, temporary read-only content
   verification, offline filesystem checks, direct-mount activation, write probes,
   attended reboot validation, and application cutover checks have passed. Remaining
-  live gates are Flux/monitoring/backup restoration, a fresh backup/restore drill,
+  live gates were Flux/monitoring/backup restoration, a fresh backup/restore drill,
   the observation window, and final Morpheus retirement work.
 
 ## MINIS pre-attach preparation
@@ -337,6 +338,22 @@ the enclosure was moved intact from the Morpheus HBA to the MINIS HBA:
   observability invariants pass; all four monitoring/cluster Kustomize targets
   render; the Prometheus 3.13.1 `promtool` parser reports 13 valid rules; JSON/YAML,
   timer calendars, stale-reference search, and `git diff --check` pass.
+
+## Morpheus retirement
+
+- Morpheus was retired on 2026-08-10 and has remained powered off as a cold spare
+  since then. Its Ethernet connection to UDM Port 2 remains in place for a possible
+  short-term recovery use, but the host is not required for normal network operation.
+- Its four old fstab entries, NFS exports, mdcheck timers, and mdadm automatic array
+  assembly were disabled before shutdown. The original recovery configuration is
+  preserved off-host, and Morpheus cannot claim the enclosure automatically if it is
+  temporarily powered on.
+- Morpheus no longer provides NTP. The `ntp.service.matrix` record, VLAN 10 DHCP
+  option 42 advertisement, and VLAN 10-to-Morpheus UDP/123 firewall exception are
+  retired; VLAN 10 needs a replacement NTP source as deferred work.
+- Nothing currently exports the bulk filesystems over NFS. A future service on
+  `minis` may export `/mnt/media` and `/mnt/games`; `/mnt/frigate` remains local-only,
+  and `/mnt/backups` will not be exported without a concrete consumer.
 
 ## Low-I/O pre-unmount fingerprints
 
