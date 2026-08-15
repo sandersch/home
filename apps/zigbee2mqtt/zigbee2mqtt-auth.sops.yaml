@@ -1,0 +1,24 @@
+apiVersion: v1
+data:
+    ZIGBEE2MQTT_CONFIG_FRONTEND_AUTH_TOKEN: ENC[AES256_GCM,data:mwUaaahRwWXiHOUCol6UZzAsbphxEOIjUveXTTKwHKYVVnjGht7gUm2fG97cvhkOFsttkSAL4e6+DIWVOowiDWwGXNrBoqXqtY2WaN5IunAC9B6HbeZpIA==,iv:H6fZNbDhs5mMPH1fCz84Yn6L9lKBQFZtdmUe3CKUSl0=,tag:Fk9mhVaTfJvJMTiXdPgLOA==,type:str]
+    ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD: ENC[AES256_GCM,data:2wtqcFvUv4haNhGaGOnzI1sz3y/jtUGp9FrFYzEzkGCGq7huKxpFd5z5XWAqtMn/UPkeYc52PBXCf5QCDyrKWIHtzsdBrQfmIdZ4Jok9iR9ecj0DSz7XgA==,iv:Zu5rjM06PCQhZeKKGqnI1gwbwdMuN6Fwho0fza6ZQCA=,tag:Mk5oCn1H+aKUryDpm9oWPw==,type:str]
+    ZIGBEE2MQTT_CONFIG_MQTT_USER: ENC[AES256_GCM,data:dePQsTv4rNLDT3LysHoE8A==,iv:r5D3QButjvj7JjCRoMboXwqlhw4Mzxb6jjEqJB+gm70=,tag:tA50eS4DS6xWNr6wGA9i8w==,type:str]
+kind: Secret
+metadata:
+    name: zigbee2mqtt-auth
+    namespace: zigbee2mqtt
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAybngyZjZEdWNTU1Vqd0Fz
+            dFAweU9WaWc3RmdWZzhSRDBaSVFSN3I0aWxnCmpicDJOdGNIS0diSEc2bHlDWE1C
+            RkVJd05tWitYVVFzVTVHVHkvaE91U1UKLS0tIG5WbmYrZmI3SXZ0RVZCUXd5U2Np
+            MGZLQnA4bEZsWktzWjFER1dNTGJtZmsKHA2ufmj/nSapghG2bi2ik48J9MhIXVYH
+            CtezYLohJK3BMXAjBWhnJzqQuN6s/6TbhatKH1IRscc0+Q/dv0XFFA==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age18cxm2hs3ctq0s735h7z9lj7w7ag37f2vleesglcw6lezlhy5v9nsatkxex
+    encrypted_regex: ^(data|stringData)$
+    lastmodified: "2026-08-15T16:08:20Z"
+    mac: ENC[AES256_GCM,data:EQgVG9CFWsWfYYs40zn6anrlmgVT0hvy03MDC9TU6ilI4tJtXOg7ih+A4vvrKdHcGGNfAZ/Frh5WCQDs6cdSOIic4hIJJhNJ7JPYhvgjhrcyWL4FevbjaL4NgDjvgKP8rPJlwtIgNWkFSZTLYdn9DKI6DkRyvRddSZvLBnZ/n58=,iv:TEP1FDJyCXZUAQT6o3eRkQSqLu1It2iHZ7p0FRsEveo=,tag:qedw4fYXci/ZaUAr1RP2oA==,type:str]
+    version: 3.13.3

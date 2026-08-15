@@ -9,3 +9,4 @@ resources:
 - service.yaml
 - deployment.yaml
 - mosquitto-auth.sops.yaml
+- zigbee2mqtt-auth.sops.yaml

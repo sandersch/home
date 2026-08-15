@@ -22,7 +22,7 @@ manifests:
 | 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. The bootstrap helper enforces the rebuild reconciliation guards described below. | Live bootstrap health checks when rebuilding or changing credentials. |
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present; final copy validation and the quiesced cutover passed. | Historical migration path only. A current-state rebuild restores `/opt` from Restic as described below. |
-| 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. All are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Tune Frigate cameras. |
+| 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, MQTT, and Zigbee2MQTT manifests plus validation/secret helper runbooks are present. The pre-existing workloads are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Reconcile and live-validate Zigbee2MQTT, then tune Frigate cameras. |
 | 5 — observability + expansion | Direct-array and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. Post-cutover backup/restore and observation gates passed on 2026-08-13. The standard-tier media resource tuning slice was deployed on 2026-08-13. | Close the media tuning gate after seven complete days of healthy audit data. Validate the new mdcheck cap during the next attended check, then tune Frigate before optional phase-two logs or deferred apps. |
 
 ## Fresh rebuild and disaster recovery
@@ -775,14 +775,19 @@ stream. Next Frigate work is operational tuning: motion masks, zones, object fil
 and retention.
 
 **4d — remaining stack.** Seerr (pointed at the *arrs via the Gluetun Service),
-RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery), and Z-Wave
-JS UI. Z-Wave uses the network-attached SLZB-MRW10U serial endpoint at
-`tcp://slzb-mrw10u.iot.matrix:6638`; it does not need USB passthrough.
+RomM, Home Assistant (`hostNetwork: true` for mDNS/Zeroconf discovery), Z-Wave JS
+UI, and Zigbee2MQTT. The network-attached SLZB-MRW10U exposes Z-Wave at
+`tcp://slzb-mrw10u.iot.matrix:6638` and its TI Zigbee radio at port `7638`; neither
+workload needs USB passthrough.
 
 Current repo state: Seerr and RomM manifests are committed under `apps/media/`; MQTT
 is committed under `apps/mqtt/`; Home Assistant manifests are committed under
 `apps/home-assistant/` with host networking, local-NVMe config storage, ingress, and
 first-boot reverse-proxy and automation configuration seeding.
+Zigbee2MQTT manifests are committed under `apps/zigbee2mqtt/` with retained local
+state, a SOPS-encrypted dedicated Mosquitto account/frontend token, Home Assistant
+MQTT discovery, and a fresh channel 15 network seed. Live reconciliation and device
+pairing remain to be validated.
 
 Status: Seerr and RomM live validation passed on 2026-07-18. Seerr is connected to
 Plex and the download stack; RomM's local state, MariaDB sidecar, service path, and

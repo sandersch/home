@@ -1,0 +1,31 @@
+version: 5
+
+mqtt:
+  server: mqtt://mosquitto.mqtt.svc.cluster.local:1883
+  base_topic: zigbee2mqtt
+  client_id: zigbee2mqtt-minis
+
+serial:
+  # The SLZB-MRW10U exposes its TI CC2674P10 Zigbee radio on SoC2.
+  # Port 6638 is reserved for the separate Z-Wave radio in this installation.
+  port: tcp://slzb-mrw10u.iot.matrix:7638
+  adapter: zstack
+
+advanced:
+  channel: 15
+  network_key: GENERATE
+  pan_id: GENERATE
+  ext_pan_id: GENERATE
+
+frontend:
+  enabled: true
+  port: 8080
+  url: https://zigbee2mqtt.worm.run
+
+homeassistant:
+  enabled: true
+
+availability:
+  enabled: true
+
+permit_join: false

@@ -16,6 +16,9 @@ PHASE4_FRIGATE_MQTT_SECRET="$PHASE4_FRIGATE_DIR/frigate-mqtt.sops.yaml"
 PHASE4_HOME_ASSISTANT_DIR="$REPO_ROOT/apps/home-assistant"
 PHASE4_MQTT_DIR="$REPO_ROOT/apps/mqtt"
 PHASE4_MQTT_SECRET="$PHASE4_MQTT_DIR/mosquitto-auth.sops.yaml"
+PHASE4_ZIGBEE2MQTT_DIR="$REPO_ROOT/apps/zigbee2mqtt"
+PHASE4_ZIGBEE2MQTT_SECRET="$PHASE4_ZIGBEE2MQTT_DIR/zigbee2mqtt-auth.sops.yaml"
+PHASE4_MQTT_ZIGBEE2MQTT_SECRET="$PHASE4_MQTT_DIR/zigbee2mqtt-auth.sops.yaml"
 
 assert_phase4_plex_tree() {
   local f
@@ -152,4 +155,29 @@ assert_phase4_home_assistant_tree() {
     [ -f "$REPO_ROOT/$f" ] || die "missing Phase 4 Home Assistant file: $f"
   done
   ok "Phase 4 Home Assistant tree is present"
+}
+
+assert_phase4_zigbee2mqtt_tree() {
+  local f
+  for f in \
+    apps/zigbee2mqtt/kustomization.yaml \
+    apps/zigbee2mqtt/namespace.yaml \
+    apps/zigbee2mqtt/configuration.yaml \
+    apps/zigbee2mqtt/deployment.yaml \
+    apps/zigbee2mqtt/service.yaml \
+    apps/zigbee2mqtt/ingress.yaml \
+    apps/zigbee2mqtt/storage.yaml \
+    runbooks/phase4/14-validate-zigbee2mqtt.sh; do
+    [ -f "$REPO_ROOT/$f" ] || die "missing Phase 4 Zigbee2MQTT file: $f"
+  done
+  ok "Phase 4 Zigbee2MQTT tree is present"
+}
+
+assert_phase4_zigbee2mqtt_secrets_present() {
+  local f
+  for f in "$PHASE4_ZIGBEE2MQTT_SECRET" "$PHASE4_MQTT_ZIGBEE2MQTT_SECRET"; do
+    [ -f "$f" ] || die "missing $f"
+    grep -q '^sops:' "$f" || die "$f is not SOPS-encrypted"
+  done
+  ok "Zigbee2MQTT broker and workload Secrets are SOPS-encrypted"
 }

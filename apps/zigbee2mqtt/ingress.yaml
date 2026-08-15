@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zigbee2mqtt
+  namespace: zigbee2mqtt
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - zigbee2mqtt.worm.run
+  rules:
+    - host: zigbee2mqtt.worm.run
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zigbee2mqtt
+                port:
+                  name: http

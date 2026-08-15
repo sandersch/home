@@ -24,6 +24,9 @@ assert_phase4_mqtt_tree
 step "Verify Phase 4 Home Assistant tree"
 assert_phase4_home_assistant_tree
 
+step "Verify Phase 4 Zigbee2MQTT tree"
+assert_phase4_zigbee2mqtt_tree
+
 step "Verify local kustomize output"
 kustomize build "$REPO_ROOT/apps" >/dev/null
 ok "kustomize build apps"
@@ -39,5 +42,8 @@ assert_phase4_mqtt_secret_present
 
 step "Verify Frigate MQTT Secret manifest"
 assert_phase4_frigate_mqtt_secret_present
+
+step "Verify Zigbee2MQTT Secret manifests"
+assert_phase4_zigbee2mqtt_secrets_present
 
 ok "Phase 4 preflight complete"

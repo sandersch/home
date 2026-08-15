@@ -196,6 +196,7 @@ The rule: **latency-sensitive state on local NVMe; bulk data on the direct array
 | RomM | ROM library | `/mnt/games` | direct mdadm/LVM/ext4 |
 | Home Assistant | Recorder DB + state | `/opt/home-assistant` | btrfs (NVMe) |
 | Z-Wave JS UI | Settings, security keys, logs + controller backups | `/opt/zwave-js-ui` | btrfs (NVMe) |
+| Zigbee2MQTT | Device DB + coordinator backup + network config | `/opt/zigbee2mqtt` | btrfs (NVMe) |
 | Immich (later) | Thumbnails + ML cache | `/opt/immich` | btrfs (NVMe) |
 | Immich (later) | Originals | direct bulk array | mdadm/LVM/ext4 |
 
@@ -352,6 +353,7 @@ first.)
 | **Frigate** | 2 / 4 | 2Gi / 4Gi | critical · non-evictable |
 | **Home Assistant** | 0.5 / 2 | 512Mi / 2Gi | critical · non-evictable |
 | **Z-Wave JS UI** | 0.1 / 1 | 256Mi / 1Gi | critical · non-evictable |
+| **Zigbee2MQTT** | 0.1 / 1 | 256Mi / 1Gi | critical · non-evictable |
 | Plex | 1 / 6 | 1536Mi / 4Gi | standard · burstable |
 | Gluetun | 25m / 2 | 96Mi / 1Gi | standard · download pod |
 | SABnzbd | 125m / 2 | 256Mi / 1Gi | standard · download pod |

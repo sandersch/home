@@ -3,5 +3,6 @@ kind: Kustomization
 resources:
   - media
   - mqtt
+  - zigbee2mqtt
   - frigate
   - home-assistant

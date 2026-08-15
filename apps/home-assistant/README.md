@@ -22,6 +22,10 @@ integration, and real camera-event path are operational.
   MQTT integration with `mosquitto.mqtt.svc.cluster.local:1883`, TCP transport, and
   TLS disabled. Use the Home Assistant-specific account from the SOPS-encrypted
   `apps/mqtt/mosquitto-auth.sops.yaml` Secret.
+- Zigbee2MQTT publishes Home Assistant MQTT discovery through that existing MQTT
+  integration. Do not add ZHA alongside it; both would contend for the same Zigbee
+  coordinator socket. Zigbee2MQTT and its pairing workflow are documented in
+  `apps/zigbee2mqtt/README.md`.
 - Install HACS and its Frigate integration, then connect the integration to
   `https://frigate.worm.run` with the existing Frigate login. Do not use
   `http://frigate.frigate.svc.cluster.local:8971`: Frigate serves HTTPS on port 8971,

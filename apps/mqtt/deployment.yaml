@@ -33,11 +33,14 @@ spec:
               rm -f /mosquitto/passwd/passwords
               mosquitto_passwd -c -b /mosquitto/passwd/passwords "$MOSQUITTO_FRIGATE_USER" "$MOSQUITTO_FRIGATE_PASSWORD"
               mosquitto_passwd -b /mosquitto/passwd/passwords "$MOSQUITTO_HOME_ASSISTANT_USER" "$MOSQUITTO_HOME_ASSISTANT_PASSWORD"
+              mosquitto_passwd -b /mosquitto/passwd/passwords "$MOSQUITTO_ZIGBEE2MQTT_USER" "$MOSQUITTO_ZIGBEE2MQTT_PASSWORD"
               chown 1883:1883 /mosquitto/passwd/passwords
               chmod 0640 /mosquitto/passwd/passwords
           envFrom:
             - secretRef:
                 name: mosquitto-auth
+            - secretRef:
+                name: zigbee2mqtt-auth
           securityContext:
             runAsUser: 0
             runAsGroup: 0

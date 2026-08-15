@@ -4,7 +4,7 @@ Scripts for [build-plan.md Phase 4](../../docs/build-plan.md#phase-4--core-workl
 
 This directory starts with the Phase 4 media apps: the media download stack
 (Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr), Plex, Seerr, RomM,
-Frigate, and Home Assistant.
+Frigate, Home Assistant, and Zigbee2MQTT.
 
 ## Prerequisites
 
@@ -23,7 +23,8 @@ Frigate, and Home Assistant.
 - On the original build, Home Assistant starts as a fresh install. On a rebuild,
   restore its state and managed backup artifacts with the rest of `/opt` before apps
   resume. Z-Wave JS UI connects to the network-attached SLZB-MRW10U; no USB stick is
-  mounted on `minis`.
+  mounted on `minis`. Zigbee2MQTT uses the same appliance's separate TI Zigbee radio
+  over `tcp://slzb-mrw10u.iot.matrix:7638`.
 
 ## Secret generation
 
@@ -162,6 +163,18 @@ then complete the UI-managed Home Assistant integration:
 The exact port-forward, security-key, WebSocket, and Home Assistant setup steps are
 in `apps/home-assistant/README.md`.
 
+For Zigbee2MQTT, first ensure the test ZHA integration has been deleted, reconcile
+the app and broker credential update, and run:
+
+```bash
+./runbooks/phase4/14-validate-zigbee2mqtt.sh
+```
+
+Open `https://zigbee2mqtt.worm.run` and authenticate with the frontend token from the
+SOPS-encrypted `apps/zigbee2mqtt/zigbee2mqtt-auth.sops.yaml` Secret. Enable joining
+only while pairing. Home Assistant uses its existing MQTT integration to discover
+paired devices automatically; do not add another Home Assistant integration.
+
 For MQTT and the Frigate/Home Assistant connection, first confirm a current Home
 Assistant backup and take the normal `/opt` btrfs snapshot. Then:
 
@@ -213,6 +226,8 @@ alone do not roll either Deployment.
   Frigate availability, HA entity registration, HTTPS API reachability, and a real
   `amcrest_105_50` person event with matching occupancy changes all passed. HA's
   authenticated API-managed backup/restore path had already passed Phase 5 validation.
+- Zigbee2MQTT: manifests and validation are present; live reconciliation, first
+  coordinator start, and device discovery remain to be validated.
 
 Remaining Phase 4 work is Frigate camera tuning (motion masks, zones, object filters,
 and retention).
