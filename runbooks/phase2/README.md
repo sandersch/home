@@ -22,6 +22,13 @@ that changes Kubernetes state belongs in git and is reconciled by Flux in Phase 
   `05-flux-bootstrap.sh`.
 - GitHub owner/repository/branch are `sandersch/home` on `main`, matching the build
   plan.
+- For a rebuild of this populated repo, restore the existing `age.key` from the
+  password manager. Do not generate a replacement key; it cannot decrypt the committed
+  SOPS Secrets.
+- Before `05-flux-bootstrap.sh`, add `spec.suspend: true` to both
+  `clusters/minis/apps.yaml` and `clusters/minis/monitoring.yaml`, then commit and push
+  that rebuild guard. Do this only after the old cluster is offline or after
+  deliberately accepting paused Flux reconciliation there.
 
 ## Order
 
@@ -32,10 +39,10 @@ after bootstrap has settled.
 |---|---|---|---|
 | `00-preflight.sh` | - | Read-only sanity checks for host, repo, and tool posture | no |
 | `01-install-k3s.sh` | 2.1 | Installs the canonical k3s server config, installs k3s with Traefik and servicelb disabled and node name `minis`, then copies kubeconfig to the runbook user's `~/.kube/config` as `0600` | install prompt; restart prompt when changing an active server |
-| `02-age-keypair.sh` | 2.2 | Creates or reuses `age.key`, prints public key, requires backup confirmation | backup prompt |
+| `02-age-keypair.sh` | 2.2 | Creates a key only for an initial build; on a rebuild, requires the restored `age.key` to match the committed SOPS recipient | backup prompt |
 | `03-sops-age-secret.sh` | 2.3 | Creates or validates `flux-system/sops-age` from `age.key` | no |
 | `04-sops-config.sh` | 2.4 | Writes `.sops.yaml` using the generated public key | overwrite prompt if needed |
-| `05-flux-bootstrap.sh` | 2.5 | Runs `flux bootstrap github` for the private repo | bootstrap prompt |
+| `05-flux-bootstrap.sh` | 2.5 | Verifies the committed apps/backup suspend guards, then runs `flux bootstrap github` for the private repo | bootstrap prompt |
 | `06-validate-bootstrap.sh` | - | Validates node readiness, Flux manifests, SOPS secret, and Flux health | no |
 
 ## Notes
@@ -48,13 +55,17 @@ after bootstrap has settled.
   retained indefinitely.
 - `.sops.yaml` contains only the public age recipient and is committed normally.
 - `run-all.sh` stops after `.sops.yaml` is written. Review, commit, and push the
-  repo changes before running `05-flux-bootstrap.sh` manually.
+  repo changes and the two rebuild suspend guards before running
+  `05-flux-bootstrap.sh` manually.
 - `05-flux-bootstrap.sh` requires the repo to be clean and up to date with its
   upstream. Commit and push `.sops.yaml` before running it; ignored `age.key` is
   allowed to remain local.
 - `flux bootstrap` owns `clusters/minis/flux-system`; do not hand-edit that subtree.
 - The existing Flux skeleton outside `flux-system` stays repo-owned and is reconciled
   after bootstrap.
-- Phase 3 is the first normal Flux-managed cluster infrastructure phase. Do not use
+- A suspended Flux Kustomization prevents new reconciliation; it does not stop
+  workloads that already exist. A fresh rebuild must show no app pods and no Restic
+  CronJobs before `/opt` is restored.
+- Phase 3 is the normal Flux-managed cluster infrastructure phase. Do not use
   imperative Helm installs for MetalLB, ingress-nginx, cert-manager, Tailscale, or
   TopoLVM.

@@ -8,18 +8,22 @@ Frigate, and Home Assistant.
 
 ## Prerequisites
 
-- Phase 3.5 validation has passed.
+- The app-state gate has passed: either the original Phase 3.5 migration was
+  validated, or the rebuild plan's full Restic `/opt` restore was validated while
+  `apps` and the backup slice remained suspended.
 - `/mnt/media` is mounted on `minis`.
-- `/opt/plex/config` contains the migrated Plex config from Phase 3.5, owned by
-  UID/GID `1000:1000`.
+- `/opt/plex/config` contains the selected migration/restore source, owned by UID/GID
+  `1000:1000`.
 - `/opt/radarr/config`, `/opt/sonarr/config`, and `/opt/prowlarr/config` contain the
-  migrated config from Phase 3.5.
+  selected migration/restore source.
 - `/mnt/games` is mounted on `minis` before reconciling RomM.
 - `/mnt/frigate` is mounted on `minis` before reconciling Frigate.
 - You have Mullvad WireGuard values from a device config.
 - You have the Frigate RTSP username and password for the camera at `192.168.105.50`.
-- Home Assistant starts as a fresh install. Z-Wave JS UI connects to the
-  network-attached SLZB-MRW10U; no USB stick is mounted on `minis`.
+- On the original build, Home Assistant starts as a fresh install. On a rebuild,
+  restore its state and managed backup artifacts with the rest of `/opt` before apps
+  resume. Z-Wave JS UI connects to the network-attached SLZB-MRW10U; no USB stick is
+  mounted on `minis`.
 
 ## Secret generation
 

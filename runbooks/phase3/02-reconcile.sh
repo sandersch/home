@@ -25,8 +25,14 @@ step "Reconcile infra configs"
 flux reconcile kustomization infra-configs --with-source
 kustomization_ready infra-configs 600s
 
-step "Reconcile empty apps target"
-flux reconcile kustomization apps --with-source
-kustomization_ready apps 180s
+step "Verify or reconcile workload targets"
+if kustomization_is_suspended apps; then
+  require_kustomization_suspended apps
+  require_kustomization_suspended monitoring
+  ok "leaving stateful workloads and backup schedules unreconciled until restore"
+else
+  flux reconcile kustomization apps --with-source
+  kustomization_ready apps 180s
+fi
 
 ok "Phase 3 reconcile complete"

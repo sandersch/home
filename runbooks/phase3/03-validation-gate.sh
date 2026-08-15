@@ -17,7 +17,13 @@ kustomization_ready flux-system 180s
 kustomization_ready infra-controllers 300s
 kustomization_ready intel-gpu-plugin 300s
 kustomization_ready infra-configs 300s
-kustomization_ready apps 180s
+if kustomization_is_suspended apps; then
+  require_kustomization_suspended apps
+  require_kustomization_suspended monitoring
+  ok "rebuild guard is intact; restore app state before resuming apps"
+else
+  kustomization_ready apps 180s
+fi
 flux get helmreleases -A
 
 step "Controller CRDs"

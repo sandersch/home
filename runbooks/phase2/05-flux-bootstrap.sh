@@ -17,6 +17,8 @@ kubectl -n flux-system get secret sops-age >/dev/null \
   || die "missing flux-system/sops-age; run 03-sops-age-secret.sh first"
 assert_phase2_cluster_skeleton
 assert_flux_system_absent_or_owned
+step "Verify rebuild reconciliation guards"
+assert_rebuild_targets_suspended_in_git
 git -C "$REPO_ROOT" fetch --prune
 assert_git_clean_for_bootstrap
 
@@ -27,7 +29,9 @@ This will run:
     --branch=main --path=clusters/minis --personal --private
 
 It may create/modify clusters/minis/flux-system, create a deploy key, commit Flux
-manifests, and start reconciliation from the private GitHub repository.
+manifests, and start reconciliation from the private GitHub repository. The committed
+apps and monitoring backup Kustomizations are suspended so stateful workloads and
+backup schedules cannot start before the restore gate.
 EOF
 confirm "Bootstrap Flux now?" || die "aborted"
 

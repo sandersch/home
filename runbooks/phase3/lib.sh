@@ -64,3 +64,16 @@ kustomization_ready() {
     --for=condition=Ready --timeout="$timeout"
   ok "Flux Kustomization $name is Ready"
 }
+
+kustomization_is_suspended() {
+  local name="$1"
+  [ "$(kubectl -n flux-system get kustomization "$name" \
+    -o jsonpath='{.spec.suspend}' 2>/dev/null || true)" = "true" ]
+}
+
+require_kustomization_suspended() {
+  local name="$1"
+  kustomization_is_suspended "$name" \
+    || die "Flux Kustomization $name must remain suspended until app state is restored"
+  ok "Flux Kustomization $name is suspended for rebuild"
+}

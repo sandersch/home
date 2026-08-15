@@ -36,7 +36,8 @@ assert_phase2_cluster_skeleton() {
     clusters/minis/kustomization.yaml \
     clusters/minis/infra-controllers.yaml \
     clusters/minis/infra-configs.yaml \
-    clusters/minis/apps.yaml; do
+    clusters/minis/apps.yaml \
+    clusters/minis/monitoring.yaml; do
     if [ -f "$REPO_ROOT/$f" ]; then
       ok "$f present"
     else
@@ -45,6 +46,28 @@ assert_phase2_cluster_skeleton() {
     fi
   done
   [ "$missing" -eq 0 ] || die "Flux cluster skeleton is incomplete"
+}
+
+git_kustomization_is_suspended() {
+  local file="$1"
+  sed -n '/^spec:$/,/^[^[:space:]]/p' "$file" \
+    | grep -Eq '^  suspend:[[:space:]]+true([[:space:]]*(#.*)?)?$'
+}
+
+assert_rebuild_targets_suspended_in_git() {
+  local relative file missing=0
+  for relative in clusters/minis/apps.yaml clusters/minis/monitoring.yaml; do
+    file="$REPO_ROOT/$relative"
+    if git_kustomization_is_suspended "$file"; then
+      ok "$relative has spec.suspend: true"
+    else
+      warn "$relative is active"
+      missing=1
+    fi
+  done
+
+  [ "$missing" -eq 0 ] || die \
+    "add spec.suspend: true to apps and monitoring, commit and push the rebuild guard, then retry"
 }
 
 assert_flux_system_absent_or_owned() {

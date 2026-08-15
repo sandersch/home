@@ -19,11 +19,116 @@ manifests:
 |---|---|---|
 | 0 — OS baseline | Host config and runbooks are present under `host/minis/` and `runbooks/phase0/`. | Manual BIOS/installer choices, router wildcard DNS, and any live-host revalidation after changes. |
 | 1 — networking isolation | Host nftables, dnsmasq, chrony, sysctl config, Catalyst checklist, and validation runbooks are present. Host forwarding isolation, DHCP-only dnsmasq, and the deployed camera path were live-validated during Phase 4; the Amcrest camera is pinned at `192.168.105.50`. | Add a reservation and repeat the camera-specific checks whenever another camera is provisioned; keep Catalyst/live config in sync. |
-| 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. | Live bootstrap health checks when rebuilding or changing credentials. |
+| 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. The bootstrap helper enforces the rebuild reconciliation guards described below. | Live bootstrap health checks when rebuilding or changing credentials. |
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
-| 3.5 — data migration | Stopped-host archive copy runbooks are present; final copy validation and the quiesced cutover passed. | Re-run only for a future migration or rebuild. |
+| 3.5 — data migration | Stopped-host archive copy runbooks are present; final copy validation and the quiesced cutover passed. | Historical migration path only. A current-state rebuild restores `/opt` from Restic as described below. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, and MQTT manifests plus validation/secret helper runbooks are present. All are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Tune Frigate cameras. |
 | 5 — observability + expansion | Direct-array and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. Post-cutover backup/restore and observation gates passed on 2026-08-13. The standard-tier media resource tuning slice was deployed on 2026-08-13. | Close the media tuning gate after seven complete days of healthy audit data. Validate the new mdcheck cap during the next attended check, then tune Frigate before optional phase-two logs or deferred apps. |
+
+## Fresh rebuild and disaster recovery
+
+**Required order: suspend → restore → resume.**
+
+The numbered phases preserve the original build history, but the repository now contains
+live workload manifests. A fresh `flux bootstrap` starts reconciliation immediately;
+bootstrapping the populated `main` branch without a guard can create stateful pods on an
+empty `/opt` before application state is restored. Use this sequence for every rebuild.
+
+### 1. Suspend in git before bootstrap
+
+Restore the existing `age.key` from the password manager; do **not** generate a new key
+for a repo whose SOPS files are already encrypted. The Phase 2 helper now rejects a
+missing or mismatched rebuild key.
+
+After the old cluster is offline, or after deliberately accepting that its Flux
+reconciliation will pause, add this temporary field to both
+`clusters/minis/apps.yaml` and `clusters/minis/monitoring.yaml`:
+
+```yaml
+spec:
+  suspend: true  # temporary rebuild guard
+```
+
+Commit and push that guard to `main` **before** running `flux bootstrap`. The first
+target blocks creation of all application workloads that use `/opt`; the second blocks
+the legacy-named monitoring slice that owns the local and B2 Restic CronJobs. The
+observability base/controllers/configs may reconcile because their persistent state is
+throwaway TopoLVM scratch rather than restored `/opt` state.
+
+`runbooks/phase2/05-flux-bootstrap.sh` enforces both committed guards. Do not rely on an
+imperative `flux suspend` issued after bootstrap: reconciliation has already started by
+then, so it leaves a race in which workloads can create or modify state.
+
+### 2. Rebuild and validate infrastructure while workloads remain suspended
+
+Run Phases 0-3. The Phase 3 reconcile and validation helpers accept `apps` as suspended
+only when `monitoring` is suspended too. Confirm the live objects before restoring:
+
+```bash
+kubectl -n flux-system get kustomization apps monitoring \
+  -o 'custom-columns=NAME:.metadata.name,SUSPENDED:.spec.suspend,READY:.status.conditions[-1].status'
+kubectl get pods,cronjobs -A
+```
+
+Both Kustomizations must show `SUSPENDED=true`, and a fresh cluster must have no app
+pods and no `restic-nas-backup` or `restic-b2-backup` CronJobs. Flux suspension stops
+future reconciliation; it does **not** stop pods, Jobs, or CronJobs that already exist.
+If this is a partial rebuild and any stateful workload or backup schedule already
+exists, quiesce it and prove no backup Job is active before touching `/opt`.
+
+### 3. Restore and validate state
+
+First prove `/opt` is the expected btrfs LV and all direct-array mounts have the exact
+devices/filesystems required by Phase 0; never restore into an unmounted directory on
+the root filesystem. For a current-state rebuild, use the newest suitable validated
+Restic snapshot from the direct backup LV, or B2 if the local repository is unavailable.
+The historical Phase 3.5 archive copy is only for an intentional recovery from that old,
+quiesced migration source.
+
+Restore the snapshot's complete `/data/opt` tree to a staging directory outside `/opt`,
+validate the restored files and database/hot-backup artifacts, then copy the staged
+tree to `/opt` with ownership, ACLs, xattrs, hard links, and numeric IDs preserved. Use
+the snapshot's `/work/hot-dumps` SQLite and RomM logical backups, plus the Home Assistant
+managed backup artifact, wherever an application-level recovery is required. Keep every
+application stopped throughout this gate.
+
+The Phase 5 `05-validate-restore.sh` and `09-validate-b2-restore.sh` scripts are
+representative restore drills into temporary volumes; they do **not** restore `/opt` and
+are not substitutes for this full-state step. Before resuming, record the selected
+snapshot ID and verify at minimum:
+
+- `/opt` is still mounted from `/dev/vg0/opt`, not the root filesystem;
+- expected app directories and ownership are present;
+- restored SQLite/hot-backup integrity checks pass; and
+- no application pod or Restic backup Job is running.
+
+### 4. Resume in two commits
+
+Remove `spec.suspend: true` from `clusters/minis/apps.yaml` only, commit and push, then
+apply the git state and validate all Phase 4 workloads against the restored data:
+
+```bash
+flux reconcile kustomization flux-system --with-source
+flux reconcile kustomization apps
+./runbooks/phase4/00-preflight.sh
+# Run the applicable Phase 4 validation helpers before continuing.
+```
+
+Only after application validation passes, remove `spec.suspend: true` from
+`clusters/minis/monitoring.yaml` in a second commit, push, and reconcile it:
+
+```bash
+flux reconcile kustomization flux-system --with-source
+flux reconcile kustomization monitoring
+./runbooks/phase5/00-preflight.sh
+./runbooks/phase5/04-run-manual-backup.sh
+./runbooks/phase5/05-validate-restore.sh
+./runbooks/phase5/08-run-manual-b2-backup.sh
+./runbooks/phase5/09-validate-b2-restore.sh
+```
+
+Resume through git rather than `flux resume`; otherwise the committed
+`spec.suspend: true` remains authoritative and Flux can reapply it.
 
 ## Direct-attached bulk storage migration (completed 2026-08-13)
 
@@ -403,6 +508,11 @@ This phase is intentionally small. The only imperative cluster writes are the k3
 install, the `flux-system/sops-age` Secret, and `flux bootstrap`. Everything else
 that changes Kubernetes state is reconciled by Flux from git in Phase 3.
 
+On a rebuild, restore the existing age private key and complete the
+[suspend guard](#1-suspend-in-git-before-bootstrap) before step 2.5. The repo is no
+longer an empty scaffold, so this is a required safety gate rather than optional
+maintenance posture.
+
 **2.1 Install k3s.**
 ```bash
 sudo install -D -o root -g root -m 600 \
@@ -454,7 +564,9 @@ flux version --client
 **2.5 Bootstrap Flux** (creates the repo if absent — **private** by default — commits
 Flux manifests, generates a deploy key, and starts reconciling). `--private` is the
 default for `flux bootstrap github`; it's passed explicitly here so the intent is
-obvious and a future edit can't silently flip it to public:
+obvious and a future edit can't silently flip it to public. For this populated repo,
+both `apps` and the `monitoring` backup slice must already have committed
+`spec.suspend: true`; the executable helper refuses to bootstrap without them:
 ```bash
 flux bootstrap github \
   --owner=sandersch --repository=home \
@@ -465,9 +577,11 @@ flux bootstrap github \
 
 ## Phase 3 — GitOps-managed cluster infrastructure ⚙️
 
-Phase 3 is the first normal Flux commit after bootstrap. Do not install controllers
-with imperative Helm commands and then convert them later; commit the desired state
-directly as Flux `HelmRepository`, `HelmRelease`, and Kubernetes manifests.
+Phase 3 reconciles cluster infrastructure after bootstrap. On the original build it
+was the first normal Flux commit; on a rebuild, the infrastructure is already in git
+and `apps` plus the backup slice remain suspended through the restore gate. Do not
+install controllers with imperative Helm commands; Flux owns the desired state as
+`HelmRepository`, `HelmRelease`, and Kubernetes manifests.
 
 **3.1 Commit the ordered Flux skeleton** — see
 [structure in AGENTS.md](../AGENTS.md#repository-structure):
@@ -555,8 +669,10 @@ Do **not** deploy or cut over Phase 3.5/4 workloads on the live cluster until al
 these are green:
 
 - [ ] `kubectl get nodes` → `minis Ready`
-- [ ] `flux get kustomizations` → `flux-system`, `infra-controllers`,
-      `infra-configs`, and `apps` Reconciled
+- [ ] `flux get kustomizations` → `flux-system`, `infra-controllers`, and
+      `infra-configs` Reconciled. On the original/live path, `apps` is Reconciled;
+      on a rebuild, `apps` and `monitoring` both remain suspended until `/opt` is
+      restored and validated
 - [ ] `flux get helmreleases -A` → MetalLB, ingress-nginx, cert-manager, Tailscale
       operator, and TopoLVM Ready
 - [ ] `flux get kustomization intel-gpu-plugin -n flux-system` → Ready, and
@@ -588,7 +704,13 @@ top.
 
 ## Phase 3.5 — app data migration 🔧
 
-This phase is only the pre-work copy after the validation gate. Copy existing
+This is the historical migration path, not the normal recovery source for a current
+rebuild. A current rebuild follows
+[suspend → Restic restore → ordered resume](#fresh-rebuild-and-disaster-recovery)
+instead.
+
+For an intentional recovery from the old stopped-host archive, this phase is only the
+pre-work copy after the validation gate. Copy existing
 Plex/Radarr/Sonarr/Prowlarr state from the old stack to `/opt/...` on `minis` while
 the old stack continues serving. The migrated workloads are deployed in Phase 4 using
 this copied data; cutover does not happen here.

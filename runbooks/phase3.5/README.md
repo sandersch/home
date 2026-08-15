@@ -3,6 +3,10 @@
 Scripts for [build-plan.md Phase 3.5](../../docs/build-plan.md#phase-35--app-data-migration-).
 Run them on `minis` after the Phase 3 validation gate is complete.
 
+This is the original stopped-host archive migration path. A current-state rebuild must
+use the build plan's Restic suspend/restore/resume sequence instead; do not overwrite a
+newer Restic recovery with this historical archive.
+
 The old hosts are stopped, and their container config directories are available at
 `/mnt/media/to_archive/config` on the bulk array. This phase copies that stopped-host state
 to local NVMe under `/opt`. It does not deploy workloads or change Kubernetes state.

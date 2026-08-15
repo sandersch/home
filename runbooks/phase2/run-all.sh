@@ -29,8 +29,10 @@ step "Phase 2 prerequisites complete"
 cat <<'EOF'
 Before bootstrapping Flux:
   1. Review the repo changes, including .sops.yaml and these runbook scripts.
-  2. Commit and push the changes to the tracked upstream branch.
-  3. Confirm age.key remains ignored and uncommitted.
+  2. For a rebuild, add spec.suspend: true to clusters/minis/apps.yaml and
+     clusters/minis/monitoring.yaml.
+  3. Commit and push the changes to the tracked upstream branch.
+  4. Confirm age.key remains ignored and uncommitted.
 
 Then run:
   ./05-flux-bootstrap.sh
@@ -38,5 +40,6 @@ Then run:
 
 Next phase:
   - Commit and reconcile GitOps-managed infrastructure controllers/configs.
+  - Keep apps and monitoring backups suspended until /opt is restored and validated.
   - Do not install controllers imperatively with Helm.
 EOF
