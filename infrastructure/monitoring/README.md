@@ -28,9 +28,11 @@ Committed now:
 
 The B2 repository initialization, manual backup, repository check, and local-volume-independent
 restore validation passed on 2026-07-18. The nightly local and first naturally scheduled
-weekly B2 backups both completed successfully on 2026-07-19. Those results predate
-required-export contract version 1; fresh local and B2 validation of the stricter
-contract is pending. Both encrypted Secrets are included and both CronJobs are enabled.
+weekly B2 backups both completed successfully on 2026-07-19. Required-export contract
+version 1 passed fresh local and B2 backup/restore validation on 2026-08-16: all eight
+mandatory SQLite exports and the Home Assistant archive validated, and the RomM dump
+imported as 22 healthy tables in each restore drill. Both encrypted Secrets are included
+and both CronJobs are enabled.
 The observability stack passed live validation
 on 2026-07-20: Flux and Helm were ready, all scrape targets and blackbox probes were
 healthy, Grafana worked through its HTTPS ingress, the rules loaded without errors,

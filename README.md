@@ -16,8 +16,8 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
   Radarr/Sonarr/Prowlarr/SABnzbd/qBittorrent behind Mullvad/Gluetun, Seerr, RomM,
   Home Assistant, and Mosquitto
 - **Backups:** nightly direct-array Restic plus an independent weekly Backblaze B2 copy;
-  validation passed under the preceding workflow, and fresh validation of the stricter
-  required-export contract is pending
+  required-export contract version 1 passed fresh local and B2 backup/restore drills
+  on 2026-08-16
 - **Next:** post-cutover observation, resource and Frigate tuning, optional Loki/Alloy
   logs, and deferred apps
 

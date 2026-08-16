@@ -851,7 +851,10 @@ broker traffic, Frigate availability, entity registration, and a real person eve
   backups to `/mnt/backups/opt` plus an independent weekly Backblaze B2 repository.
   The initial B2 backup, repository check, and local-volume-free restore drill passed on
   2026-07-18. The nightly local and first naturally scheduled weekly B2 runs both
-  completed successfully on 2026-07-19. Design and operating notes are in
+  completed successfully on 2026-07-19. Required-export contract version 1 then passed
+  fresh attended local and B2 backup/restore drills on 2026-08-16, covering all eight
+  mandatory SQLite exports, the Home Assistant archive, and a 22-table RomM import.
+  Design and operating notes are in
   [operations.md](./operations.md#backups).
 - **Immich (later)** — coordinate the initial import during a quiet window and watch
   memory (its ML container is the one big consumer). Originals on the direct bulk array; thumbs/ML on

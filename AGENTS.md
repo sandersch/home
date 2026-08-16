@@ -18,10 +18,10 @@ bootstrap output exists under
 [`clusters/minis/flux-system`](./clusters/minis/flux-system), infrastructure
 controllers/configs are committed, and manifests exist for the media stack, Frigate,
 Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
-integration have passed live validation; both Restic backup repositories have also
-passed backup/restore drills under the preceding workflow. The stricter version 1
-required-export contract is implemented in git but still needs fresh local and B2
-backup/restore validation. The initial observability stack (Prometheus, Grafana,
+integration have passed live validation. The stricter Restic required-export contract
+version 1 passed fresh local and B2 backup/restore drills on 2026-08-16, including all
+eight required SQLite exports, a readable Home Assistant archive, and a successful
+22-table RomM import/check. The initial observability stack (Prometheus, Grafana,
 Alertmanager, blackbox probes, Flux metrics, rules, and external dead-man routing)
 passed live validation on 2026-07-20, including a healthy Dead Man's Snitch check.
 Hosted Pushover routing also passed live validation on 2026-07-20 with synthetic
