@@ -10,6 +10,16 @@ data:
   RESTIC_KEEP_DAILY: "14"
   RESTIC_KEEP_WEEKLY: "8"
   RESTIC_KEEP_MONTHLY: "12"
+  BACKUP_CONTRACT_VERSION: "1"
+  REQUIRED_SQLITE_DATABASES: |-
+    plex/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.db
+    plex/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.blobs.db
+    frigate/config/frigate.db
+    home-assistant/config/home-assistant_v2.db
+    prowlarr/config/prowlarr.db
+    radarr/config/radarr.db
+    sonarr/config/sonarr.db
+    seerr/config/db/db.sqlite3
   HOME_ASSISTANT_URL: http://home-assistant.home-assistant.svc.cluster.local:8123
   HOME_ASSISTANT_BACKUP_DOMAIN: backup
   HOME_ASSISTANT_BACKUP_SERVICE: create_automatic
@@ -30,20 +40,45 @@ data:
       done
     }
 
-    require_env RESTIC_REPOSITORY RESTIC_PASSWORD RESTIC_HOST HOME_ASSISTANT_TOKEN ROMM_DB_PASSWORD
+    require_env \
+      RESTIC_REPOSITORY \
+      RESTIC_PASSWORD \
+      RESTIC_HOST \
+      BACKUP_CONTRACT_VERSION \
+      REQUIRED_SQLITE_DATABASES \
+      HOME_ASSISTANT_TOKEN \
+      ROMM_DB_PASSWORD
 
+    BACKUP_STARTED_EPOCH="$(date +%s)"
     WORK_DIR="${BACKUP_WORK_DIR:-/work}"
     HOT_DUMPS="$WORK_DIR/hot-dumps"
     SQLITE_DUMPS="$HOT_DUMPS/sqlite"
+    HA_DUMPS="$HOT_DUMPS/home-assistant"
     ROMM_DUMPS="$HOT_DUMPS/romm"
     HA_BACKUPS_BEFORE="$WORK_DIR/home-assistant-backups-before"
     HA_BACKUPS_AFTER="$WORK_DIR/home-assistant-backups-after"
-    mkdir -p "$SQLITE_DUMPS" "$ROMM_DUMPS" "$WORK_DIR/restic-cache"
+    if [ -d "$HOT_DUMPS" ] \
+      && [ -n "$(find "$HOT_DUMPS" -mindepth 1 -print -quit)" ]; then
+      die "$HOT_DUMPS is not empty; refusing to reuse exports from an earlier attempt"
+    fi
+    mkdir -p "$SQLITE_DUMPS" "$HA_DUMPS" "$ROMM_DUMPS" "$WORK_DIR/restic-cache"
     export RESTIC_CACHE_DIR="$WORK_DIR/restic-cache"
+
+    assert_fresh_file() {
+      local path="$1" label="$2" modified
+      [ -s "$path" ] || die "$label is missing or empty: $path"
+      modified="$(stat -c '%Y' "$path")"
+      [ "$modified" -ge "$BACKUP_STARTED_EPOCH" ] \
+        || die "$label predates this backup attempt: $path"
+    }
+
+    required_sqlite_databases() {
+      printf '%s\n' "$REQUIRED_SQLITE_DATABASES" | sed '/^[[:space:]]*$/d'
+    }
 
     dump_sqlite() {
       log "creating SQLite hot backups from /data/opt"
-      local db rel out escaped count err
+      local db rel out escaped count err required_count source
       count=0
       while IFS= read -r -d '' db; do
         err="$WORK_DIR/sqlite-error"
@@ -64,10 +99,20 @@ data:
       done < <(find /data/opt \
         -path /data/opt/.snapshots -prune -o \
         -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -print0)
-      local required_seerr="$SQLITE_DUMPS/seerr/config/db/db.sqlite3.sqlite-backup"
-      [ -s "$required_seerr" ] \
-        || die "required Seerr SQLite hot backup was not created: $required_seerr"
-      log "created $count SQLite backup file(s)"
+      required_count=0
+      while IFS= read -r rel; do
+        source="/data/opt/$rel"
+        out="$SQLITE_DUMPS/${rel}.sqlite-backup"
+        [ -s "$source" ] || die "required SQLite source is missing or empty: $source"
+        assert_fresh_file "$out" "required SQLite hot backup"
+        err="$WORK_DIR/sqlite-required-error"
+        if ! sqlite_backup_health_check "$source" "$out" "$err"; then
+          die "required SQLite hot backup failed validation: $rel: $(sqlite_error_summary "$err")"
+        fi
+        required_count=$((required_count + 1))
+      done < <(required_sqlite_databases)
+      [ "$required_count" -gt 0 ] || die "required SQLite inventory is empty"
+      log "created $count SQLite backup file(s); validated $required_count required export(s)"
     }
 
     sqlite_backup_health_check() {
@@ -103,7 +148,8 @@ data:
       local backup_dir="/data/opt/home-assistant/config/backups"
       snapshot_home_assistant_backups "$backup_dir" "$HA_BACKUPS_BEFORE"
       local response_file="/tmp/home-assistant-backup-response.json"
-      local status
+      local status backup
+      local -a new_backups=()
       status="$(curl -sS \
         -o "$response_file" \
         -w '%{http_code}' \
@@ -120,8 +166,24 @@ data:
 
       for _ in $(seq 1 60); do
         snapshot_home_assistant_backups "$backup_dir" "$HA_BACKUPS_AFTER"
-        if home_assistant_backup_set_has_new_file "$HA_BACKUPS_BEFORE" "$HA_BACKUPS_AFTER"; then
-          log "Home Assistant backup artifact appeared"
+        mapfile -t new_backups < <(
+          home_assistant_new_backup_files "$HA_BACKUPS_BEFORE" "$HA_BACKUPS_AFTER"
+        )
+        if [ "${#new_backups[@]}" -gt 0 ]; then
+          [ "${#new_backups[@]}" -eq 1 ] \
+            || die "Home Assistant created ${#new_backups[@]} new backup artifacts; expected exactly one"
+          backup="${new_backups[0]}"
+          case "$backup" in
+            *.tar) ;;
+            *) die "Home Assistant backup artifact is not a .tar archive: $backup" ;;
+          esac
+          assert_fresh_file "$backup" "Home Assistant managed backup"
+          tar -tf "$backup" >/dev/null \
+            || die "Home Assistant managed backup is not a readable tar archive: $backup"
+          cp -- "$backup" "$HA_DUMPS/home-assistant.tar"
+          assert_fresh_file "$HA_DUMPS/home-assistant.tar" \
+            "canonical Home Assistant managed backup"
+          log "Home Assistant backup artifact appeared and passed archive validation"
           return 0
         fi
         sleep 10
@@ -137,30 +199,53 @@ data:
       fi
     }
 
-    home_assistant_backup_set_has_new_file() {
+    home_assistant_new_backup_files() {
       local before="$1" after="$2"
       # Compare names instead of mtimes. BusyBox find compares -newer at
       # whole-second precision and can miss an archive created in the same
       # second as a timestamp marker.
       awk '
         FILENAME == ARGV[1] { before[$0] = 1; next }
-        !($0 in before) { found = 1 }
-        END { exit(found ? 0 : 1) }
+        !($0 in before) { print }
       ' "$before" "$after"
     }
 
     dump_romm() {
       log "dumping RomM MariaDB"
-      mariadb-dump \
+      local dump="$ROMM_DUMPS/romm.sql" tmp="$ROMM_DUMPS/romm.sql.tmp"
+      MYSQL_PWD="$ROMM_DB_PASSWORD" mariadb-check \
         --protocol=tcp \
         -h "${ROMM_DB_HOST:-romm-mariadb.media.svc.cluster.local}" \
         -P "${ROMM_DB_PORT:-3306}" \
         -u "${ROMM_DB_USER:-romm}" \
-        "-p$ROMM_DB_PASSWORD" \
+        --check \
+        --databases "${ROMM_DB_NAME:-romm}"
+      MYSQL_PWD="$ROMM_DB_PASSWORD" mariadb-dump \
+        --protocol=tcp \
+        -h "${ROMM_DB_HOST:-romm-mariadb.media.svc.cluster.local}" \
+        -P "${ROMM_DB_PORT:-3306}" \
+        -u "${ROMM_DB_USER:-romm}" \
         --single-transaction \
         --quick \
         --databases "${ROMM_DB_NAME:-romm}" \
-        >"$ROMM_DUMPS/romm.sql"
+        >"$tmp"
+      assert_fresh_file "$tmp" "RomM logical dump"
+      grep -Eq '^CREATE TABLE ' "$tmp" \
+        || die "RomM logical dump contains no CREATE TABLE statements"
+      mv -- "$tmp" "$dump"
+      assert_fresh_file "$dump" "RomM logical dump"
+    }
+
+    write_backup_contract() {
+      local contract="$HOT_DUMPS/contract-version"
+      local inventory="$HOT_DUMPS/required-sqlite-databases.txt"
+      local created_at="$HOT_DUMPS/export-created-at"
+      printf '%s\n' "$BACKUP_CONTRACT_VERSION" >"$contract"
+      printf '%s\n' "$REQUIRED_SQLITE_DATABASES" >"$inventory"
+      date -u +%Y-%m-%dT%H:%M:%SZ >"$created_at"
+      assert_fresh_file "$contract" "backup contract marker"
+      assert_fresh_file "$inventory" "required SQLite inventory"
+      assert_fresh_file "$created_at" "export completion timestamp"
     }
 
     run_restic() {
@@ -195,5 +280,6 @@ data:
     dump_sqlite
     trigger_home_assistant_backup
     dump_romm
+    write_backup_contract
     run_restic
     log "backup complete"

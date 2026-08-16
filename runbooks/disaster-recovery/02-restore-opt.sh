@@ -8,7 +8,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 assert_recovery_preconditions
 require_recovery_snapshot
-require_tools df du rsync sqlite3 stat
+require_tools df du rsync sqlite3 stat tar
 assert_safe_stage_root
 assert_state_matches_selection
 
@@ -26,7 +26,6 @@ stage="$(recovery_stage_dir)"
 stage_opt="$stage/data/opt"
 hot_dumps="$stage/work/hot-dumps"
 sqlite_dumps="$hot_dumps/sqlite"
-romm_dump="$hot_dumps/romm/romm.sql"
 
 record_recovery_selection
 sudo install -d -o root -g root -m 0700 "$(dirname "$stage")"
@@ -160,13 +159,13 @@ for expected in \
 done
 sudo test ! -e "$stage_opt/romm/db/ibdata1" \
   || die "staging unexpectedly contains the live-captured RomM database"
-sudo test -s "$romm_dump" || die "selected snapshot has no RomM logical dump"
-sudo test -s "$sqlite_dumps/seerr/config/db/db.sqlite3.sqlite-backup" \
-  || die "selected snapshot predates transaction-safe Seerr backups; choose a snapshot created after this recovery runbook was deployed"
+assert_hot_dump_contract "$hot_dumps"
 ha_backup="$(sudo find "$stage_opt/home-assistant/config/backups" \
-  -maxdepth 1 -type f -size +0c -print -quit 2>/dev/null || true)"
+  -maxdepth 1 -type f -name '*.tar' -size +0c -print -quit 2>/dev/null || true)"
 [ -n "$ha_backup" ] || die "selected snapshot has no Home Assistant managed backup artifact"
-ok "staged tree contains core app state, RomM dump, and Home Assistant backup"
+sudo tar -tf "$ha_backup" >/dev/null \
+  || die "restored Home Assistant backup artifact is not a readable tar file: $ha_backup"
+ok "staged tree contains core app state and satisfies the required export contract"
 
 validate_sqlite() {
   local path="$1" relative="$2" result

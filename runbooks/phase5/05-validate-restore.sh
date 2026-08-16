@@ -31,24 +31,89 @@ spec:
             - /bin/bash
             - -ec
             - |
+              wait_for_mariadb() {
+                for _ in $(seq 1 120); do
+                  if mariadb --protocol=tcp --host=127.0.0.1 --user=root \
+                    --batch --skip-column-names --execute='SELECT 1' 2>/dev/null | grep -qx 1; then
+                    return 0
+                  fi
+                  sleep 2
+                done
+                echo 'temporary MariaDB did not become ready' >&2
+                return 1
+              }
+              stop_mariadb() {
+                mariadb-admin --protocol=tcp --host=127.0.0.1 --user=root shutdown >/dev/null 2>&1
+              }
+
               mkdir -p "$RESTIC_CACHE_DIR"
-              restic snapshots --host "$RESTIC_HOST"
+              wait_for_mariadb
+              trap 'stop_mariadb || true' EXIT
+
+              snapshots="$(restic snapshots --host "$RESTIC_HOST" --tag nas --json)"
+              snapshot_id="$(printf '%s' "$snapshots" | jq -er 'sort_by(.time) | last | .id')"
+              printf '%s' "$snapshots" | jq -e --arg id "$snapshot_id" '
+                first(.[] | select(.id == $id)) |
+                .hostname == "minis" and
+                (.tags | index("opt") != null) and
+                (.tags | index("nas") != null) and
+                (.paths | index("/data/opt") != null) and
+                (.paths | index("/work/hot-dumps") != null)
+              '
               restic check --read-data-subset=1/100
-              restic ls latest /data/opt >/tmp/restic-opt-ls.txt
+              restic ls "$snapshot_id" /data/opt >/tmp/restic-opt-ls.txt
               test -s /tmp/restic-opt-ls.txt
-              restic ls latest /work/hot-dumps >/tmp/restic-hot-dumps-ls.txt
+              restic ls "$snapshot_id" /work/hot-dumps >/tmp/restic-hot-dumps-ls.txt
               test -s /tmp/restic-hot-dumps-ls.txt
-              restic dump latest /work/hot-dumps/romm/romm.sql >/tmp/romm.sql
+
+              contract_version="$(restic dump "$snapshot_id" /work/hot-dumps/contract-version)"
+              test "$contract_version" = "$BACKUP_CONTRACT_VERSION"
+              restored_inventory="$(restic dump "$snapshot_id" /work/hot-dumps/required-sqlite-databases.txt)"
+              expected_inventory="$(printf '%s\n' "$REQUIRED_SQLITE_DATABASES" | sed '/^[[:space:]]*$/d')"
+              test "$restored_inventory" = "$expected_inventory"
+              created_at="$(restic dump "$snapshot_id" /work/hot-dumps/export-created-at)"
+              [[ "$created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
+
+              required_count=0
+              while IFS= read -r rel; do
+                test -n "$rel" || continue
+                path="/work/hot-dumps/sqlite/${rel}.sqlite-backup"
+                output="/tmp/required-${required_count}.sqlite"
+                restic dump "$snapshot_id" "$path" >"$output"
+                test -s "$output"
+                case "$rel" in
+                  plex/config/Library/Application\ Support/Plex\ Media\ Server/Plug-in\ Support/Databases/com.plexapp.plugins.library*.db)
+                    sqlite3 -readonly "$output" \
+                      'PRAGMA schema_version; SELECT count(*) FROM sqlite_master;' >/dev/null
+                    ;;
+                  *)
+                    sqlite3 -readonly "$output" 'PRAGMA integrity_check;' | grep -qx ok
+                    ;;
+                esac
+                required_count=$((required_count + 1))
+              done <<EOF
+              $REQUIRED_SQLITE_DATABASES
+              EOF
+              test "$required_count" -gt 0
+
+              restic dump "$snapshot_id" /work/hot-dumps/home-assistant/home-assistant.tar \
+                >/tmp/home-assistant.tar
+              test -s /tmp/home-assistant.tar
+              tar -tf /tmp/home-assistant.tar >/dev/null
+
+              restic dump "$snapshot_id" /work/hot-dumps/romm/romm.sql >/tmp/romm.sql
               test -s /tmp/romm.sql
-              sqlite_path="$(restic find --json '*.sqlite-backup' | jq -r '.[].matches[]?.path' | head -1)"
-              test -n "$sqlite_path"
-              restic dump latest "$sqlite_path" >/tmp/sample.sqlite
-              sqlite3 /tmp/sample.sqlite 'PRAGMA integrity_check;' | grep -qx ok
-              seerr_path=/work/hot-dumps/sqlite/seerr/config/db/db.sqlite3.sqlite-backup
-              restic dump latest "$seerr_path" >/tmp/seerr.sqlite3
-              sqlite3 -readonly /tmp/seerr.sqlite3 'PRAGMA integrity_check;' | grep -qx ok
-              restic ls latest /data/opt/home-assistant/config/backups >/tmp/home-assistant-backups.txt
-              test -s /tmp/home-assistant-backups.txt
+              grep -Eq '^CREATE TABLE ' /tmp/romm.sql
+              mariadb --protocol=tcp --host=127.0.0.1 --user=root </tmp/romm.sql
+              table_count="$(mariadb --protocol=tcp --host=127.0.0.1 --user=root \
+                --batch --skip-column-names \
+                --execute='SELECT COUNT(*) FROM information_schema.tables WHERE table_schema="romm"')"
+              test "$table_count" -gt 0
+              mariadb-check --protocol=tcp --host=127.0.0.1 --user=root --databases romm
+
+              stop_mariadb
+              trap - EXIT
+              echo "NAS snapshot $snapshot_id satisfies backup contract $contract_version with $required_count required SQLite exports and $table_count RomM tables"
           envFrom:
             - configMapRef:
                 name: restic-nas-config
@@ -72,12 +137,47 @@ spec:
               mountPath: /repo/nas
             - name: work
               mountPath: /work
+            - name: tmp
+              mountPath: /tmp
+        - name: mariadb
+          image: mariadb:11.4
+          command:
+            - /bin/bash
+            - -ec
+            - exec docker-entrypoint.sh mariadbd --bind-address=127.0.0.1
+          env:
+            - name: MARIADB_ALLOW_EMPTY_ROOT_PASSWORD
+              value: "1"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: mariadb-data
+              mountPath: /var/lib/mysql
+            - name: mariadb-run
+              mountPath: /run/mysqld
+            - name: mariadb-tmp
+              mountPath: /tmp
       volumes:
         - name: backups
           hostPath:
             path: /mnt/backups
             type: Directory
         - name: work
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: mariadb-data
+          emptyDir: {}
+        - name: mariadb-run
+          emptyDir: {}
+        - name: mariadb-tmp
           emptyDir: {}
 YAML
 

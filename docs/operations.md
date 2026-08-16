@@ -87,11 +87,11 @@ backing up `/opt`.
 | App | Treatment | Notes |
 |---|---|---|
 | Plex | `sqlite3 .backup` of both `library.db` + `library.blobs.db` | precious; days to rebuild; validate with schema reads because Plex can define a custom SQLite tokenizer |
-| Home Assistant | call its **REST API** `backup.create_automatic` (not raw sqlite3) | HA manages its own WAL |
-| Frigate | `sqlite3 .backup` | small; already in `/opt` scope |
-| Radarr/Sonarr/Prowlarr | `sqlite3 .backup` | low-risk but be consistent |
-| Seerr | `sqlite3 .backup` | lightweight; loss = re-sync/rescan |
-| RomM | `mariadb-dump` from the MariaDB sidecar | lightweight; loss = re-sync/rescan |
+| Home Assistant | `sqlite3 .backup` of `home-assistant_v2.db` plus REST API `backup.create_automatic` | require both a direct-restore DB and one new readable managed archive |
+| Frigate | `sqlite3 .backup` of `frigate.db` | required; small and quick to validate |
+| Radarr/Sonarr/Prowlarr | `sqlite3 .backup` of each primary application DB | all three are required; log DBs are optional |
+| Seerr | `sqlite3 .backup` of `db.sqlite3` | required |
+| RomM | `mariadb-check` followed by `mariadb-dump --single-transaction` | require a nonempty logical dump containing application tables |
 | SABnzbd | none | queue/history are throwaway |
 | qBittorrent | none | queue/history are throwaway; credentials live in password manager |
 
@@ -103,8 +103,21 @@ RomM's MariaDB sidecar is exposed only inside the cluster as
 `ROMM_DB_PASSWORD` must match the RomM Secret's `MARIADB_PASSWORD`; if a manual backup
 fails with MariaDB error 1045, rerun
 `runbooks/phase5/02-encrypt-restic-secret.sh` and reconcile `monitoring`.
-The shared backup script treats Seerr's `.sqlite3` hot backup as required and fails the
-Job instead of creating a full-recovery-ineligible snapshot when that backup is absent.
+Before Restic starts, the shared script enforces backup-contract version 1. Both Plex
+databases plus the primary Frigate, Home Assistant, Prowlarr, Radarr, Sonarr, and Seerr
+databases must exist, must have been exported during the current Job, and must pass
+their applicable SQLite validation. The new Home Assistant archive must pass `tar -tf`; RomM must pass
+`mariadb-check`, and its completed logical dump must contain tables. Missing, stale, or
+invalid required output aborts the Job before `restic backup`, so it cannot create a
+successful-looking but full-recovery-ineligible snapshot. Other discovered SQLite log,
+history, or cache databases remain optional best-effort additions.
+
+The snapshot carries the contract version, exact required SQLite inventory, and export
+completion timestamp. Local and B2 representative restore validation restores every
+required artifact, checks every required SQLite export, validates the Home Assistant
+archive, imports the RomM dump into a temporary MariaDB instance, and runs
+`mariadb-check`. Full disaster recovery rejects a snapshot whose contract version or
+inventory differs from the current required set before copying anything into `/opt`.
 
 ## Monitoring & alerting
 

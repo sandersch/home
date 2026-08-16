@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present; final copy validation and the quiesced cutover passed. | Historical migration path only. A current-state rebuild restores `/opt` from Restic as described below. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, MQTT, and Zigbee2MQTT manifests plus validation/secret helper runbooks are present. The pre-existing workloads are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. | Reconcile and live-validate Zigbee2MQTT, then tune Frigate cameras. |
-| 5 — observability + expansion | Direct-array and B2 backups are implemented and live-validated. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. Post-cutover backup/restore and observation gates passed on 2026-08-13. The standard-tier media resource tuning slice was deployed on 2026-08-13. | Close the media tuning gate after seven complete days of healthy audit data. Validate the new mdcheck cap during the next attended check, then tune Frigate before optional phase-two logs or deferred apps. |
+| 5 — observability + expansion | Direct-array and B2 backups passed live validation under the preceding workflow. Required-export contract version 1 is implemented in git and blocks snapshots missing validated Plex, Frigate, Prowlarr, Radarr, Sonarr, Seerr, Home Assistant, or RomM exports. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. Post-cutover backup/restore and observation gates passed on 2026-08-13. The standard-tier media resource tuning slice was deployed on 2026-08-13. | Reconcile and run fresh local and B2 backup/representative-restore validation for contract version 1. Close the media tuning gate after seven complete days of healthy audit data. Validate the new mdcheck cap during the next attended check, then tune Frigate before optional phase-two logs or deferred apps. |
 
 ## Fresh rebuild and disaster recovery
 
@@ -115,8 +115,12 @@ snapshot ID and verify at minimum:
 - no application pod or Restic backup Job is running.
 
 The backup job discovers SQLite databases with `.db`, `.sqlite`, and `.sqlite3`
-suffixes. Full recovery rejects snapshots that predate that expanded discovery because
-they do not contain a transaction-safe hot backup of Seerr's `db.sqlite3`.
+suffixes, but it has a stricter required contract: both Plex library databases and the
+primary Frigate, Home Assistant, Prowlarr, Radarr, Sonarr, and Seerr databases must
+have fresh, validated hot backups. A new validated Home Assistant managed archive and a checked
+RomM logical dump are also mandatory. Restic does not start if any required export
+fails. Full recovery rejects snapshots without the current contract version, exact
+required inventory, Home Assistant archive, or RomM dump before `/opt` activation.
 
 ### 4. Resume in two commits
 

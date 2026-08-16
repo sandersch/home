@@ -19,7 +19,9 @@ bootstrap output exists under
 controllers/configs are committed, and manifests exist for the media stack, Frigate,
 Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
 integration have passed live validation; both Restic backup repositories have also
-passed backup/restore drills. The initial observability stack (Prometheus, Grafana,
+passed backup/restore drills under the preceding workflow. The stricter version 1
+required-export contract is implemented in git but still needs fresh local and B2
+backup/restore validation. The initial observability stack (Prometheus, Grafana,
 Alertmanager, blackbox probes, Flux metrics, rules, and external dead-man routing)
 passed live validation on 2026-07-20, including a healthy Dead Man's Snitch check.
 Hosted Pushover routing also passed live validation on 2026-07-20 with synthetic

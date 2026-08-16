@@ -14,7 +14,11 @@ assert_state_matches_selection
 [ "$(state_value romm)" = complete ] || die "RomM logical database recovery is incomplete"
 
 stage="$(recovery_stage_dir)"
+hot_dumps="$stage/work/hot-dumps"
 sqlite_dumps="$stage/work/hot-dumps/sqlite"
+
+step "Validate required database export contract"
+assert_hot_dump_contract "$hot_dumps"
 
 step "Validate restored /opt application directories"
 for expected in \

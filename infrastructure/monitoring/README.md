@@ -22,12 +22,16 @@ Committed now:
 - Restic direct-array backup CronJob for `/opt` app state (the `restic-nas-*` object
   names are retained as stable legacy identifiers).
 - Enabled weekly Backblaze B2 CronJob for the independent offsite repository.
-- Backup script ConfigMap with SQLite, Home Assistant, and RomM hot-backup steps.
+- Backup script ConfigMap with a versioned required-export contract. It blocks Restic
+  unless the mandatory Plex, Frigate, Prowlarr, Radarr, Sonarr, Seerr, Home Assistant,
+  and RomM application-aware exports are fresh and valid.
 
 The B2 repository initialization, manual backup, repository check, and local-volume-independent
 restore validation passed on 2026-07-18. The nightly local and first naturally scheduled
-weekly B2 backups both completed successfully on 2026-07-19. Both encrypted Secrets are
-included and both CronJobs are enabled. The observability stack passed live validation
+weekly B2 backups both completed successfully on 2026-07-19. Those results predate
+required-export contract version 1; fresh local and B2 validation of the stricter
+contract is pending. Both encrypted Secrets are included and both CronJobs are enabled.
+The observability stack passed live validation
 on 2026-07-20: Flux and Helm were ready, all scrape targets and blackbox probes were
 healthy, Grafana worked through its HTTPS ingress, the rules loaded without errors,
 and the Alertmanager Watchdog route delivered successfully to a healthy Dead Man's

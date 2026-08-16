@@ -305,8 +305,18 @@ assert_phase5_backup_invariants() {
     .data.RESTIC_TARGET_TAG == "nas" and
     .data.RESTIC_KEEP_DAILY == "14" and
     .data.RESTIC_KEEP_WEEKLY == "8" and
-    .data.RESTIC_KEEP_MONTHLY == "12"' "$rendered" >/dev/null \
-    || die "local repository, legacy tag, or retention policy changed unexpectedly"
+    .data.RESTIC_KEEP_MONTHLY == "12" and
+    .data.BACKUP_CONTRACT_VERSION == "1" and
+    (.data.REQUIRED_SQLITE_DATABASES | split("\n") | length) == 8 and
+    (.data.REQUIRED_SQLITE_DATABASES | contains("com.plexapp.plugins.library.db")) and
+    (.data.REQUIRED_SQLITE_DATABASES | contains("com.plexapp.plugins.library.blobs.db")) and
+    (.data.REQUIRED_SQLITE_DATABASES | contains("frigate/config/frigate.db")) and
+    (.data.REQUIRED_SQLITE_DATABASES | contains("home-assistant/config/home-assistant_v2.db")) and
+    (.data.REQUIRED_SQLITE_DATABASES | contains("prowlarr/config/prowlarr.db")) and
+    (.data.REQUIRED_SQLITE_DATABASES | contains("radarr/config/radarr.db")) and
+    (.data.REQUIRED_SQLITE_DATABASES | contains("sonarr/config/sonarr.db")) and
+    (.data.REQUIRED_SQLITE_DATABASES | contains("seerr/config/db/db.sqlite3"))' "$rendered" >/dev/null \
+    || die "local repository, retention policy, or required export contract changed unexpectedly"
   yq -e 'select(.kind == "CronJob" and .metadata.name == "restic-nas-backup") |
     any(.spec.jobTemplate.spec.template.spec.volumes[];
       .name == "backups" and .hostPath.path == "/mnt/backups")' "$rendered" >/dev/null \
@@ -335,15 +345,35 @@ assert_phase5_backup_invariants() {
   if grep -Fq -- "-newer \"\$HA_MARKER\"" "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml"; then
     die "shared Restic backup script still uses timestamp-based Home Assistant artifact detection"
   fi
-  grep -Fq -- "home_assistant_backup_set_has_new_file \"\$HA_BACKUPS_BEFORE\" \"\$HA_BACKUPS_AFTER\"" \
+  grep -Fq -- "home_assistant_new_backup_files \"\$HA_BACKUPS_BEFORE\" \"\$HA_BACKUPS_AFTER\"" \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "shared Restic backup script does not compare Home Assistant backup filename sets"
   grep -Fq -- "-name '*.sqlite3'" \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "shared Restic backup script does not discover .sqlite3 databases"
-  grep -Fq -- 'required Seerr SQLite hot backup was not created' \
+  grep -Fq -- 'required SQLite hot backup failed validation' \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
-    || die "shared Restic backup script does not fail when the Seerr hot backup is missing"
+    || die "shared Restic backup script does not fail when a required SQLite export is invalid"
+  grep -Fq -- "assert_fresh_file \"\$out\" \"required SQLite hot backup\"" \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not enforce required SQLite export freshness"
+  grep -Fq -- 'mariadb-check' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not check RomM before its logical dump"
+  grep -Fq -- "tar -tf \"\$backup\"" \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not validate the new Home Assistant archive"
+  grep -Fq -- 'write_backup_contract' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not write the recovery contract"
+  for restore_script in \
+    runbooks/phase5/05-validate-restore.sh \
+    runbooks/phase5/09-validate-b2-restore.sh; do
+    grep -Fq -- 'REQUIRED_SQLITE_DATABASES' "$REPO_ROOT/$restore_script" \
+      || die "$restore_script does not validate the required SQLite inventory"
+    grep -Fq -- 'mariadb-check' "$REPO_ROOT/$restore_script" \
+      || die "$restore_script does not import and validate the RomM dump"
+  done
   grep -Fq -- '-path /data/opt/.snapshots -prune -o' \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "SQLite discovery does not prune the local btrfs snapshot tree"

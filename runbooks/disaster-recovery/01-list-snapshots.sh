@@ -5,12 +5,15 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 assert_recovery_preconditions
+require_tools base64
 if [ "$RECOVERY_SOURCE" = nas ]; then
   assert_direct_mount_layout /mnt/backups /dev/mapper/hoardvg-backuplv \
     cc1cedb8-ef22-44b5-b1d0-5ca020d72669
 fi
 
 apply_restic_recovery_secret
+contract_version="$(backup_contract_version)"
+required_sqlite_b64="$(required_sqlite_databases | base64 -w0)"
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
@@ -39,6 +42,31 @@ spec:
             - -ec
             - |
               mkdir -p "\$RESTIC_CACHE_DIR"
+              REQUIRED_SQLITE_DATABASES="\$(printf '%s' "\$REQUIRED_SQLITE_DATABASES_B64" | base64 -d)"
+              export REQUIRED_SQLITE_DATABASES
+              snapshot_satisfies_contract() {
+                local snapshot_id="\$1" actual_version actual_inventory relative path
+                actual_version="\$(restic --no-lock dump "\$snapshot_id" \
+                  /work/hot-dumps/contract-version 2>/dev/null)" || return 1
+                [ "\$actual_version" = "\$BACKUP_CONTRACT_VERSION" ] || return 1
+                actual_inventory="\$(restic --no-lock dump "\$snapshot_id" \
+                  /work/hot-dumps/required-sqlite-databases.txt 2>/dev/null)" || return 1
+                [ "\$actual_inventory" = "\$REQUIRED_SQLITE_DATABASES" ] || return 1
+                while IFS= read -r relative; do
+                  [ -n "\$relative" ] || continue
+                  path="/work/hot-dumps/sqlite/\${relative}.sqlite-backup"
+                  restic --no-lock ls "\$snapshot_id" "\$path" 2>/dev/null \
+                    | grep -Fq -- "\$path" || return 1
+                done <<<"\$REQUIRED_SQLITE_DATABASES"
+                for path in \
+                  /work/hot-dumps/home-assistant/home-assistant.tar \
+                  /work/hot-dumps/romm/romm.sql \
+                  /work/hot-dumps/export-created-at; do
+                  restic --no-lock ls "\$snapshot_id" "\$path" 2>/dev/null \
+                    | grep -Fq -- "\$path" || return 1
+                done
+              }
+
               snapshots="\$(restic --no-lock snapshots --host minis --json)"
               eligible="\$(printf '%s' "\$snapshots" | jq \
                 --arg tag '$RECOVERY_SOURCE' '[.[] |
@@ -53,26 +81,26 @@ spec:
               printf 'SNAPSHOT_ID\tTIME\tHOST\tTAGS\tPATHS\n'
               eligible_count=0
               while IFS=\$'\t' read -r snapshot_id snapshot_time snapshot_host snapshot_tags snapshot_paths; do
-                if restic --no-lock dump "\$snapshot_id" \
-                  /work/hot-dumps/sqlite/seerr/config/db/db.sqlite3.sqlite-backup \
-                  > /tmp/seerr.sqlite3 2>/dev/null \
-                  && [ "\$(sqlite3 -readonly /tmp/seerr.sqlite3 'PRAGMA integrity_check;')" = ok ]; then
+                if snapshot_satisfies_contract "\$snapshot_id"; then
                   printf '%s\t%s\t%s\t%s\t%s\n' \
                     "\$snapshot_id" "\$snapshot_time" "\$snapshot_host" "\$snapshot_tags" "\$snapshot_paths"
                   eligible_count=\$((eligible_count + 1))
                 else
-                  echo "EXCLUDED \$snapshot_id: missing or invalid Seerr hot backup" >&2
+                  echo "EXCLUDED \$snapshot_id: missing or obsolete required-export contract" >&2
                 fi
               done < <(printf '%s' "\$eligible" | jq -r '
                 sort_by(.time) | reverse | .[] |
                 [.id, .time, .hostname, (.tags | join(",")), (.paths | join(","))] |
                 @tsv
               ')
-              rm -f /tmp/seerr.sqlite3
               [ "\$eligible_count" -gt 0 ] \
                 || { echo 'no full-recovery-eligible snapshots found' >&2; exit 1; }
           env:
 $(write_restic_env)
+            - name: BACKUP_CONTRACT_VERSION
+              value: '$contract_version'
+            - name: REQUIRED_SQLITE_DATABASES_B64
+              value: '$required_sqlite_b64'
           resources:
             requests:
               cpu: 100m
@@ -102,8 +130,9 @@ delete_recovery_job monitoring restic-recovery-list
 
 cat <<'EOF'
 
-Every printed snapshot has `/data/opt`, `/work/hot-dumps`, and a validated Seerr hot
-backup. Copy one full 64-character ID and run:
+Every printed snapshot has `/data/opt`, `/work/hot-dumps`, and the current required
+export contract. The restore performs full integrity checks before activation. Copy one
+full 64-character ID and run:
 
   export RECOVERY_SNAPSHOT=<full-id>
   ./runbooks/disaster-recovery/run-restore.sh

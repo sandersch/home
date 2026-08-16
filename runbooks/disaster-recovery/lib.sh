@@ -8,6 +8,64 @@ RECOVERY_STATE_DIR=/var/lib/homelab-recovery
 RECOVERY_STATE_FILE="$RECOVERY_STATE_DIR/state"
 export RECOVERY_IMAGE=ghcr.io/sandersch/restic-backup:0.19.0-1
 
+backup_contract_config() {
+  printf '%s/infrastructure/monitoring/restic-nas-config.yaml\n' "$REPO_ROOT"
+}
+
+backup_contract_version() {
+  yq -er '.data.BACKUP_CONTRACT_VERSION' "$(backup_contract_config)"
+}
+
+required_sqlite_databases() {
+  yq -er '.data.REQUIRED_SQLITE_DATABASES' "$(backup_contract_config)" \
+    | sed '/^[[:space:]]*$/d'
+}
+
+assert_hot_dump_contract() {
+  local hot_dumps="$1" expected_version actual_version
+  local expected_inventory actual_inventory created_at relative required_count
+
+  expected_version="$(backup_contract_version)"
+  sudo test -s "$hot_dumps/contract-version" \
+    || die "selected snapshot has no backup contract marker"
+  actual_version="$(sudo cat "$hot_dumps/contract-version")"
+  [ "$actual_version" = "$expected_version" ] \
+    || die "selected snapshot uses backup contract $actual_version, expected $expected_version"
+
+  sudo test -s "$hot_dumps/required-sqlite-databases.txt" \
+    || die "selected snapshot has no required SQLite inventory"
+  expected_inventory="$(required_sqlite_databases)"
+  actual_inventory="$(sudo cat "$hot_dumps/required-sqlite-databases.txt")"
+  [ "$actual_inventory" = "$expected_inventory" ] \
+    || die "selected snapshot's required SQLite inventory differs from the current recovery contract"
+
+  required_count=0
+  while IFS= read -r relative; do
+    sudo test -s "$hot_dumps/sqlite/${relative}.sqlite-backup" \
+      || die "selected snapshot is missing required SQLite hot backup: $relative"
+    required_count=$((required_count + 1))
+  done < <(required_sqlite_databases)
+  [ "$required_count" -gt 0 ] || die "current required SQLite inventory is empty"
+
+  sudo test -s "$hot_dumps/home-assistant/home-assistant.tar" \
+    || die "selected snapshot has no canonical Home Assistant managed backup"
+  sudo tar -tf "$hot_dumps/home-assistant/home-assistant.tar" >/dev/null \
+    || die "selected snapshot's Home Assistant managed backup is not a readable tar archive"
+
+  sudo test -s "$hot_dumps/romm/romm.sql" \
+    || die "selected snapshot has no RomM logical dump"
+  sudo grep -Eq '^CREATE TABLE ' "$hot_dumps/romm/romm.sql" \
+    || die "selected snapshot's RomM logical dump contains no CREATE TABLE statements"
+
+  sudo test -s "$hot_dumps/export-created-at" \
+    || die "selected snapshot has no export completion timestamp"
+  created_at="$(sudo cat "$hot_dumps/export-created-at")"
+  [[ "$created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
+    || die "selected snapshot has an invalid export completion timestamp: $created_at"
+
+  ok "backup contract $actual_version contains $required_count required SQLite exports, Home Assistant archive, and RomM dump"
+}
+
 require_recovery_source() {
   case "${RECOVERY_SOURCE:-}" in
     nas|b2) ;;

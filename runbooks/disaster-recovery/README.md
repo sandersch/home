@@ -28,7 +28,12 @@ merge into nonempty state unless it is resuming its own recorded, interrupted co
 - A full 64-character snapshot ID is mandatory. `latest` is never accepted.
 - The Restic restore lands outside `/opt`. SQLite hot backups replace the live-captured
   `.db`, `.sqlite`, and `.sqlite3` database files in staging, with stale WAL/SHM files
-  removed. The restore rejects snapshots that predate transaction-safe Seerr backups.
+  removed. Before activation, the restore requires the current backup-contract version
+  and exact mandatory inventory: both Plex library databases plus the primary Frigate,
+  Home Assistant, Prowlarr, Radarr, Sonarr, and Seerr databases.
+- The same contract requires a readable Home Assistant managed backup, a structurally
+  valid RomM logical dump, and an export-completion timestamp. Any mismatch rejects the
+  selected snapshot before anything is copied into `/opt`.
 - The live-captured `romm/db` tree is excluded from both Restic extraction and the
   `/opt` copy. A temporary MariaDB Job imports the transaction-consistent RomM SQL
   dump into a fresh data directory.
@@ -144,9 +149,9 @@ This makes the state machine ready for a future event but does not remove stagin
 Delete only the exact staged path printed by the script, as a separate deliberate
 operation.
 
-After first deploying this runbook and its expanded SQLite backup discovery, create
-and validate fresh direct and B2 snapshots. Older snapshots lack a hot backup for
-Seerr's `db.sqlite3` and are deliberately rejected by the full recovery procedure.
+After deploying backup-contract version 1, create and validate fresh direct and B2
+snapshots. Older snapshots do not carry the complete mandatory export inventory and are
+deliberately rejected by the full recovery procedure.
 
 ## Scripts
 
