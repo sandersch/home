@@ -94,6 +94,78 @@ assert_phase5_observability_invariants() {
     .spec.targets.staticConfig.static == ["mosquitto.mqtt.svc.cluster.local:1883"]' \
     "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
     || die "MQTT blackbox target changed unexpectedly"
+  yq -e '
+    select(.kind == "Deployment" and .metadata.name == "zigbee2mqtt") |
+    any(.spec.template.spec.containers[];
+      .name == "zigbee2mqtt" and
+      any(.env[];
+        .name == "ZIGBEE2MQTT_CONFIG_HEALTH_INTERVAL" and .value == "1"))
+  ' "$REPO_ROOT/apps/zigbee2mqtt/deployment.yaml" >/dev/null \
+    || die "Zigbee2MQTT no longer publishes health at the expected one-minute interval"
+  # shellcheck disable=SC2016 # $pod/$container are jq variables, not shell variables.
+  yq -e '
+    select(.kind == "Deployment" and .metadata.name == "zigbee2mqtt-mqtt-exporter") |
+    .spec.template.spec as $pod |
+    $pod.priorityClassName == "homelab-critical" and
+    $pod.automountServiceAccountToken == false and
+    $pod.securityContext.runAsNonRoot == true and
+    $pod.securityContext.seccompProfile.type == "RuntimeDefault" and
+    ($pod.containers[0] as $container |
+      $container.image == "kpetrem/mqtt-exporter:1.12.1" and
+      $container.livenessProbe.httpGet.path == "/metrics" and
+      $container.readinessProbe.httpGet.path == "/metrics" and
+      $container.resources.requests.cpu == "25m" and
+      $container.resources.requests.memory == "64Mi" and
+      $container.resources.limits.cpu == "100m" and
+      $container.resources.limits.memory == "128Mi" and
+      $container.securityContext.allowPrivilegeEscalation == false and
+      $container.securityContext.readOnlyRootFilesystem == true and
+      any($container.env[];
+        .name == "MQTT_ADDRESS" and
+        .value == "mosquitto.mqtt.svc.cluster.local") and
+      any($container.env[];
+        .name == "MQTT_TOPIC" and
+        .value == "zigbee2mqtt/bridge/state,zigbee2mqtt/bridge/health") and
+      any($container.env[];
+        .name == "MQTT_USERNAME" and
+        .valueFrom.secretKeyRef.name == "zigbee2mqtt-auth" and
+        .valueFrom.secretKeyRef.key == "ZIGBEE2MQTT_CONFIG_MQTT_USER") and
+      any($container.env[];
+        .name == "MQTT_PASSWORD" and
+        .valueFrom.secretKeyRef.name == "zigbee2mqtt-auth" and
+        .valueFrom.secretKeyRef.key == "ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD"))
+  ' "$REPO_ROOT/apps/zigbee2mqtt/mqtt-exporter.yaml" >/dev/null \
+    || die "Zigbee2MQTT MQTT exporter image, topics, credentials, resources, probes, or security settings changed unexpectedly"
+  yq -e '
+    select(.kind == "ServiceMonitor" and .metadata.name == "zigbee2mqtt-mqtt-health") |
+    .spec.namespaceSelector.matchNames == ["zigbee2mqtt"] and
+    .spec.endpoints[0].port == "metrics" and
+    .spec.endpoints[0].path == "/metrics" and
+    .spec.endpoints[0].interval == "30s" and
+    .spec.endpoints[0].scrapeTimeout == "10s" and
+    any(.spec.endpoints[0].metricRelabelings[];
+      .sourceLabels == ["__name__"] and
+      .regex == "mqtt_(state|response_time|mqtt_connected)" and
+      .action == "keep")
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/zigbee2mqtt-mqtt-health.yaml" >/dev/null \
+    || die "Zigbee2MQTT MQTT health ServiceMonitor changed unexpectedly"
+  yq -e '
+    select(.kind == "PrometheusRule" and .metadata.name == "homelab-alerts") |
+    any(.spec.groups[].rules[];
+      .alert == "Zigbee2MQTTBridgeUnhealthy" and
+      .for == "5m" and
+      .labels.severity == "critical" and
+      (.expr | contains("mqtt_state{topic=\"zigbee2mqtt_bridge_state\"} == 0")) and
+      (.expr | contains("mqtt_mqtt_connected{topic=\"zigbee2mqtt_bridge_health\"} == 0")) and
+      (.expr | contains("mqtt_response_time{topic=\"zigbee2mqtt_bridge_health\"} / 1000")) and
+      (.expr | contains("> 5 * 60")) and
+      (.expr | contains("absent(mqtt_response_time")) and
+      (.expr | contains("kube_deployment_status_replicas_available")))
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
+    || die "Zigbee2MQTT MQTT bridge-health alert changed unexpectedly"
+  yq -e '.resources | index("zigbee2mqtt-mqtt-health.yaml") != null' \
+    "$PHASE5_OBSERVABILITY_CONFIG_DIR/kustomization.yaml" >/dev/null \
+    || die "Zigbee2MQTT MQTT health ServiceMonitor is not included in monitoring-configs"
   # shellcheck disable=SC2016 # $pod/$container are jq variables, not shell variables.
   yq -e '
     select(.kind == "Deployment" and .metadata.name == "nut-exporter") |
@@ -203,7 +275,7 @@ assert_phase5_observability_invariants() {
   yq -e '.data["admin-password"] | startswith("ENC[AES256_GCM")' \
     "$PHASE5_GRAFANA_SECRET" >/dev/null \
     || die "Grafana administrator password is missing or not SOPS-encrypted"
-  ok "observability versions, probes, UPS/RAID/storage alerts, dashboard, and encrypted Grafana credentials are intact"
+  ok "observability versions, probes, Zigbee2MQTT/UPS/RAID/storage alerts, dashboard, and encrypted Grafana credentials are intact"
 }
 
 assert_phase5_pushover_invariants() {

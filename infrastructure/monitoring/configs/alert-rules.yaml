@@ -31,6 +31,32 @@ spec:
           annotations:
             description: "The TLS certificate seen at {{ $labels.instance }} expires in less than 14 days."
             summary: Ingress certificate is close to expiry
+    - name: homelab.zigbee2mqtt
+      rules:
+        - alert: Zigbee2MQTTBridgeUnhealthy
+          expr: |
+            max(
+              (mqtt_state{topic="zigbee2mqtt_bridge_state"} == 0)
+              or (mqtt_mqtt_connected{topic="zigbee2mqtt_bridge_health"} == 0)
+              or (
+                time() - mqtt_response_time{topic="zigbee2mqtt_bridge_health"} / 1000
+                  > 5 * 60
+              )
+              or (
+                absent(mqtt_response_time{topic="zigbee2mqtt_bridge_health"})
+                and on()
+                  kube_deployment_status_replicas_available{
+                    namespace="zigbee2mqtt",
+                    deployment="zigbee2mqtt-mqtt-exporter"
+                  } > 0
+              )
+            )
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            description: Zigbee2MQTT reports an offline bridge or disconnected MQTT client, or its one-minute health publication has been missing or stale for at least five minutes.
+            summary: Zigbee2MQTT bridge health is degraded
     - name: homelab.backups
       rules:
         - alert: ResticBackupFailed

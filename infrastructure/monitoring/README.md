@@ -10,8 +10,8 @@ Committed now:
   also use small scratch PVCs because their durable configuration lives in git.
 - `configs/`: pinned blackbox exporter, HTTPS probes for Home Assistant, Frigate,
   Zigbee2MQTT, Plex, Seerr, and RomM, an MQTT TCP probe, Flux controller metrics, a
-  hardened nut-exporter workload and ServiceMonitor, the CP1500 Grafana dashboard,
-  and operational rules.
+  Zigbee2MQTT MQTT-health ServiceMonitor, a hardened nut-exporter workload and
+  ServiceMonitor, the CP1500 Grafana dashboard, and operational rules.
 - `configs/deadmanssnitch/`: an opt-in Alertmanager Watchdog route, currently active.
   Run
   `runbooks/phase5/10-setup-deadmanssnitch.sh` to encrypt the unique check-in URL and

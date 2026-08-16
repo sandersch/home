@@ -373,6 +373,7 @@ requests, then pod priority, then usage relative to requests.)
 | **Home Assistant** | 0.5 / 2 | 512Mi / 2Gi | `homelab-critical` |
 | **Z-Wave JS UI** | 0.1 / 1 | 256Mi / 1Gi | `homelab-critical` |
 | **Zigbee2MQTT** | 0.1 / 1 | 256Mi / 1Gi | `homelab-critical` |
+| **Zigbee2MQTT MQTT exporter** | 25m / 100m | 64Mi / 128Mi | `homelab-critical` |
 | Plex | 1 / 6 | 1536Mi / 4Gi | `homelab-standard`; high CPU burst ceiling |
 | Gluetun | 25m / 2 | 96Mi / 1Gi | `homelab-standard`; download pod |
 | SABnzbd | 125m / 2 | 256Mi / 1Gi | `homelab-standard`; download pod |

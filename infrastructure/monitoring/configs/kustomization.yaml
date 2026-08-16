@@ -4,6 +4,7 @@ resources:
 - blackbox-exporter.yaml
 - blackbox-probes.yaml
 - nut-exporter.yaml
+- zigbee2mqtt-mqtt-health.yaml
 - alert-rules.yaml
 - flux-podmonitor.yaml
 - deadmanssnitch

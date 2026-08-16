@@ -15,6 +15,11 @@ SLZB-MRW10U Zigbee coordinator into the existing authenticated Mosquitto broker.
   add ZHA again: only one application may own the coordinator socket.
 - The frontend is available at `https://zigbee2mqtt.worm.run` and requires the token
   in `zigbee2mqtt-auth.sops.yaml`. No public ingress is exposed.
+- A critical-priority MQTT exporter reuses that encrypted broker account, subscribes
+  only to `zigbee2mqtt/bridge/state` and `zigbee2mqtt/bridge/health`, and exposes the
+  retained bridge state, Zigbee2MQTT's MQTT connection status, and health timestamp
+  to Prometheus. The deployment override publishes health every minute; a critical
+  alert fires when the combined signal remains unhealthy for five minutes.
 
 After Flux reconciles, run `./runbooks/phase4/14-validate-zigbee2mqtt.sh`. Then open
 the frontend, enable joining only for the time needed to pair each device, give each

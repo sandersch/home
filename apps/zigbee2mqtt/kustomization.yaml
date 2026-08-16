@@ -8,6 +8,7 @@ resources:
   - service.yaml
   - ingress.yaml
   - deployment.yaml
+  - mqtt-exporter.yaml
   - zigbee2mqtt-auth.sops.yaml
 
 configMapGenerator:

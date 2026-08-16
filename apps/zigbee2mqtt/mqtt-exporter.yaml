@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zigbee2mqtt-mqtt-exporter
+  namespace: zigbee2mqtt
+  labels:
+    app.kubernetes.io/name: zigbee2mqtt-mqtt-exporter
+    app.kubernetes.io/part-of: zigbee2mqtt
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zigbee2mqtt-mqtt-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zigbee2mqtt-mqtt-exporter
+        app.kubernetes.io/part-of: zigbee2mqtt
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      priorityClassName: homelab-critical
+      securityContext:
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mqtt-exporter
+          image: kpetrem/mqtt-exporter:1.12.1
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MQTT_ADDRESS
+              value: mosquitto.mqtt.svc.cluster.local
+            - name: MQTT_PORT
+              value: "1883"
+            - name: MQTT_TOPIC
+              value: zigbee2mqtt/bridge/state,zigbee2mqtt/bridge/health
+            - name: MQTT_CLIENT_ID
+              value: prometheus-zigbee2mqtt-health
+            - name: MQTT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: zigbee2mqtt-auth
+                  key: ZIGBEE2MQTT_CONFIG_MQTT_USER
+            - name: MQTT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: zigbee2mqtt-auth
+                  key: ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD
+            - name: KEEP_FULL_TOPIC
+              value: "True"
+            - name: MAX_METRICS
+              value: "128"
+            - name: PROMETHEUS_PORT
+              value: "9000"
+          ports:
+            - name: metrics
+              containerPort: 9000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 30
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zigbee2mqtt-mqtt-exporter
+  namespace: zigbee2mqtt
+  labels:
+    app.kubernetes.io/name: zigbee2mqtt-mqtt-exporter
+    app.kubernetes.io/part-of: zigbee2mqtt
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: zigbee2mqtt-mqtt-exporter
+  ports:
+    - name: metrics
+      port: 9000
+      targetPort: metrics
+      protocol: TCP

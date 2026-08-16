@@ -164,6 +164,7 @@ assert_phase4_zigbee2mqtt_tree() {
     apps/zigbee2mqtt/namespace.yaml \
     apps/zigbee2mqtt/configuration.yaml \
     apps/zigbee2mqtt/deployment.yaml \
+    apps/zigbee2mqtt/mqtt-exporter.yaml \
     apps/zigbee2mqtt/service.yaml \
     apps/zigbee2mqtt/ingress.yaml \
     apps/zigbee2mqtt/storage.yaml \

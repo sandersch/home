@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: zigbee2mqtt-mqtt-health
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: zigbee2mqtt-mqtt-exporter
+    app.kubernetes.io/part-of: homelab-monitoring
+spec:
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+      metricRelabelings:
+        - sourceLabels:
+            - __name__
+          regex: mqtt_(state|response_time|mqtt_connected)
+          action: keep
+  namespaceSelector:
+    matchNames:
+      - zigbee2mqtt
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zigbee2mqtt-mqtt-exporter

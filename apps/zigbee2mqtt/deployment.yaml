@@ -49,6 +49,8 @@ spec:
           env:
             - name: TZ
               value: America/Chicago
+            - name: ZIGBEE2MQTT_CONFIG_HEALTH_INTERVAL
+              value: "1"
           envFrom:
             - secretRef:
                 name: zigbee2mqtt-auth
