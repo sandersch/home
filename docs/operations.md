@@ -31,13 +31,20 @@ to Backblaze's S3-compatible API and keeps 8 weekly and 12 monthly snapshots. Bo
 the same SQLite, Home Assistant, and RomM hot-backup workflow, but the B2 job and its
 restore validation have no local backup-volume dependency.
 
+Both targets exclude `/data/opt/.snapshots`. Those same-device btrfs snapshots are
+local rollback aids, not independent backup inputs; nesting them in Restic duplicates
+historical trees and database discovery work. The current `/opt` tree and all
+application-aware hot dumps remain covered.
+
 Validation status: initialization, manual backups, repository checks, and representative
 restore drills passed for both repositories. The nightly local and first naturally
 scheduled weekly B2 backups both completed successfully on 2026-07-19.
 
 ```bash
-restic -r /mnt/backups/opt backup /data/opt
-restic -r s3:https://s3.<region>.backblazeb2.com/<bucket>/opt backup /data/opt
+restic -r /mnt/backups/opt backup \
+  --exclude /data/opt/.snapshots /data/opt /work/hot-dumps
+restic -r s3:https://s3.<region>.backblazeb2.com/<bucket>/opt backup \
+  --exclude /data/opt/.snapshots /data/opt /work/hot-dumps
 ```
 
 Required hardening on the CronJob so a failure is **loud**, not silently missing:

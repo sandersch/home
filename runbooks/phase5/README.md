@@ -30,6 +30,10 @@ Both repositories have passed initialization, manual backup, and representative 
 validation. The nightly local and first naturally scheduled weekly B2 backups both
 completed successfully on 2026-07-19.
 
+The shared backup workflow excludes `/data/opt/.snapshots` from both SQLite discovery
+and Restic input. Local btrfs snapshots remain available for same-device rollback but
+are not recursively embedded in the independent local or B2 recovery points.
+
 The initial observability stack passed live validation on 2026-07-20. Prometheus,
 Grafana, Alertmanager, blackbox probes, Flux metrics, and rules were healthy, and the
 Alertmanager Watchdog reached a healthy Dead Man's Snitch check. The Pushover route was

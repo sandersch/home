@@ -344,6 +344,12 @@ assert_phase5_backup_invariants() {
   grep -Fq -- 'required Seerr SQLite hot backup was not created' \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "shared Restic backup script does not fail when the Seerr hot backup is missing"
+  grep -Fq -- '-path /data/opt/.snapshots -prune -o' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "SQLite discovery does not prune the local btrfs snapshot tree"
+  grep -Fq -- '--exclude /data/opt/.snapshots' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "Restic backup does not exclude the local btrfs snapshot tree"
   ok "local and B2 backup invariants are intact"
 }
 

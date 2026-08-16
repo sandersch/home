@@ -61,8 +61,9 @@ data:
         else
           log "skipping non-SQLite or unhealthy DB candidate: $db: $(sqlite_error_summary "$err")"
         fi
-      done < <(find /data/opt -type f \
-        \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -print0)
+      done < <(find /data/opt \
+        -path /data/opt/.snapshots -prune -o \
+        -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -print0)
       local required_seerr="$SQLITE_DUMPS/seerr/config/db/db.sqlite3.sqlite-backup"
       [ -s "$required_seerr" ] \
         || die "required Seerr SQLite hot backup was not created: $required_seerr"
@@ -179,6 +180,7 @@ data:
         --host "$RESTIC_HOST" \
         --tag opt \
         --tag "$target_tag" \
+        --exclude /data/opt/.snapshots \
         /data/opt \
         "$HOT_DUMPS"
 

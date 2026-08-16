@@ -92,7 +92,9 @@ Restic snapshot from the direct backup LV, or B2 if the local repository is unav
 The historical Phase 3.5 archive copy is only for an intentional recovery from that old,
 quiesced migration source.
 
-Restore the snapshot's complete `/data/opt` tree to a staging directory outside `/opt`.
+Restore the snapshot's `/data/opt` live-state tree to a staging directory outside
+`/opt`; the same-device `/opt/.snapshots` rollback tree is deliberately excluded from
+Restic.
 Validate every SQLite hot backup, replace its corresponding live-captured database in
 staging, and remove stale WAL/SHM companions before copying the tree. Do not copy the
 live-captured RomM MariaDB directory: initialize a fresh MariaDB data directory from
