@@ -98,7 +98,7 @@ to describe the real rebuild path.
 
 | Repo file | Destination | Owner / perms | Apply |
 |---|---|---|---|
-| `etc/nftables.conf` | `/etc/nftables.conf` | `root:root` `644` | `sudo systemctl enable --now nftables` (replaces the stock default; manages only the `camera_isolation` and `ups_access` tables — no `flush ruleset`, so k3s's own nft chains survive a reload) |
+| `etc/nftables.conf` | `/etc/nftables.conf` | `root:root` `644` | `sudo systemctl enable --now nftables` (replaces the stock default; manages only the `camera_isolation`, `frigate_access`, and `ups_access` tables — no `flush ruleset`, so k3s's own nft chains survive a reload) |
 | `etc/sysctl.d/99-camera-no-ipv6.conf` | same | `root:root` `644` | `sudo sysctl --system` (disables IPv6 on NIC2) |
 | `etc/dnsmasq.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl enable --now dnsmasq` (DHCP-only, NIC2; `port=0` so no `:53` clash with systemd-resolved) |
 | `etc/chrony/conf.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl enable --now chrony && sudo systemctl restart chrony` (serve NTP to the segment) |

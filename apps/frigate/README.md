@@ -5,6 +5,11 @@ isolated camera segment originate from the host's `cam0` address. Keep valuable 
 on `local-nvme`, recordings on the direct-attached ext4 array at `/mnt/frigate`, and cache/scratch data on
 `topolvm-scratch`.
 
+Because host networking binds Frigate's unauthenticated TCP/5000 listener on the host,
+the canonical host nftables `frigate_access` table permits it only over loopback and
+drops it from every other interface. Authenticated UI/API access remains available at
+`https://frigate.worm.run` through TCP/8971.
+
 Quick Sync is exposed through Intel's GPU device plugin by requesting
 `gpu.intel.com/i915: "1"`. The Coral uses a `/dev/bus/usb` hostPath and the container
 runs privileged; an unprivileged diagnostic pod could see the device node but could not

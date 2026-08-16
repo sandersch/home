@@ -31,9 +31,11 @@ sudo systemctl enable --now nftables
 sudo systemctl reload nftables
 service_active nftables
 
-step "Confirm camera_isolation table is loaded"
+step "Confirm host isolation tables are loaded"
 sudo nft list table inet camera_isolation
-ok "camera_isolation table is active"
+sudo nft list table inet frigate_access
+sudo nft list table inet ups_access
+ok "camera_isolation, frigate_access, and ups_access tables are active"
 
 cat <<'EOF'
 
