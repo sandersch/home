@@ -5,7 +5,7 @@ metadata:
 value: 1000000
 preemptionPolicy: PreemptLowerPriority
 globalDefault: false
-description: Critical homelab workloads that should survive resource pressure.
+description: Critical homelab workloads favored for scheduling and preemption under resource pressure.
 ---
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
@@ -21,4 +21,4 @@ metadata:
   name: homelab-low
 value: 100
 globalDefault: false
-description: Low-priority best-effort jobs such as backups.
+description: Low-priority jobs such as backups; container requests/limits determine their QoS class.

@@ -5,11 +5,11 @@ practices, and deferred work. Built out in [Phase 5](./build-plan.md#phase-5--ob
 
 ## Backups
 
-Three categories of data, three different needs:
+Several categories of data have different protection needs:
 
 | What | Mechanism | Destination | Cadence |
 |---|---|---|---|
-| age private key + bootstrap secrets | manual | password manager | once |
+| selected bootstrap/host/device/service secrets | manual | external password manager | on creation/rotation |
 | GitOps repo (all manifests) | git | GitHub | every commit |
 | App state (`/opt`, incl. SQLite DBs) | independent Restic CronJobs | direct backup LV + Backblaze B2 | nightly + weekly |
 | Frigate recordings | — (not backed up) | direct bulk array | — |
@@ -337,7 +337,7 @@ OOM counters over `RESOURCE_AUDIT_WINDOW` (default `14d`). Reports belong under
 The pre-change 14-day baseline captured on 2026-08-13 showed zero OOM events. Media
 reserved `3.6` CPU cores and `4032Mi`; the sustained memory working sets justified a
 small reservation increase while the low CPU usage justified releasing scheduler
-guarantees. Key container observations were:
+reservations. Key container observations were:
 
 | Container | CPU 5m p95 / max | Throttling | Memory p95 / max |
 |---|---:|---:|---:|
@@ -365,12 +365,16 @@ For future tuning:
 
 - In Grafana, compare actual CPU/memory per workload against its requests/limits.
 - Raise CPU limits when a pod is throttled; raise requests when sustained usage needs a
-  larger guaranteed share. Lower consistently over-provisioned requests to release
-  scheduler reservation, while keeping memory limits safely above observed peaks.
+  larger scheduler reservation and contention weight. Lower consistently
+  over-provisioned requests to release scheduler reservation, while keeping memory
+  limits safely above observed peaks.
 - Re-check after adding Immich — its ML container is the one likely to shift the memory
   picture.
-- Only if Frigate detection latency suffers under load: consider the static
-  CPU-manager policy to pin it to P-cores. Don't do this preemptively.
+- Only if Frigate detection latency suffers under load: evaluate exclusive CPU
+  placement. That requires changing Frigate to Guaranteed QoS with an equal integer
+  CPU request/limit, enabling static CPU Manager, and adding host-level CPU-set/topology
+  controls for the intended P-cores; static CPU Manager alone does not choose P-cores.
+  Don't do this preemptively.
 
 ## AI-session practices
 
@@ -383,7 +387,10 @@ destructive commands). Operationally useful surfaces to expose to the session:
 - **kubeconfig** at `~/.kube/config`; keep a read-only context as default and an admin
   context for deliberate changes. Optionally a scoped `ServiceAccount` + RBAC for
   programmatic access that's easy to rotate and audit.
-- **k3s API on the Tailnet** (`:6443`) so the laptop can reconcile remotely.
+- **Tailnet application access** through the in-cluster Tailscale Operator Connector,
+  which advertises only `10.137.20.10/32` for ingress and `10.137.20.1/32` for split
+  DNS. The administrative kubeconfig targets the node API on the LAN; the Connector
+  does not advertise the node address or require host-level `tailscaled`.
 - **Prometheus HTTP API** (`/api/v1/query`) — far more useful than scraping logs for
   "correlate a Frigate detection spike with NVMe I/O wait" type questions.
 - **Frigate API** (`/api/...`) and **Home Assistant API** (long-lived token) for
@@ -415,6 +422,9 @@ Deferred deliberately; revisit when the trigger condition is met.
 Accepted constraints (not gaps): no staging environment (changes go to the one
 cluster — mitigated by btrfs snapshots + `flux suspend`); cert renewal depends on the
 external DNS provider's API (90-day certs make a brief outage non-fatal); no k3s etcd
-snapshots — the entire cluster state lives in git, and a full re-bootstrap from
-scratch takes ~30 min; the only out-of-git state is the `sops-age` key, which is
-backed up to a password manager.
+snapshots. As much reproducible cluster configuration as practical lives in git, and
+application state is protected separately by Restic. Selected secrets are also saved
+in the external password manager as an independent recovery source; the `sops-age`
+private key and values redacted from canonical host or device configuration remain
+outside git. A rebuild therefore requires the git repository, Restic where state is
+needed, and the relevant password-manager entries.

@@ -19,9 +19,9 @@ In priority order, these guide every tradeoff below:
 | Component | Detail |
 |---|---|
 | Chassis | MINISFORUM MS-01 |
-| CPU | Intel Core i5-12600H — 6 P-cores + 4 E-cores, 12 threads |
+| CPU | Intel Core i5-12600H — 4 P-cores + 8 E-cores, 16 threads |
 | RAM | 32 GB DDR5 |
-| Storage | 1 TB local NVMe plus 44 TB raw direct-attached RAID6 enclosure |
+| Storage | 1 TB local NVMe plus 60 TB raw / 44 TB RAID6-usable direct-attached enclosure (~40 TiB usable) |
 | GPU | Intel iGPU (Quick Sync) for Plex hardware transcoding |
 | Accelerator | Intel Coral USB (Frigate object detection) — owned, working |
 | Network | 2×2.5GbE ports in use, negotiating at 1Gb today · 2×10Gb SFP+ present, unused for now |
@@ -245,17 +245,22 @@ LVs keep working if the controller is down. Concrete YAML for both patterns is i
   key with DNS Administrator on the zone's project, stored as an encrypted Secret; the
   dependency is accepted. Renewals every ~90 days, so a brief provider outage isn't fatal.
 
-The k3s API (`:6443`) is reachable on the Tailnet so the laptop/AI coding session can hold a
-kubeconfig context pointing at the node's Tailscale IP.
+Tailnet access is implemented by the in-cluster Tailscale operator; the host does not
+need its own Tailscale daemon. Its Connector advertises only the MetalLB ingress IP
+(`10.137.20.10/32`) and the router DNS IP (`10.137.20.1/32`). The node address
+(`10.137.20.5`), SSH, and the k3s API (`:6443`) are not part of those advertised
+routes; administrative kubeconfig access currently targets the node on the LAN.
 
 ## Access model
 
 **LAN + Tailnet only. Nothing is exposed to the public internet.**
 
-- The **Tailscale operator** runs in-cluster; services are reachable on the LAN and,
-  remotely, to devices on the Tailnet. **Split DNS** is configured in the Tailscale
-  admin console so `*.worm.run` resolves correctly over the tunnel — remote access
-  looks identical to local.
+- The **Tailscale operator** runs in-cluster. Its subnet-router Connector carries the
+  two deliberately narrow `/32` routes above, so ingress-backed services are reachable
+  on the LAN and remotely from Tailnet devices without advertising the full server
+  VLAN. **Split DNS** is configured in the Tailscale admin console so `*.worm.run`
+  resolves through `10.137.20.1` to the MetalLB ingress IP — application access looks
+  identical remotely and locally.
 - For a small household this is strictly better than public Plex: put both people's
   personal devices on the Tailnet once and get full remote streaming with zero inbound
   exposure.
@@ -275,9 +280,13 @@ kubeconfig context pointing at the node's Tailscale IP.
   `.sops.yaml` encrypts `data`/`stringData` fields with the cluster's age public key.
   The repo being private is defense-in-depth, not the primary control — committing
   only ciphertext is what keeps secrets safe even if the repo is later shared.
-- The age **private key** is the one secret outside git: stored in-cluster as the
-  `sops-age` Secret and backed up to a password manager. Protect this key; rotating it
-  means re-encrypting every secret.
+- As much reproducible configuration as practical lives in git. Secrets that Kubernetes
+  needs declaratively are normally committed as SOPS ciphertext. Selected secrets are
+  also saved in the external password manager as an independent recovery source; the
+  age **private key** and values redacted from canonical host or network-device
+  configuration deliberately remain outside git and must be restored from there. The
+  age key is also stored in-cluster as the `sops-age` Secret; protect it because rotating
+  it means re-encrypting every committed SOPS secret.
 - This was chosen over Sealed Secrets (extra controller, painful rotation) and
   External Secrets + Vault (overkill for one node, bootstrap chicken-and-egg). SOPS is
   ~10 min of one-time setup; thereafter encrypting a new secret is one command.
@@ -333,10 +342,11 @@ AGENTS.md).
 
 ## Resource allocation
 
-One 12-thread CPU and 32 GB RAM are shared by workloads with very different urgency.
-The strategy: **CPU `requests` are guarantees, `limits` are ceilings**, and the gap
-between them is where contention is managed. Two `PriorityClass`es ensure that under
-genuine pressure the *right* things survive.
+One 16-thread CPU and 32 GB RAM are shared by workloads with very different urgency.
+The strategy: CPU `requests` reserve scheduler capacity and influence CPU shares under
+contention, while `limits` are ceilings. `PriorityClass` influences scheduling and
+preemption so critical workloads are favored when capacity is scarce; it does not make
+a pod immune to eviction or failure.
 
 ```yaml
 apiVersion: scheduling.k8s.io/v1
@@ -351,52 +361,65 @@ metadata: { name: homelab-standard }
 value: 1000
 ```
 
-(Backups run at default/best-effort, i.e. no class or a low one, so they're evicted
-first.)
+(Backups use the explicit `homelab-low` class. Their Kubernetes QoS class is Burstable
+rather than BestEffort because requests and limits are set but differ. The lower
+priority makes them preferred preemption candidates relative to critical services.
+During node-pressure eviction, the kubelet separately considers whether usage exceeds
+requests, then pod priority, then usage relative to requests.)
 
-| Workload | CPU req / limit | Mem req / limit | Tier |
+| Workload | CPU req / limit | Mem req / limit | Priority class / notes |
 |---|---|---|---|
-| **Frigate** | 2 / 4 | 2Gi / 4Gi | critical · non-evictable |
-| **Home Assistant** | 0.5 / 2 | 512Mi / 2Gi | critical · non-evictable |
-| **Z-Wave JS UI** | 0.1 / 1 | 256Mi / 1Gi | critical · non-evictable |
-| **Zigbee2MQTT** | 0.1 / 1 | 256Mi / 1Gi | critical · non-evictable |
-| Plex | 1 / 6 | 1536Mi / 4Gi | standard · burstable |
-| Gluetun | 25m / 2 | 96Mi / 1Gi | standard · download pod |
-| SABnzbd | 125m / 2 | 256Mi / 1Gi | standard · download pod |
-| qBittorrent | 25m / 2 | 64Mi / 1Gi | standard · download pod |
-| Prowlarr | 50m / 1 | 256Mi / 512Mi | standard · download pod |
-| Radarr | 150m / 1 | 384Mi / 768Mi | standard · download pod |
-| Sonarr | 100m / 1 | 512Mi / 768Mi | standard · download pod |
-| Seerr | 50m / 1 | 512Mi / 768Mi | standard |
-| RomM | 100m / 500m | 384Mi / 768Mi | standard |
-| MariaDB (RomM sidecar) | 100m / 500m | 256Mi / 768Mi | standard |
-| Valkey (RomM sidecar) | 50m / 250m | 64Mi / 256Mi | standard |
-| Monitoring stack | 0.5 / 2 | 1Gi / 3Gi | standard |
-| Restic CronJob | 0.25 / 1 | 256Mi / 1Gi | low · best-effort |
+| **Frigate** | 2 / 4 | 2Gi / 4Gi | `homelab-critical` |
+| **Home Assistant** | 0.5 / 2 | 512Mi / 2Gi | `homelab-critical` |
+| **Z-Wave JS UI** | 0.1 / 1 | 256Mi / 1Gi | `homelab-critical` |
+| **Zigbee2MQTT** | 0.1 / 1 | 256Mi / 1Gi | `homelab-critical` |
+| Plex | 1 / 6 | 1536Mi / 4Gi | `homelab-standard`; high CPU burst ceiling |
+| Gluetun | 25m / 2 | 96Mi / 1Gi | `homelab-standard`; download pod |
+| SABnzbd | 125m / 2 | 256Mi / 1Gi | `homelab-standard`; download pod |
+| qBittorrent | 25m / 2 | 64Mi / 1Gi | `homelab-standard`; download pod |
+| Prowlarr | 50m / 1 | 256Mi / 512Mi | `homelab-standard`; download pod |
+| Radarr | 150m / 1 | 384Mi / 768Mi | `homelab-standard`; download pod |
+| Sonarr | 100m / 1 | 512Mi / 768Mi | `homelab-standard`; download pod |
+| Seerr | 50m / 1 | 512Mi / 768Mi | `homelab-standard` |
+| RomM | 100m / 500m | 384Mi / 768Mi | `homelab-standard` |
+| MariaDB (RomM sidecar) | 100m / 500m | 256Mi / 768Mi | `homelab-standard` |
+| Valkey (RomM sidecar) | 50m / 250m | 64Mi / 256Mi | `homelab-standard` |
+| Monitoring stack | 0.5 / 2 | 1Gi / 3Gi | `homelab-standard` |
+| Restic CronJob | 0.25 / 1 | 256Mi / 1Gi | `homelab-low` |
+
+These request/limit pairs produce Burstable QoS. Priority class and QoS are separate:
+priority governs scheduling/preemption preference. During node-pressure eviction, the
+kubelet considers whether usage exceeds requests, then priority, then usage relative to
+requests; the Burstable label itself does not provide eviction immunity.
 
 The media rows reserve exactly **1.775 cores / 4320Mi**. Their limits intentionally
 leave room to burst while host RAM remains available for the OS, k3s, and spikes.
 
 Key reasoning:
 
-- **Frigate is protected.** A high guaranteed request plus critical, non-evictable
-  priority means a Plex transcode storm can't starve object detection — the one
-  workload with real-time consequences (missed camera events).
-- **Plex bursts but yields.** Its low request (1 core) with a high limit (6 cores)
-  lets it grab spare capacity for a transcode storm, but it gives that capacity back
-  the instant Frigate needs its guaranteed share. **Quick Sync offloads the actual
-  transcode to the iGPU**, so this CPU budget is mostly Plex's bookkeeping, not the
-  video work — which is why the burst is safe.
-- **Memory is the harder constraint than CPU.** CPU contention only slows things;
-  memory contention OOM-kills. Limits intentionally overcommit, so the reserved
-  headroom plus critical-tier protection are what keep important pods alive if several
-  apps spike at once. This is exactly why **Immich is deferred** — its ML container is
-  the one big memory consumer that could tip the balance, so it's added deliberately
-  later with a coordinated import.
-- **P/E cores:** the Linux CFS scheduler spreads work across performance and
-  efficiency cores fine. Pinning Frigate to P-cores via the static CPU-manager policy
-  is an escalation path *only if* detection latency proves problematic under load —
-  not a preemptive step.
+- **Frigate is favored under contention.** Its comparatively large CPU request gives
+  it more CPU share under contention, and its high priority makes the scheduler prefer
+  it over standard workloads when placement or preemption is necessary. These controls
+  reduce starvation and displacement risk; they do not make Frigate non-evictable or
+  provide a real-time CPU guarantee.
+- **Plex can burst into spare CPU.** Its low request (1 core) with a high limit (6
+  cores) lets it use idle capacity for a transcode storm; under contention, CPU request
+  weights favor Frigate's larger reservation rather than guaranteeing either workload
+  an exclusive core set. **Quick Sync offloads the actual transcode to the iGPU**, so
+  this CPU budget is mostly Plex's bookkeeping rather than the video work.
+- **Memory is the harder constraint than CPU.** CPU contention usually slows things;
+  memory contention can trigger OOM kills or node-pressure eviction. Limits
+  intentionally overcommit, so conservative sizing and reserved host headroom reduce
+  risk; priority influences which pending pods can schedule and which lower-priority
+  pods may be preempted, but it cannot guarantee survival during memory pressure. This
+  is why **Immich is deferred** — its ML container is the one big memory consumer that
+  could tip the balance, so it is added deliberately later with a coordinated import.
+- **P/E cores:** the Linux scheduler currently places work across performance and
+  efficiency cores. If measured detection latency eventually justifies exclusive CPU
+  placement, Frigate would first need Guaranteed QoS with equal integer CPU request and
+  limit, plus kubelet static CPU Manager and host-level CPU-set/topology controls that
+  make the intended P-cores eligible. Static CPU Manager alone allocates exclusive CPUs
+  but does not specifically select P-cores.
 
 **Treat these numbers as conservative starting points.** Once the monitoring stack is
 live, watch real usage for ~1 week and tune; each change is a one-line manifest edit

@@ -6,6 +6,11 @@
 * UniFi U7 Pro WAP
 * Dual WAN (AT&T + Spectrum)
 
+> **Implementation status:** the topology, Catalyst configuration, and isolated camera
+> path are substantially deployed, but the numbered UDM firewall policy below is the
+> approved target design and is still pending implementation and validation. Statements
+> in the firewall matrix describe intended end state, not current enforcement.
+
 ---
 
 ## Canonical Invariants
@@ -176,15 +181,15 @@ The Cisco Catalyst 3850 acts **strictly as an L2 switch**. All inter-VLAN routin
 
 ---
 
-## 🔒 Firewall & Traffic Flow Matrix
+## 🔒 Planned Firewall & Traffic Flow Matrix
 
-The UDM follows a **Default Deny** inter-VLAN policy. Traffic is explicitly blocked unless defined below. Stateful inspection allows legitimate return traffic. Any omitted inter-VLAN flow is denied by default, including Servers/VLAN 20 → Admin/VLAN 10. **WAN/internet egress is a separate axis from inter-VLAN policy:** outbound internet is allowed by default for VLANs 20, 30, 60, and 80, and is denied for VLAN 10 except for tightly scoped infrastructure exceptions.
+The UDM will follow a **Default Deny** inter-VLAN policy once the pending rules are deployed. Traffic will be explicitly blocked unless defined below, with stateful inspection allowing legitimate return traffic. Any omitted inter-VLAN flow will be denied by default, including Servers/VLAN 20 → Admin/VLAN 10. **WAN/internet egress is a separate axis from inter-VLAN policy:** the target design allows outbound internet by default for VLANs 20, 30, 60, and 80, and denies it for VLAN 10 except for tightly scoped infrastructure exceptions.
 
-Rule order matters. In UniFi, place specific allow rules above broader drop rules. Keep inter-VLAN rules in the LAN/local traffic policy area and keep WAN/internet egress policy separate.
+Rule order matters during implementation. In UniFi, place specific allow rules above broader drop rules. Keep inter-VLAN rules in the LAN/local traffic policy area and keep WAN/internet egress policy separate.
 
 ### LAN / Inter-VLAN Rules
 
-| Rule | Enabled | Name | Action | Protocol | Source | Destination | Destination Port | Notes |
+| Rule | Target enabled | Name | Action | Protocol | Source | Destination | Destination Port | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 100 | Yes | Allow `ryze` to Admin | Allow | All | `ryze` `10.137.30.6` | Admin / Management `VLAN 10` | Any | `ryze` has full all-protocol management access to VLAN 10 indefinitely. |
 | 110 | Yes | Allow Trusted to Servers | Allow | All | Trusted / Fastlane `VLAN 30` | Servers `VLAN 20` | Any | Broad trusted-client access to internal services and direct server administration. |
@@ -201,7 +206,7 @@ Rule order matters. In UniFi, place specific allow rules above broader drop rule
 
 ### WAN / Internet Egress Policy
 
-| Rule | Enabled | Name | Action | Protocol | Source | Destination | Destination Port | Notes |
+| Rule | Target enabled | Name | Action | Protocol | Source | Destination | Destination Port | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1000 | Yes | Allow Servers to Internet | Allow | All | Servers `VLAN 20` | Internet | Any | VLAN 20 egress is intentionally unrestricted for updates, containers, package managers, NAS workloads, and services. |
 | 1010 | Yes | Allow Trusted to Internet | Allow | All | Trusted / Fastlane `VLAN 30` | Internet | Any | Normal client internet access. |

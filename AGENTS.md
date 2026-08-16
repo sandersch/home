@@ -41,7 +41,7 @@ greenfield scaffold.
 
 ## Hardware (summary)
 
-MINISFORUM MS-01 · Intel Core i5-12600H (6 P-cores + 4 E-cores, 12 threads) · 32 GB DDR5 · 1 TB NVMe · LSI 9207-8e SAS HBA · directly attached 44 TB raw RAID6 enclosure · 2×2.5GbE ports in use, negotiating at 1Gb today · 2×10Gb SFP+ (unused) · Intel Coral USB accelerator · UPS in rack. Quick Sync iGPU drives Plex transcoding. Full detail in [architecture.md](./docs/architecture.md) and the [direct-attached storage migration runbook](./docs/direct-attached-storage-migration.md).
+MINISFORUM MS-01 · Intel Core i5-12600H (4 P-cores + 8 E-cores, 16 threads) · 32 GB DDR5 · 1 TB NVMe · LSI 9207-8e SAS HBA · directly attached 60 TB raw / 44 TB RAID6-usable enclosure (~40 TiB usable) · 2×2.5GbE ports in use, negotiating at 1Gb today · 2×10Gb SFP+ (unused) · Intel Coral USB accelerator · UPS in rack. Quick Sync iGPU drives Plex transcoding. Full detail in [architecture.md](./docs/architecture.md) and the [direct-attached storage migration runbook](./docs/direct-attached-storage-migration.md).
 
 ## Decision log
 
@@ -119,9 +119,9 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 ## Conventions
 
 - **One namespace per concern**: `media`, `frigate`, `home-assistant`, `mqtt`, plus the infra namespaces (`flux-system`, `metallb-system`, `cert-manager`, `ingress-nginx`, `tailscale`, `monitoring`). Cross-pod calls use cluster DNS, e.g. `http://gluetun.media.svc.cluster.local:7878` (Seerr → Radarr). The download stack (SABnzbd + *arr) shares the Gluetun pod's network namespace and talks over `localhost:<port>`.
-- **Every workload pod sets resource `requests`/`limits` and a `priorityClassName`.** Tiers and exact values are in [architecture.md → Resource allocation](./docs/architecture.md#resource-allocation). Frigate and Home Assistant are `homelab-critical` (non-evictable); most else is `homelab-standard`; backups are best-effort.
+- **Every workload pod sets a `priorityClassName`, and every long-running workload container sets resource `requests`/`limits`.** Tiers and exact values are in [architecture.md → Resource allocation](./docs/architecture.md#resource-allocation). Frigate, Home Assistant, Z-Wave JS UI, and Zigbee2MQTT use the higher `homelab-critical` scheduling/preemption priority; this reduces their displacement risk but does not make them non-evictable. Most workloads use `homelab-standard`; backups use `homelab-low`. The current pods have Burstable QoS because their requests and limits differ.
 - **App state uses the `local-nvme` StorageClass** via a per-app PV + PVC pointing at `/opt/<app>/...`. The PV is a `hostPath` volume with `type: DirectoryOrCreate`, so the kubelet creates the directory on first mount and adding storage for a new app is a pure git change (no SSH). **Scratch data uses the `topolvm-scratch` StorageClass** instead — a PVC alone dynamically provisions an enforced, resizable ext4 LV from VG free space (no PV manifest). Pattern in [build-plan.md → Storage pattern](./docs/build-plan.md#storage-pattern).
-- **Secrets are SOPS-encrypted before commit**, always. The repo is private, but treat encryption as mandatory anyway — private is a safety net, not a license to commit plaintext, and the repo may be selectively shared later. `data`/`stringData` fields are encrypted via `.sops.yaml`. Encrypt with `sops --encrypt --in-place path/to/secret.yaml`. The only secret that lives outside git is the `sops-age` key itself (in-cluster + backed up to a password manager).
+- **Put as much reproducible configuration as practical in git.** Kubernetes Secrets committed to the repo are SOPS-encrypted, always. The repo is private, but treat encryption as mandatory anyway — private is a safety net, not a license to commit plaintext, and the repo may be selectively shared later. `data`/`stringData` fields are encrypted via `.sops.yaml`; encrypt with `sops --encrypt --in-place path/to/secret.yaml`. Selected secrets are also saved in the external password manager as an independent recovery source. A smaller set deliberately remains outside git, including the `sops-age` private key and values redacted from canonical host/network configuration.
 - **Latency-sensitive state on local NVMe; bulk data on the RAID enclosure.** Plex metadata, Frigate DB, app configs → `/opt` (btrfs). Media, ROMs, recordings, Immich originals → the mdadm/LVM/ext4 array directly attached to MINIS and exposed to pods through `/mnt/...` hostPaths. Scratch (Frigate cache, SABnzbd staging) → `topolvm-scratch` PVCs (ext4 LVs, enforced, throwaway).
 - **Helm charts** are referenced via `HelmRepository` + `HelmRelease` CRDs (Flux), not installed imperatively. Phase 2 only installs k3s, creates `flux-system/sops-age`, and bootstraps Flux.
 
@@ -152,7 +152,7 @@ flux logs --all-namespaces --follow
 sops --encrypt --in-place apps/media/<app>/secret.yaml
 sops apps/media/<app>/secret.yaml          # decrypts into $EDITOR, re-encrypts on save
 
-# Switch kubeconfig context (LAN vs Tailnet, read-only vs admin)
+# Switch kubeconfig context (read-only vs admin)
 kubectl config get-contexts
 kubectl config use-context <name>
 

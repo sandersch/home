@@ -220,8 +220,9 @@ name k3s derives from it is load-bearing: every app PV pins `nodeAffinity` to
 key-only auth (`PasswordAuthentication no`) and no root login. Copy your key up
 (`ssh-copy-id charlie@10.137.20.5`) **before** disabling passwords, then
 `sudo systemctl restart ssh` and confirm a key login works in a second session before
-closing the first — SSH is the sanctioned tunnel path for camera web UIs (1.1), so it's
-reachable on LAN + Tailnet and worth locking down.
+closing the first — SSH is the sanctioned tunnel path for camera web UIs (1.1), so it
+is reachable on the LAN and worth locking down. Tailnet application access is provided
+separately by the in-cluster Tailscale Operator Connector.
 
 **0.2 Static networking (NIC1 first).** Set NIC1 to a static IP via Netplan before
 anything else so the address can't shift mid-bootstrap. The kernel auto-names the two
@@ -677,9 +678,11 @@ cluster-wide config that depend on the controllers:
 - `homelab-critical` and `homelab-standard` `PriorityClass` objects
 - `local-nvme`, non-default `local-path`, and `topolvm-scratch` `StorageClass` objects
 
-Configure **split DNS** in the Tailscale admin console so `*.worm.run` resolves over
-the tunnel. Add a kubeconfig context on the laptop pointing at the node's Tailscale IP
-on `:6443`.
+Configure **split DNS** in the Tailscale admin console so `*.worm.run` resolves through
+the advertised router DNS route (`10.137.20.1/32`) to the advertised MetalLB ingress
+route (`10.137.20.10/32`). The Connector implements Tailnet access without a host
+Tailscale daemon and intentionally does not advertise the full server VLAN or the node
+address. Administrative kubeconfig contexts continue to target the node API on the LAN.
 
 ---
 
@@ -776,9 +779,9 @@ transcode and confirm GPU use with `intel_gpu_top` on the host.
 Status: live validation passed on 2026-07-18. The migrated Plex server, media
 library, and Quick Sync transcoding path are operational.
 
-**4c — Frigate** (critical/non-evictable). `hostNetwork: true` so RTSP connections to
-cameras originate from the host (source IP `192.168.105.1`) without passing through the
-forward chain — this is what makes the nftables camera isolation work. Quick Sync is
+**4c — Frigate** (critical scheduling/preemption priority). `hostNetwork: true` so RTSP
+connections to cameras originate from the host (source IP `192.168.105.1`) without
+passing through the forward chain — this is what makes the nftables camera isolation work. Quick Sync is
 exposed through Intel's GPU device plugin by requesting `gpu.intel.com/i915: "1"`;
 Coral USB uses a `/dev/bus/usb` hostPath with a privileged container. DB on
 `/opt/frigate`, cache on a `topolvm-scratch` PVC (50 Gi ext4 LV), recordings via
