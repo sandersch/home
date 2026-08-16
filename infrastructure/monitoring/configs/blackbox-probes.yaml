@@ -20,6 +20,7 @@ spec:
       static:
         - https://home-assistant.worm.run
         - https://frigate.worm.run
+        - https://zigbee2mqtt.worm.run
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: Probe

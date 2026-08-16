@@ -86,7 +86,8 @@ assert_phase5_observability_invariants() {
     || die "blackbox exporter version changed unexpectedly"
   yq -e 'select(.kind == "Probe" and .metadata.name == "critical-ingress") |
     .spec.targets.staticConfig.static ==
-      ["https://home-assistant.worm.run", "https://frigate.worm.run"]' \
+      ["https://home-assistant.worm.run", "https://frigate.worm.run",
+       "https://zigbee2mqtt.worm.run"]' \
     "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
     || die "critical ingress blackbox targets changed unexpectedly"
   yq -e 'select(.kind == "Probe" and .metadata.name == "mqtt") |

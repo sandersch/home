@@ -133,9 +133,11 @@ Phase one is deliberately metrics-first:
   dashboards. The chart is pinned, CRDs are upgraded through Flux, and k3s-only
   nonexistent control-plane scrape targets are disabled.
 - **prometheus-blackbox-exporter** checks the authenticated/user-facing ingress path
-  for Home Assistant, Frigate, Plex, Seerr, and RomM, plus the internal MQTT TCP path.
-  These probes exercise DNS, ingress, TLS, Services, and applications instead of only
-  observing that pods exist.
+  for Home Assistant, Frigate, Zigbee2MQTT, Plex, Seerr, and RomM, plus the internal
+  MQTT TCP path. These probes exercise DNS, ingress, TLS, Services, and applications
+  instead of only observing that pods exist. Zigbee2MQTT is in the critical tier, so
+  its HTTPS path is checked every 30 seconds and alerts after three minutes of
+  continuous failure.
 - **nut-exporter** anonymously polls the host NUT server for the `cp1500` UPS. Its
   ServiceMonitor records charge, runtime, voltage, load, and status every 30 seconds;
   a repo-owned Grafana dashboard uses only telemetry exposed by this CyberPower model.
