@@ -44,6 +44,9 @@ spec:
               test -n "$sqlite_path"
               restic dump latest "$sqlite_path" >/tmp/sample.sqlite
               sqlite3 /tmp/sample.sqlite 'PRAGMA integrity_check;' | grep -qx ok
+              seerr_path=/work/hot-dumps/sqlite/seerr/config/db/db.sqlite3.sqlite-backup
+              restic dump latest "$seerr_path" >/tmp/seerr.sqlite3
+              sqlite3 -readonly /tmp/seerr.sqlite3 'PRAGMA integrity_check;' | grep -qx ok
               restic ls latest /data/opt/home-assistant/config/backups >/tmp/home-assistant-backups.txt
               test -s /tmp/home-assistant-backups.txt
           envFrom:

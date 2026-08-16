@@ -40,7 +40,7 @@ belongs to `infrastructure/controllers/tailscale` so the Helm chart can mount it
 during the controller phase.
 
 For a rebuild, proceed from the validation gate to the
-[full `/opt` restore](../../docs/build-plan.md#fresh-rebuild-and-disaster-recovery).
+[executable full `/opt` recovery](../disaster-recovery/README.md).
 Do not use `flux resume` directly: remove the apps guard in git after restore, validate
 the workloads, and remove the monitoring backup guard in a second commit.
 

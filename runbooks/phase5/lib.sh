@@ -338,6 +338,12 @@ assert_phase5_backup_invariants() {
   grep -Fq -- "home_assistant_backup_set_has_new_file \"\$HA_BACKUPS_BEFORE\" \"\$HA_BACKUPS_AFTER\"" \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "shared Restic backup script does not compare Home Assistant backup filename sets"
+  grep -Fq -- "-name '*.sqlite3'" \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not discover .sqlite3 databases"
+  grep -Fq -- 'required Seerr SQLite hot backup was not created' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not fail when the Seerr hot backup is missing"
   ok "local and B2 backup invariants are intact"
 }
 

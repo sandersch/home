@@ -162,8 +162,9 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 
 ## Where to go next
 
-1. [docs/direct-attached-storage-migration-worklog.md](./docs/direct-attached-storage-migration-worklog.md) — completed cutover evidence and post-migration follow-ups.
-2. [docs/build-plan.md](./docs/build-plan.md) — phased path, current status, and completion gates.
-3. [docs/architecture.md](./docs/architecture.md) — the design and its rationale.
-4. [docs/migration-runbook.md](./docs/migration-runbook.md) — moving Plex + *arr data.
-5. [docs/operations.md](./docs/operations.md) — backups, monitoring, tuning, follow-ups.
+1. [runbooks/disaster-recovery/README.md](./runbooks/disaster-recovery/README.md) — executable full-state rebuild and restore procedure.
+2. [docs/direct-attached-storage-migration-worklog.md](./docs/direct-attached-storage-migration-worklog.md) — completed cutover evidence and post-migration follow-ups.
+3. [docs/build-plan.md](./docs/build-plan.md) — phased path, current status, and completion gates.
+4. [docs/architecture.md](./docs/architecture.md) — the design and its rationale.
+5. [docs/migration-runbook.md](./docs/migration-runbook.md) — moving Plex + *arr data.
+6. [docs/operations.md](./docs/operations.md) — backups, monitoring, tuning, follow-ups.

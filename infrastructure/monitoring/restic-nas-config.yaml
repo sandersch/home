@@ -61,7 +61,11 @@ data:
         else
           log "skipping non-SQLite or unhealthy DB candidate: $db: $(sqlite_error_summary "$err")"
         fi
-      done < <(find /data/opt -type f -name '*.db' -print0)
+      done < <(find /data/opt -type f \
+        \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -print0)
+      local required_seerr="$SQLITE_DUMPS/seerr/config/db/db.sqlite3.sqlite-backup"
+      [ -s "$required_seerr" ] \
+        || die "required Seerr SQLite hot backup was not created: $required_seerr"
       log "created $count SQLite backup file(s)"
     }
 

@@ -62,7 +62,11 @@ disabled so pruning works, and uses the lifecycle rule that keeps only the lates
 object version. Its non-expiring application key is bucket-scoped Read and Write with
 List All Bucket Names enabled for S3 compatibility. The cluster therefore holds delete
 authority for automatic pruning; hardened offline deletion is deferred. Setup and
-recovery commands are in [`runbooks/phase5/README.md`](../runbooks/phase5/README.md).
+representative restore-drill commands are in
+[`runbooks/phase5/README.md`](../runbooks/phase5/README.md). A real fresh-system
+restore uses the guarded, executable
+[`runbooks/disaster-recovery/`](../runbooks/disaster-recovery/) procedure; the restore
+drills do not populate `/opt`.
 
 ### SQLite hot backups (pre-hook)
 
@@ -92,6 +96,8 @@ RomM's MariaDB sidecar is exposed only inside the cluster as
 `ROMM_DB_PASSWORD` must match the RomM Secret's `MARIADB_PASSWORD`; if a manual backup
 fails with MariaDB error 1045, rerun
 `runbooks/phase5/02-encrypt-restic-secret.sh` and reconcile `monitoring`.
+The shared backup script treats Seerr's `.sqlite3` hot backup as required and fails the
+Job instead of creating a full-recovery-ineligible snapshot when that backup is absent.
 
 ## Monitoring & alerting
 

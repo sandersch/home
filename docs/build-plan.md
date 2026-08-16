@@ -29,6 +29,11 @@ manifests:
 
 **Required order: suspend → restore → resume.**
 
+The canonical executable procedure is
+[`runbooks/disaster-recovery/`](../runbooks/disaster-recovery/). The stages below
+explain its invariants; use the scripts for an actual recovery rather than translating
+this prose into ad hoc commands.
+
 The numbered phases preserve the original build history, but the repository now contains
 live workload manifests. A fresh `flux bootstrap` starts reconciliation immediately;
 bootstrapping the populated `main` branch without a guard can create stateful pods on an
@@ -71,10 +76,12 @@ kubectl get pods,cronjobs -A
 ```
 
 Both Kustomizations must show `SUSPENDED=true`, and a fresh cluster must have no app
-pods and no `restic-nas-backup` or `restic-b2-backup` CronJobs. Flux suspension stops
-future reconciliation; it does **not** stop pods, Jobs, or CronJobs that already exist.
-If this is a partial rebuild and any stateful workload or backup schedule already
-exists, quiesce it and prove no backup Job is active before touching `/opt`.
+workload controllers or pods and no `restic-nas-backup` or `restic-b2-backup` CronJobs.
+Flux suspension stops future reconciliation; it does **not** stop Deployments,
+ReplicaSets, pods, Jobs, or CronJobs that already exist. If this is a partial rebuild
+and any stateful workload or backup schedule already exists, remove the leftover
+workload resources, quiesce storage, and prove no backup Job is active before touching
+`/opt`.
 
 ### 3. Restore and validate state
 
@@ -85,12 +92,15 @@ Restic snapshot from the direct backup LV, or B2 if the local repository is unav
 The historical Phase 3.5 archive copy is only for an intentional recovery from that old,
 quiesced migration source.
 
-Restore the snapshot's complete `/data/opt` tree to a staging directory outside `/opt`,
-validate the restored files and database/hot-backup artifacts, then copy the staged
-tree to `/opt` with ownership, ACLs, xattrs, hard links, and numeric IDs preserved. Use
-the snapshot's `/work/hot-dumps` SQLite and RomM logical backups, plus the Home Assistant
-managed backup artifact, wherever an application-level recovery is required. Keep every
-application stopped throughout this gate.
+Restore the snapshot's complete `/data/opt` tree to a staging directory outside `/opt`.
+Validate every SQLite hot backup, replace its corresponding live-captured database in
+staging, and remove stale WAL/SHM companions before copying the tree. Do not copy the
+live-captured RomM MariaDB directory: initialize a fresh MariaDB data directory from
+the snapshot's `/work/hot-dumps/romm/romm.sql` logical dump. Then copy the staged tree
+to `/opt` with ownership, ACLs, xattrs, hard links, and numeric IDs preserved. Validate
+the Home Assistant managed backup artifact as an independent application-aware fallback.
+Keep every application stopped throughout this gate. The executable recovery scripts
+enforce these database-specific steps.
 
 The Phase 5 `05-validate-restore.sh` and `09-validate-b2-restore.sh` scripts are
 representative restore drills into temporary volumes; they do **not** restore `/opt` and
@@ -102,6 +112,10 @@ snapshot ID and verify at minimum:
 - restored SQLite/hot-backup integrity checks pass; and
 - no application pod or Restic backup Job is running.
 
+The backup job discovers SQLite databases with `.db`, `.sqlite`, and `.sqlite3`
+suffixes. Full recovery rejects snapshots that predate that expanded discovery because
+they do not contain a transaction-safe hot backup of Seerr's `db.sqlite3`.
+
 ### 4. Resume in two commits
 
 Remove `spec.suspend: true` from `clusters/minis/apps.yaml` only, commit and push, then
@@ -112,6 +126,8 @@ flux reconcile kustomization flux-system --with-source
 flux reconcile kustomization apps
 ./runbooks/phase4/00-preflight.sh
 # Run the applicable Phase 4 validation helpers before continuing.
+# Or run the canonical combined gate:
+./runbooks/disaster-recovery/05-resume-apps.sh
 ```
 
 Only after application validation passes, remove `spec.suspend: true` from
@@ -125,6 +141,8 @@ flux reconcile kustomization monitoring
 ./runbooks/phase5/05-validate-restore.sh
 ./runbooks/phase5/08-run-manual-b2-backup.sh
 ./runbooks/phase5/09-validate-b2-restore.sh
+# Or run the canonical combined gate:
+./runbooks/disaster-recovery/06-resume-monitoring.sh
 ```
 
 Resume through git rather than `flux resume`; otherwise the committed

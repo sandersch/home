@@ -47,6 +47,7 @@ spec:
 
               sqlite_path="$(restic find --snapshot "$snapshot_id" --json '*.sqlite-backup' |
                 jq -er '[.[].matches[]? | select(.type == "file")][0].path')"
+              seerr_path=/work/hot-dumps/sqlite/seerr/config/db/db.sqlite3.sqlite-backup
               ha_path="$(restic find --snapshot "$snapshot_id" --json '/data/opt/home-assistant/config/backups/*' |
                 jq -er '[.[].matches[]? | select(.type == "file")][0].path')"
               romm_path=/work/hot-dumps/romm/romm.sql
@@ -54,13 +55,16 @@ spec:
               restic restore "$snapshot_id" \
                 --target /restore \
                 --include "$sqlite_path" \
+                --include "$seerr_path" \
                 --include "$romm_path" \
                 --include "$ha_path"
 
               test -s "/restore$romm_path"
               test -s "/restore$ha_path"
               test -s "/restore$sqlite_path"
+              test -s "/restore$seerr_path"
               sqlite3 -readonly "/restore$sqlite_path" 'PRAGMA integrity_check;' | grep -qx ok
+              sqlite3 -readonly "/restore$seerr_path" 'PRAGMA integrity_check;' | grep -qx ok
               echo "B2 snapshot metadata and representative restored artifacts are valid"
           env:
             - name: RESTIC_REPOSITORY

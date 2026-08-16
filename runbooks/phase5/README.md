@@ -15,11 +15,11 @@ available as `/dev/mapper/hoardvg-backuplv` at `/mnt/backups`.
 | `02-encrypt-restic-secret.sh` | Create the SOPS-encrypted `monitoring/restic-nas` Secret |
 | `03-init-restic-nas-repo.sh` | Initialize `/mnt/backups/opt` as a Restic repo |
 | `04-run-manual-backup.sh` | Run one backup immediately from the CronJob |
-| `05-validate-restore.sh` | Check the latest snapshot, RomM dump, HA backup artifact, and a SQLite dump |
+| `05-validate-restore.sh` | Check the latest snapshot, RomM dump, HA backup artifact, and SQLite hot backups including Seerr |
 | `06-encrypt-restic-b2-secret.sh` | Generate the independent SOPS-encrypted B2 repository Secret |
 | `07-init-restic-b2-repo.sh` | Reconcile monitoring and initialize the B2 repository idempotently |
 | `08-run-manual-b2-backup.sh` | Run the weekly B2 CronJob manually |
-| `09-validate-b2-restore.sh` | Restore representative B2 artifacts without the local backup volume |
+| `09-validate-b2-restore.sh` | Restore representative B2 artifacts, including Seerr's hot DB, without the local backup volume |
 | `10-setup-deadmanssnitch.sh` | SOPS-encrypt the external heartbeat URL and activate Alertmanager Watchdog routing |
 | `11-setup-pushover.sh` | SOPS-encrypt Pushover keys and atomically activate actionable phone notifications |
 | `12-test-pushover.sh` | Inject and resolve synthetic warning/critical alerts through Alertmanager |
