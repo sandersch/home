@@ -6,7 +6,9 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 > stack are largely implemented and live-validated. The bulk-storage RAID enclosure
 > was moved intact from Morpheus to the SAS HBA in `minis` on 2026-08-10; the array,
 > filesystems, reboot assembly, and dependent workloads passed cutover validation.
-> Morpheus was retired the same day and remains powered off as a cold spare.
+> Morpheus was retired the same day and remains powered off as a cold spare. The
+> approved numbered UDM firewall policy is still pending deployment and validation;
+> its matrix describes the intended end state, not current enforcement.
 
 ## Stack at a glance
 
@@ -18,8 +20,9 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 - **Backups:** nightly direct-array Restic plus an independent weekly Backblaze B2 copy;
   required-export contract version 1 passed fresh local and B2 backup/restore drills
   on 2026-08-16
-- **Next:** implement the version-pinning plan, close the media resource-tuning gate,
-  validate the mdcheck cap, then tune Frigate
+- **Next:** deploy and validate the approved UDM firewall policy, implement the
+  version-pinning plan, close the media resource-tuning gate, validate the mdcheck
+  cap, then tune Frigate
 
 ## Layout
 
