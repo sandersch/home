@@ -36,5 +36,10 @@ and during periodic monitoring drills. The non-disruptive helper validates the l
 critical ingress and coordinator TCP probes, MQTT exporter target and metrics, and
 inactive bridge-health/endpoint alerts without publishing synthetic retained state.
 
+The workload, coordinator connection, broker connection, frontend, exporter, and
+monitoring paths passed live validation on 2026-08-16. Device pairing and Home
+Assistant MQTT discovery are also complete, and discovered Zigbee devices have been
+used successfully in Home Assistant automations.
+
 Back up `coordinator_backup.json`, `database.db`, and `configuration.yaml` after
 pairing devices and before coordinator firmware or Zigbee network changes.

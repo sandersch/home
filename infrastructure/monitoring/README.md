@@ -53,6 +53,7 @@ MQTT-native bridge-health path passed live validation on 2026-08-16: the exporte
 target was healthy, the retained bridge state was online, MQTT was connected,
 one-minute health data was fresh, both blackbox paths succeeded, and the bridge-health
 and shared endpoint rules were healthy with no active Zigbee2MQTT alert. Resource
-tuning remains after roughly one week of real metrics. Loki with Grafana Alloy is an
-optional phase-two addition; notification delivery does not require another cluster
-workload.
+tuning changes for the standard-tier media workloads were deployed on 2026-08-13;
+their seven-day observation gate remains open, and monitoring-specific tuning can
+follow from the same audit data. Loki with Grafana Alloy is an optional phase-two
+addition; notification delivery does not require another cluster workload.

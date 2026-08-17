@@ -26,7 +26,7 @@ These are the non-negotiable implementation rules for both human operators and A
 * `ryze` is the only trusted client allowed into VLAN 10, and it has full management access there.
 * VLAN 20 servers are denied access into VLAN 10 by default.
 * Untrusted devices default to Guest / VLAN 80 and are promoted only by justified need, split **by bandwidth**: low-bandwidth control gadgets → IoT / VLAN 60; high-bandwidth casting devices that need local access → Trusted / Fastlane VLAN 30 (the IoT SSID is 2.4 GHz-only). There is no dedicated Media VLAN — its added complexity is not currently worth it.
-* Infrastructure addressing is **static-first** on VLANs 10, 20, and 105: known devices use static IPs outside the dynamic DHCP pool, with UDM DHCP reservations (and `minis` `dnsmasq` mappings on VLAN 105) serving only as fallback.
+* Infrastructure addressing is **static-first** on VLANs 10 and 20: known devices use static IPs outside the dynamic DHCP pool, with UDM DHCP reservations serving only as fallback. Camera addressing is the deliberate exception: `minis` is static at `192.168.105.1`, while `dnsmasq` DHCP reservations are authoritative for known cameras in `.50-.99`; `.100-.199` is the dynamic onboarding pool.
 * Server/NAS links operate at 1 Gb. The `minis` NICs are 2.5GbE, but the router and switch ports they connect to are 1GbE, so those links negotiate at 1 Gb.
 * VLAN 20 server internet egress remains unrestricted by design.
 
@@ -46,7 +46,7 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
 | **Camera VLAN 105 is fully isolated** (no gateway, off-trunk, reached only via the dual-homed `minis` NVR NIC, no bridging) | Cameras can't reach the internet or any other VLAN; only the NVR sees them. Strong containment for untrusted camera firmware. | — |
 | **IoT (VLAN 60) gets full outbound internet** | Most IoT devices depend on vendor cloud to function. Unsolicited inbound and lateral movement remain blocked. | Block/allowlist egress — revisit if you want to cut off chatty or untrusted devices. |
 | **VLAN 10 temporarily has no designated NTP source** | Morpheus was retired on 2026-08-10, so its DHCP option 42 advertisement and VLAN 10 → Morpheus UDP/123 exception are removed rather than pointing clients at a powered-off host. Camera NTP on `minis` is separate and remains active. | Select a replacement internal NTP source before restoring DHCP option 42 or adding a new firewall exception. |
-| **Static-first addressing on VLAN 20 (servers), VLAN 10 management, and VLAN 105 cameras, with DHCP fallback reservations** | Infrastructure gets stable, known IPs; DHCP fallback maps known MACs to the same intended addresses if a host, management device, or camera requests a lease. Static addresses live outside the dynamic DHCP pools. | — |
+| **Static-first addressing on VLAN 20 servers and VLAN 10 management; authoritative `dnsmasq` reservations for VLAN 105 cameras** | Servers and management devices retain static addresses with UDM reservations as fallback. Cameras receive their stable `.50-.99` addresses from the only DHCP server on the isolated segment, avoiding per-camera static-IP drift while keeping Frigate targets deterministic. | — |
 | **General wired ports default to Trusted VLAN 30** | Convenience: anything plugged in just works. Physical access to trusted Ethernet is treated as outside the threat model. | Park unused ports in VLAN 99 — revisit if the physical-access assumption changes. |
 | **Admin (VLAN 10) is jumpbox-only via `ryze`** | No direct management access from `m5c` or other clients; shrinks the management attack surface to one host. `ryze` has full management access inside VLAN 10. | — |
 | **VLAN 20 servers have unrestricted internet egress** | Servers, NAS workloads, package managers, containers, and update tooling are expected to need normal outbound internet. | Per-host or service-specific egress allowlists — revisit only if a server is exposed to meaningfully untrusted workloads. |
@@ -132,7 +132,7 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
   │               │              │              │           │   U7 Pro  │
   ▼               ▼              ▼              ▼           │    WAP    │
 ┌──────────────┐ ┌────────────┐ ┌──────────┐ ┌────────────┐ └───────────┘
-│ IPMI/IPKVM   │ │ Wired      │ │ 4x IP    │ │ minis NIC2 │
+│ IPMI/IPKVM   │ │ Wired      │ │ 1x IP    │ │ minis NIC2 │
 │ (V10)        │ │ Clients    │ │ Cams     │ │ 192.168.   │
 └──────────────┘ │ (V30)      │ │ (V105)   │ │ 105.1      │
                  └────────────┘ └──────────┘ └────────────┘
@@ -165,7 +165,7 @@ The Cisco Catalyst 3850 acts **strictly as an L2 switch**. All inter-VLAN routin
 | **60** | IoT / Home Integrated | `10.137.60.0/24` | `10.137.60.1` | `10.137.60.100-10.137.60.199` | Untrusted, **low-bandwidth** home devices that need limited local integration: smart plugs, bulbs, sensors, speakers, small appliances. Devices promoted from Guest land here *only* if they are low-bandwidth control gadgets; a high-bandwidth casting device (smart TV, streaming box) that needs local access is promoted to **Trusted / Fastlane VLAN 30** instead, because the IoT SSID is 2.4 GHz-only and would starve it. |
 | **80** | Guest / Internet Only | `10.137.80.0/24` | `10.137.80.1` | `10.137.80.100-10.137.80.199` | Visitors, corporate laptops, cheap TVs, consoles, streaming boxes, and other untrusted devices by default. Complete client isolation enabled. Internet access only. |
 | **99** | Blackhole | N/A - no L3 interface | — | **None** | **Native Untagged VLAN Parking.** Kept entirely empty to isolate untagged trunk traffic. L2 parking only; no routed UDM interface and no usable host subnet. |
-| **105** | Cameras | `192.168.105.0/24` | None | `192.168.105.100-192.168.105.199` dnsmasq fallback on `minis`, not UDM DHCP | **Locally isolated camera segment.** No UDM gateway exists and VLAN 105 is not extended to the UDM trunk. Reachable only by the dedicated `minis` NVR NIC; no bridging or NAT is allowed, and nftables drops forwarded traffic entering or leaving `cam0` even after k3s enables kernel IP forwarding. Cameras use static-first addressing outside the fallback pool; `minis` runs `dnsmasq` on the camera-side NIC with MAC-to-IP mappings as a DHCP fallback if any camera requests a lease. This is not a UDM DHCP scope. DHCP advertises `192.168.105.1` as the router only for camera firmware compatibility; nftables must continue making that route a dead end for LAN/internet forwarding. DNS is intentionally disallowed on this segment — do not configure `dnsmasq` to serve DNS responses to cameras. DNS would create an exfiltration channel (DNS tunneling), undermining the isolation goal. `dnsmasq` runs on the camera-side NIC for DHCP fallback only. The off-scheme `192.168.105.0/24` addressing (vs. the site-wide `10.137.x` plan) is intentional: it keeps the segment visually distinct as an isolated zone and reflects that it is never routed alongside the rest of the network. |
+| **105** | Cameras | `192.168.105.0/24` | No routed gateway; DHCP advertises `.1` as a dead end for firmware compatibility | Known-camera reservations: `192.168.105.50-192.168.105.99`; unknown-device pool: `192.168.105.100-192.168.105.199` | **Locally isolated camera segment.** No UDM gateway exists and VLAN 105 is not extended to the UDM trunk. Reachable only by the dedicated `minis` NVR NIC; no bridging or NAT is allowed, and nftables drops forwarded traffic entering or leaving `cam0` even after k3s enables kernel IP forwarding. `minis` is the segment's sole DHCP server; its `dnsmasq` MAC reservations are authoritative for known camera addresses. DHCP advertises `192.168.105.1` as the router only for camera firmware compatibility, while nftables makes that route a dead end for LAN/internet forwarding. DNS is intentionally disabled (`port=0`) because a resolver would create an exfiltration channel. The off-scheme addressing is intentional: it makes the isolated, never-routed segment visually distinct from the site-wide `10.137.x` plan. |
 
 ### VLAN 10 Policy Details
 
@@ -232,13 +232,13 @@ The wireless design uses **three active SSIDs**. New untrusted devices start on 
 
 VLAN 105 is a locally isolated camera segment. It has no UDM gateway, is excluded from the UDM/Catalyst trunk, and is reachable only through the dedicated `minis` NVR camera-side NIC. The `minis` host is dual-homed, but bridging/NAT between the server-side NIC and camera-side NIC is not allowed; nftables drops forwarded traffic entering or leaving `cam0`, including after k3s enables kernel IP forwarding.
 
-Because there is no gateway on this segment, the cameras have **no path to the internet** (no firmware phone-home, no remote access — intentional). Every camera is configured static-first in `192.168.105.0/24`. As a fallback, `minis` runs `dnsmasq` on the camera-side NIC with MAC-to-IP mappings so known cameras receive the same intended addresses if they request DHCP. The `minis` camera-side NIC at `192.168.105.1` is the **NVR host itself, not a gateway** — `.1` is used only by convention. Any camera that needs time sync should point at `192.168.105.1` as a **local NTP server** (run on `minis`), since no external NTP is reachable.
+Because there is no routed gateway on this segment, the cameras have **no path to the internet** (no firmware phone-home, no remote access — intentional). Cameras use DHCP, with authoritative `dnsmasq` MAC-to-IP reservations in `192.168.105.50-99`; unknown devices temporarily land in `.100-.199` for onboarding. The `minis` camera-side NIC at `192.168.105.1` is the **NVR/NTP host itself, not a forwarding gateway**. DHCP advertises it as the router because some camera firmware otherwise renews continuously, but nftables makes that route a dead end. Cameras should use `192.168.105.1` as their local NTP server because no external NTP is reachable.
 
 Camera ports use **Switchport Protected** profiles. Cameras can talk to the NVR server port, but cannot communicate with each other.
 
 **Viewing the cameras:** because VLAN 105 is otherwise unreachable, the only sanctioned way to watch the cameras is through Frigate's web UI hosted on `minis` via its VLAN 20 server-side interface (`10.137.20.5`). Trusted clients reach that UI because the firewall allows VLAN 30 → VLAN 20; `minis` reads the camera feeds on its isolated VLAN 105 NIC and never bridges the two segments.
 
-* **Camera Ports (Gi1/0/37 - 47):** This 11-port range is reserved camera capacity; only 4 cameras are deployed today, so the remaining ports are pre-provisioned but unused.
+* **Camera Ports (Gi1/0/37 - 47):** This 11-port range is reserved camera capacity; only one camera is deployed today, so the remaining ports are pre-provisioned but unused.
 ```ios
 interface range GigabitEthernet1/0/37-47
  switchport mode access
@@ -308,7 +308,7 @@ interface range GigabitEthernet1/0/1-4
 | **`Te1/1/4`** | 10G SFP+ (DAC) | 802.1Q Trunk | Native 99; allowed `10,20,30,60,80,99` | Uplink to UDM Port 10 | VLAN 105 excluded from trunk |
 | **`Gi1/0/1–4`** | 1G RJ45 | Access | VLAN 10 | IPMI/IPKVM out-of-band mgmt | PortFast + BPDUguard |
 | **`Gi1/0/5–36`** | 1G RJ45 (UPOE) | Access | VLAN 30 | General wired clients | PortFast / BPDUguard |
-| **`Gi1/0/37–47`** | 1G RJ45 | Access | VLAN 105 | Camera deployment (11 ports; 4 used today) | `switchport protected` + `block unicast`/`block multicast`, PortFast, BPDUguard |
+| **`Gi1/0/37–47`** | 1G RJ45 | Access | VLAN 105 | Camera deployment (11 ports; 1 used today) | `switchport protected` + `block unicast`/`block multicast`, PortFast, BPDUguard |
 | **`Gi1/0/48`** | 1G RJ45 | Access | VLAN 105 | `minis` NVR camera-side ingestion | **No** `switchport protected`; PortFast, BPDUguard |
 
 * **YuanLey 6-Port 2.5G PoE Switch (Unmanaged)**
@@ -329,7 +329,7 @@ interface range GigabitEthernet1/0/1-4
 
 ### MAC-to-IP Reference
 
-Use this table when creating DHCP reservations, static host records, ISP records, and `dnsmasq` fallback mappings. `TBD` means the IP is planned but the hardware MAC is not yet recorded in this document.
+Use this table when creating DHCP reservations, static host records, ISP records, and authoritative `dnsmasq` camera mappings. `TBD` means the IP is planned but the hardware MAC is not yet recorded in this document.
 
 | Device / Interface | VLAN | IP Address | MAC Address | Assignment |
 | --- | --- | --- | --- | --- |
@@ -341,6 +341,7 @@ Use this table when creating DHCP reservations, static host records, ISP records
 | `morpheus` cold spare | 20 | `10.137.20.2` | `b4:2e:99:33:d6:0b` | Retained static DNS and UDM reservation; powered off |
 | `minis` server NIC | 20 | `10.137.20.5` | `38:05:25:35:fb:d3` | Static-first; UDM reservation fallback |
 | `minis` camera-side NIC | 105 | `192.168.105.1` | `38:05:25:35:fb:d2` | Static local NVR/NTP endpoint |
+| Amcrest `AMC108F5E2C2775601` | 105 | `192.168.105.50` | `a0:60:32:04:b1:3e` | Authoritative `dnsmasq` DHCP reservation; only deployed camera |
 | `ryze` desktop | 30 | `10.137.30.6` | `a8:a1:59:51:47:4e` | Static or UDM DHCP reservation |
 | `m5c` Wi-Fi | 30 | DHCP `10.137.30.x` | `aa:9a:b7:f2:ea:2d` | DHCP; private MAC disabled |
 
@@ -432,8 +433,8 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 
 ### Network Step 2.5: Camera Segment Services
 
-* [X] Configure `minis` `dnsmasq` on the camera-side NIC only, with `dhcp-host` MAC-to-IP reservations for every known camera in the static `192.168.105.50-192.168.105.99` block, and the dynamic pool limited to `192.168.105.100-192.168.105.199` for unknown devices. Advertise `192.168.105.1` as the router for camera firmware compatibility, but keep nftables forwarding drops in place. Run DHCP-only (`port=0`) — do not serve DNS, which would be an outbound beacon path for a compromised camera. Verified during Phase 4 validation: the live `dnsmasq` config is DHCP-only on `cam0` and the known Amcrest camera is pinned at `192.168.105.50`.
-* [ ] Configure static camera network settings with gateway `192.168.105.1` if the firmware requires one. Point camera NTP at `192.168.105.1` if local time sync is needed.
+* [X] Configure `minis` `dnsmasq` as the sole authoritative DHCP server on the camera-side NIC, with `dhcp-host` MAC-to-IP reservations for every known camera in `192.168.105.50-192.168.105.99` and the dynamic pool limited to `192.168.105.100-192.168.105.199` for unknown devices. Advertise `192.168.105.1` as the router for camera firmware compatibility, but keep nftables forwarding drops in place. Run DHCP-only (`port=0`)—do not serve DNS, which would be an outbound beacon path for a compromised camera. Verified during Phase 4 validation: the live config is authoritative and DHCP-only on `cam0`, and the sole deployed Amcrest camera receives reserved address `192.168.105.50`.
+* [X] Configure the deployed camera for DHCP and local NTP at `192.168.105.1`. Do not configure a per-camera static IP; the `dnsmasq` reservation is the address source of truth.
 * [X] Confirm `minis` is not bridging or NATing between its VLAN 20 server-side NIC and VLAN 105 camera-side NIC, and that nftables drops forwarded traffic entering or leaving `cam0`. Verified during Phase 4 validation with k3s running and `ip_forward=1`; the camera segment remains host-only.
 * [X] Confirm cameras can reach `192.168.105.1` for Frigate/NVR ingestion and local NTP, but cannot reach VLAN 20, VLAN 30, VLAN 10, or the internet directly. Verified during Phase 4 validation; Frigate ingests the pinned camera while camera-segment forwarding remains blocked.
 

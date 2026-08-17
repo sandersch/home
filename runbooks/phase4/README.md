@@ -4,7 +4,7 @@ Scripts for [build-plan.md Phase 4](../../docs/build-plan.md#phase-4--core-workl
 
 This directory starts with the Phase 4 media apps: the media download stack
 (Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr), Plex, Seerr, RomM,
-Frigate, Home Assistant, and Zigbee2MQTT.
+Frigate, Home Assistant, Mosquitto, Z-Wave JS UI, and Zigbee2MQTT.
 
 ## Prerequisites
 
@@ -226,8 +226,13 @@ alone do not roll either Deployment.
   Frigate availability, HA entity registration, HTTPS API reachability, and a real
   `amcrest_105_50` person event with matching occupancy changes all passed. HA's
   authenticated API-managed backup/restore path had already passed Phase 5 validation.
-- Zigbee2MQTT: manifests and validation are present; live reconciliation, first
-  coordinator start, and device discovery remain to be validated.
+- Z-Wave JS: validated on 2026-08-16. Z-Wave JS UI reached the SLZB-MRW10U controller,
+  the Home Assistant WebSocket integration connected, and a successfully included
+  device exposed entities in Home Assistant.
+- Zigbee2MQTT: the workload and monitoring exporter are reconciled and Ready. The
+  HTTPS, SLZB coordinator TCP, and MQTT-native bridge-health paths passed live
+  validation on 2026-08-16. Device pairing, Home Assistant MQTT discovery, and real
+  automation use have also passed live validation.
 
 Remaining Phase 4 work is Frigate camera tuning (motion masks, zones, object filters,
 and retention).

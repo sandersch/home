@@ -440,10 +440,11 @@ Deferred deliberately; revisit when the trigger condition is met.
 
 | Item | When to do it |
 |---|---|
+| **Version pinning and update controls** | Implement the ordered migration in [version-management.md](./version-management.md) before the next rebuild or routine application upgrade. Start with inventory/CI guardrails, reproduce the live image digests, and pin k3s only after workload and recovery references are deterministic. |
 | **VLAN 10 NTP replacement** | Replace the retired Morpheus service when an appropriate internal time source is selected. Until then, VLAN 10 has no designated NTP source; do not restore the obsolete DHCP option 42 advertisement or Morpheus firewall exception. Camera NTP remains independently served by `minis` at `192.168.105.1`. |
 | **Selected NFS exports from `minis`** | When a real remote consumer appears, export only `/mnt/media` and `/mnt/games` from `minis` with an explicit client/access policy. Nothing exports bulk storage over NFS today. Keep `/mnt/frigate` local-only; do not export `/mnt/backups` without a concrete use. |
 | **Second node** | Only on a *measured* need: HA must survive main-node maintenance, or Frigate outgrows the Coral/CPU budget. Repo layout already supports it via `nodeSelector`/affinity. |
-| **Tailscale Funnel for Plex** | If sharing with non-Tailnet users / casting to uncontrolled client devices becomes a real need. Cleaner than Plex native remote access. |
+| **Tailscale Funnel for Plex** | Evaluate only if sharing with non-Tailnet users or casting to uncontrolled clients becomes a real need. Funnel is still beta and subject to Tailscale's non-configurable bandwidth limits, so validate sustained Plex throughput and target-client compatibility before choosing it over another narrowly scoped remote-access design. |
 | **Immich** | When ready — coordinate the initial import in a quiet window, watch memory. Originals on the direct bulk array, thumbs/ML on `/opt/immich`. |
 
 > **Camera switch isolation (Catalyst 3850)** was previously listed here as deferred
@@ -453,10 +454,12 @@ Deferred deliberately; revisit when the trigger condition is met.
 > [build-plan.md → 1.1b](./build-plan.md#phase-1--networking-isolation-).
 
 Accepted constraints (not gaps): no staging environment (changes go to the one
-cluster — mitigated by btrfs snapshots + `flux suspend`); cert renewal depends on the
-external DNS provider's API (90-day certs make a brief outage non-fatal); no k3s etcd
-snapshots. As much reproducible cluster configuration as practical lives in git, and
-application state is protected separately by Restic. Selected secrets are also saved
+cluster—mitigated by btrfs snapshots + `flux suspend`); cert renewal depends on the
+external DNS provider's API (90-day certs make a brief outage non-fatal); and no
+scheduled backup of the default k3s SQLite datastore. Git is the cluster rebuild source
+of truth; the version-management workflow adds a short-lived, access-controlled
+datastore checkpoint before k3s upgrades rather than treating it as a normal Restic
+backup. Application state is protected separately by Restic. Selected secrets are also saved
 in the external password manager as an independent recovery source; the `sops-age`
 private key and values redacted from canonical host or device configuration remain
 outside git. A rebuild therefore requires the git repository, Restic where state is

@@ -25,7 +25,8 @@ integration, and real camera-event path are operational.
 - Zigbee2MQTT publishes Home Assistant MQTT discovery through that existing MQTT
   integration. Do not add ZHA alongside it; both would contend for the same Zigbee
   coordinator socket. Zigbee2MQTT and its pairing workflow are documented in
-  `apps/zigbee2mqtt/README.md`.
+  `apps/zigbee2mqtt/README.md`. Device pairing and MQTT discovery are operational,
+  and the discovered devices are in active use by Home Assistant automations.
 - Install HACS and its Frigate integration, then connect the integration to
   `https://frigate.worm.run` with the existing Frigate login. Do not use
   `http://frigate.frigate.svc.cluster.local:8971`: Frigate serves HTTPS on port 8971,
@@ -100,6 +101,12 @@ Before initial setup, confirm a current Home Assistant backup and take the norma
 Home Assistant's integration entry and Z-Wave JS UI's settings are UI/PVC-managed by
 design. Back up the controller NVM after inclusions and before firmware or controller
 changes.
+
+Live validation passed on 2026-08-16: Z-Wave JS UI connected to the SLZB-MRW10U
+controller, Home Assistant connected to the in-cluster WebSocket server, and an
+included device produced entities in Home Assistant. Initial setup is therefore
+complete; repeat the validator and take a fresh controller NVM backup after material
+controller changes or additional inclusions.
 
 Use `local-nvme` for app state. Device passthrough and host networking should be
 documented in the manifest comments when added.

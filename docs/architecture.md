@@ -78,7 +78,7 @@ mounted or consumed by the current platform. The array identity is pinned to
 
 Rationale for the splits:
 
-- **`/var` 100 GB** — container image layers for ~10 apps plus k3s/etcd state and
+- **`/var` 100 GB** — container image layers for ~10 apps plus k3s SQLite datastore state and
   logs. A starting point, not a ceiling: every manual LV grows online from the VG free
   pool, so we start each at a conservative 100 GB and `lvextend` only what real usage
   demands rather than betting the sizing up front. Periodic `crictl rmi --prune` keeps
@@ -91,8 +91,8 @@ Rationale for the splits:
   in the pool, and per-app LVs lose compression and the one-command subvolume
   rollback. SABnzbd *config* lives here; the incomplete staging dir does not.
 - **Scratch via TopoLVM (thick LVs, no thin pool)** — high-write, fully regenerable,
-  snapshot-worthless data: Frigate's cache/buffer and SABnzbd's incomplete staging
-  dir (large NZBs downloaded and unpacked in place), each an ext4 LV provisioned
+  snapshot-worthless data: Frigate's cache/buffer, SABnzbd and qBittorrent incomplete
+  staging, and Plex transcodes, each on an ext4 LV provisioned
   from VG free space by a PVC. The LV boundary is a kernel-enforced per-PVC cap —
   a runaway download queue cannot eat the headroom Frigate's cache needs during a
   enclosure outage — and `allowVolumeExpansion` makes growing one an online PVC edit,
@@ -187,6 +187,7 @@ The rule: **latency-sensitive state on local NVMe; bulk data on the direct array
 |---|---|---|---|
 | Plex | Metadata/DB (~100 GB) | `/opt/plex` | btrfs (NVMe) |
 | Plex | Media library | `/mnt/media` | direct mdadm/LVM/ext4 |
+| Plex | Transcode workspace | `topolvm-scratch` PVC | ext4 LV (NVMe) |
 | Frigate | DB + config | `/opt/frigate` | btrfs (NVMe) |
 | Frigate | Cache / temp | `topolvm-scratch` PVC | ext4 LV (NVMe) |
 | Frigate | Recordings/clips | `/mnt/frigate` | direct mdadm/LVM/ext4 |
@@ -202,6 +203,7 @@ The rule: **latency-sensitive state on local NVMe; bulk data on the direct array
 | RomM | ROM library | `/mnt/games` | direct mdadm/LVM/ext4 |
 | Home Assistant | Recorder DB + state | `/opt/home-assistant` | btrfs (NVMe) |
 | Z-Wave JS UI | Settings, security keys, logs + controller backups | `/opt/zwave-js-ui` | btrfs (NVMe) |
+| Mosquitto | Retained MQTT data | `/opt/mosquitto/data` | btrfs (NVMe) |
 | Zigbee2MQTT | Device DB + coordinator backup + network config | `/opt/zigbee2mqtt` | btrfs (NVMe) |
 | Immich (later) | Thumbnails + ML cache | `/opt/immich` | btrfs (NVMe) |
 | Immich (later) | Originals | direct bulk array | mdadm/LVM/ext4 |
@@ -267,10 +269,11 @@ routes; administrative kubeconfig access currently targets the node on the LAN.
 - **Tradeoff:** sharing with people who won't install Tailscale, or casting to dumb
   client devices in places you don't control (a hotel/relative's TV/Roku), doesn't
   work cleanly — those clients can't join the Tailnet. If that need arises, expose
-  **only Plex** via **Tailscale Funnel** (Tailscale terminates the public connection;
-  no router port-forward, no exposing the Plex process directly). That's a cleaner
-  path than re-enabling Plex's native remote access, and it's a later add — locking
-  down something already public is the harder direction. Tracked as a follow-up.
+  **only Plex** via **Tailscale Funnel** as one candidate (Tailscale terminates the
+  public connection, so no router port-forward is required). Funnel remains beta and
+  has non-configurable bandwidth limits, so sustained Plex throughput and target-client
+  behavior must be tested before adopting it. It remains a later add—locking down
+  something already public is the harder direction. Tracked as a follow-up.
 
 ## Secrets architecture
 
@@ -334,6 +337,9 @@ over the node's WAN; only the lookups leak, the traffic itself is tunneled.
 | Plex | No | Needs its own direct/relayed remote path |
 | Frigate | No | Camera traffic, fully internal |
 | Home Assistant | No | Needs LAN access for device discovery |
+| Mosquitto | No | Cluster-internal MQTT broker |
+| Z-Wave JS UI | No | Talks to the LAN-attached controller and Home Assistant internally |
+| Zigbee2MQTT | No | Talks to the LAN-attached coordinator and Mosquitto internally |
 | RomM | No | Fully internal |
 
 Validate that egress from inside the pod equals the VPN exit IP **before**
@@ -372,6 +378,7 @@ requests, then pod priority, then usage relative to requests.)
 | **Frigate** | 2 / 4 | 2Gi / 4Gi | `homelab-critical` |
 | **Home Assistant** | 0.5 / 2 | 512Mi / 2Gi | `homelab-critical` |
 | **Z-Wave JS UI** | 0.1 / 1 | 256Mi / 1Gi | `homelab-critical` |
+| **Mosquitto** | 50m / 250m | 64Mi / 256Mi | `homelab-critical` |
 | **Zigbee2MQTT** | 0.1 / 1 | 256Mi / 1Gi | `homelab-critical` |
 | **Zigbee2MQTT MQTT exporter** | 25m / 100m | 64Mi / 128Mi | `homelab-critical` |
 | Plex | 1 / 6 | 1536Mi / 4Gi | `homelab-standard`; high CPU burst ceiling |

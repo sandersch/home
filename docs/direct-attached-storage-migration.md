@@ -3,7 +3,7 @@
 Move the existing RAID6 array from Morpheus's SAS HBA to the LSI 9207-8e in
 `minis`, then mount its ext4 filesystems directly in the same locations previously
 provided by NFS. This completed milestone is recorded in the
-[build plan](./build-plan.md#direct-attached-bulk-storage-migration-cutover-completed-2026-08-10).
+[build plan](./build-plan.md#direct-attached-bulk-storage-migration-completed-2026-08-13).
 
 **Status:** completed 2026-08-10. The enclosure now belongs to `minis`. Morpheus's
 old mounts, NFS exports, md checks, and automatic array assembly were disabled before

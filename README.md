@@ -14,12 +14,12 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 - **Access:** LAN + Tailnet only (nothing public) · `*.worm.run` via router wildcard DNS
 - **Current workload manifests:** Plex (Quick Sync), Frigate (Coral),
   Radarr/Sonarr/Prowlarr/SABnzbd/qBittorrent behind Mullvad/Gluetun, Seerr, RomM,
-  Home Assistant, and Mosquitto
+  Home Assistant, Mosquitto, Z-Wave JS UI, and Zigbee2MQTT
 - **Backups:** nightly direct-array Restic plus an independent weekly Backblaze B2 copy;
   required-export contract version 1 passed fresh local and B2 backup/restore drills
   on 2026-08-16
-- **Next:** post-cutover observation, resource and Frigate tuning, optional Loki/Alloy
-  logs, and deferred apps
+- **Next:** implement the version-pinning plan, close the media resource-tuning gate,
+  validate the mdcheck cap, then tune Frigate
 
 ## Layout
 
@@ -27,10 +27,10 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 AGENTS.md          project context, decisions, conventions (start here)
 docs/              architecture, build plan, migration runbooks, operations
 runbooks/          executable host/app phase runbooks
-host/minis/        canonical host-level config copied by the runbooks
+host/              canonical MINIS host config plus Catalyst reference config
 clusters/minis/    Flux entrypoint (flux-system + Kustomizations)
 infrastructure/    controllers, cluster configs, Phase 5 backups/monitoring
-apps/              media, frigate, home-assistant, mqtt
+apps/              media, frigate, home-assistant, mqtt, zigbee2mqtt
 ```
 
 ## Docs
@@ -40,6 +40,7 @@ apps/              media, frigate, home-assistant, mqtt
 | [AGENTS.md](./AGENTS.md) | Orientation, decision log, repo conventions, working agreements |
 | [docs/architecture.md](./docs/architecture.md) | Hardware, storage, networking, access, resource strategy |
 | [docs/build-plan.md](./docs/build-plan.md) | Phased build (0→5), validation gate, YAML patterns |
+| [docs/version-management.md](./docs/version-management.md) | Pinning policy, initial migration sequence, and routine update/rollback workflow |
 | [docs/migration-runbook.md](./docs/migration-runbook.md) | Migrating Plex + *arr data, cutover, rollback |
 | [docs/direct-attached-storage-migration.md](./docs/direct-attached-storage-migration.md) | Moving the RAID enclosure from Morpheus to direct attachment on MINIS |
 | [docs/operations.md](./docs/operations.md) | Backups, monitoring/alerting, tuning, follow-ups |

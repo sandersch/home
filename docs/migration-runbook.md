@@ -1,10 +1,15 @@
 # Migration Runbook — Plex & *arr
 
-Moving existing application state from the current ArgoCD/microk8s host onto the new
-MS-01. This is **Phase 3.5** of the [build plan](./build-plan.md#phase-35--app-data-migration-);
-do it only after the validation gate passes.
+> **Historical procedure.** This Phase 3.5 migration is complete. For a current
+> rebuild, use the [disaster-recovery runbook](../runbooks/disaster-recovery/README.md)
+> and restore `/opt` from Restic. The steps below remain as provenance for the original
+> move from ArgoCD/microk8s to the MS-01.
 
-For the current stopped-host archive path, use the executable host-side scripts in
+This procedure moved existing application state from the former ArgoCD/microk8s host
+onto the MS-01. It is **Phase 3.5** of the
+[build plan](./build-plan.md#phase-35--app-data-migration-).
+
+For the completed stopped-host archive path, use the executable host-side scripts in
 [`runbooks/phase3.5`](../runbooks/phase3.5/).
 
 Principle: migrated data is *copied*, never moved, so the source stays intact. When
@@ -19,7 +24,7 @@ the final quiesced copy.
 
 ## Plex
 
-Plex keeps everything in its data directory. On the current host it's typically one of:
+Plex keeps everything in its data directory. On the former host it was typically one of:
 ```
 ~/.local/share/Plex Media Server/
 /var/lib/plexmediaserver/Library/Application Support/Plex Media Server/
@@ -113,7 +118,7 @@ no hostPath device mount.
 1. **Phase 3.5 stopped-host copy:** run `runbooks/phase3.5/run-all.sh` on `minis`.
    It copies the archive from `/mnt/media/to_archive/config` into `/opt/...` and
    validates the copied SQLite DBs.
-2. **Phase 4: deploy new pods using the copied data.** Keep NAS media mounts
+2. **Phase 4: deploy new pods using the copied data.** Keep direct-attached media mounts
    read-only initially where practical. Validate: Plex sees the full library and
    metadata; Quick Sync transcode works; *arr apps show their history; VPN egress is
    the Mullvad exit IP; a test download flows end-to-end Prowlarr → Radarr → SABnzbd.

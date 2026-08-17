@@ -24,7 +24,7 @@ phase section there first, then run the scripts.
 | 2 | [`phase2/`](./phase2/) | k3s install, SOPS age key/secret, `.sops.yaml`, and Flux bootstrap |
 | 3 | [`phase3/`](./phase3/) | SOPS-encrypted infra secrets, Flux reconciliation, and platform validation gate |
 | 3.5 | [`phase3.5/`](./phase3.5/) | Final stopped-host app-data copy from the bulk-storage archive into `/opt` |
-| 4 | [`phase4/`](./phase4/) | Secret helpers, host config install, and validation for download stack, Plex, Seerr, RomM, and Frigate |
+| 4 | [`phase4/`](./phase4/) | Secret helpers and validation for media apps, Frigate, Home Assistant, MQTT, Z-Wave JS, and Zigbee2MQTT |
 | 5 | [`phase5/`](./phase5/) | Direct-array/B2 Restic setup and validation plus encrypted external-heartbeat and Pushover notification workflows |
 | DR | [`disaster-recovery/`](./disaster-recovery/) | Fresh full-state `/opt` restore, hot-database recovery, and two-stage app/monitoring resume validation |
 

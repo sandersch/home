@@ -18,11 +18,11 @@ manifests:
 | Phase | Repo status | Remaining work |
 |---|---|---|
 | 0 — OS baseline | Host config and runbooks are present under `host/minis/` and `runbooks/phase0/`. | Manual BIOS/installer choices, router wildcard DNS, and any live-host revalidation after changes. |
-| 1 — networking isolation | Host nftables, dnsmasq, chrony, sysctl config, Catalyst checklist, and validation runbooks are present. Host forwarding isolation, DHCP-only dnsmasq, and the deployed camera path were live-validated during Phase 4; the Amcrest camera is pinned at `192.168.105.50`. | Add a reservation and repeat the camera-specific checks whenever another camera is provisioned; keep Catalyst/live config in sync. |
-| 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. The bootstrap helper enforces the rebuild reconciliation guards described below. | Live bootstrap health checks when rebuilding or changing credentials. |
+| 1 — networking isolation | Host nftables, dnsmasq, chrony, sysctl config, Catalyst checklist, and validation runbooks are present. Host forwarding isolation, authoritative DHCP-only dnsmasq, and the sole deployed camera path were live-validated during Phase 4; the Amcrest camera receives reserved address `192.168.105.50`. | Add a reservation and repeat the camera-specific checks whenever another camera is provisioned; keep Catalyst/live config in sync. |
+| 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. The bootstrap helper enforces the rebuild reconciliation guards described below. The live node runs `v1.36.2+k3s1`, but the installer is not yet pinned. | Implement the k3s pin in the [version-management plan](./version-management.md) before the next rebuild or upgrade, then run the normal bootstrap health checks. |
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present; final copy validation and the quiesced cutover passed. | Historical migration path only. A current-state rebuild restores `/opt` from Restic as described below. |
-| 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, MQTT, and Zigbee2MQTT manifests plus validation/secret helper runbooks are present. The pre-existing workloads are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, and HA's API-managed backup/restore path. Zigbee2MQTT and its monitoring exporter are reconciled and Ready. | Complete Zigbee2MQTT device-pairing/discovery validation, then tune Frigate cameras. |
+| 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, MQTT, Z-Wave JS UI, and Zigbee2MQTT manifests plus validation/secret helper runbooks are present. The pre-existing workloads are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, Z-Wave controller connectivity/device inclusion/HA integration, Zigbee device pairing/discovery/automation use, and HA's API-managed backup/restore path. Zigbee2MQTT and its monitoring exporter are reconciled and Ready. | Tune Frigate cameras. |
 | 5 — observability + expansion | Direct-array and B2 backups passed live validation under the preceding workflow. Required-export contract version 1 is implemented in git and blocks snapshots missing validated Plex, Frigate, Prowlarr, Radarr, Sonarr, Seerr, Home Assistant, or RomM exports. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. Zigbee2MQTT's critical ingress, SLZB coordinator TCP, and MQTT-native bridge-health monitoring passed live validation on 2026-08-16. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. Post-cutover backup/restore and observation gates passed on 2026-08-13, and required-export contract version 1 passed fresh local and B2 restore drills on 2026-08-16. The standard-tier media resource tuning slice was deployed on 2026-08-13. | Close the media tuning gate after seven complete days of healthy audit data. Validate the new mdcheck cap during the next attended check, then tune Frigate before optional phase-two logs or deferred apps. |
 
 ## Fresh rebuild and disaster recovery
@@ -539,6 +539,13 @@ longer an empty scaffold, so this is a required safety gate rather than optional
 maintenance posture.
 
 **2.1 Install k3s.**
+
+> **Version-control gap:** the command and executable helper below still follow the
+> current installer channel. Before using them for a rebuild or upgrade, complete the
+> k3s pin described in [version-management.md](./version-management.md). The first
+> intended `INSTALL_K3S_VERSION` is the validated live baseline,
+> `v1.36.2+k3s1`; this note is a plan, not authorization to reinstall the live node.
+
 ```bash
 sudo install -D -o root -g root -m 600 \
   host/minis/etc/rancher/k3s/config.yaml \
@@ -659,7 +666,8 @@ decrypts at apply time.
 - MetalLB
 - ingress-nginx
 - cert-manager, with CRDs installed by the Helm release
-- Tailscale operator
+- Tailscale operator and its SOPS-encrypted OAuth Secret, which must reconcile in the
+  controller slice before the HelmRelease can become ready
 - TopoLVM, with lvmd embedded in the node DaemonSet, device-class → `vg0`, and a
   `spare-gb` reserve
 - Intel GPU device plugin, configured with two shared i915 allocations for Plex and
@@ -678,7 +686,8 @@ cluster-wide config that depend on the controllers:
   and `cloudDNS.serviceAccountSecretRef` points at an encrypted Secret holding a
   service-account key JSON (DNS Administrator on that project). Per cert-manager's
   CloudDNS DNS-01 guide: https://cert-manager.io/docs/configuration/acme/dns01/google/
-- encrypted Tailscale OAuth Secret and any operator config needed for Tailnet access
+- Tailscale Connector and split-DNS configuration needed for Tailnet access; the
+  operator OAuth Secret itself lives with the controller slice above
 - `homelab-critical` and `homelab-standard` `PriorityClass` objects
 - `local-nvme`, non-default `local-path`, and `topolvm-scratch` `StorageClass` objects
 
@@ -810,13 +819,15 @@ workload needs USB passthrough.
 Current repo state: Seerr and RomM manifests are committed under `apps/media/`; MQTT
 is committed under `apps/mqtt/`; Home Assistant manifests are committed under
 `apps/home-assistant/` with host networking, local-NVMe config storage, ingress, and
-first-boot reverse-proxy and automation configuration seeding.
+first-boot reverse-proxy and automation configuration seeding. Z-Wave JS UI is
+reconciled there as the cluster-internal Home Assistant Z-Wave server.
 Zigbee2MQTT manifests are committed under `apps/zigbee2mqtt/` with retained local
 state, a SOPS-encrypted dedicated Mosquitto account/frontend token, Home Assistant
 MQTT discovery, and a fresh channel 15 network seed. The workload and monitoring
 exporter are reconciled and Ready, and the critical ingress and MQTT-native health
-paths passed live validation on 2026-08-16. First-device pairing and Home Assistant
-discovery remain to be validated.
+paths passed live validation on 2026-08-16. Zigbee devices have also been paired,
+discovered through Home Assistant's existing MQTT integration, and used successfully
+in Home Assistant automations.
 
 Status: Seerr and RomM live validation passed on 2026-07-18. Seerr is connected to
 Plex and the download stack; RomM's local state, MariaDB sidecar, service path, and
@@ -824,6 +835,9 @@ direct-attached library are operational. Home Assistant's authenticated API-mana
 plus representative restore validation passed as part of Phase 5. Its MQTT and HACS
 Frigate integrations passed live validation on 2026-07-18, including authenticated
 broker traffic, Frigate availability, entity registration, and a real person event.
+Z-Wave live validation passed on 2026-08-16: Z-Wave JS UI reached the SLZB controller,
+the Home Assistant WebSocket integration connected, and an included device exposed
+entities in Home Assistant.
 
 ---
 
