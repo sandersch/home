@@ -161,7 +161,8 @@ then complete the UI-managed Home Assistant integration:
 ```
 
 The exact port-forward, security-key, WebSocket, and Home Assistant setup steps are
-in `apps/home-assistant/README.md`.
+in `apps/home-assistant/README.md`. The validator also requires a non-empty controller
+NVM backup no older than 30 days.
 
 For Zigbee2MQTT, first ensure the test ZHA integration has been deleted, reconcile
 the app and broker credential update, and run:
@@ -173,7 +174,10 @@ the app and broker credential update, and run:
 Open `https://zigbee2mqtt.worm.run` and authenticate with the frontend token from the
 SOPS-encrypted `apps/zigbee2mqtt/zigbee2mqtt-auth.sops.yaml` Secret. Enable joining
 only while pairing. Home Assistant uses its existing MQTT integration to discover
-paired devices automatically; do not add another Home Assistant integration.
+paired devices automatically; do not add another Home Assistant integration. The
+validator requires `coordinator_backup.json` to be non-empty and no older than 30
+days. Set `CONTROLLER_BACKUP_MAX_AGE_DAYS` to a positive integer to apply a different
+explicit freshness policy to either controller validator.
 
 For MQTT and the Frigate/Home Assistant connection, first confirm a current Home
 Assistant backup and take the normal `/opt` btrfs snapshot. Then:

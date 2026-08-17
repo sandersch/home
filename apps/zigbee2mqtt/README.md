@@ -44,4 +44,7 @@ Assistant MQTT discovery are also complete, and discovered Zigbee devices have b
 used successfully in Home Assistant automations.
 
 Back up `coordinator_backup.json`, `database.db`, and `configuration.yaml` after
-pairing devices and before coordinator firmware or Zigbee network changes.
+pairing devices and before coordinator firmware or Zigbee network changes. A fresh
+coordinator/data backup was requested on 2026-08-17, producing a 2,321-byte
+`coordinator_backup.json`; the Phase 4 validator now requires that file to be
+non-empty and no older than 30 days by default.

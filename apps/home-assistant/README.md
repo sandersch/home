@@ -107,7 +107,9 @@ Live validation passed on 2026-08-16: Z-Wave JS UI connected to the SLZB-MRW10U
 controller, Home Assistant connected to the in-cluster WebSocket server, and an
 included device produced entities in Home Assistant. Initial setup is therefore
 complete; repeat the validator and take a fresh controller NVM backup after material
-controller changes or additional inclusions.
+controller changes or additional inclusions. A fresh 40,960-byte NVM backup was
+created on 2026-08-17; the validator now requires a non-empty backup no older than 30
+days by default.
 
 Use `local-nvme` for app state. Device passthrough and host networking should be
 documented in the manifest comments when added.

@@ -6,6 +6,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_not_root
 require_tools kubectl
 
+controller_backup_max_age_days="${CONTROLLER_BACKUP_MAX_AGE_DAYS:-30}"
+[[ "$controller_backup_max_age_days" =~ ^[1-9][0-9]*$ ]] \
+  || die "CONTROLLER_BACKUP_MAX_AGE_DAYS must be a positive integer"
+controller_backup_max_age_seconds="$((controller_backup_max_age_days * 86400))"
+
 step "Verify Z-Wave JS UI rollout and storage"
 kubectl -n home-assistant rollout status deploy/zwave-js-ui --timeout=300s
 kubectl -n home-assistant get pvc zwave-js-ui-store-pvc
@@ -37,6 +42,25 @@ else
   warn "Z-Wave JS WebSocket server is not listening; enable it under Settings -> Home Assistant"
 fi
 
+step "Verify a recent controller NVM backup"
+zwave_backup_metadata="$({
+  kubectl -n home-assistant exec deploy/zwave-js-ui -- sh -c '
+    set -eu
+    latest="$(find /usr/src/app/store/backups/nvm -maxdepth 1 -type f -name "NVM_*.bin" -print 2>/dev/null | sort | tail -n 1)"
+    [ -n "$latest" ]
+    [ -s "$latest" ]
+    modified="$(stat -c %Y "$latest")"
+    now="$(date +%s)"
+    age="$((now - modified))"
+    [ "$age" -ge 0 ]
+    printf "%s\t%s\t%s\n" "$age" "$(stat -c %s "$latest")" "${latest##*/}"
+  '
+} 2>/dev/null)" || die "no readable, non-empty Z-Wave NVM backup was found on the retained store"
+IFS=$'\t' read -r zwave_backup_age zwave_backup_size zwave_backup_name <<<"$zwave_backup_metadata"
+[ "$zwave_backup_age" -le "$controller_backup_max_age_seconds" ] \
+  || die "latest Z-Wave NVM backup $zwave_backup_name is $((zwave_backup_age / 86400)) days old; maximum is $controller_backup_max_age_days days"
+ok "Z-Wave NVM backup $zwave_backup_name is present, recent, and non-empty (${zwave_backup_size} bytes)"
+
 cat <<'EOF'
 
 Manual validation still required:
@@ -45,4 +69,5 @@ Manual validation still required:
 - Add Home Assistant's Z-Wave integration with:
   ws://zwave-js-ui.home-assistant.svc.cluster.local:3000
 - Include a device and confirm its entities and controls work in Home Assistant.
+- Create a new NVM backup after inclusions and before controller or firmware changes.
 EOF
