@@ -103,6 +103,7 @@ kubectl -n zigbee2mqtt rollout status deploy/zigbee2mqtt-mqtt-exporter --timeout
 kubectl -n zigbee2mqtt get service zigbee2mqtt-mqtt-exporter >/dev/null
 kubectl -n monitoring get servicemonitor zigbee2mqtt-mqtt-health >/dev/null
 kubectl -n monitoring get probe critical-ingress >/dev/null
+kubectl -n monitoring get probe zigbee-coordinator >/dev/null
 kubectl -n monitoring get prometheusrule homelab-alerts >/dev/null
 exporter_pod="$({
   kubectl -n zigbee2mqtt get pods \
@@ -198,9 +199,20 @@ prom_query 'probe_success{instance="https://zigbee2mqtt.worm.run",service_tier="
     ' >/dev/null \
   || die "the critical blackbox probe for https://zigbee2mqtt.worm.run is not successful"
 
+prom_query 'probe_success{instance="slzb-mrw10u.iot.matrix:7638",service_tier="critical"}' \
+  | jq -e '
+      .status == "success" and
+      (.data.result | length) == 1 and
+      .data.result[0].metric.job == "blackbox-zigbee-coordinator" and
+      .data.result[0].metric.probe_scope == "zigbee-coordinator" and
+      (.data.result[0].value[1] | tonumber) == 1
+    ' >/dev/null \
+  || die "the critical TCP probe for slzb-mrw10u.iot.matrix:7638 is not successful"
+
 curl --fail --silent --show-error \
   "http://127.0.0.1:$prometheus_port/api/v1/rules?type=alert" \
-  | jq -e '
+  >"$tmpdir/prometheus-alert-rules.json"
+jq -e '
       [.data.groups[].rules[] |
         select(.name == "Zigbee2MQTTBridgeUnhealthy")] as $rules |
       ($rules | length) == 1 and
@@ -208,17 +220,37 @@ curl --fail --silent --show-error \
       $rules[0].state == "inactive" and
       ($rules[0].lastError == null or $rules[0].lastError == "") and
       $rules[0].duration == 300
-    ' >/dev/null \
+    ' "$tmpdir/prometheus-alert-rules.json" >/dev/null \
   || die "Zigbee2MQTTBridgeUnhealthy is missing, unhealthy, active, or has the wrong delay"
+jq -e '
+      [.data.groups[].rules[] |
+        select(.name == "CriticalEndpointDown")] as $rules |
+      ($rules | length) == 1 and
+      $rules[0].health == "ok" and
+      ($rules[0].lastError == null or $rules[0].lastError == "") and
+      $rules[0].duration == 180 and
+      ($rules[0].query | contains("probe_success{service_tier=\"critical\"} == 0"))
+    ' "$tmpdir/prometheus-alert-rules.json" >/dev/null \
+  || die "CriticalEndpointDown is missing, unhealthy, or has the wrong expression or delay"
 
 curl --fail --silent --show-error \
   "http://127.0.0.1:$prometheus_port/api/v1/alerts" \
-  | jq -e '
+  >"$tmpdir/prometheus-alerts.json"
+jq -e '
       [.data.alerts[] |
         select(.labels.alertname == "Zigbee2MQTTBridgeUnhealthy")] |
       length == 0
-    ' >/dev/null \
+    ' "$tmpdir/prometheus-alerts.json" >/dev/null \
   || die "Zigbee2MQTTBridgeUnhealthy is unexpectedly pending or firing"
+jq -e '
+      [.data.alerts[] |
+        select(
+          .labels.alertname == "CriticalEndpointDown" and
+          .labels.instance == "slzb-mrw10u.iot.matrix:7638"
+        )] |
+      length == 0
+    ' "$tmpdir/prometheus-alerts.json" >/dev/null \
+  || die "the Zigbee coordinator CriticalEndpointDown alert is unexpectedly pending or firing"
 
-ok "Prometheus sees healthy ingress and MQTT paths and evaluates the inactive critical alert cleanly"
+ok "Prometheus sees healthy ingress, coordinator TCP, and MQTT paths and evaluates both critical alerts cleanly"
 ok "Zigbee2MQTT monitoring live validation complete"

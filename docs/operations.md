@@ -134,15 +134,17 @@ Phase one is deliberately metrics-first:
   nonexistent control-plane scrape targets are disabled.
 - **prometheus-blackbox-exporter** checks the authenticated/user-facing ingress path
   for Home Assistant, Frigate, Zigbee2MQTT, Plex, Seerr, and RomM, plus the internal
-  MQTT TCP path. These probes exercise DNS, ingress, TLS, Services, and applications
-  instead of only observing that pods exist. Zigbee2MQTT is in the critical tier, so
-  its HTTPS path is checked every 30 seconds and alerts after three minutes of
-  continuous failure.
+  MQTT broker and SLZB-MRW10U Zigbee coordinator TCP paths. These probes exercise DNS,
+  ingress, TLS, Services, applications, and the coordinator network socket instead of
+  only observing that pods exist. Zigbee2MQTT is in the critical tier, so both its
+  HTTPS path and coordinator socket are checked every 30 seconds and alert after three
+  minutes of continuous failure.
 - A dedicated **MQTT exporter** subscribes only to Zigbee2MQTT's retained bridge state
   and one-minute health topic. Prometheus alerts when the bridge reports offline, its
   own MQTT client reports disconnected, or health publication is missing or more
   than five minutes old. This distinguishes an available frontend from a broken
-  coordinator-to-broker application path.
+  Zigbee2MQTT-to-broker application path; the separate coordinator TCP probe covers
+  SLZB name resolution, routing, appliance availability, and the radio socket.
 - **nut-exporter** anonymously polls the host NUT server for the `cp1500` UPS. Its
   ServiceMonitor records charge, runtime, voltage, load, and status every 30 seconds;
   a repo-owned Grafana dashboard uses only telemetry exposed by this CyberPower model.
@@ -199,7 +201,7 @@ and its functionality moved to Grafana Alloy.
 
 | Alert | Trigger | State |
 |---|---|---|
-| Critical/standard endpoint down | blackbox HTTPS or MQTT TCP probe fails beyond its tier window | committed |
+| Critical/standard endpoint down | blackbox HTTPS, MQTT TCP, or Zigbee coordinator TCP probe fails beyond its tier window | committed |
 | Zigbee2MQTT bridge unhealthy | retained state is offline, MQTT is disconnected, or one-minute health data is missing/stale | deployed and live-validated 2026-08-16 |
 | Ingress certificate expiring | blackbox sees fewer than 14 days remaining | committed |
 | NVMe usage > 80% | `/opt` filling | committed |

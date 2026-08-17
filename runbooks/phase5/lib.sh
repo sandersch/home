@@ -95,6 +95,28 @@ assert_phase5_observability_invariants() {
     "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
     || die "MQTT blackbox target changed unexpectedly"
   yq -e '
+    select(.kind == "Probe" and .metadata.name == "zigbee-coordinator") |
+    .spec.interval == "30s" and
+    .spec.jobName == "blackbox-zigbee-coordinator" and
+    .spec.module == "tcp_connect" and
+    .spec.scrapeTimeout == "10s" and
+    .spec.targets.staticConfig.labels.probe_scope == "zigbee-coordinator" and
+    .spec.targets.staticConfig.labels.service_tier == "critical" and
+    .spec.targets.staticConfig.static == ["slzb-mrw10u.iot.matrix:7638"]
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
+    || die "Zigbee coordinator critical TCP probe changed unexpectedly"
+  yq -e '
+    select(.kind == "PrometheusRule" and .metadata.name == "homelab-alerts") |
+    any(.spec.groups[];
+      .name == "homelab.blackbox" and
+      any(.rules[];
+        .alert == "CriticalEndpointDown" and
+        .expr == "probe_success{service_tier=\"critical\"} == 0" and
+        .for == "3m" and
+        .labels.severity == "critical"))
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
+    || die "critical blackbox alert expression, delay, or severity changed unexpectedly"
+  yq -e '
     select(.kind == "Deployment" and .metadata.name == "zigbee2mqtt") |
     any(.spec.template.spec.containers[];
       .name == "zigbee2mqtt" and

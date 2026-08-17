@@ -67,3 +67,25 @@ spec:
         service_tier: critical
       static:
         - mosquitto.mqtt.svc.cluster.local:1883
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: zigbee-coordinator
+  namespace: monitoring
+spec:
+  interval: 30s
+  jobName: blackbox-zigbee-coordinator
+  module: tcp_connect
+  prober:
+    path: /probe
+    scheme: http
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      labels:
+        probe_scope: zigbee-coordinator
+        service_tier: critical
+      static:
+        - slzb-mrw10u.iot.matrix:7638

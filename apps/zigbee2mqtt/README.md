@@ -20,6 +20,11 @@ SLZB-MRW10U Zigbee coordinator into the existing authenticated Mosquitto broker.
   retained bridge state, Zigbee2MQTT's MQTT connection status, and health timestamp
   to Prometheus. The deployment override publishes health every minute; a critical
   alert fires when the combined signal remains unhealthy for five minutes.
+- A separate critical blackbox TCP probe checks
+  `slzb-mrw10u.iot.matrix:7638` every 30 seconds and uses the shared
+  `CriticalEndpointDown` rule after three minutes. This covers coordinator DNS,
+  routing, appliance, and socket failures that the frontend and MQTT health signals
+  can miss.
 
 After Flux reconciles, run `./runbooks/phase4/14-validate-zigbee2mqtt.sh`. Then open
 the frontend, enable joining only for the time needed to pair each device, give each
@@ -28,8 +33,8 @@ Home Assistant. Keep joining disabled otherwise.
 
 Run `./runbooks/phase5/15-validate-zigbee2mqtt-monitoring.sh` after monitoring changes
 and during periodic monitoring drills. The non-disruptive helper validates the live
-critical ingress probe, MQTT exporter target and metrics, and inactive bridge-health
-alert without publishing synthetic retained state.
+critical ingress and coordinator TCP probes, MQTT exporter target and metrics, and
+inactive bridge-health/endpoint alerts without publishing synthetic retained state.
 
 Back up `coordinator_backup.json`, `database.db`, and `configuration.yaml` after
 pairing devices and before coordinator firmware or Zigbee network changes.

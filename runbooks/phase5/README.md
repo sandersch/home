@@ -25,7 +25,7 @@ available as `/dev/mapper/hoardvg-backuplv` at `/mnt/backups`.
 | `12-test-pushover.sh` | Inject and resolve synthetic warning/critical alerts through Alertmanager |
 | `13-validate-nut-exporter.sh` | Validate UPS telemetry, Prometheus/Grafana integration, and optionally run the physical mains-loss alert drill |
 | `14-audit-resources.sh` | Audit current reservations and historical CPU, throttling, memory, and OOM metrics |
-| `15-validate-zigbee2mqtt-monitoring.sh` | Validate Zigbee2MQTT's critical ingress probe, MQTT exporter, Prometheus metrics, and bridge-health alert |
+| `15-validate-zigbee2mqtt-monitoring.sh` | Validate Zigbee2MQTT's critical ingress/coordinator probes, MQTT exporter, Prometheus metrics, and alerts |
 
 Both repositories have passed initialization, manual backup, and representative restore
 validation. The nightly local and first naturally scheduled weekly B2 backups both
@@ -82,8 +82,9 @@ Deployments, reads the exporter endpoint, and queries Prometheus for exactly one
 healthy scrape target. It requires the retained bridge state to be online,
 Zigbee2MQTT's MQTT client to be connected, health data to be newer than three
 minutes, and the critical HTTPS blackbox probe to be successful. It also confirms
-that `Zigbee2MQTTBridgeUnhealthy` is loaded with a five-minute delay, evaluates
-without errors, and is neither pending nor firing.
+that the SLZB coordinator's critical TCP probe succeeds and that both
+`Zigbee2MQTTBridgeUnhealthy` and its shared `CriticalEndpointDown` rule are loaded
+with the expected delays and evaluate without errors or an active coordinator alert.
 
 This gate is non-disruptive: it does not change retained MQTT state, restart a
 workload, or inject an alert. Notification delivery is covered independently by
