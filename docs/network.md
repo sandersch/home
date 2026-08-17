@@ -46,6 +46,7 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
 | **Camera VLAN 105 is fully isolated** (no gateway, off-trunk, reached only via the dual-homed `minis` NVR NIC, no bridging) | Cameras can't reach the internet or any other VLAN; only the NVR sees them. Strong containment for untrusted camera firmware. | — |
 | **IoT (VLAN 60) gets full outbound internet** | Most IoT devices depend on vendor cloud to function. Unsolicited inbound and lateral movement remain blocked. | Block/allowlist egress — revisit if you want to cut off chatty or untrusted devices. |
 | **VLAN 10 temporarily has no designated NTP source** | Morpheus was retired on 2026-08-10, so its DHCP option 42 advertisement and VLAN 10 → Morpheus UDP/123 exception are removed rather than pointing clients at a powered-off host. Camera NTP on `minis` is separate and remains active. | Select a replacement internal NTP source before restoring DHCP option 42 or adding a new firewall exception. |
+| **SLZB-MRW10U is temporarily on Trusted VLAN 30; target placement is IoT VLAN 60** | The dual-radio coordinator is a network appliance rather than a trusted general-purpose client. Its consumers use the fixed `slzb-mrw10u.iot.matrix` name and TCP ports `6638` (Z-Wave) and `7638` (Zigbee), so it does not require mDNS reflection. | Before moving it, record its current IP/MAC, assign a stable VLAN 60 address, update the existing UDM A record, and stage the narrow VLAN 20 → VLAN 60 allow rule below. |
 | **Static-first addressing on VLAN 20 servers and VLAN 10 management; authoritative `dnsmasq` reservations for VLAN 105 cameras** | Servers and management devices retain static addresses with UDM reservations as fallback. Cameras receive their stable `.50-.99` addresses from the only DHCP server on the isolated segment, avoiding per-camera static-IP drift while keeping Frigate targets deterministic. | — |
 | **General wired ports default to Trusted VLAN 30** | Convenience: anything plugged in just works. Physical access to trusted Ethernet is treated as outside the threat model. | Park unused ports in VLAN 99 — revisit if the physical-access assumption changes. |
 | **Admin (VLAN 10) is jumpbox-only via `ryze`** | No direct management access from `m5c` or other clients; shrinks the management attack surface to one host. `ryze` has full management access inside VLAN 10. | — |
@@ -194,7 +195,8 @@ Rule order matters during implementation. In UniFi, place specific allow rules a
 | 100 | Yes | Allow `ryze` to Admin | Allow | All | `ryze` `10.137.30.6` | Admin / Management `VLAN 10` | Any | `ryze` has full all-protocol management access to VLAN 10 indefinitely. |
 | 110 | Yes | Allow Trusted to Servers | Allow | All | Trusted / Fastlane `VLAN 30` | Servers `VLAN 20` | Any | Broad trusted-client access to internal services and direct server administration. |
 | 130+ | As needed | Allow selected Trusted to IoT services | Allow | Service-specific | Trusted / Fastlane `VLAN 30` | IoT / Home Integrated `VLAN 60` | Service-specific | Add only for justified setup, control, casting, or device-management flows. |
-| 140+ | As needed | Allow selected Servers to IoT services | Allow | Service-specific | Servers `VLAN 20` | IoT / Home Integrated `VLAN 60` | Service-specific | Add only for Home Assistant or other server-driven device-control flows. |
+| 140 | Yes after coordinator migration | Allow `minis` to SLZB-MRW10U | Allow | TCP | `minis` `10.137.20.5` | SLZB-MRW10U stable address on IoT `VLAN 60` (TBD) | `6638`, `7638` | Required by Z-Wave JS UI, Zigbee2MQTT, and the coordinator TCP probe after the appliance moves from VLAN 30. Stage above Rules 910/920 and verify the UDM observes pod egress as the `minis` node address. No mDNS reflector is required or intended. |
+| 141+ | As needed | Allow selected Servers to IoT services | Allow | Service-specific | Servers `VLAN 20` | IoT / Home Integrated `VLAN 60` | Service-specific | Add only for Home Assistant or other server-driven device-control flows. |
 | 150+ | As needed | Allow selected IoT to Server services | Allow | Service-specific | IoT / Home Integrated `VLAN 60` | Servers `VLAN 20` | Service-specific | Add only for intentionally exposed services such as Home Assistant, Plex, or similar local endpoints. |
 | 900 | Yes | Drop Guest to internal networks | Drop | All | Guest / Internet Only `VLAN 80` | Internal VLANs / RFC1918 | Any | Guest is internet-only with no casting/local discovery. |
 | 910 | Yes | Drop IoT to internal networks | Drop | All | IoT / Home Integrated `VLAN 60` | Internal VLANs / RFC1918 | Any | Blocks unsolicited IoT lateral movement except explicit allow rules above. |
@@ -329,7 +331,7 @@ interface range GigabitEthernet1/0/1-4
 
 ### MAC-to-IP Reference
 
-Use this table when creating DHCP reservations, static host records, ISP records, and authoritative `dnsmasq` camera mappings. `TBD` means the IP is planned but the hardware MAC is not yet recorded in this document.
+Use this table when creating DHCP reservations, static host records, ISP records, and authoritative `dnsmasq` camera mappings. `TBD` means the value has not yet been recorded in this document.
 
 | Device / Interface | VLAN | IP Address | MAC Address | Assignment |
 | --- | --- | --- | --- | --- |
@@ -344,10 +346,11 @@ Use this table when creating DHCP reservations, static host records, ISP records
 | Amcrest `AMC108F5E2C2775601` | 105 | `192.168.105.50` | `a0:60:32:04:b1:3e` | Authoritative `dnsmasq` DHCP reservation; only deployed camera |
 | `ryze` desktop | 30 | `10.137.30.6` | `a8:a1:59:51:47:4e` | Static or UDM DHCP reservation |
 | `m5c` Wi-Fi | 30 | DHCP `10.137.30.x` | `aa:9a:b7:f2:ea:2d` | DHCP; private MAC disabled |
+| SLZB-MRW10U dual-radio coordinator | 30 currently; target 60 | Current `10.137.30.x` TBD; target `10.137.60.x` TBD | TBD | Record current identity, then create a stable VLAN 60 UDM reservation before migration |
 
 ### Static DNS Records (UDM)
 
-Create these forward (A) records on the UDM resolver. The network's local domain is `matrix`. Every record points at a static-first / fixed IP, so the names will not drift; ensure each host's UDM DHCP reservation (fallback) uses the same IP so a fallback lease cannot contradict DNS.
+Create these forward (A) records on the UDM resolver. The network's local domain is `matrix`. Active records point at static-first / fixed IPs, so the names do not drift; ensure each host's UDM DHCP reservation (fallback) uses the same IP so a fallback lease cannot contradict DNS. The SLZB-MRW10U row records the one current inventory gap: its existing VLAN 30 A-record value has not yet been copied into this document and will deliberately change when the appliance moves to VLAN 60.
 
 | Hostname (A record)          | IP Address     | VLAN | Device / Role                                   |
 | ---                          | ---            | ---  | ---                                             |
@@ -357,7 +360,7 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 | `morpheus.matrix`            | `10.137.20.2`  | 20   | Retired host retained as a cold spare           |
 | `minis.matrix`               | `10.137.20.5`  | 20   | Homelab / Frigate NVR (server-side NIC)         |
 | `ryze.matrix`                | `10.137.30.6`  | 30   | Desktop workstation / VLAN 10 jumpbox           |
-| | | |
+| `slzb-mrw10u.iot.matrix`     | TBD            | 30 → 60 | SLZB-MRW10U Z-Wave/Zigbee coordinator; preserve this name and update its A record during migration |
 | `worm.run`                   | `10.137.20.10` | 20   | minis cluster load balancer                     |
 | `*.worm.run`                 | `10.137.20.10` | 20   | minis cluster load balancer                     |
 
@@ -415,6 +418,7 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 * [X] Configure UDM Port 10 as the Catalyst trunk profile: **Native/Untagged VLAN 99** (blackhole) to match the Catalyst's `switchport trunk native vlan 99`, plus tagged VLANs 10, 20, 30, 60, and 80. Both ends must agree on native VLAN 99 — a native-VLAN mismatch here would land untagged traffic in a live VLAN and defeat the blackhole design.
 * [X] Configure UDM Port 11 as the WAP uplink profile: Native/Untagged VLAN 10 for AP management; Tagged VLANs 30, 60, and 80 for SSID client traffic.
 * [X] **Verify VLAN tag-transparency through the unmanaged YuanLey switch:** connect a client to the Guest SSID and confirm it receives a `10.137.80.x` address (and an IoT-SSID client a `10.137.60.x` address) — *not* a `10.137.10.x` management address. A management-range lease means the YuanLey is stripping tags and the SSID separation has silently collapsed onto the management VLAN. If this fails, replace the YuanLey with a managed 2.5G PoE switch or temporarily move the AP to a Catalyst 1G port while preserving SSID VLAN separation.
+* [ ] Migrate the SLZB-MRW10U from Trusted/VLAN 30 to IoT/VLAN 60: record its current IP and MAC, create a stable VLAN 60 UDM reservation, stage Rule 140 for TCP `6638`/`7638`, update `slzb-mrw10u.iot.matrix`, move the appliance, and rerun the Z-Wave JS UI, Zigbee2MQTT, and Zigbee2MQTT-monitoring validators. Preserve the fixed DNS name; do not enable mDNS reflection for this path.
 * [ ] Deploy the numbered firewall rules from the Firewall & Traffic Flow Matrix in order: specific allows first, broad inter-VLAN drops second, WAN/internet egress policy separately. Confirm all-protocol `ryze`-only access into VLAN 10, default deny in both directions between VLAN 10 and VLAN 20 (including no obsolete Morpheus NTP exception), Guest/VLAN 80 unreachable from every internal VLAN, and tightly scoped VLAN 10 outbound access for UDM Pro / UniFi U7 Pro / approved IPMI/IPKVM updates and infrastructure services.
 * [ ] Verify `ryze` can reach VLAN 10 management endpoints and that other Trusted/VLAN 30 clients, including `m5c`, cannot reach VLAN 10 directly.
 * [ ] Verify a VLAN 10 client is not directed to `10.137.20.2` for NTP and cannot reach arbitrary VLAN 20 services or internet NTP servers. Record the lack of a designated VLAN 10 NTP source until the deferred replacement is implemented.

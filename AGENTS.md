@@ -78,8 +78,9 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | Camera segment addressing | **`192.168.105.0/24`, host at `.1`**, authoritative per-camera `dnsmasq` reservations, NTP target `192.168.105.1` | Frozen once cameras are provisioned: the subnet and host/NTP address are reflected in host config and camera settings, while each camera's reserved DHCP address is baked into dnsmasq and Frigate. Renumbering therefore spans multiple systems. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
 
 Deferred / revisit later (see [operations.md](./docs/operations.md#follow-ups)):
-a replacement NTP source for VLAN 10, selected NFS exports from `minis`, a possible
-second node, Tailscale Funnel for Plex, and Immich.
+a replacement NTP source for VLAN 10, migration of the SLZB-MRW10U from its current
+Trusted/VLAN 30 placement to IoT/VLAN 60, selected NFS exports from `minis`, a
+possible second node, Tailscale Funnel for Plex, and Immich.
 
 ## Repository structure
 

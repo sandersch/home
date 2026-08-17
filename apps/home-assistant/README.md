@@ -9,7 +9,8 @@ integration, and real camera-event path are operational.
 - Z-Wave JS UI runs beside Home Assistant and stores its configuration, security keys,
   logs, and controller backups at `/opt/zwave-js-ui/store`. It connects to the
   SLZB-MRW10U over `tcp://slzb-mrw10u.iot.matrix:6638`; no USB passthrough or host
-  networking is required.
+  networking is required. The appliance is currently on Trusted/VLAN 30 and is planned
+  to move to IoT/VLAN 60; this fixed DNS/TCP path does not depend on mDNS reflection.
 - The repo copies of `configuration.yaml` and `automations.yaml` mirror the safe,
   recovery-relevant live YAML. The init container independently seeds either file when
   it is missing from the PVC. The recovery automation contains the live Frigate person

@@ -5,6 +5,8 @@ SLZB-MRW10U Zigbee coordinator into the existing authenticated Mosquitto broker.
 
 - The TI CC2674P10 Zigbee radio is `tcp://slzb-mrw10u.iot.matrix:7638` with the
   `zstack` adapter. Port `6638` is the separate Z-Wave radio used by Z-Wave JS UI.
+  The appliance is currently on Trusted/VLAN 30 and is planned to move to IoT/VLAN 60;
+  the stable DNS/TCP connection does not require mDNS reflection.
 - Retained state, device database, coordinator backups, and runtime-managed
   configuration live at `/opt/zigbee2mqtt/data` and are covered by the normal
   `/opt` backup path.
