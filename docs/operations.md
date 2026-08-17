@@ -174,11 +174,12 @@ their resolved notifications reached the iPhone. The nut-exporter workload, dash
 and critical on-battery rule were added to git on 2026-07-22 and passed live validation
 on 2026-07-25. The controlled physical mains-loss drill confirmed the on-battery
 transition, critical Pushover firing notification, return to online state, alert
-resolution, and quiet recovery notification. The Zigbee2MQTT critical HTTPS probe and
-MQTT-native bridge-health path passed live validation on 2026-08-16. Prometheus had
-one healthy exporter target, reported retained online state, an active MQTT connection,
-and health data newer than three minutes, saw the critical ingress probe succeed, and
-evaluated the five-minute critical rule without errors or an active alert.
+resolution, and quiet recovery notification. The Zigbee2MQTT critical HTTPS and SLZB
+coordinator TCP probes plus the MQTT-native bridge-health path passed live validation
+on 2026-08-16. Prometheus had one healthy exporter target, reported retained online
+state, an active MQTT connection, and health data newer than three minutes, saw both
+blackbox paths succeed, and evaluated the bridge-health and shared endpoint rules
+without errors or an active Zigbee2MQTT alert.
 
 Grafana is exposed at `https://grafana.worm.run`; its `admin` password is generated
 once and stored only in `infrastructure/monitoring/base/grafana-admin.sops.yaml`. Read
@@ -201,7 +202,7 @@ and its functionality moved to Grafana Alloy.
 
 | Alert | Trigger | State |
 |---|---|---|
-| Critical/standard endpoint down | blackbox HTTPS, MQTT TCP, or Zigbee coordinator TCP probe fails beyond its tier window | committed |
+| Critical/standard endpoint down | blackbox HTTPS, MQTT TCP, or Zigbee coordinator TCP probe fails beyond its tier window | deployed; coordinator TCP live-validated 2026-08-16 |
 | Zigbee2MQTT bridge unhealthy | retained state is offline, MQTT is disconnected, or one-minute health data is missing/stale | deployed and live-validated 2026-08-16 |
 | Ingress certificate expiring | blackbox sees fewer than 14 days remaining | committed |
 | NVMe usage > 80% | `/opt` filling | committed |

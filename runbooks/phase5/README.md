@@ -62,11 +62,12 @@ The nut-exporter, CP1500 dashboard, and `UPSOnBattery` rule passed live validati
 transition, critical Pushover firing notification, return to online state, alert
 resolution, and quiet recovery notification.
 
-Zigbee2MQTT's critical HTTPS probe and MQTT-native bridge-health monitoring passed
-live validation on 2026-08-16. The exporter endpoint reported retained online state,
-an active MQTT connection, and current one-minute health data; Prometheus had one
-healthy exporter target, the critical ingress probe succeeded, and the five-minute
-critical rule was healthy and inactive.
+Zigbee2MQTT's critical HTTPS probe, coordinator TCP probe, and MQTT-native
+bridge-health monitoring passed live validation on 2026-08-16. The exporter endpoint
+reported retained online state, an active MQTT connection, and current one-minute
+health data; Prometheus had one healthy exporter target, both blackbox paths
+succeeded, and the five-minute bridge-health and shared three-minute endpoint rules
+were healthy with no active Zigbee2MQTT alert.
 
 ## Zigbee2MQTT monitoring validation
 

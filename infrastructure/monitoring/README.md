@@ -48,10 +48,11 @@ were added on 2026-07-22 and passed live validation on 2026-07-25. Validation co
 the exporter endpoint and UPS telemetry, Prometheus target and rule health, Grafana
 dashboard provisioning, and the operator-gated physical mains-loss drill. The drill
 produced the expected critical Pushover firing notification and quiet recovery
-notification. The Zigbee2MQTT critical HTTPS probe and MQTT-native bridge-health path
-passed live validation on 2026-08-16: the exporter target was healthy, the retained
-bridge state was online, MQTT was connected, one-minute health data was fresh, the
-ingress probe succeeded, and the five-minute critical rule was healthy and inactive.
-Resource tuning remains after roughly one week of real metrics. Loki with Grafana
-Alloy is an optional phase-two addition; notification delivery does not require
-another cluster workload.
+notification. The Zigbee2MQTT critical HTTPS and SLZB coordinator TCP probes plus the
+MQTT-native bridge-health path passed live validation on 2026-08-16: the exporter
+target was healthy, the retained bridge state was online, MQTT was connected,
+one-minute health data was fresh, both blackbox paths succeeded, and the bridge-health
+and shared endpoint rules were healthy with no active Zigbee2MQTT alert. Resource
+tuning remains after roughly one week of real metrics. Loki with Grafana Alloy is an
+optional phase-two addition; notification delivery does not require another cluster
+workload.
