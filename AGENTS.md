@@ -28,8 +28,11 @@ Hosted Pushover routing also passed live validation on 2026-07-20 with synthetic
 warning/critical firing and resolved notifications delivered to the iPhone.
 The nut-exporter workload, CP1500 Grafana dashboard, and critical on-battery rule
 passed live validation on 2026-07-25, including the controlled physical mains-loss
-drill and Pushover firing and recovery notifications. The bulk-storage RAID enclosure
-was migrated intact from Morpheus to the SAS HBA in `minis` on 2026-08-10. Array,
+drill and Pushover firing and recovery notifications. Zigbee2MQTT's critical HTTPS
+probe and MQTT-native bridge-health monitoring passed live validation on 2026-08-16,
+including fresh retained health metrics and a healthy, inactive critical alert. The
+bulk-storage RAID enclosure was migrated intact from Morpheus to the SAS HBA in
+`minis` on 2026-08-10. Array,
 filesystem, reboot-assembly, and application cutover gates passed. Morpheus was
 retired the same day and remains powered off, but network-connected, as a cold spare;
 it is no longer required for normal network operation. Fresh local and B2 backups and

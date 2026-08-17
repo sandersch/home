@@ -25,6 +25,7 @@ available as `/dev/mapper/hoardvg-backuplv` at `/mnt/backups`.
 | `12-test-pushover.sh` | Inject and resolve synthetic warning/critical alerts through Alertmanager |
 | `13-validate-nut-exporter.sh` | Validate UPS telemetry, Prometheus/Grafana integration, and optionally run the physical mains-loss alert drill |
 | `14-audit-resources.sh` | Audit current reservations and historical CPU, throttling, memory, and OOM metrics |
+| `15-validate-zigbee2mqtt-monitoring.sh` | Validate Zigbee2MQTT's critical ingress probe, MQTT exporter, Prometheus metrics, and bridge-health alert |
 
 Both repositories have passed initialization, manual backup, and representative restore
 validation. The nightly local and first naturally scheduled weekly B2 backups both
@@ -60,6 +61,34 @@ The nut-exporter, CP1500 dashboard, and `UPSOnBattery` rule passed live validati
 2026-07-25. The operator-gated physical mains-loss drill confirmed the on-battery
 transition, critical Pushover firing notification, return to online state, alert
 resolution, and quiet recovery notification.
+
+Zigbee2MQTT's critical HTTPS probe and MQTT-native bridge-health monitoring passed
+live validation on 2026-08-16. The exporter endpoint reported retained online state,
+an active MQTT connection, and current one-minute health data; Prometheus had one
+healthy exporter target, the critical ingress probe succeeded, and the five-minute
+critical rule was healthy and inactive.
+
+## Zigbee2MQTT monitoring validation
+
+Use a kubeconfig context allowed to port-forward in both `zigbee2mqtt` and
+`monitoring`, then run:
+
+```bash
+./runbooks/phase5/15-validate-zigbee2mqtt-monitoring.sh
+```
+
+The helper verifies the rendered safety invariants and both critical-priority
+Deployments, reads the exporter endpoint, and queries Prometheus for exactly one
+healthy scrape target. It requires the retained bridge state to be online,
+Zigbee2MQTT's MQTT client to be connected, health data to be newer than three
+minutes, and the critical HTTPS blackbox probe to be successful. It also confirms
+that `Zigbee2MQTTBridgeUnhealthy` is loaded with a five-minute delay, evaluates
+without errors, and is neither pending nor firing.
+
+This gate is non-disruptive: it does not change retained MQTT state, restart a
+workload, or inject an alert. Notification delivery is covered independently by
+`12-test-pushover.sh`, so a routine validation does not need to falsify bridge state
+or interrupt home automation.
 
 ## Resource audit
 

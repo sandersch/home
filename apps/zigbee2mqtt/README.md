@@ -26,5 +26,10 @@ the frontend, enable joining only for the time needed to pair each device, give 
 device a stable friendly name, and confirm its MQTT-discovered entities appear in
 Home Assistant. Keep joining disabled otherwise.
 
+Run `./runbooks/phase5/15-validate-zigbee2mqtt-monitoring.sh` after monitoring changes
+and during periodic monitoring drills. The non-disruptive helper validates the live
+critical ingress probe, MQTT exporter target and metrics, and inactive bridge-health
+alert without publishing synthetic retained state.
+
 Back up `coordinator_backup.json`, `database.db`, and `configuration.yaml` after
 pairing devices and before coordinator firmware or Zigbee network changes.
