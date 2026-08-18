@@ -20,9 +20,9 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 - **Backups:** nightly direct-array Restic plus an independent weekly Backblaze B2 copy;
   required-export contract version 1 passed fresh local and B2 backup/restore drills
   on 2026-08-16
-- **Next:** deploy and validate the approved UDM firewall policy, implement the
-  version-pinning plan, close the media resource-tuning gate, validate the mdcheck
-  cap, then tune Frigate
+- **Next:** deploy and validate the approved UDM firewall policy, pin k3s, close the
+  media resource-tuning gate, validate the mdcheck cap, then tune Frigate. Runtime
+  images are already immutable and covered by the image-policy/Renovate workflow.
 
 ## Layout
 
@@ -43,7 +43,7 @@ apps/              media, frigate, home-assistant, mqtt, zigbee2mqtt
 | [AGENTS.md](./AGENTS.md) | Orientation, decision log, repo conventions, working agreements |
 | [docs/architecture.md](./docs/architecture.md) | Hardware, storage, networking, access, resource strategy |
 | [docs/build-plan.md](./docs/build-plan.md) | Phased build (0→5), validation gate, YAML patterns |
-| [docs/version-management.md](./docs/version-management.md) | Pinning policy, initial migration sequence, and routine update/rollback workflow |
+| [docs/version-management.md](./docs/version-management.md) | Immutable image policy, Renovate workflow, update/rollback procedure, and pending k3s pin |
 | [docs/migration-runbook.md](./docs/migration-runbook.md) | Migrating Plex + *arr data, cutover, rollback |
 | [docs/direct-attached-storage-migration.md](./docs/direct-attached-storage-migration.md) | Moving the RAID enclosure from Morpheus to direct attachment on MINIS |
 | [docs/operations.md](./docs/operations.md) | Backups, monitoring/alerting, tuning, follow-ups |

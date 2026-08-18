@@ -1,0 +1,46 @@
+name: image-policy
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate immutable image inventory
+        run: |
+          runbooks/version-management/test-image-policy.sh
+          runbooks/version-management/image_policy.py check
+
+      - name: Check changed shell scripts
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="${PR_BASE_SHA:-HEAD^}"
+          mapfile -t scripts < <(git diff --name-only --diff-filter=ACMRT "$base" -- '*.sh')
+          if ((${#scripts[@]})); then
+            bash -n "${scripts[@]}"
+            shellcheck --severity=warning "${scripts[@]}"
+          fi
+
+      - name: Render application manifests
+        uses: imranismail/setup-kustomize@v2
+      - run: kustomize build apps >/dev/null
+      - run: kustomize build infrastructure/monitoring >/dev/null
+
+      - name: Validate Renovate configuration strictly
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm exec --yes --package=renovate@44.32.5 -- renovate-config-validator --strict renovate.json5

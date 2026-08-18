@@ -26,7 +26,8 @@ spec:
       priorityClassName: homelab-low
       containers:
         - name: restic
-          image: ghcr.io/sandersch/restic-backup:0.19.0-1
+          # renovate: datasource=docker depName=ghcr.io/sandersch/restic-backup
+          image: ghcr.io/sandersch/restic-backup:0.19.0-1@sha256:2b10954ca8edd402c3168ad052a526ef559dafe4c61ad569902036021e08ca7a
           command:
             - /bin/bash
             - -ec
@@ -183,7 +184,8 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: mariadb
-          image: mariadb:11.4
+          # renovate: datasource=docker depName=mariadb
+          image: mariadb:11.4.12@sha256:1b46b73d4b629022dfa29e6db3bb0d63b5df714fc3bfbe5057d63d76d8f6054b
           command:
             - /bin/bash
             - -ec

@@ -32,7 +32,8 @@ spec:
       terminationGracePeriodSeconds: 10
       containers:
         - name: restic
-          image: ghcr.io/sandersch/restic-backup:0.19.0-1
+          # renovate: datasource=docker depName=ghcr.io/sandersch/restic-backup
+          image: ghcr.io/sandersch/restic-backup:0.19.0-1@sha256:2b10954ca8edd402c3168ad052a526ef559dafe4c61ad569902036021e08ca7a
           command:
             - /bin/bash
             - -ec

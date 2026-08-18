@@ -278,8 +278,14 @@ this script, commit/reconcile `monitoring`, and rerun `04-run-manual-backup.sh`.
 
 ## Image
 
-The backup CronJob uses `ghcr.io/sandersch/restic-backup:0.19.0-1`. Build and publish it
-with the `restic-backup-image` GitHub Actions workflow before reconciling monitoring.
+The backup CronJobs and recovery helpers use the same immutable custom image reference.
+Its canonical tag is in `containers/restic-backup/VERSION`, and the base image is
+pinned by exact tag and digest in the Containerfile. Pull requests build without
+publishing. To release a reviewed revision, bump the version/revision, manually run
+the `restic-backup-image` workflow on that reviewed branch, and copy the reported
+publisher digest into every CronJob and recovery helper before merge. The workflow
+refuses to overwrite an existing GHCR tag, and the image-policy CI check rejects tag,
+digest, or version-file drift.
 
 ## Backblaze B2 offsite repository
 

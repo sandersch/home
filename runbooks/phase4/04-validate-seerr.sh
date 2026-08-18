@@ -14,7 +14,8 @@ step "Verify Seerr storage"
 kubectl -n media get pvc seerr-config-pvc
 
 step "Verify Seerr HTTP service"
-kubectl -n media run seerr-http-test --restart=Never --rm -i --image=busybox:1.36 \
+# renovate: datasource=docker depName=busybox
+kubectl -n media run seerr-http-test --restart=Never --rm -i --image=busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662 \
   -- wget -qO- http://seerr:5055/ >/dev/null
 ok "Seerr service responded inside the media namespace"
 

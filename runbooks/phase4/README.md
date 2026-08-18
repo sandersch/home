@@ -240,3 +240,9 @@ alone do not roll either Deployment.
 
 Remaining Phase 4 work is Frigate camera tuning (motion masks, zones, object filters,
 and retention).
+
+All Phase 4 runtime, init, and one-shot validation images are pinned as
+`release@sha256:digest`; Gluetun is the documented digest-only exception because the
+deployed commit had no exact upstream release tag. Run
+`runbooks/version-management/image_policy.py check` before committing image changes.
+Renovate groups all six download-pod images into one attended PR and never auto-merges.

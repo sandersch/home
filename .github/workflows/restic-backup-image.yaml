@@ -2,22 +2,57 @@ name: restic-backup-image
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+  pull_request:
     paths:
       - containers/restic-backup/**
       - .github/workflows/restic-backup-image.yaml
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Validate release metadata
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          version="$(<containers/restic-backup/VERSION)"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-[1-9][0-9]*$ ]]
+          grep -Eq '^FROM restic/restic:[0-9]+\.[0-9]+\.[0-9]+@sha256:[0-9a-f]{64}$' \
+            containers/restic-backup/Containerfile
+          if [[ -n "$PR_BASE_SHA" ]] && \
+             ! git diff --quiet "$PR_BASE_SHA" -- containers/restic-backup/Containerfile && \
+             git diff --quiet "$PR_BASE_SHA" -- containers/restic-backup/VERSION; then
+            echo 'Containerfile changed without a VERSION revision bump' >&2
+            exit 1
+          fi
+
+      - name: Build without publishing
+        uses: docker/build-push-action@v7
+        with:
+          context: containers/restic-backup
+          file: containers/restic-backup/Containerfile
+          push: false
+
+  publish:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout reviewed ref
         uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
@@ -30,10 +65,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Refuse to overwrite a release tag
+        id: release
+        run: |
+          version="$(<containers/restic-backup/VERSION)"
+          image="ghcr.io/sandersch/restic-backup:$version"
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "Refusing to overwrite existing image $image" >&2
+            exit 1
+          fi
+          echo "image=$image" >>"$GITHUB_OUTPUT"
+
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: containers/restic-backup
           file: containers/restic-backup/Containerfile
           push: true
-          tags: ghcr.io/sandersch/restic-backup:0.19.0-1
+          tags: ${{ steps.release.outputs.image }}
+
+      - name: Record immutable release for the reviewed branch
+        run: |
+          {
+            echo '### Restic backup image published'
+            echo
+            echo 'Update every CronJob and recovery helper on this branch before merge:'
+            echo
+            echo '```text'
+            echo '${{ steps.release.outputs.image }}@${{ steps.build.outputs.digest }}'
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"

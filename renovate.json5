@@ -1,0 +1,65 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "enabledManagers": ["kubernetes", "dockerfile", "custom.regex"],
+  "ignorePaths": ["runbooks/version-management/fixtures/**"],
+  "timezone": "America/Chicago",
+  "schedule": ["* 0-5 * * 0"],
+  "automerge": false,
+  "prConcurrentLimit": 5,
+  "dependencyDashboard": true,
+  "pinDigests": true,
+  "kubernetes": {
+    "managerFilePatterns": ["/(^|/)(apps|infrastructure)/.*\\.ya?ml$/"]
+  },
+  "dockerfile": {
+    "managerFilePatterns": ["/^containers\\/restic-backup\\/Containerfile$/"]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^runbooks\\/.*\\.sh$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s*\\n[^\\n]*?(?<currentValue>[^\\s:@'\\\"]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}docker{{/if}}"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "This slice manages container images, not chart/source/API pins",
+      "matchManagers": ["kubernetes"],
+      "matchDatasources": ["helm", "git-refs", "kubernetes-api"],
+      "enabled": false
+    },
+    {
+      "description": "Major image releases require explicit Dependency Dashboard approval",
+      "matchManagers": ["kubernetes", "dockerfile", "custom.regex"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Update the shared-network download pod as one reviewed unit",
+      "matchPackageNames": [
+        "ghcr.io/qdm12/gluetun",
+        "lscr.io/linuxserver/sabnzbd",
+        "lscr.io/linuxserver/qbittorrent",
+        "lscr.io/linuxserver/prowlarr",
+        "lscr.io/linuxserver/radarr",
+        "lscr.io/linuxserver/sonarr"
+      ],
+      "groupName": "download stack images"
+    },
+    {
+      "description": "The custom Restic image is published only through its attended workflow",
+      "matchPackageNames": ["ghcr.io/sandersch/restic-backup"],
+      "enabled": false
+    },
+    {
+      "description": "Every workload image merge is a production change through Flux",
+      "matchManagers": ["kubernetes", "dockerfile", "custom.regex"],
+      "prBodyNotes": [
+        ":warning: Merging workload image changes updates production through Flux. Follow the owning [Phase 4 validator](https://github.com/sandersch/home/tree/main/runbooks/phase4), [Phase 5 validator](https://github.com/sandersch/home/tree/main/runbooks/phase5), and the [version-management rollback procedure](https://github.com/sandersch/home/blob/main/docs/version-management.md#routine-update-and-rollback-workflow)."
+      ]
+    }
+  ]
+}

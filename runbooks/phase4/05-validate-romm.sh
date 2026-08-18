@@ -26,7 +26,8 @@ kubectl -n media exec deploy/romm -c romm -- sh -c '[ "$(id -u):$(id -g)" = "100
 ok "RomM app container runs as 1000:1000"
 
 step "Verify RomM HTTP service"
-kubectl -n media run romm-http-test --restart=Never --rm -i --image=busybox:1.36 \
+# renovate: datasource=docker depName=busybox
+kubectl -n media run romm-http-test --restart=Never --rm -i --image=busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662 \
   -- wget -qO- http://romm:8080/ >/dev/null
 ok "RomM service responded inside the media namespace"
 

@@ -133,7 +133,8 @@ assert_phase5_observability_invariants() {
     $pod.securityContext.runAsNonRoot == true and
     $pod.securityContext.seccompProfile.type == "RuntimeDefault" and
     ($pod.containers[0] as $container |
-      $container.image == "kpetrem/mqtt-exporter:1.12.1" and
+      # renovate: datasource=docker depName=kpetrem/mqtt-exporter
+      $container.image == "kpetrem/mqtt-exporter:1.12.1@sha256:dca3255f35310f6ceb80ed1de94eebd1fe9def7aacaec4107fe37cdaa9eb3be0" and
       $container.livenessProbe.httpGet.path == "/metrics" and
       $container.readinessProbe.httpGet.path == "/metrics" and
       $container.resources.requests.cpu == "25m" and
@@ -197,7 +198,8 @@ assert_phase5_observability_invariants() {
     $pod.securityContext.runAsNonRoot == true and
     $pod.securityContext.seccompProfile.type == "RuntimeDefault" and
     ($pod.containers[0] as $container |
-      $container.image == "ghcr.io/druggeri/nut_exporter:3.3.0" and
+      # renovate: datasource=docker depName=ghcr.io/druggeri/nut_exporter
+      $container.image == "ghcr.io/druggeri/nut_exporter:3.3.0@sha256:276460d141c732772f8b1fcd785a7de272473e6d39fd85c32b163efc2999cb9a" and
       $container.livenessProbe.httpGet.path == "/metrics" and
       $container.readinessProbe.httpGet.path == "/metrics" and
       $container.resources.requests.cpu == "20m" and

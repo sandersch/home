@@ -46,8 +46,10 @@ timers and a check-only `50000` KiB/s cap are installed, with attended cap valid
 deferred to the next check window. The approved numbered UDM firewall policy remains
 pending deployment and validation; its matrix is the intended end state, not current
 enforcement. Resource tuning, Frigate tuning, and deferred apps follow the migration.
-Runtime image and k3s pinning is planned in
-[version-management.md](./docs/version-management.md) and remains to be implemented.
+Repo-authored runtime, init, validation, recovery, and container-build images are
+immutably pinned and guarded by CI; hosted Renovate configuration proposes attended
+updates without auto-merge. k3s pinning remains the separate pending slice in
+[version-management.md](./docs/version-management.md).
 This remains a retrofit to a running production cluster, not a greenfield scaffold.
 
 ## Hardware (summary)
@@ -178,7 +180,7 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 ## Where to go next
 
 1. [runbooks/disaster-recovery/README.md](./runbooks/disaster-recovery/README.md) — executable full-state rebuild and restore procedure.
-2. [docs/version-management.md](./docs/version-management.md) — pending image/k3s pinning and ongoing update workflow.
+2. [docs/version-management.md](./docs/version-management.md) — implemented image pinning/update controls and pending k3s pinning.
 3. [docs/direct-attached-storage-migration-worklog.md](./docs/direct-attached-storage-migration-worklog.md) — completed cutover evidence and post-migration follow-ups.
 4. [docs/build-plan.md](./docs/build-plan.md) — phased path, current status, and completion gates.
 5. [docs/architecture.md](./docs/architecture.md) — the design and its rationale.

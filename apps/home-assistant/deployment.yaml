@@ -22,7 +22,7 @@ spec:
       priorityClassName: homelab-critical
       initContainers:
         - name: seed-config
-          image: busybox:1.36
+          image: busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
           command:
             - sh
             - -c
@@ -42,7 +42,7 @@ spec:
               readOnly: true
       containers:
         - name: home-assistant
-          image: ghcr.io/home-assistant/home-assistant:2026.7.2
+          image: ghcr.io/home-assistant/home-assistant:2026.7.2@sha256:1476924357b46e80735c13e94232ba5c853cac052e9df4bb28d50fa56348097b
           env:
             - name: TZ
               value: America/Chicago

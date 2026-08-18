@@ -29,7 +29,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: mqtt-exporter
-          image: kpetrem/mqtt-exporter:1.12.1
+          image: kpetrem/mqtt-exporter:1.12.1@sha256:dca3255f35310f6ceb80ed1de94eebd1fe9def7aacaec4107fe37cdaa9eb3be0
           imagePullPolicy: IfNotPresent
           env:
             - name: MQTT_ADDRESS

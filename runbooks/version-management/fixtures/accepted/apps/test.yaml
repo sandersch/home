@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+    - name: tagged
+      image: example.invalid/team/app:1.2.3@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    - name: digest-only
+      # upstream-version: 2026.08.1
+      image: example.invalid/team/helper@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb

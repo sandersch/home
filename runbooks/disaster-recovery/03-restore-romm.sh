@@ -69,7 +69,8 @@ spec:
         kubernetes.io/hostname: minis
       containers:
         - name: mariadb
-          image: mariadb:11.4
+          # renovate: datasource=docker depName=mariadb
+          image: mariadb:11.4.12@sha256:1b46b73d4b629022dfa29e6db3bb0d63b5df714fc3bfbe5057d63d76d8f6054b
           command:
             - /bin/bash
             - -ec
