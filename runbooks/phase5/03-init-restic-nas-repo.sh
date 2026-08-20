@@ -32,7 +32,7 @@ spec:
       containers:
         - name: restic
           # renovate: datasource=docker depName=ghcr.io/sandersch/restic-backup
-          image: ghcr.io/sandersch/restic-backup:0.19.0-1@sha256:2b10954ca8edd402c3168ad052a526ef559dafe4c61ad569902036021e08ca7a
+          image: ghcr.io/sandersch/restic-backup:0.19.1-1@sha256:58cddae970e91cb4f8f18db69d9d7d526d1e1d803193a65afb2f7f3a43aa9097
           command:
             - /bin/bash
             - -ec
