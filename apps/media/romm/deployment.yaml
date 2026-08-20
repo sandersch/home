@@ -176,7 +176,7 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 6
         - name: valkey
-          image: valkey/valkey:8.1.8@sha256:c6d4637d757379a2ff040148b95c85936d85a06c129eafa5fbe582f9e720e12f
+          image: valkey/valkey:9.1.1@sha256:70739f85ad2ee01a726a965584a0f94895f01b0c60b3cc8b0aeef11eaa6888cf
           args:
             - valkey-server
             - --appendonly
