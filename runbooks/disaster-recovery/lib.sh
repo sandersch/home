@@ -7,7 +7,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 RECOVERY_STATE_DIR=/var/lib/homelab-recovery
 RECOVERY_STATE_FILE="$RECOVERY_STATE_DIR/state"
 # renovate: datasource=docker depName=ghcr.io/sandersch/restic-backup
-export RECOVERY_IMAGE=ghcr.io/sandersch/restic-backup:0.19.0-1@sha256:2b10954ca8edd402c3168ad052a526ef559dafe4c61ad569902036021e08ca7a
+export RECOVERY_IMAGE=ghcr.io/sandersch/restic-backup:0.19.1-1@sha256:58cddae970e91cb4f8f18db69d9d7d526d1e1d803193a65afb2f7f3a43aa9097
 
 backup_contract_config() {
   printf '%s/infrastructure/monitoring/restic-nas-config.yaml\n' "$REPO_ROOT"
