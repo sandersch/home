@@ -70,7 +70,7 @@ spec:
       containers:
         - name: mariadb
           # renovate: datasource=docker depName=mariadb
-          image: mariadb:11.4.12@sha256:1b46b73d4b629022dfa29e6db3bb0d63b5df714fc3bfbe5057d63d76d8f6054b
+          image: mariadb:12.3.2@sha256:a02fe89cb597d4375812b2eac90cf9d0775d4686daa7f7cc750ebbcad7525bbc
           command:
             - /bin/bash
             - -ec
