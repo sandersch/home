@@ -31,7 +31,7 @@ ok "Home Assistant has initial reverse-proxy config and the person-detection aut
 
 step "Verify Home Assistant HTTP service"
 # renovate: datasource=docker depName=busybox
-kubectl -n home-assistant run home-assistant-http-test --restart=Never --rm -i --image=busybox:1.36.1@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662 \
+kubectl -n home-assistant run home-assistant-http-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616 \
   -- sh -c 'for i in $(seq 1 60); do wget -qO- http://home-assistant:8123/ >/dev/null && exit 0; sleep 5; done; exit 1'
 ok "Home Assistant service responded inside the home-assistant namespace"
 
