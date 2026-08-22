@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present; final copy validation and the quiesced cutover passed. | Historical migration path only. A current-state rebuild restores `/opt` from Restic as described below. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, MQTT, Z-Wave JS UI, and Zigbee2MQTT manifests plus validation/secret helper runbooks are present. The pre-existing workloads are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, Z-Wave controller connectivity/device inclusion/HA integration, Zigbee device pairing/discovery/automation use, and HA's API-managed backup/restore path. Zigbee2MQTT and its monitoring exporter are reconciled and Ready. All repo-authored workload/helper image references are exact release-and-digest pins (or the documented Gluetun digest-only exception), enforced by CI and proposed for attended updates by Renovate. | Tune Frigate cameras. |
-| 5 — observability + expansion | Direct-array and B2 backups passed live validation under the preceding workflow. Required-export contract version 1 is implemented in git and blocks snapshots missing validated Plex, Frigate, Prowlarr, Radarr, Sonarr, Seerr, Home Assistant, or RomM exports. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. Zigbee2MQTT's critical ingress, SLZB coordinator TCP, and MQTT-native bridge-health monitoring passed live validation on 2026-08-16. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. Post-cutover backup/restore and observation gates passed on 2026-08-13, and required-export contract version 1 passed fresh local and B2 restore drills on 2026-08-16. The standard-tier media resource tuning slice was deployed on 2026-08-13. | Close the media tuning gate after seven complete days of healthy audit data. Validate the new mdcheck cap during the next attended check, then tune Frigate before optional phase-two logs or deferred apps. |
+| 5 — observability + expansion | Direct-array and B2 backups passed live validation under the preceding workflow. Required-export contract version 1 is implemented in git and blocks snapshots missing validated Plex, Frigate, Prowlarr, Radarr, Sonarr, Seerr, Home Assistant, or RomM exports. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. Zigbee2MQTT's critical ingress, SLZB coordinator TCP, and MQTT-native bridge-health monitoring passed live validation on 2026-08-16. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. Post-cutover backup/restore and observation gates passed on 2026-08-13, and required-export contract version 1 passed fresh local and B2 restore drills on 2026-08-16. The standard-tier media resource tuning slice was deployed on 2026-08-13 and passed its seven-day gate on 2026-08-22. | Validate the new mdcheck cap during the next attended check, then tune Frigate before optional phase-two logs or deferred apps. |
 
 ## Fresh rebuild and disaster recovery
 
@@ -881,13 +881,15 @@ entities in Home Assistant.
 - **Immich (later)** — coordinate the initial import during a quiet window and watch
   memory (its ML container is the one big consumer). Originals on the direct bulk array; thumbs/ML on
   `/opt/immich`; benefits from Quick Sync.
-- **Media resource tuning deployed 2026-08-13; seven-day gate open:** the reusable
+- **Media resource tuning deployed 2026-08-13; seven-day gate passed 2026-08-22:** the reusable
   Phase 5 resource audit captured the unchanged 14-day baseline, then the standard-tier
   media containers were right-sized to `1.775` requested CPU cores and `4320Mi`
   requested memory. Frigate, Home Assistant, MQTT, monitoring, and deferred apps were
-  unchanged. Close this status in a later documentation-only commit after seven
-  complete days meet the OOM, restart, memory, throttling, and functional gates in
-  [operations.md](./operations.md#resource-tuning).
+  unchanged. The seven-day closeout reproduced the exact reservation totals, recorded
+  zero OOM events, kept every memory maximum below 85% of its limit, and kept every
+  container below the 5% throttling threshold, with restart and functional checks
+  healthy. Seerr was nearest the throttling threshold at `4.264%`; it passes, but
+  remains worth watching in later audits.
 
 ---
 

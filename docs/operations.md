@@ -387,12 +387,12 @@ reservations. Key container observations were:
 | Valkey | 0.001783 / 0.006310 cores | 0.008% | 27.383 / 27.828Mi |
 
 The resulting media allocation reserves `1.775` CPU cores and `4320Mi`. It was
-deployed on 2026-08-13 and remains open until the seven-complete-day audit gate passes.
-At that gate, require exact reservation totals, zero OOM/resource-related restarts,
-maximum memory below 85% of each limit, throttling below 5% per container, and no
-user-visible regression. If only memory fails, set that limit to 1.5 times the
-observed maximum rounded up to the next `256Mi`; if only throttling fails, double that
-container's CPU limit and repeat the seven-day gate.
+deployed on 2026-08-13 and passed the seven-complete-day audit gate on 2026-08-22.
+The closeout reproduced the exact reservation totals, recorded zero OOM events and no
+resource-related restarts, kept every memory maximum below 85% of its limit, and kept
+every container below 5% throttling without user-visible regression. Seerr was closest
+to the throttling threshold at `4.264%`; that passes the gate, but should be watched in
+later audits before considering any limit change.
 
 For future tuning:
 

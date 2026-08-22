@@ -45,7 +45,8 @@ consistency check completed cleanly but caused Frigate I/O stalls; deterministic
 timers and a check-only `50000` KiB/s cap are installed, with attended cap validation
 deferred to the next check window. The approved numbered UDM firewall policy remains
 pending deployment and validation; its matrix is the intended end state, not current
-enforcement. Resource tuning, Frigate tuning, and deferred apps follow the migration.
+enforcement. Standard-tier media resource tuning passed its seven-day gate on
+2026-08-22; Frigate tuning and deferred apps follow the migration.
 Repo-authored runtime, init, validation, recovery, and container-build images are
 immutably pinned and guarded by CI; hosted Renovate configuration proposes attended
 updates without auto-merge. k3s pinning remains the separate pending slice in
