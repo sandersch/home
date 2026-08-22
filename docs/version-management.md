@@ -5,9 +5,10 @@ an unattended production deployment. It covers repo-authored workload, init,
 validation, recovery, and container-build images. Helm-managed images, generated Flux
 manifests, GitHub Actions versions, and k3s are outside this container-image slice.
 
-> **Status (2026-08-17): container-image slice implemented; k3s pin pending.**
-> The live node runs `v1.36.2+k3s1`, but the Phase 2 installer does not yet set
-> `INSTALL_K3S_VERSION`.
+> **Status (2026-08-22): container-image slice and exact k3s installer pin implemented.**
+> The Phase 2 installer passes the validated live baseline `v1.36.2+k3s1` through
+> `INSTALL_K3S_VERSION`, and its active-server guard plus bootstrap validator reject
+> any installed version that does not match the pin.
 
 ## Immutable baseline
 
@@ -128,9 +129,6 @@ instead of starting the older binary against newer data.
   dependency report and grouping.
 - Exercise one low-risk Seerr update: attended merge, Flux validation, Git revert and
   rollback validation, reapply, then observe for 24 hours.
-- Separately set `INSTALL_K3S_VERSION=v1.36.2+k3s1` in the Phase 2 installer, mirror it
-  in the build plan, and exercise the installer guard without reinstalling the live
-  node solely for validation.
 
 ### k3s-specific update gate
 

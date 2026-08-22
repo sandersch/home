@@ -22,6 +22,7 @@ jobs:
         run: |
           runbooks/version-management/test-image-policy.sh
           runbooks/version-management/image_policy.py check
+          runbooks/phase2/test-k3s-version.sh
 
       - name: Check changed shell scripts
         env:

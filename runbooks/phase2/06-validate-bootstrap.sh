@@ -8,6 +8,7 @@ require_tools kubectl
 require_flux_cli
 
 step "Validate k3s node"
+assert_k3s_version
 assert_kubectl_ready
 
 step "Validate Flux bootstrap artifacts"

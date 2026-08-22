@@ -49,7 +49,8 @@ enforcement. Standard-tier media resource tuning passed its seven-day gate on
 2026-08-22; Frigate tuning and deferred apps follow the migration.
 Repo-authored runtime, init, validation, recovery, and container-build images are
 immutably pinned and guarded by CI; hosted Renovate configuration proposes attended
-updates without auto-merge. k3s pinning remains the separate pending slice in
+updates without auto-merge. The Phase 2 installer and validators pin k3s exactly at
+the validated live baseline `v1.36.2+k3s1`; later changes follow the attended gate in
 [version-management.md](./docs/version-management.md).
 This remains a retrofit to a running production cluster, not a greenfield scaffold.
 
@@ -181,7 +182,7 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 ## Where to go next
 
 1. [runbooks/disaster-recovery/README.md](./runbooks/disaster-recovery/README.md) — executable full-state rebuild and restore procedure.
-2. [docs/version-management.md](./docs/version-management.md) — implemented image pinning/update controls and pending k3s pinning.
+2. [docs/version-management.md](./docs/version-management.md) — implemented image and k3s pinning/update controls.
 3. [docs/direct-attached-storage-migration-worklog.md](./docs/direct-attached-storage-migration-worklog.md) — completed cutover evidence and post-migration follow-ups.
 4. [docs/build-plan.md](./docs/build-plan.md) — phased path, current status, and completion gates.
 5. [docs/architecture.md](./docs/architecture.md) — the design and its rationale.

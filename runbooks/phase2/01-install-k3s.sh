@@ -25,6 +25,9 @@ setup_user_kubeconfig() {
 step "Verify host prerequisites"
 assert_hostname_minis
 assert_no_swap
+if systemctl is-active --quiet k3s; then
+  assert_k3s_version
+fi
 
 step "Install k3s server configuration"
 require_host_etc
@@ -44,8 +47,8 @@ if systemctl is-active --quiet k3s; then
     warn "k3s is already active; skipping installer and validating the node"
   fi
 else
-  cat <<'EOF'
-k3s will be installed with:
+  cat <<EOF
+k3s $K3S_VERSION will be installed with:
   --disable traefik --disable servicelb --node-name minis
   kube-controller-manager terminated Pod GC threshold: 20
 
@@ -53,12 +56,13 @@ The node name is load-bearing because app PV nodeAffinity pins to the kubelet's
 kubernetes.io/hostname label.
 EOF
   confirm "Install k3s now?" || die "aborted"
-  curl -sfL https://get.k3s.io | sudo sh -s - \
+  curl -sfL https://get.k3s.io | sudo env INSTALL_K3S_VERSION="$K3S_VERSION" sh -s - \
     --disable traefik --disable servicelb \
     --node-name minis
 fi
 
 step "Validate k3s"
 systemctl is-active --quiet k3s || die "k3s service is not active"
+assert_k3s_version
 setup_user_kubeconfig
 assert_kubectl_ready

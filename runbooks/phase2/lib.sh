@@ -7,6 +7,8 @@
 # shellcheck source=runbooks/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 
+readonly K3S_VERSION="v1.36.2+k3s1"
+
 age_key_file() {
   printf '%s/age.key\n' "$REPO_ROOT"
 }
@@ -28,6 +30,16 @@ assert_no_swap() {
     die "swap is active; kubelet requires swap off"
   fi
   ok "swap is off"
+}
+
+assert_k3s_version() {
+  require_tools awk k3s
+  local actual
+  actual="$(k3s --version | awk 'NR == 1 && $1 == "k3s" && $2 == "version" { print $3 }')"
+  [ -n "$actual" ] || die "could not parse the installed k3s version"
+  [ "$actual" = "$K3S_VERSION" ] \
+    || die "installed k3s version is '$actual', expected '$K3S_VERSION'"
+  ok "k3s version is $K3S_VERSION"
 }
 
 assert_phase2_cluster_skeleton() {
