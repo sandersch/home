@@ -102,6 +102,7 @@ spec:
                 --exclude /data/opt/romm/db
               test -d /restore/data/opt
               test -d /restore/work/hot-dumps/sqlite
+              test -s /restore/work/hot-dumps/k3s/state.db.sqlite-backup
               test -s /restore/work/hot-dumps/romm/romm.sql
               test ! -e /restore/data/opt/romm/db/ibdata1
           env:

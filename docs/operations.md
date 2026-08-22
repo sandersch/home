@@ -12,6 +12,7 @@ Several categories of data have different protection needs:
 | selected bootstrap/host/device/service secrets | manual | external password manager | on creation/rotation |
 | GitOps repo (all manifests) | git | GitHub | every commit |
 | App state (`/opt`, incl. SQLite DBs) | independent Restic CronJobs | direct backup LV + Backblaze B2 | nightly + weekly |
+| k3s SQLite datastore | online SQLite backup inside the same Restic CronJobs | direct backup LV + Backblaze B2 | nightly + weekly |
 | Frigate recordings | — (not backed up) | direct bulk array | — |
 | Media library | — (not backed up) | direct bulk array | — |
 
@@ -28,7 +29,7 @@ creates independent snapshots in two repositories. The nightly local job writes 
 `/mnt/backups/opt` on the host (`/repo/nas/opt` in the pod) and keeps 14 daily, 8
 weekly, and 12 monthly snapshots. The Sunday 04:30 America/Chicago job writes directly
 to Backblaze's S3-compatible API and keeps 8 weekly and 12 monthly snapshots. Both run
-the same SQLite, Home Assistant, and RomM hot-backup workflow, but the B2 job and its
+the same application SQLite, k3s SQLite, Home Assistant, and RomM hot-backup workflow, but the B2 job and its
 restore validation have no local backup-volume dependency.
 
 Both targets exclude `/data/opt/.snapshots`. Those same-device btrfs snapshots are
@@ -108,7 +109,7 @@ RomM's MariaDB sidecar is exposed only inside the cluster as
 `ROMM_DB_PASSWORD` must match the RomM Secret's `MARIADB_PASSWORD`; if a manual backup
 fails with MariaDB error 1045, rerun
 `runbooks/phase5/02-encrypt-restic-secret.sh` and reconcile `monitoring`.
-Before Restic starts, the shared script enforces backup-contract version 1. Both Plex
+Before Restic starts, the shared script enforces backup-contract version 2. Both Plex
 databases plus the primary Frigate, Home Assistant, Prowlarr, Radarr, Sonarr, and Seerr
 databases must exist, must have been exported during the current Job, and must pass
 their applicable SQLite validation. The new Home Assistant archive must pass `tar -tf`; RomM must pass
@@ -117,12 +118,58 @@ invalid required output aborts the Job before `restic backup`, so it cannot crea
 successful-looking but full-recovery-ineligible snapshot. Other discovered SQLite log,
 history, or cache databases remain optional best-effort additions.
 
+The same contract requires a transactionally consistent online backup of the live
+`/var/lib/rancher/k3s/server/db/state.db`. Both CronJobs are pinned to `minis` and
+mount only the `server/db` directory read-only; they never mount `server/token`.
+The script uses SQLite's `.backup` API with a 60-second busy timeout, validates the
+temporary file with `PRAGMA integrity_check`, requires the `kine` and
+`sqlite_sequence` tables and at least one `kine` row, and only then renames it to
+`/work/hot-dumps/k3s/state.db.sqlite-backup`. Any missing, stale, or invalid k3s
+artifact stops the Job before Restic runs. The pods run as root solely to traverse
+the host's mode-`0700` database directory; service-account token mounting is disabled,
+all capabilities are dropped, privilege escalation and privileged mode are disabled,
+and the root filesystem remains read-only.
+
 The snapshot carries the contract version, exact required SQLite inventory, and export
 completion timestamp. Local and B2 representative restore validation restores every
 required artifact, checks every required SQLite export, validates the Home Assistant
 archive, imports the RomM dump into a temporary MariaDB instance, and runs
 `mariadb-check`. Full disaster recovery rejects a snapshot whose contract version or
 inventory differs from the current required set before copying anything into `/opt`.
+They validate the k3s artifact independently as well. Full recovery retains that
+artifact in its root-only staging tree but never copies it into `/opt` and never
+replaces the active datastore automatically.
+
+### Optional emergency k3s datastore recovery
+
+GitOps clean rebuild remains the default recovery model. Use the contract-v2 k3s
+artifact only as an attended, operator-only same-cluster recovery source, following
+the [k3s datastore backup and restore model](https://docs.k3s.io/datastore/backup-restore).
+The database and server token must come from the same cluster state; the authoritative
+token remains in the external password manager and is never present in Restic.
+
+1. Select a validated contract-v2 snapshot and restore only
+   `/work/hot-dumps/k3s/state.db.sqlite-backup` into a root-owned mode-`0700` staging
+   directory. Repeat `PRAGMA integrity_check`, require both `kine` and
+   `sqlite_sequence`, and require at least one `kine` row.
+2. Retrieve the matching `/var/lib/rancher/k3s/server/token` value from the external
+   password manager without placing it in the repository, shell history, logs, or the
+   Restic staging tree.
+3. Stop k3s with `sudo systemctl stop k3s` and confirm it is inactive.
+4. Move `/var/lib/rancher/k3s/server/db` to a timestamped, root-only rollback path on
+   the same filesystem. Do not delete it.
+5. Create a fresh root-owned mode-`0700` `server/db`, install the validated artifact
+   as mode-`0600` `server/db/state.db`, and confirm no `state.db-wal` or
+   `state.db-shm` file exists in the new directory.
+6. Preserve the existing matching `server/token`, or restore the retrieved matching
+   token as root-owned mode `0600` before startup. Never substitute a token from a
+   different cluster state.
+7. Start k3s, then run `runbooks/phase2/06-validate-bootstrap.sh`,
+   `runbooks/phase3/00-preflight.sh`, `runbooks/phase3/03-validation-gate.sh`, and
+   representative Phase 4 workload validators. Retain the rollback directory until
+   the cluster, Flux, monitoring, and representative workloads have remained healthy.
+
+This procedure is intentionally not called by the default disaster-recovery runner.
 
 ## Monitoring & alerting
 
@@ -456,11 +503,12 @@ Deferred deliberately; revisit when the trigger condition is met.
 
 Accepted constraints (not gaps): no staging environment (changes go to the one
 cluster—mitigated by btrfs snapshots + `flux suspend`); cert renewal depends on the
-external DNS provider's API (90-day certs make a brief outage non-fatal); and no
-scheduled backup of the default k3s SQLite datastore. Git is the cluster rebuild source
-of truth; the version-management workflow adds a short-lived, access-controlled
-datastore checkpoint before k3s upgrades rather than treating it as a normal Restic
-backup. Application state is protected separately by Restic. Selected secrets are also saved
+external DNS provider's API (90-day certs make a brief outage non-fatal). Git remains
+the cluster rebuild source of truth. The scheduled k3s SQLite artifact is an optional
+emergency same-cluster recovery source, not the default rebuild path; the
+version-management workflow also adds a short-lived, access-controlled datastore
+checkpoint before k3s upgrades. Application state is protected separately by Restic.
+Selected secrets are also saved
 in the external password manager as an independent recovery source; the `sops-age`
 private key and values redacted from canonical host or device configuration remain
 outside git. A rebuild therefore requires the git repository, Restic where state is

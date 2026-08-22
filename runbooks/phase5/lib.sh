@@ -94,6 +94,7 @@ assert_phase5_observability_invariants() {
     .spec.targets.staticConfig.static == ["mosquitto.mqtt.svc.cluster.local:1883"]' \
     "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
     || die "MQTT blackbox target changed unexpectedly"
+  # shellcheck disable=SC2016 # $pod/$container are yq variables, not shell variables.
   yq -e '
     select(.kind == "Probe" and .metadata.name == "zigbee-coordinator") |
     .spec.interval == "30s" and
@@ -403,7 +404,7 @@ assert_phase5_backup_invariants() {
     .data.RESTIC_KEEP_DAILY == "14" and
     .data.RESTIC_KEEP_WEEKLY == "8" and
     .data.RESTIC_KEEP_MONTHLY == "12" and
-    .data.BACKUP_CONTRACT_VERSION == "1" and
+    .data.BACKUP_CONTRACT_VERSION == "2" and
     (.data.REQUIRED_SQLITE_DATABASES | split("\n") | length) == 8 and
     (.data.REQUIRED_SQLITE_DATABASES | contains("com.plexapp.plugins.library.db")) and
     (.data.REQUIRED_SQLITE_DATABASES | contains("com.plexapp.plugins.library.blobs.db")) and
@@ -418,6 +419,32 @@ assert_phase5_backup_invariants() {
     any(.spec.jobTemplate.spec.template.spec.volumes[];
       .name == "backups" and .hostPath.path == "/mnt/backups")' "$rendered" >/dev/null \
     || die "local Restic CronJob no longer mounts /mnt/backups"
+  yq -e '
+    select(.kind == "CronJob" and
+      (.metadata.name == "restic-nas-backup" or .metadata.name == "restic-b2-backup")) |
+    .spec.jobTemplate.spec.template.spec as $pod |
+    $pod.nodeSelector."kubernetes.io/hostname" == "minis" and
+    $pod.automountServiceAccountToken == false and
+    $pod.securityContext.seccompProfile.type == "RuntimeDefault" and
+    any($pod.volumes[];
+      .name == "k3s-db" and
+      .hostPath.path == "/var/lib/rancher/k3s/server/db" and
+      .hostPath.type == "Directory") and
+    ($pod.containers[0] as $container |
+      $container.securityContext.runAsUser == 0 and
+      $container.securityContext.allowPrivilegeEscalation == false and
+      $container.securityContext.readOnlyRootFilesystem == true and
+      ($container.securityContext.privileged // false) == false and
+      $container.securityContext.capabilities.drop == ["ALL"] and
+      any($container.volumeMounts[];
+        .name == "k3s-db" and .mountPath == "/data/k3s-db" and .readOnly == true))
+  ' "$rendered" >/dev/null \
+    || die "Restic CronJobs must use the exact read-only k3s DB mount and hardened minis-only pod settings"
+  if grep -Fq -- '/var/lib/rancher/k3s/server/token' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-cronjob.yaml" \
+    "$REPO_ROOT/infrastructure/monitoring/restic-b2-cronjob.yaml"; then
+    die "Restic CronJobs must never mount the k3s server token"
+  fi
   yq -e 'select(.kind == "CronJob" and .metadata.name == "restic-b2-backup") |
     .spec.schedule == "30 4 * * 0" and
     .spec.timeZone == "America/Chicago" and
@@ -463,6 +490,25 @@ assert_phase5_backup_invariants() {
   grep -Fq -- 'write_backup_contract' \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "shared Restic backup script does not write the recovery contract"
+  grep -Fq -- "local source=/data/k3s-db/state.db" \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not require the live k3s SQLite source"
+  grep -Fq -- "'.timeout 60000'" \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not use a 60-second k3s SQLite busy timeout"
+  # shellcheck disable=SC2016 # Match literal variables in the embedded backup script.
+  grep -Fq -- 'mv -- "$tmp" "$output"' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not publish the validated k3s artifact atomically"
+  # shellcheck disable=SC2016 # Match a literal variable in the embedded backup script.
+  grep -Fq -- 'validate_k3s_backup "$tmp"' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not validate k3s before atomic publication"
+  yq -er '.data["backup.sh"]' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    | tail -n 7 \
+    | grep -Fq $'dump_sqlite\ndump_k3s\ntrigger_home_assistant_backup\ndump_romm\nwrite_backup_contract\nrun_restic' \
+    || die "shared Restic backup script does not make k3s export failure fatal before Restic"
   for restore_script in \
     runbooks/phase5/05-validate-restore.sh \
     runbooks/phase5/09-validate-b2-restore.sh; do
@@ -470,7 +516,18 @@ assert_phase5_backup_invariants() {
       || die "$restore_script does not validate the required SQLite inventory"
     grep -Fq -- 'mariadb-check' "$REPO_ROOT/$restore_script" \
       || die "$restore_script does not import and validate the RomM dump"
+    grep -Fq -- '/work/hot-dumps/k3s/state.db.sqlite-backup' "$REPO_ROOT/$restore_script" \
+      || die "$restore_script does not independently extract the k3s SQLite artifact"
+    grep -Fq -- 'PRAGMA integrity_check;' "$REPO_ROOT/$restore_script" \
+      || die "$restore_script does not validate SQLite integrity"
+    grep -Fq -- "name IN ('kine','sqlite_sequence')" "$REPO_ROOT/$restore_script" \
+      || die "$restore_script does not validate the k3s SQLite schema"
+    grep -Fq -- 'SELECT count(*) FROM kine;' "$REPO_ROOT/$restore_script" \
+      || die "$restore_script does not require k3s datastore rows"
   done
+  grep -Fq -- '/work/hot-dumps/k3s/state.db.sqlite-backup' \
+    "$REPO_ROOT/runbooks/disaster-recovery/01-list-snapshots.sh" \
+    || die "full-recovery selection does not require the contract-v2 k3s artifact"
   grep -Fq -- '-path /data/opt/.snapshots -prune -o' \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "SQLite discovery does not prune the local btrfs snapshot tree"

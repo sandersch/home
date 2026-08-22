@@ -25,6 +25,7 @@ required_sqlite_databases() {
 assert_hot_dump_contract() {
   local hot_dumps="$1" expected_version actual_version
   local expected_inventory actual_inventory created_at relative required_count
+  local k3s_backup k3s_integrity k3s_table_count k3s_row_count
 
   expected_version="$(backup_contract_version)"
   sudo test -s "$hot_dumps/contract-version" \
@@ -48,6 +49,23 @@ assert_hot_dump_contract() {
   done < <(required_sqlite_databases)
   [ "$required_count" -gt 0 ] || die "current required SQLite inventory is empty"
 
+  k3s_backup="$hot_dumps/k3s/state.db.sqlite-backup"
+  sudo test -s "$k3s_backup" \
+    || die "selected snapshot has no k3s SQLite backup"
+  k3s_integrity="$(sudo sqlite3 -readonly "$k3s_backup" 'PRAGMA integrity_check;')" \
+    || die "selected snapshot's k3s SQLite integrity check could not run"
+  [ "$k3s_integrity" = ok ] \
+    || die "selected snapshot's k3s SQLite integrity check failed: $k3s_integrity"
+  k3s_table_count="$(sudo sqlite3 -readonly "$k3s_backup" \
+    "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('kine','sqlite_sequence');")" \
+    || die "selected snapshot's k3s SQLite schema check could not run"
+  [ "$k3s_table_count" = 2 ] \
+    || die "selected snapshot's k3s SQLite backup lacks kine or sqlite_sequence"
+  k3s_row_count="$(sudo sqlite3 -readonly "$k3s_backup" 'SELECT count(*) FROM kine;')" \
+    || die "selected snapshot's k3s SQLite kine row check could not run"
+  [[ "$k3s_row_count" =~ ^[0-9]+$ ]] && [ "$k3s_row_count" -gt 0 ] \
+    || die "selected snapshot's k3s SQLite backup contains no kine rows"
+
   sudo test -s "$hot_dumps/home-assistant/home-assistant.tar" \
     || die "selected snapshot has no canonical Home Assistant managed backup"
   sudo tar -tf "$hot_dumps/home-assistant/home-assistant.tar" >/dev/null \
@@ -64,7 +82,7 @@ assert_hot_dump_contract() {
   [[ "$created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] \
     || die "selected snapshot has an invalid export completion timestamp: $created_at"
 
-  ok "backup contract $actual_version contains $required_count required SQLite exports, Home Assistant archive, and RomM dump"
+  ok "backup contract $actual_version contains $required_count required app SQLite exports, a validated k3s datastore, Home Assistant archive, and RomM dump"
 }
 
 require_recovery_source() {

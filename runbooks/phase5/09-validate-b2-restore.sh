@@ -24,6 +24,7 @@ spec:
     spec:
       restartPolicy: Never
       priorityClassName: homelab-low
+      automountServiceAccountToken: false
       containers:
         - name: restic
           # renovate: datasource=docker depName=ghcr.io/sandersch/restic-backup
@@ -69,12 +70,14 @@ spec:
               created_at_path=/work/hot-dumps/export-created-at
               ha_path=/work/hot-dumps/home-assistant/home-assistant.tar
               romm_path=/work/hot-dumps/romm/romm.sql
+              k3s_path=/work/hot-dumps/k3s/state.db.sqlite-backup
               include_args=(
                 --include "$contract_path"
                 --include "$inventory_path"
                 --include "$created_at_path"
                 --include "$ha_path"
                 --include "$romm_path"
+                --include "$k3s_path"
               )
               required_count=0
               while IFS= read -r rel; do
@@ -99,6 +102,12 @@ spec:
               test -s "/restore$romm_path"
               test -s "/restore$ha_path"
               tar -tf "/restore$ha_path" >/dev/null
+              test -s "/restore$k3s_path"
+              sqlite3 -readonly "/restore$k3s_path" 'PRAGMA integrity_check;' | grep -qx ok
+              test "$(sqlite3 -readonly "/restore$k3s_path" \
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('kine','sqlite_sequence');")" = 2
+              kine_rows="$(sqlite3 -readonly "/restore$k3s_path" 'SELECT count(*) FROM kine;')"
+              test "$kine_rows" -gt 0
 
               validated_count=0
               while IFS= read -r rel; do
@@ -130,7 +139,7 @@ spec:
 
               stop_mariadb
               trap - EXIT
-              echo "B2 snapshot $snapshot_id satisfies backup contract $BACKUP_CONTRACT_VERSION with $validated_count required SQLite exports and $table_count RomM tables"
+              echo "B2 snapshot $snapshot_id satisfies backup contract $BACKUP_CONTRACT_VERSION with $validated_count required app SQLite exports, $kine_rows k3s kine rows, and $table_count RomM tables"
           env:
             - name: RESTIC_REPOSITORY
               valueFrom:

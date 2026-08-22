@@ -103,6 +103,10 @@ to `/opt` with ownership, ACLs, xattrs, hard links, and numeric IDs preserved. V
 the Home Assistant managed backup artifact as an independent application-aware fallback.
 Keep every application stopped throughout this gate. The executable recovery scripts
 enforce these database-specific steps.
+Validate the staged contract-v2 k3s SQLite artifact independently, but leave it under
+the root-only recovery staging tree. The default runner must never copy it into `/opt`
+or replace the active k3s datastore; the optional attended procedure is documented in
+[operations.md](./operations.md#optional-emergency-k3s-datastore-recovery).
 
 The Phase 5 `05-validate-restore.sh` and `09-validate-b2-restore.sh` scripts are
 representative restore drills into temporary volumes; they do **not** restore `/opt` and
@@ -118,9 +122,11 @@ The backup job discovers SQLite databases with `.db`, `.sqlite`, and `.sqlite3`
 suffixes, but it has a stricter required contract: both Plex library databases and the
 primary Frigate, Home Assistant, Prowlarr, Radarr, Sonarr, and Seerr databases must
 have fresh, validated hot backups. A new validated Home Assistant managed archive and a checked
-RomM logical dump are also mandatory. Restic does not start if any required export
+RomM logical dump and a fresh, integrity-checked k3s SQLite online backup are also
+mandatory. Restic does not start if any required export
 fails. Full recovery rejects snapshots without the current contract version, exact
-required inventory, Home Assistant archive, or RomM dump before `/opt` activation.
+required inventory, Home Assistant archive, RomM dump, or k3s artifact before `/opt`
+activation.
 
 ### 4. Resume in two commits
 

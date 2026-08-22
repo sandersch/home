@@ -39,15 +39,21 @@ The shared backup workflow excludes `/data/opt/.snapshots` from both SQLite disc
 and Restic input. Local btrfs snapshots remain available for same-device rollback but
 are not recursively embedded in the independent local or B2 recovery points.
 
-Backup-contract version 1 makes both Plex library databases and the primary Frigate,
+Backup-contract version 2 makes both Plex library databases and the primary Frigate,
 Home Assistant, Prowlarr, Radarr, Sonarr, and Seerr databases mandatory. Each must be
 exported during the current Job and pass SQLite validation. A newly created, readable Home Assistant
 managed backup and a `mariadb-check`-validated RomM logical dump are also mandatory.
 The Job stops before Restic if any required artifact is missing, stale, or invalid.
 Optional discovered log/history/cache databases do not block the recovery point.
+Contract version 2 also requires a current-job SQLite online backup of
+`/var/lib/rancher/k3s/server/db/state.db`. It must pass full integrity, contain the
+`kine` and `sqlite_sequence` tables, and have at least one `kine` row. The CronJobs
+mount only the database directory read-only; the server token remains exclusively in
+the external password manager and is never included in scheduled snapshots.
 
 Both restore-validation scripts select the latest snapshot for their own target tag,
-require the exact current contract and inventory, validate every required SQLite file,
+require the exact current contract and inventory, validate every required SQLite file
+and the independently extracted k3s artifact,
 read the Home Assistant tar archive, and import the RomM dump into a temporary MariaDB
 sidecar followed by `mariadb-check`.
 

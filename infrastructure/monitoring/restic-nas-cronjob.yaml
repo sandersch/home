@@ -22,6 +22,12 @@ spec:
         spec:
           restartPolicy: Never
           priorityClassName: homelab-low
+          automountServiceAccountToken: false
+          nodeSelector:
+            kubernetes.io/hostname: minis
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: restic
               image: ghcr.io/sandersch/restic-backup:0.19.1-1@sha256:58cddae970e91cb4f8f18db69d9d7d526d1e1d803193a65afb2f7f3a43aa9097
@@ -57,12 +63,19 @@ spec:
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
+                runAsUser: 0
+                capabilities:
+                  drop:
+                    - ALL
               volumeMounts:
                 - name: backup-script
                   mountPath: /scripts
                   readOnly: true
                 - name: opt
                   mountPath: /data/opt
+                  readOnly: true
+                - name: k3s-db
+                  mountPath: /data/k3s-db
                   readOnly: true
                 - name: backups
                   mountPath: /repo/nas
@@ -81,6 +94,10 @@ spec:
             - name: opt
               hostPath:
                 path: /opt
+                type: Directory
+            - name: k3s-db
+              hostPath:
+                path: /var/lib/rancher/k3s/server/db
                 type: Directory
             - name: backups
               hostPath:

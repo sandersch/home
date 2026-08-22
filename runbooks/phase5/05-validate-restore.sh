@@ -24,6 +24,7 @@ spec:
     spec:
       restartPolicy: Never
       priorityClassName: homelab-low
+      automountServiceAccountToken: false
       containers:
         - name: restic
           # renovate: datasource=docker depName=ghcr.io/sandersch/restic-backup
@@ -75,6 +76,16 @@ spec:
               created_at="$(restic dump "$snapshot_id" /work/hot-dumps/export-created-at)"
               [[ "$created_at" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]]
 
+              k3s_backup=/tmp/k3s-state.db.sqlite-backup
+              restic dump "$snapshot_id" \
+                /work/hot-dumps/k3s/state.db.sqlite-backup >"$k3s_backup"
+              test -s "$k3s_backup"
+              sqlite3 -readonly "$k3s_backup" 'PRAGMA integrity_check;' | grep -qx ok
+              test "$(sqlite3 -readonly "$k3s_backup" \
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('kine','sqlite_sequence');")" = 2
+              kine_rows="$(sqlite3 -readonly "$k3s_backup" 'SELECT count(*) FROM kine;')"
+              test "$kine_rows" -gt 0
+
               required_count=0
               while IFS= read -r rel; do
                 test -n "$rel" || continue
@@ -114,7 +125,7 @@ spec:
 
               stop_mariadb
               trap - EXIT
-              echo "NAS snapshot $snapshot_id satisfies backup contract $contract_version with $required_count required SQLite exports and $table_count RomM tables"
+              echo "NAS snapshot $snapshot_id satisfies backup contract $contract_version with $required_count required app SQLite exports, $kine_rows k3s kine rows, and $table_count RomM tables"
           envFrom:
             - configMapRef:
                 name: restic-nas-config

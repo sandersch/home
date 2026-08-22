@@ -10,7 +10,7 @@ data:
   RESTIC_KEEP_DAILY: "14"
   RESTIC_KEEP_WEEKLY: "8"
   RESTIC_KEEP_MONTHLY: "12"
-  BACKUP_CONTRACT_VERSION: "1"
+  BACKUP_CONTRACT_VERSION: "2"
   REQUIRED_SQLITE_DATABASES: |-
     plex/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.db
     plex/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.blobs.db
@@ -53,6 +53,7 @@ data:
     WORK_DIR="${BACKUP_WORK_DIR:-/work}"
     HOT_DUMPS="$WORK_DIR/hot-dumps"
     SQLITE_DUMPS="$HOT_DUMPS/sqlite"
+    K3S_DUMPS="$HOT_DUMPS/k3s"
     HA_DUMPS="$HOT_DUMPS/home-assistant"
     ROMM_DUMPS="$HOT_DUMPS/romm"
     HA_BACKUPS_BEFORE="$WORK_DIR/home-assistant-backups-before"
@@ -61,7 +62,7 @@ data:
       && [ -n "$(find "$HOT_DUMPS" -mindepth 1 -print -quit)" ]; then
       die "$HOT_DUMPS is not empty; refusing to reuse exports from an earlier attempt"
     fi
-    mkdir -p "$SQLITE_DUMPS" "$HA_DUMPS" "$ROMM_DUMPS" "$WORK_DIR/restic-cache"
+    mkdir -p "$SQLITE_DUMPS" "$K3S_DUMPS" "$HA_DUMPS" "$ROMM_DUMPS" "$WORK_DIR/restic-cache"
     export RESTIC_CACHE_DIR="$WORK_DIR/restic-cache"
 
     assert_fresh_file() {
@@ -141,6 +142,43 @@ data:
       else
         printf 'no sqlite error output'
       fi
+    }
+
+    validate_k3s_backup() {
+      local backup="$1" integrity table_count row_count
+      [ -s "$backup" ] || die "k3s SQLite backup is missing or empty: $backup"
+      integrity="$(sqlite3 -readonly "$backup" 'PRAGMA integrity_check;')" \
+        || die "k3s SQLite integrity check could not run"
+      [ "$integrity" = ok ] \
+        || die "k3s SQLite integrity check failed: $integrity"
+      table_count="$(sqlite3 -readonly "$backup" \
+        "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('kine','sqlite_sequence');")" \
+        || die "k3s SQLite schema check could not run"
+      [ "$table_count" = 2 ] \
+        || die "k3s SQLite backup is missing the kine or sqlite_sequence table"
+      row_count="$(sqlite3 -readonly "$backup" 'SELECT count(*) FROM kine;')" \
+        || die "k3s SQLite kine row check could not run"
+      [[ "$row_count" =~ ^[0-9]+$ ]] && [ "$row_count" -gt 0 ] \
+        || die "k3s SQLite backup contains no kine rows"
+    }
+
+    dump_k3s() {
+      local source=/data/k3s-db/state.db
+      local output="$K3S_DUMPS/state.db.sqlite-backup"
+      local tmp="$output.tmp" escaped
+      log "creating transactionally consistent k3s SQLite backup"
+      [ -s "$source" ] || die "required k3s SQLite source is missing or empty: $source"
+      rm -f -- "$tmp"
+      escaped="${tmp//\'/\'\'}"
+      sqlite3 -readonly "$source" \
+        '.timeout 60000' \
+        ".backup '$escaped'" \
+        || die "k3s SQLite online backup failed"
+      assert_fresh_file "$tmp" "temporary k3s SQLite backup"
+      validate_k3s_backup "$tmp"
+      mv -- "$tmp" "$output"
+      assert_fresh_file "$output" "k3s SQLite backup"
+      validate_k3s_backup "$output"
     }
 
     trigger_home_assistant_backup() {
@@ -278,6 +316,7 @@ data:
     }
 
     dump_sqlite
+    dump_k3s
     trigger_home_assistant_backup
     dump_romm
     write_backup_contract

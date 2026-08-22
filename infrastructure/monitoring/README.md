@@ -26,7 +26,9 @@ Committed now:
 - Enabled weekly Backblaze B2 CronJob for the independent offsite repository.
 - Backup script ConfigMap with a versioned required-export contract. It blocks Restic
   unless the mandatory Plex, Frigate, Prowlarr, Radarr, Sonarr, Seerr, Home Assistant,
-  and RomM application-aware exports are fresh and valid.
+  and RomM application-aware exports are fresh and valid, and unless a validated
+  online backup of the live k3s SQLite datastore is present. The k3s server token is
+  not mounted or backed up.
 
 The B2 repository initialization, manual backup, repository check, and local-volume-independent
 restore validation passed on 2026-07-18. The nightly local and first naturally scheduled

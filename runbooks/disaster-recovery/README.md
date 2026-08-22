@@ -34,6 +34,11 @@ merge into nonempty state unless it is resuming its own recorded, interrupted co
 - The same contract requires a readable Home Assistant managed backup, a structurally
   valid RomM logical dump, and an export-completion timestamp. Any mismatch rejects the
   selected snapshot before anything is copied into `/opt`.
+- Contract version 2 additionally requires an integrity-checked, nonempty k3s SQLite
+  datastore artifact with the expected `kine` schema. It remains in the root-only
+  staging tree and is never copied into `/opt` or installed as the active datastore.
+  Optional attended k3s recovery is documented separately in
+  [`docs/operations.md`](../../docs/operations.md#optional-emergency-k3s-datastore-recovery).
 - The live-captured `romm/db` tree is excluded from both Restic extraction and the
   `/opt` copy. A temporary MariaDB Job imports the transaction-consistent RomM SQL
   dump into a fresh data directory.
@@ -149,9 +154,10 @@ This makes the state machine ready for a future event but does not remove stagin
 Delete only the exact staged path printed by the script, as a separate deliberate
 operation.
 
-After deploying backup-contract version 1, create and validate fresh direct and B2
-snapshots. Older snapshots do not carry the complete mandatory export inventory and are
-deliberately rejected by the full recovery procedure.
+After deploying backup-contract version 2, create and validate fresh direct and B2
+snapshots. Contract-v1 snapshots remain stored according to retention but are
+deliberately rejected by current recovery tooling; use the matching older repository
+revision if one must be interpreted.
 
 ## Scripts
 

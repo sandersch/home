@@ -59,6 +59,7 @@ spec:
                     | grep -Fq -- "\$path" || return 1
                 done <<<"\$REQUIRED_SQLITE_DATABASES"
                 for path in \
+                  /work/hot-dumps/k3s/state.db.sqlite-backup \
                   /work/hot-dumps/home-assistant/home-assistant.tar \
                   /work/hot-dumps/romm/romm.sql \
                   /work/hot-dumps/export-created-at; do
