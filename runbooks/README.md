@@ -21,7 +21,7 @@ phase section there first, then run the scripts.
 |---|---|---|
 | 0 | [`phase0/`](./phase0/) | OS baseline from SSH-ready: hostname, SSH hardening, networking, system prep, direct bulk storage, UPS/NUT, Coral udev |
 | 1 | [`phase1/`](./phase1/) | Camera-segment isolation: nftables, DHCP-only dnsmasq, chrony NTP, Catalyst checklist, validation, direct-storage probe |
-| 2 | [`phase2/`](./phase2/) | k3s install, SOPS age key/secret, `.sops.yaml`, and Flux bootstrap |
+| 2 | [`phase2/`](./phase2/) | k3s bootstrap and attended upgrade/rollback, SOPS age key/secret, `.sops.yaml`, and Flux bootstrap |
 | 3 | [`phase3/`](./phase3/) | SOPS-encrypted infra secrets, Flux reconciliation, and platform validation gate |
 | 3.5 | [`phase3.5/`](./phase3.5/) | Final stopped-host app-data copy from the bulk-storage archive into `/opt` |
 | 4 | [`phase4/`](./phase4/) | Secret helpers and validation for media apps, Frigate, Home Assistant, MQTT, Z-Wave JS, and Zigbee2MQTT |

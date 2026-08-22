@@ -19,7 +19,7 @@ manifests:
 |---|---|---|
 | 0 — OS baseline | Host config and runbooks are present under `host/minis/` and `runbooks/phase0/`. | Manual BIOS/installer choices, router wildcard DNS, and any live-host revalidation after changes. |
 | 1 — networking isolation | Host nftables, dnsmasq, chrony, sysctl config, Catalyst checklist, and validation runbooks are present. Host forwarding isolation, authoritative DHCP-only dnsmasq, and the sole deployed camera path were live-validated during Phase 4; the Amcrest camera receives reserved address `192.168.105.50`. | Add a reservation and repeat the camera-specific checks whenever another camera is provisioned; keep Catalyst/live config in sync. |
-| 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. The bootstrap helper enforces the rebuild reconciliation guards described below. The installer and validators pin the live baseline exactly at `v1.36.2+k3s1`. | Follow the attended [k3s update gate](./version-management.md#k3s-specific-update-gate) before changing the pin, then run the normal bootstrap health checks. |
+| 2 — k3s + Flux | k3s/age/SOPS/Flux bootstrap runbooks and `clusters/minis/flux-system` bootstrap output are present. The bootstrap helper enforces the rebuild reconciliation guards described below. The reviewed target is pinned at `v1.36.3+k3s1`; attended live maintenance from the validated `v1.36.2+k3s1` baseline is pending. | Execute and record the attended [k3s update gate](./version-management.md#k3s-specific-update-gate), full validation, and 24-hour observation. |
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present; final copy validation and the quiesced cutover passed. | Historical migration path only. A current-state rebuild restores `/opt` from Restic as described below. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, MQTT, Z-Wave JS UI, and Zigbee2MQTT manifests plus validation/secret helper runbooks are present. The pre-existing workloads are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, Z-Wave controller connectivity/device inclusion/HA integration, Zigbee device pairing/discovery/automation use, and HA's API-managed backup/restore path. Zigbee2MQTT and its monitoring exporter are reconciled and Ready. All repo-authored workload/helper image references are exact release-and-digest pins (or the documented Gluetun digest-only exception), enforced by CI and proposed for attended updates by Renovate. | Tune Frigate cameras. |
@@ -546,9 +546,10 @@ maintenance posture.
 
 **2.1 Install k3s.**
 
-The executable helper and command below pin the validated live baseline exactly at
-`v1.36.2+k3s1`. The helper also rejects an already-active server on a different
-release rather than silently treating it as validated. Changing this pin is host
+The executable helper and command below pin the reviewed target exactly at
+`v1.36.3+k3s1`. The helper is bootstrap-only and rejects an already-active server on a
+different release, directing the operator to the attended upgrade runbook instead of
+silently treating it as validated. Changing this pin is host
 maintenance governed by [version-management.md](./version-management.md#k3s-specific-update-gate),
 not authorization to reinstall the live node solely for validation.
 
@@ -558,7 +559,7 @@ sudo install -D -o root -g root -m 600 \
   /etc/rancher/k3s/config.yaml
 
 curl -sfL https://get.k3s.io | \
-  sudo env INSTALL_K3S_VERSION=v1.36.2+k3s1 sh -s - \
+  sudo env INSTALL_K3S_VERSION=v1.36.3+k3s1 sh -s - \
   --disable traefik --disable servicelb \
   --node-name minis          # node name drives the kubelet-set kubernetes.io/hostname
                              #   label the PV nodeAffinity pins to; requires hostname=minis (0.1).

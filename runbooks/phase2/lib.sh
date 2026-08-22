@@ -7,7 +7,7 @@
 # shellcheck source=runbooks/lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/lib.sh"
 
-readonly K3S_VERSION="v1.36.2+k3s1"
+readonly K3S_VERSION="v1.36.3+k3s1"
 
 age_key_file() {
   printf '%s/age.key\n' "$REPO_ROOT"
@@ -38,7 +38,7 @@ assert_k3s_version() {
   actual="$(k3s --version | awk 'NR == 1 && $1 == "k3s" && $2 == "version" { print $3 }')"
   [ -n "$actual" ] || die "could not parse the installed k3s version"
   [ "$actual" = "$K3S_VERSION" ] \
-    || die "installed k3s version is '$actual', expected '$K3S_VERSION'"
+    || die "installed k3s version is '$actual', expected '$K3S_VERSION'; use runbooks/phase2/07-upgrade-k3s.sh for an attended upgrade"
   ok "k3s version is $K3S_VERSION"
 }
 
@@ -119,6 +119,30 @@ assert_git_clean_for_bootstrap() {
   behind="${counts##*[[:space:]]}"
   [ "$ahead" = "0" ] || die "current branch has $ahead unpushed commit(s) relative to $upstream"
   [ "$behind" = "0" ] || die "current branch is $behind commit(s) behind $upstream; pull before bootstrap"
+  ok "git branch is clean and up to date with $upstream"
+}
+
+assert_git_clean_and_up_to_date() {
+  local activity="${1:-maintenance}" status upstream counts ahead behind
+
+  status="$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all)"
+  if [ -n "$status" ]; then
+    warn "git worktree must be clean before $activity"
+    printf '%s\n' "$status" >&2
+    die "commit, stash, or remove these changes before $activity"
+  fi
+
+  upstream="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+  [ -n "$upstream" ] || die "current branch has no upstream; configure tracking before $activity"
+
+  git -C "$REPO_ROOT" fetch --quiet \
+    || die "could not refresh upstream state before $activity"
+
+  counts="$(git -C "$REPO_ROOT" rev-list --left-right --count HEAD..."$upstream")"
+  ahead="${counts%%[[:space:]]*}"
+  behind="${counts##*[[:space:]]}"
+  [ "$ahead" = "0" ] || die "current branch has $ahead unpushed commit(s) relative to $upstream"
+  [ "$behind" = "0" ] || die "current branch is $behind commit(s) behind $upstream; pull before $activity"
   ok "git branch is clean and up to date with $upstream"
 }
 

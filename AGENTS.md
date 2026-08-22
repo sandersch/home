@@ -50,8 +50,9 @@ enforcement. Standard-tier media resource tuning passed its seven-day gate on
 2026-08-22; Frigate tuning and deferred apps follow the migration.
 Repo-authored runtime, init, validation, recovery, and container-build images are
 immutably pinned and guarded by CI; hosted Renovate configuration proposes attended
-updates without auto-merge. The Phase 2 installer and validators pin k3s exactly at
-the validated live baseline `v1.36.2+k3s1`; later changes follow the attended gate in
+updates without auto-merge. The validated live k3s baseline remains
+`v1.36.2+k3s1`; the reviewed Phase 2 target pin is staged at `v1.36.3+k3s1` for
+attended maintenance. The upgrade and later changes follow the gate in
 [version-management.md](./docs/version-management.md).
 This remains a retrofit to a running production cluster, not a greenfield scaffold.
 

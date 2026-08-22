@@ -5,10 +5,11 @@ an unattended production deployment. It covers repo-authored workload, init,
 validation, recovery, and container-build images. Helm-managed images, generated Flux
 manifests, GitHub Actions versions, and k3s are outside this container-image slice.
 
-> **Status (2026-08-22): container-image slice and exact k3s installer pin implemented.**
-> The Phase 2 installer passes the validated live baseline `v1.36.2+k3s1` through
-> `INSTALL_K3S_VERSION`, and its active-server guard plus bootstrap validator reject
-> any installed version that does not match the pin.
+> **Status (2026-08-22): container-image slice and attended k3s lifecycle implemented.**
+> The Phase 2 target pin is `v1.36.3+k3s1`; the live node remains on the validated
+> `v1.36.2+k3s1` baseline until the attended maintenance in the
+> [upgrade history](./k3s-upgrade-history.md) is executed. The bootstrap installer
+> rejects active-version drift and directs operators to the guarded upgrade runbook.
 
 ## Immutable baseline
 
@@ -138,3 +139,8 @@ access-controlled consistent copy of the SQLite datastore while k3s is stopped. 
 that checkpoint outside git. After installing the exact target, validate node readiness,
 storage, networking, Flux, controller CRDs, device plugins, and representative Phase 4
 workloads before closing the maintenance window.
+
+Use [`runbooks/phase2/07-upgrade-k3s.sh`](../runbooks/phase2/07-upgrade-k3s.sh) for
+the forward change and its validated checkpoint with `08-rollback-k3s.sh` if rollback
+is required. The complete preflight, backup, acceptance, observation, and artifact
+cleanup procedure is in the [Phase 2 runbook](../runbooks/phase2/README.md#attended-k3s-upgrade).
