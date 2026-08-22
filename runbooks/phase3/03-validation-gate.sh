@@ -55,7 +55,7 @@ kubectl run phase3-media-test --restart=Never --rm -i --image=busybox:1.38.0@sha
 ok "direct-attached /mnt/media is readable from a test pod"
 
 step "Device passthrough visibility"
-kubectl get node minis -o jsonpath="{.status.allocatable['gpu.intel.com/i915']}" \
+kubectl get node minis -o go-template='{{ index .status.allocatable "gpu.intel.com/i915" }}' \
   | grep -qx '2' || die "node minis does not advertise gpu.intel.com/i915=2"
 ok "Intel GPU plugin advertises gpu.intel.com/i915=2 on node minis"
 # renovate: datasource=docker depName=busybox

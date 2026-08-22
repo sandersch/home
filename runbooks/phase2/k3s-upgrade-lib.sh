@@ -197,3 +197,17 @@ assert_installed_version_value() {
   [ "$actual" = "$expected" ] \
     || die "installed k3s version is '$actual', expected '$expected'"
 }
+
+wait_for_kubelet_version() {
+  local expected="$1" timeout_seconds="${2:-60}" actual=""
+  local deadline=$((SECONDS + timeout_seconds))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    actual="$(kubectl get node minis -o go-template='{{ .status.nodeInfo.kubeletVersion }}' \
+      2>/dev/null || true)"
+    [ "$actual" = "$expected" ] && break
+    sleep 3
+  done
+  [ "$actual" = "$expected" ] \
+    || die "node minis reports kubelet '$actual', expected '$expected'"
+  ok "node minis reports kubelet $expected"
+}

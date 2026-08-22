@@ -6,9 +6,9 @@ validation, recovery, and container-build images. Helm-managed images, generated
 manifests, GitHub Actions versions, and k3s are outside this container-image slice.
 
 > **Status (2026-08-22): container-image slice and attended k3s lifecycle implemented.**
-> The Phase 2 target pin is `v1.36.3+k3s1`; the live node remains on the validated
-> `v1.36.2+k3s1` baseline until the attended maintenance in the
-> [upgrade history](./k3s-upgrade-history.md) is executed. The bootstrap installer
+> The Phase 2 target pin and validated live baseline are `v1.36.3+k3s1`. Attended
+> maintenance and initial validation completed on 2026-08-22; the 24-hour observation
+> remains open in the [upgrade history](./k3s-upgrade-history.md). The bootstrap installer
 > rejects active-version drift and directs operators to the guarded upgrade runbook.
 
 ## Immutable baseline

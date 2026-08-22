@@ -33,7 +33,12 @@ step "Verify Quick Sync device is visible and openable in the Plex pod"
 kubectl -n media exec deploy/plex -- sh -c 'ls -l /dev/dri && su -s /bin/sh abc -c "test -r /dev/dri/renderD128 && test -w /dev/dri/renderD128"'
 
 step "Verify Plex HTTP endpoint through the pod loopback"
-kubectl -n media exec deploy/plex -- sh -c 'wget -qO- http://127.0.0.1:32400/identity | head -c 300; echo'
+# renovate: datasource=docker depName=busybox
+kubectl -n media run plex-http-test --restart=Never --rm -i \
+  --image=busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616 \
+  -- wget -qO- http://plex:32400/identity \
+  | grep -q '<MediaContainer'
+ok "Plex identity endpoint responded through its Kubernetes Service"
 
 cat <<'EOF'
 

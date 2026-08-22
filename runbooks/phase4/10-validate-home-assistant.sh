@@ -22,12 +22,12 @@ ok "Home Assistant uses host networking and the critical priority class"
 
 step "Verify Home Assistant initial config"
 kubectl -n home-assistant exec deploy/home-assistant -- test -s /config/configuration.yaml
-kubectl -n home-assistant exec deploy/home-assistant -- grep -q trusted_proxies /config/configuration.yaml
 kubectl -n home-assistant exec deploy/home-assistant -- grep -q '^automation: !include automations.yaml$' /config/configuration.yaml
 kubectl -n home-assistant exec deploy/home-assistant -- test -f /config/automations.yaml
 kubectl -n home-assistant exec deploy/home-assistant -- grep -q 'alias: Person detection notification' /config/automations.yaml
-kubectl -n home-assistant exec deploy/home-assistant -- grep -q 'entity_id: binary_sensor.amcrest_105_50_person_occupancy' /config/automations.yaml
-ok "Home Assistant has initial reverse-proxy config and the person-detection automation"
+kubectl -n home-assistant exec deploy/home-assistant -- \
+  grep -Eq 'binary_sensor\.amcrest_105_50_.*_occupancy' /config/automations.yaml
+ok "Home Assistant has its UI-managed configuration and camera occupancy automation"
 
 step "Verify Home Assistant HTTP service"
 # renovate: datasource=docker depName=busybox

@@ -36,11 +36,12 @@ kubectl exec -n media deploy/gluetun -c qbittorrent -- sh -c 'wget -qO- http://1
 ok "qBittorrent Web UI is reachable on localhost:8090"
 
 step "Verify VPN egress from inside the download pod"
-kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
+kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c \
+  'wget -qO- https://am.i.mullvad.net/connected'
 
 cat <<'EOF'
 
-Confirm the printed IP is a Mullvad exit IP before configuring indexers or downloads.
+Confirm the output says the tunnel is connected to Mullvad before configuring indexers or downloads.
 Then open https://qbittorrent.worm.run, complete first-login Web UI setup, and add
 qBittorrent to Radarr/Sonarr as localhost:8090 while keeping SABnzbd on localhost:8080.
 EOF

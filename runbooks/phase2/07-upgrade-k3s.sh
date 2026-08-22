@@ -90,6 +90,7 @@ assert_k3s_service_active
 actual_version="$(installed_k3s_version)"
 assert_installed_version_value "$actual_version" "$K3S_VERSION"
 assert_kubectl_ready
+wait_for_kubelet_version "$K3S_VERSION"
 kubectl get --raw=/readyz >/dev/null || die "Kubernetes API /readyz failed"
 ok "k3s $K3S_VERSION is active and the API and node are Ready"
 

@@ -97,6 +97,12 @@ expect_failure "checkpoint checksum" validate_upgrade_checkpoint "$checkpoint" "
 expect_failure "installer failure" run_official_k3s_installer /bin/false "$K3S_VERSION"
 expect_failure "post-restart version mismatch" \
   assert_installed_version_value v1.36.2+k3s1 "$K3S_VERSION"
+kubectl() {
+  printf 'v1.36.2+k3s1'
+}
+expect_failure "post-restart kubelet version mismatch" \
+  wait_for_kubelet_version "$K3S_VERSION" 0
+unset -f kubectl
 
 grep -Fq 'failed-post-upgrade-' "$rollback_script" \
   || fail "rollback does not preserve failed post-upgrade state"
