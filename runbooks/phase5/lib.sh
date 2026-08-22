@@ -494,9 +494,9 @@ assert_phase5_backup_invariants() {
   grep -Fq -- "local source=/data/k3s-db/state.db" \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "shared Restic backup script does not require the live k3s SQLite source"
-  grep -Fq -- "'.timeout 60000'" \
-    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
-    || die "shared Restic backup script does not use a 60-second k3s SQLite busy timeout"
+  [ "$(grep -Fc -- "'.timeout 60000'" \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml")" -eq 2 ] \
+    || die "shared Restic backup script must use a 60-second busy timeout for app and k3s SQLite backups"
   # shellcheck disable=SC2016 # Match literal variables in the embedded backup script.
   grep -Fq -- 'mv -- "$tmp" "$output"' \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \

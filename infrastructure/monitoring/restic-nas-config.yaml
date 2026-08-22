@@ -87,7 +87,9 @@ data:
         out="$SQLITE_DUMPS/${rel}.sqlite-backup"
         mkdir -p "$(dirname "$out")"
         escaped="${out//\'/\'\'}"
-        if sqlite3 -readonly "$db" ".backup '$escaped'" 2>"$err"; then
+        if sqlite3 -readonly "$db" \
+          '.timeout 60000' \
+          ".backup '$escaped'" 2>"$err"; then
           if sqlite_backup_health_check "$db" "$out" "$err"; then
             count=$((count + 1))
           else
