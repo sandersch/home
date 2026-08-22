@@ -64,6 +64,13 @@ spec:
               '
 
               restic check --read-data-subset=1/100
+              restic ls "$snapshot_id" /work/hot-dumps >/tmp/restic-hot-dumps-ls.txt
+              test -s /tmp/restic-hot-dumps-ls.txt
+              if awk '{print $NF}' /tmp/restic-hot-dumps-ls.txt \
+                | grep -Eq '(^|/)(server-)?token($|/)'; then
+                echo 'snapshot contains a forbidden server-token artifact' >&2
+                exit 1
+              fi
 
               contract_path=/work/hot-dumps/contract-version
               inventory_path=/work/hot-dumps/required-sqlite-databases.txt
@@ -139,7 +146,7 @@ spec:
 
               stop_mariadb
               trap - EXIT
-              echo "B2 snapshot $snapshot_id satisfies backup contract $BACKUP_CONTRACT_VERSION with $validated_count required app SQLite exports, $kine_rows k3s kine rows, and $table_count RomM tables"
+              echo "B2 snapshot $snapshot_id satisfies backup contract $BACKUP_CONTRACT_VERSION with $validated_count required app SQLite exports, $kine_rows k3s kine rows, $table_count RomM tables, and no server-token artifact"
           env:
             - name: RESTIC_REPOSITORY
               valueFrom:

@@ -20,10 +20,11 @@ controllers/configs are committed, and manifests exist for the media stack, Frig
 Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
 integration have passed live validation. Z-Wave controller connectivity, device
 inclusion, and the Home Assistant integration passed live validation on 2026-08-16.
-The stricter Restic required-export contract
-version 1 passed fresh local and B2 backup/restore drills on 2026-08-16, including all
-eight required SQLite exports, a readable Home Assistant archive, and a successful
-22-table RomM import/check. The initial observability stack (Prometheus, Grafana,
+Restic backup-contract version 2 passed fresh local and B2 backup/restore drills on
+2026-08-22. It requires all eight application SQLite exports, a readable Home
+Assistant archive, a successful RomM import/check, and a transactionally consistent
+k3s SQLite datastore artifact; both validated snapshots contained the expected k3s
+schema and data and no server-token artifact. The initial observability stack (Prometheus, Grafana,
 Alertmanager, blackbox probes, Flux metrics, rules, and external dead-man routing)
 passed live validation on 2026-07-20, including a healthy Dead Man's Snitch check.
 Hosted Pushover routing also passed live validation on 2026-07-20 with synthetic

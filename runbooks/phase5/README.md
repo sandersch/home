@@ -29,11 +29,14 @@ available as `/dev/mapper/hoardvg-backuplv` at `/mnt/backups`.
 
 Both repositories have passed initialization, manual backup, and representative restore
 validation. The nightly local and first naturally scheduled weekly B2 backups both
-completed successfully on 2026-07-19. Required-export contract version 1 passed fresh
-attended local and B2 backup/restore drills on 2026-08-16. The local restore validated
-snapshot `c0c28acd`; the local-volume-independent B2 restore validated snapshot
-`8e27e272`. Each drill checked all eight mandatory SQLite exports, a readable Home
-Assistant archive, and a RomM dump imported as 22 healthy tables.
+completed successfully on 2026-07-19. Backup-contract version 2 passed fresh attended
+local and B2 backup/restore drills on 2026-08-22. The local restore validated snapshot
+`731326fa530f2c54686210a360ee4dc30833a418d145e95b39de591ead8cdca0`
+with 2,445 k3s `kine` rows; the local-volume-independent B2 restore validated snapshot
+`fe10c1ffa810ab7d5af75a52fd1f5b69315a3411e96e5deab93363406baea166`
+with 2,815. Each drill checked k3s SQLite integrity and schema, all eight mandatory
+application SQLite exports, a readable Home Assistant archive, a RomM dump imported
+as 32 healthy tables, and the absence of any server-token artifact.
 
 The shared backup workflow excludes `/data/opt/.snapshots` from both SQLite discovery
 and Restic input. Local btrfs snapshots remain available for same-device rollback but

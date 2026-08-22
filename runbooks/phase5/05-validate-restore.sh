@@ -67,6 +67,11 @@ spec:
               test -s /tmp/restic-opt-ls.txt
               restic ls "$snapshot_id" /work/hot-dumps >/tmp/restic-hot-dumps-ls.txt
               test -s /tmp/restic-hot-dumps-ls.txt
+              if awk '{print $NF}' /tmp/restic-hot-dumps-ls.txt \
+                | grep -Eq '(^|/)(server-)?token($|/)'; then
+                echo 'snapshot contains a forbidden server-token artifact' >&2
+                exit 1
+              fi
 
               contract_version="$(restic dump "$snapshot_id" /work/hot-dumps/contract-version)"
               test "$contract_version" = "$BACKUP_CONTRACT_VERSION"
@@ -125,7 +130,7 @@ spec:
 
               stop_mariadb
               trap - EXIT
-              echo "NAS snapshot $snapshot_id satisfies backup contract $contract_version with $required_count required app SQLite exports, $kine_rows k3s kine rows, and $table_count RomM tables"
+              echo "NAS snapshot $snapshot_id satisfies backup contract $contract_version with $required_count required app SQLite exports, $kine_rows k3s kine rows, $table_count RomM tables, and no server-token artifact"
           envFrom:
             - configMapRef:
                 name: restic-nas-config

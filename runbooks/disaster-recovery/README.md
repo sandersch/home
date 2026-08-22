@@ -159,6 +159,10 @@ snapshots. Contract-v1 snapshots remain stored according to retention but are
 deliberately rejected by current recovery tooling; use the matching older repository
 revision if one must be interpreted.
 
+Contract-v2 acceptance passed on 2026-08-22 with direct snapshot `731326fa` and B2
+snapshot `fe10c1ff`. Both independently passed k3s SQLite integrity, schema, nonempty
+data, and server-token-absence checks in addition to the application recovery contract.
+
 ## Scripts
 
 | Script | Purpose |

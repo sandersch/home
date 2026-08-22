@@ -525,6 +525,9 @@ assert_phase5_backup_invariants() {
       || die "$restore_script does not validate the k3s SQLite schema"
     grep -Fq -- 'SELECT count(*) FROM kine;' "$REPO_ROOT/$restore_script" \
       || die "$restore_script does not require k3s datastore rows"
+    grep -Fq -- 'snapshot contains a forbidden server-token artifact' \
+      "$REPO_ROOT/$restore_script" \
+      || die "$restore_script does not reject a k3s server-token artifact"
   done
   grep -Fq -- '/work/hot-dumps/k3s/state.db.sqlite-backup' \
     "$REPO_ROOT/runbooks/disaster-recovery/01-list-snapshots.sh" \

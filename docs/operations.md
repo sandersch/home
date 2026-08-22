@@ -39,12 +39,15 @@ application-aware hot dumps remain covered.
 
 Validation status: initialization, manual backups, repository checks, and representative
 restore drills passed for both repositories. The nightly local and first naturally
-scheduled weekly B2 backups both completed successfully on 2026-07-19. After the
-required-export contract was tightened, attended local and B2 backup/restore drills
-passed again on 2026-08-16. Snapshot `c0c28acd` passed the local drill and snapshot
-`8e27e272` passed an independent B2 restore with no local backup-volume mount; each
-validated all eight required SQLite exports, a readable Home Assistant archive, and a
-RomM dump imported as 22 healthy tables.
+scheduled weekly B2 backups both completed successfully on 2026-07-19. Contract
+version 2 passed fresh attended local and B2 backup/restore drills on 2026-08-22.
+Local snapshot
+`731326fa530f2c54686210a360ee4dc30833a418d145e95b39de591ead8cdca0`
+validated 2,445 k3s `kine` rows; local-volume-independent B2 snapshot
+`fe10c1ffa810ab7d5af75a52fd1f5b69315a3411e96e5deab93363406baea166`
+validated 2,815. Both passed full k3s SQLite integrity/schema checks, all eight
+required application SQLite exports, a readable Home Assistant archive, a 32-table
+RomM import/check, and an explicit scan proving no server-token artifact was present.
 
 ```bash
 restic -r /mnt/backups/opt backup \
