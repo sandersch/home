@@ -127,8 +127,9 @@ temporary file with `PRAGMA integrity_check`, requires the `kine` and
 `/work/hot-dumps/k3s/state.db.sqlite-backup`. Any missing, stale, or invalid k3s
 artifact stops the Job before Restic runs. The pods run as root solely to traverse
 the host's mode-`0700` database directory; service-account token mounting is disabled,
-all capabilities are dropped, privilege escalation and privileged mode are disabled,
-and the root filesystem remains read-only.
+the default capability set is dropped and only `DAC_OVERRIDE` is added back for the
+mixed-ownership read-only sources and UID-65534-owned NAS repository, privilege
+escalation and privileged mode are disabled, and the root filesystem remains read-only.
 
 The snapshot carries the contract version, exact required SQLite inventory, and export
 completion timestamp. Local and B2 representative restore validation restores every

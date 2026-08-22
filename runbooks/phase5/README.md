@@ -50,6 +50,9 @@ Contract version 2 also requires a current-job SQLite online backup of
 `kine` and `sqlite_sequence` tables, and have at least one `kine` row. The CronJobs
 mount only the database directory read-only; the server token remains exclusively in
 the external password manager and is never included in scheduled snapshots.
+The containers drop the default capability set and retain only `DAC_OVERRIDE`, which
+is required by the mixed ownership under read-only `/opt` and the existing
+UID-65534-owned local Restic repository.
 
 Both restore-validation scripts select the latest snapshot for their own target tag,
 require the exact current contract and inventory, validate every required SQLite file

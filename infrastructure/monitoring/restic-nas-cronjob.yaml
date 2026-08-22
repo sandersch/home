@@ -67,6 +67,8 @@ spec:
                 capabilities:
                   drop:
                     - ALL
+                  add:
+                    - DAC_OVERRIDE
               volumeMounts:
                 - name: backup-script
                   mountPath: /scripts

@@ -436,10 +436,11 @@ assert_phase5_backup_invariants() {
       $container.securityContext.readOnlyRootFilesystem == true and
       ($container.securityContext.privileged // false) == false and
       $container.securityContext.capabilities.drop == ["ALL"] and
+      $container.securityContext.capabilities.add == ["DAC_OVERRIDE"] and
       any($container.volumeMounts[];
         .name == "k3s-db" and .mountPath == "/data/k3s-db" and .readOnly == true))
   ' "$rendered" >/dev/null \
-    || die "Restic CronJobs must use the exact read-only k3s DB mount and hardened minis-only pod settings"
+    || die "Restic CronJobs must use the exact read-only k3s DB mount and minimally capable minis-only pod settings"
   if grep -Fq -- '/var/lib/rancher/k3s/server/token' \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-cronjob.yaml" \
     "$REPO_ROOT/infrastructure/monitoring/restic-b2-cronjob.yaml"; then
