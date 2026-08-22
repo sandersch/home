@@ -25,8 +25,8 @@ Initial validation evidence:
 - Two `KubeJobFailed` warnings refer only to the failed pre-upgrade backup attempts
   `restic-nas-backup-manual-20260822124115` and
   `restic-nas-backup-manual-20260822124221`. Their logs led to the application SQLite
-  busy-timeout fix; the Jobs are retained pending explicit cleanup, and no Job failed
-  after the upgrade began.
+  busy-timeout fix. The Jobs were deleted after explicit approval and both alerts
+  resolved; no Job failed after the upgrade began.
 - A pre-existing host drift was corrected: `dnsmasq` had been disabled since
   2026-08-10 despite the canonical Phase 1 state. Its checked-in configuration and
   syntax passed before the service was enabled; it is active on camera DHCP UDP/67.
