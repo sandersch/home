@@ -78,24 +78,40 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
 *Shows how devices map to VLANs and the routing/trunk relationships. For exact physical ports and media types see the Detail view below — the two are consistent, not conflicting.*
 
 ```text
-[AT&T Fiber] ─────┐
-                   ├──► [UDM Pro · gateway/firewall · 10.137.10.1]
-[Spectrum backup] ─┘                         │
-                                            ├── V30 ──► [ryze · 10.137.30.6]
-                                            ├── V20 ──► [morpheus · 10.137.20.2 · cold]
-                                            ├── V20 ──► [minis · 10.137.20.5 · server]
-                                            │
-                                            ├── 10G trunk ──► [Catalyst 3850 · L2 only · 10.137.10.2]
-                                            │                       │
-                                            │                       ├── Gi1/0/1-4  · V10 access ──► [IPMI/IPKVM]
-                                            │                       ├── Gi1/0/5    · V10/V30 tagged; V99 native ──► [bastion]
-                                            │                       ├── Gi1/0/6-36 · V30 access ──► [wired LAN]
-                                            │                       ├── Gi1/0/37-47 · V105 access ──► [security cameras]
-                                            │                       └── Gi1/0/48   · V105 access ──► [minis camera NIC]
-                                            │                           └── local NVR only; no bridge
-                                            │
-                                            └── WAP trunk ──► [YuanLey PoE+] ──► [U7 Pro · 10.137.10.7]
-                                                └── Native V10; tagged V30/V60/V80
+[WAN]      AT&T Fiber · Port 9 ───┐
+                                   ├──► (Dual-WAN Failover)
+           Spectrum · Port 8 ─────┘            │
+ [CORE]                                        ▼
+         +──────────────────────────────────────────────────────────────+
+         |                    UniFi Dream Machine Pro                   |
+         |         Gateway / Firewall / Controller: 10.137.10.1         |
+         +───┬──────────┬──────────┬───────────┬─────────────┬──────────+
+             │ Port 1   │ Port 2   │ Port 3    │ Port 10     │ Port 11
+             ▼ (V30)    ▼ (V20)    ▼ (V20)     ▼ (10G SFP+)  ▼ (10G SFP+)
+          [ryze]    [morpheus]  [minis Host]   │ DAC Trunk   │
+         .30.6 wired .20.2 cold .20.5 Server   │             ▼
+                                               │       [YuanLey Switch]
+                                               │             │ [PoE+]
+                                               │             ▼
+                                               │        [U7 Pro WAP]
+                                               │          .10.7
+                                               │         Native V10
+                                               │     Tagged V30/V60/V80
+ [DIST/L2]                                     ▼
+         +──────────────────────────────────────────────────────────────+
+         |               Cisco Catalyst 3850 Switch                     |
+         |        L2 only · VTP Transparent · Mgmt SVI 10.137.10.2      |
+         +───────┬──────────────┬──────────────┬───────────────┬────────+
+                 │              │              │               │
+           [IPMI/IPKVM]     [bastion]     [Wired LAN]          │
+             Gi1/0/1-4       Gi1/0/5       Gi1/0/6-36          │
+                V10   V10 .10.8 / V30 .30.8   V30              │
+                           Native V99                          │
+ [LOCAL-ONLY]                                                  ▼
+                                                  [V105 local camera segment]
+                                                cameras ↔ minis 192.168.105.1
+                                                    Gi1/0/37-47 ↔ Gi1/0/48
+                                                     no gateway or bridge
 ```
 
 ### Detail (Physical / Port View)
@@ -104,18 +120,18 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
 
 ```text
 EXTERNAL WAN
-  [AT&T fiber · primary · 1G symmetric] ── RJ45 ──► UDM Port 9 (WAN1)
+  [AT&T fiber · primary · 1G symmetric]  ── RJ45 ──► UDM Port 9 (WAN1)
   [Spectrum · failover · 1G/40M]         ── RJ45 ──► UDM Port 8 (WAN2)
 
 UDM PRO · 10.137.10.1
-  Port 1  ── RJ45 · access V30 ───────────────────► [ryze · 10.137.30.6]
-  Port 2  ── RJ45 · access V20 ───────────────────► [morpheus · 10.137.20.2 · off]
-  Port 3  ── RJ45 · access V20 ───────────────────► [minis server NIC · 10.137.20.5]
+  Port 1  ── RJ45 · access V30 ────────────────────► [ryze · 10.137.30.6]
+  Port 2  ── RJ45 · access V20 ────────────────────► [morpheus · 10.137.20.2 · off]
+  Port 3  ── RJ45 · access V20 ────────────────────► [minis server NIC · 10.137.20.5]
   Port 11 ── 10G SFP+ fiber · WAP trunk ───────────► [YuanLey unmanaged switch]
   │   └── 2.5G PoE+ ──► [U7 Pro · 10.137.10.7]
   │       └── Native V10; tagged V30/V60/V80
   │
-  Port 10 ── 10G SFP+ DAC · 802.1Q trunk ─────────► [Catalyst Te1/1/4]
+  Port 10 ── 10G SFP+ DAC · 802.1Q trunk ──────────► [Catalyst Te1/1/4]
   │   └── Native V99; tagged V10/V20/V30/V60/V80; V105 excluded
   │
   └─ CATALYST 3850 · 10.137.10.2 · L2 ONLY
@@ -124,7 +140,7 @@ UDM PRO · 10.137.10.1
        │   └── Native V99; tagged V10/V30 only
        Gi1/0/6-36 ── 1G RJ45 · access V30 ─────────► [wired clients]
        Gi1/0/37-47 ── 1G RJ45 · protected V105 ────► [security cameras]
-       Gi1/0/48   ── 1G RJ45 · access V105 ─────────► [minis camera NIC · 192.168.105.1]
+       Gi1/0/48   ── 1G RJ45 · access V105 ────────► [minis camera NIC · 192.168.105.1]
            └── Local NVR/NTP path; no bridging
 ```
 
