@@ -1,0 +1,7 @@
+# Base-system daemons only. PF remains enabled by the OpenBSD default.
+sshd_flags=""
+ntpd_flags=""
+dhcpleased_flags=NO
+resolvd_flags=NO
+rad_flags=NO
+slaacd_flags=NO

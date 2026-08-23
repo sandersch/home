@@ -1,0 +1,343 @@
+# Wyse 5070 OpenBSD management bastion
+
+This is an attended, console-first deployment. The Wyse is a disposable
+OpenBSD 7.9 endpoint with one physical 802.1Q trunk and two tagged interfaces;
+it is not a router, bridge, NAT gateway, VPN endpoint, or Tailnet subnet router.
+Operators enter through `bastion.matrix` on VLAN 30 and originate new sessions
+to VLAN 10 from the host.
+
+## 1. Pre-install gates
+
+Before changing the machine or switch, verify all of the following and abort on
+any ambiguity:
+
+- From suitable existing hosts on VLANs 10 and 30, confirm `10.137.10.8` and
+  `10.137.30.8` have no ping response, ARP/neighbor entry, UDM lease, reservation,
+  or static assignment. A failed ping alone is not proof that an address is free.
+  This is a one-time pre-install availability gate: after cutover PF deliberately
+  blocks inbound ICMP, so ping is not a repeatable health check for the bastion.
+- Confirm Catalyst `Gi1/0/5` is available, has no learned production MAC, and is
+  still an access VLAN 30 port. Keep it that way through installation.
+- Confirm the Wyse has exactly one enabled wired NIC, the OpenBSD 7.9 hardware
+  support needed for its NIC/storage/console, a working local console, and the
+  approved SSH private key on each operator client. Disable Wi-Fi/Bluetooth in
+  BIOS even if OpenBSD would not attach it.
+- Fetch the official OpenBSD 7.9 amd64 install image and `SHA256.sig` over HTTPS.
+  Verify it with the release signing key documented by OpenBSD before writing
+  installation media; do not treat HTTPS alone as signature verification. See
+  the [OpenBSD 7.9 release page](https://www.openbsd.org/79.html).
+
+Install OpenBSD 7.9 amd64 directly on the machine with the normal unencrypted
+automatic disk layout. Select only the base/manual sets needed for a headless
+system (no X sets), create `charlie`, and install no packages or compilers. Give
+the installer-required `root` account and `charlie` unique, bastion-only local
+passwords, save them in the password manager, and never reuse an operator or
+device password. The host must retain no operator private key, device credential,
+or browser profile. Set hostname `bastion`. While Catalyst `Gi1/0/5` remains an
+access VLAN 30 port, configure the installer network statically and exactly as
+`10.137.30.8/24`, with gateway and DNS both `10.137.30.1`. This address is
+mandatory: the transfer command below and the staged SSH listener both depend on
+it. If it is unavailable or does not work on the untagged access port, stop and
+resolve that conflict rather than selecting a temporary substitute.
+
+At the BIOS, set an administrator password and save it only in the password
+manager. Select UEFI boot, enable automatic power-on after AC loss, disable
+Wi-Fi/Bluetooth and unused boot devices, and require that password to re-enable
+USB boot.
+
+Patch before cutover:
+
+```sh
+syspatch
+reboot
+```
+
+Perform attended OpenBSD release upgrades about every six months; follow the
+release-specific `Upgrade Guide`, run `sysupgrade`, `sysmerge`, and `syspatch` as
+directed, and repeat this complete validation afterward. Run `fw_update` after
+installation and upgrades and when hardware firmware updates are required. PF
+permits HTTP(S) for the base-system `_syspatch` and `_file` fetch users
+specifically; `sysupgrade` performs its unprivileged retrieval as `_syspatch`,
+and `fw_update` downloads as `_file`, the `file(1)` privsep account it reuses.
+That is not `_pkgfetch`, which this package-free host never needs.
+Do not relax PF or add general root/operator web egress for these workflows.
+The base-system errata workflow is documented in
+the [OpenBSD security updates FAQ](https://www.openbsd.org/faq/faq10.html).
+
+## 2. Discover and stage
+
+Do not clone or recursively copy the checkout onto the Wyse. The checkout can
+contain the gitignored SOPS private key `age.key`, and OpenBSD base deliberately
+has no Git client. From the repository root on an operator client, stream only
+the two required directories over the mandatory installer address into a new,
+private deployment tree:
+
+```sh
+tar -cf - runbooks/bastion host/bastion | \
+  ssh charlie@10.137.30.8 \
+    'umask 077; test ! -e "$HOME/bastion-deploy" && mkdir "$HOME/bastion-deploy" && tar -xf - -C "$HOME/bastion-deploy"'
+```
+
+The command refuses to merge into an existing deployment tree. If SSH transfer
+is unavailable during installation, create an archive containing exactly those
+same two paths on trusted removable media; never archive or copy the checkout
+root. Verify on the Wyse that `/home/charlie/bastion-deploy/age.key` does not
+exist, then log in as `charlie` at its local console and enter a root login shell
+for the first two privileged steps. A fresh OpenBSD installation has only the
+example `/etc/examples/doas.conf`; membership in `wheel` does not authorize
+`doas`, and the canonical `/etc/doas.conf` is not installed until the second
+step succeeds. Do not create an ad hoc bootstrap policy or copy the example into
+place.
+
+Preflight independently refuses to continue if `age.key` is present at the
+deployment root. The confirmation variable attests that the external gates
+above were actually checked; the script cannot prove address or switch-port
+availability from a single untagged link.
+
+```sh
+su -
+cd /home/charlie/bastion-deploy
+env BASTION_DEPLOYMENT_GATES_CONFIRMED=yes \
+  runbooks/bastion/00-preflight.sh
+runbooks/bastion/01-stage-config.sh
+exit
+```
+
+`01-stage-config.sh` installs the canonical `/etc/doas.conf`. Only after that
+script succeeds and the root shell exits should the remaining privileged
+commands in this runbook be invoked through `doas` as `charlie`.
+
+The preflight refuses any release other than OpenBSD 7.9, any installed X sets or
+package, and anything other than one wired physical NIC. It records the detected
+interface and MAC in `/var/db/bastion-wired-nic`; copy both into the inventory in
+`docs/network.md`. To pin a MAC known from chassis records, additionally set
+`BASTION_EXPECTED_MAC=aa:bb:cc:dd:ee:ff`.
+
+Staging renders the actual interface name, checks `pfctl -nf`, `ntpd -n -f`,
+`sshd -t`, the public-key file, and a `netstart -n` preview, and installs but
+does not activate configuration. `ntpd -n -f` parses `query from`; in contrast,
+`netstart -n` only prints the `ifconfig` operations it would run. It does not
+exercise the split `parent`/`vnetid` declarations or the parent's
+`inet -autoconf`/`-inet` commands against the kernel. Keep the local console
+open. Re-run staging safely if needed.
+
+The local validator later confirms all four network autoconfiguration daemons
+are disabled and stopped, `/etc/resolv.conf` retains only the canonical VLAN 30
+resolver policy, and both VLAN interfaces have the recorded physical parent and
+exact expected vnetid.
+
+## 3. Catalyst trunk cutover
+
+At the Catalyst console/SSH session, re-check `show interfaces Gi1/0/5 status`,
+`show mac address-table interface Gi1/0/5`, and the saved rollback commands.
+Close every remote session to the Wyse before continuing; activation is
+console-only and deliberately flushes all PF state after loading deny-all. Keep
+the Catalyst management session open because it terminates on the switch, not
+the Wyse.
+Apply the canonical stanza from `host/catalyst/running-config.ios`:
+
+```ios
+configure terminal
+interface GigabitEthernet1/0/5
+ description bastion restricted trunk (OpenBSD)
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,30,99
+ switchport nonegotiate
+ spanning-tree portfast trunk
+ spanning-tree bpduguard enable
+end
+```
+
+From the physical Wyse console, activate the already-staged configuration:
+
+```sh
+cd /home/charlie/bastion-deploy
+doas env BASTION_LOCAL_CONSOLE=yes runbooks/bastion/02-activate.sh
+doas runbooks/bastion/03-validate.sh
+```
+
+Activation is the first real execution of the rendered parent and VLAN
+`ifconfig` commands. It runs with `set -e`, and its explicit parent-address and
+`AUTOCONF4` assertions abort locally on failure. Do not leave the console or
+begin remote operator tests unless the immediately following
+`03-validate.sh` run confirms both VLAN addresses, exact parent/vnetid bindings,
+the default route, resolver policy, daemon state, and PF/SSH invariants.
+
+Activation first forces both forwarding sysctls to zero and loads/enables an
+interface-independent deny-all PF cutover policy. It then flushes the complete
+PF state table and refuses to continue unless that table is empty and no
+installer-era SSH session remains established, so an SSH or other pre-hardening
+connection cannot survive the ruleset and interface transition. It then stops
+the installer-era SSH listener while deny-all is still active. This one-time
+session assertion belongs to the console-only activation script;
+`03-validate.sh` may be rerun later from either the physical console or an SSH
+session without rejecting the session that invoked it. Activation next creates
+only unattached VLAN devices needed to parse the final policy. Only after those
+operations succeed does it
+disable/stop `dhcpleased`, `resolvd`, `rad`, and `slaacd`, clear the parent's
+`AUTOCONF4` flag, remove all installer IPv4 addresses/default routes, verify that
+cleanup, and attach/configure the tagged interfaces.
+`/etc/sysctl.conf` remains the boot-time source of truth; cutover sets
+the two values directly so a parser or unrelated sysctl entry cannot leave the
+host exposed midway through activation. After address assignment and the final
+default route are in place, activation starts SSH from the staged hardened
+configuration and locally verifies that `10.137.30.8:22` is the only
+non-loopback TCP listener. The final PF policy replaces deny-all only after that
+verification, so a failure cannot expose the installer-era authentication
+policy and `antispoof` expands against the connected networks.
+That policy binds every state to the interface where it was created; the local
+validator confirms the active pass rules carry `if-bound` state semantics.
+The staged `/etc/ntpd.conf` fixes OpenNTPD to Cloudflare's two documented IPv4
+anycast endpoints, sources queries from `10.137.30.8`, and retains an independent
+HTTPS time constraint; PF permits UDP/123 only to those endpoints and TCP/443
+only for the `_ntp` process that retrieves the constraint.
+
+Confirm the switch independently:
+
+```ios
+show interfaces Gi1/0/5 switchport
+show interfaces trunk
+show spanning-tree interface Gi1/0/5 detail
+```
+
+The operational mode must be trunk, native VLAN 99, and allowed list exactly
+`10,30,99`. VLANs 20, 60, 80, and 105 must be absent.
+
+## 4. Operator and isolation tests
+
+Add only `bastion.matrix -> 10.137.30.8` to UDM DNS. From both `ryze` and `m5c`,
+verify key login succeeds and root/password/keyboard-interactive login fails.
+Scan or probe `10.137.30.8` and confirm TCP/22 is the only listener. Also confirm
+no service answers on `10.137.10.8` and that an Admin/VLAN 10 test host cannot
+start a new connection to either bastion address.
+
+Representative workflows:
+
+```sh
+# Catalyst SSH through the bastion
+ssh -J charlie@bastion.matrix admin@10.137.10.2
+
+# Local HTTPS forward; browse locally to https://127.0.0.1:8443
+ssh -N -L 8443:10.137.10.1:443 charlie@bastion.matrix
+
+# Local SOCKS proxy (configure the client application for SOCKS5 localhost:1080)
+ssh -N -D 1080 charlie@bastion.matrix
+
+# Patch the bastion itself; DNS/NTP/update egress must use VLAN 30
+ssh charlie@bastion.matrix
+doas syspatch
+doas fw_update
+```
+
+Use `route -n show -inet`, `ifconfig`, `netstat -an`, `pfctl -sr -v`,
+`pfctl -ss`, `ntpctl -s all`, and `tcpdump -n -e -ttt -i pflog0` to verify the
+sole default route, listener, states/counters, NTP peers, active HTTPS constraint,
+and expected VLAN 10 drops. Do not accept NTP validation until `ntpctl -s all`
+shows a median constraint. Test ProxyJump, the local forward, and SOCKS against
+representative SSH/HTTPS endpoints. A two-client test must show that traffic
+cannot traverse the host between VLANs even when a client tries to use it as a
+gateway.
+
+Test the denial log limiter from an Admin/VLAN 10 test host as an attended gate.
+Record both `pfctl -s labels | grep vlan10-denied` counters on the bastion, send a
+controlled burst above five packets per second to `10.137.10.8` (for example,
+50 ICMP requests at 50 ms intervals), and read both counters again immediately.
+The logged and unlogged counters must both increase, while `pflog0` must contain
+only the packets counted by `vlan10-denied-logged`. Label presence alone does not
+validate the rate transition.
+
+Reboot and rerun `doas runbooks/bastion/03-validate.sh`, either at the physical
+console or over SSH, then repeat the client validation. Perform a controlled AC
+loss and repeat that same host and client validation, confirming automatic
+power-on, normal boot, tagged interfaces, PF, sshd, DNS/NTP/update egress, and
+all three operator workflows.
+
+Only after those gates pass should the UDM change be made: enable Rule 940 as an
+unconditional VLAN 30 to VLAN 10 drop. Verify `ryze`, `m5c`, and another VLAN 30
+client cannot reach VLAN 10 directly while all can still reach
+`bastion.matrix:22`. Rule 140 and other service-specific flows remain.
+
+## 5. Remove deployment files
+
+After the reboot, AC-loss, and final UDM firewall tests all pass, remove the
+temporary deployment tree from the Wyse. Run this exact command as `charlie`,
+not through `doas`; it removes only the two-directory transfer above and does
+not affect the installed configuration under `/etc`:
+
+```sh
+rm -rf /home/charlie/bastion-deploy
+test ! -e /home/charlie/bastion-deploy
+```
+
+Do not remove it earlier: the validation script and rollback procedure remain
+available from this tree until the complete deployment gate has passed.
+
+## Steady-state break-glass after firewall cutover
+
+After Rule 940 has been enabled, recovery must not depend on the failed bastion.
+Two recovery modes remain:
+
+1. **UDM available:** from a healthy VLAN 30 client, open the UDM UI directly at
+   `https://10.137.30.1` and disable Rule 940. Confirm direct VLAN 30 to VLAN 10
+   management access is restored and `ryze` can again SSH to the Catalyst at
+   `10.137.10.2`. Direct VLAN 10 access is intentional for the duration of this
+   break-glass window. Leave Rule 940 disabled throughout diagnosis or rebuild
+   and re-enable it only after the bastion again passes its complete validation.
+2. **UDM unavailable:** use the Catalyst and bastion physical consoles. Rule 940
+   may remain enabled; this recovery mode does not promise remote management
+   access. The Catalyst deliberately has no console login or enable secret, so
+   enter `enable` if its prompt is `>` and confirm `show privilege`. Diagnose
+   the Wyse locally. If a rebuild is required, return `Gi1/0/5` to the access
+   VLAN 30 stanza below, reinstall OpenBSD using the documented installer
+   address, transfer and stage the canonical configuration, and repeat the
+   attended trunk cutover. Physical custody of both hosts is therefore part of
+   this break-glass boundary.
+
+Keep the chosen UDM or Catalyst recovery session open while reinstalling and
+restaging the Wyse. Do not restore the trunk until the rebuilt bastion has
+passed its local checks and is ready for the attended trunk cutover. Then repeat
+the complete operator, reboot, AC-loss, and Rule 940 validation before returning
+to steady state. In the console-only mode, Rule 940 remains unchanged until the
+UDM becomes available; its enabled state does not prevent the rebuilt bastion
+from using its directly connected VLAN 10 interface after trunk activation.
+
+## Deployment rollback and local console recovery
+
+During initial deployment, leave Rule 940 disabled until every validation gate
+passes. If a later failure occurs after Rule 940 has been enabled, use the
+applicable steady-state recovery mode above rather than assuming the bastion can
+restore its own access. Return the Catalyst port to its temporary access
+configuration when local repair or a reinstall requires the untagged installer
+network:
+
+```ios
+configure terminal
+default interface GigabitEthernet1/0/5
+interface GigabitEthernet1/0/5
+ description General wired clients (VLAN 30) - bastion rollback
+ switchport mode access
+ switchport access vlan 30
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+end
+```
+
+An already-hardened installation does not regain network access merely by moving
+`10.137.30.8` to the physical parent: the canonical PF policy permits host
+traffic only on tagged `vlan30`. Diagnose and repair that installation from the
+Wyse local console, then restore the trunk and rerun activation. Do not weaken
+PF/sshd or enable routing to obtain temporary remote access. If the system cannot
+boot or cannot be repaired locally, reinstall it while `Gi1/0/5` is access VLAN
+30; the fresh installer may use static `10.137.30.8/24` with gateway/DNS
+`10.137.30.1` for patching and transfer before the canonical tagged configuration
+is staged. There is no application state to restore. Save the validated switch
+and UDM configuration only after the complete reboot and AC-loss gate passes.
+
+## Proxmox alternative (deferred)
+
+If virtualization is reconsidered, terminate VLANs on a VLAN-aware Proxmox bridge
+and give the guest two hypervisor-tagged vNICs that appear untagged inside the VM.
+Do not pass the physical trunk into the guest; keeping access-VLAN policy in the
+hypervisor makes the guest configuration and isolation boundary explicit. See
+the [Proxmox network configuration reference](https://pve.proxmox.com/wiki/Network_Configuration).

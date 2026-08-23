@@ -13,8 +13,8 @@ The repo is operated alongside an AI coding session on a laptop, connected over 
 **Active build.** The repo is no longer planning-only: Phases 0-4 and the initial
 Phase 5 backup/observability slice of the [build plan](./docs/build-plan.md) are
 largely implemented. Host-level Phase 0-1 config lives under
-[`host/minis/etc`](./host/minis/etc), executable runbooks cover Phases 0-5, Flux
-bootstrap output exists under
+[`host/minis/etc`](./host/minis/etc), executable runbooks cover Phases 0-5 plus
+the attended OpenBSD bastion workflow, Flux bootstrap output exists under
 [`clusters/minis/flux-system`](./clusters/minis/flux-system), infrastructure
 controllers/configs are committed, and manifests exist for the media stack, Frigate,
 Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
@@ -76,6 +76,7 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | DNS (internal) | Router wildcard `*.worm.run` → MetalLB ingress IP (`10.137.20.10`, **not** the node's `.5`) | One record; ingress routes by host |
 | DNS (cameras) | **dnsmasq** host service on NIC2 subnet | DHCP for the isolated camera segment |
 | Remote access | **Tailnet + LAN only**, nothing public | Zero inbound exposure; Funnel for Plex later if needed |
+| Admin access | **In steady state, Admin/VLAN 10 is reachable only through a dedicated OpenBSD bastion** | Keeps the UDM firewall free of per-workstation management exceptions. VLAN 30 operators use key-only SSH forwarding through the dual-homed endpoint, which never routes, bridges, NATs, or advertises subnets. Temporarily disabling Rule 940 is the documented network break-glass procedure; console-only recovery remains available when the UDM cannot be used |
 | VPN (downloads) | **Mullvad** via **Gluetun**, WireGuard | Strong privacy track record; provider is swappable |
 | Media server | **Plex** (lifetime pass) | Wife-acceptance + existing 100 GB metadata |
 | Storage (local) | **LVM under everything**; btrfs on `/opt`; **TopoLVM** for scratch | One VG: manual LVs for OS + `/opt` (btrfs snapshots + zstd); TopoLVM provisions enforced, resizable ext4 scratch LVs (Frigate cache, SABnzbd staging) from VG free space. Supersedes the earlier "no LVM" call — partition count + up-front sizing anxiety outweighed the abstraction overlap |
@@ -103,8 +104,9 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   ├── migration-runbook.md
 │   ├── direct-attached-storage-migration.md
 │   └── operations.md
-├── runbooks/                  # executable host/app/backup runbooks for Phases 0–5
-├── host/                      # canonical host/switch config for manual phases (0–1)
+├── runbooks/                  # Phases 0–5 plus attended bastion/DR/migration workflows
+├── host/                      # canonical bare-metal host and switch config
+│   ├── bastion/               #   OpenBSD management bastion config mirrored to disk
 │   ├── catalyst/              #   Catalyst 3850 reference config
 │   └── minis/                 #   MINIS host config mirrored to on-disk paths
 │       ├── README.md          #   files under etc/ mirror on-disk paths. NOT cluster-

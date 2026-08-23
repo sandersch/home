@@ -29,8 +29,8 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
 ```
 AGENTS.md          project context, decisions, conventions (start here)
 docs/              architecture, build plan, migration runbooks, operations
-runbooks/          executable host/app phase runbooks
-host/              canonical MINIS host config plus Catalyst reference config
+runbooks/          phases 0–5 plus attended bastion/DR/migration workflows
+host/              canonical MINIS, Catalyst, and OpenBSD bastion config
 clusters/minis/    Flux entrypoint (flux-system + Kustomizations)
 infrastructure/    controllers, cluster configs, Phase 5 backups/monitoring
 apps/              media, frigate, home-assistant, mqtt, zigbee2mqtt
