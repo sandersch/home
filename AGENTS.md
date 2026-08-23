@@ -77,6 +77,7 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | DNS (cameras) | **dnsmasq** host service on NIC2 subnet | DHCP for the isolated camera segment |
 | Remote access | **Tailnet + LAN only**, nothing public | Zero inbound exposure; Funnel for Plex later if needed |
 | Admin access | **In steady state, Admin/VLAN 10 is reachable only through a dedicated OpenBSD bastion** | Keeps the UDM firewall free of per-workstation management exceptions. VLAN 30 operators use key-only SSH forwarding through the dual-homed endpoint, which never routes, bridges, NATs, or advertises subnets. Temporarily disabling Rule 940 is the documented network break-glass procedure; console-only recovery remains available when the UDM cannot be used |
+| Admin NTP | **OpenNTPD on the bastion serves only `10.137.10.8:123/udp` to VLAN 10 and synchronizes upstream only through VLAN 30** | Replaces retired Morpheus NTP without routing, NAT, an inter-VLAN exception, or another host. UDM DNS publishes `ntp.service.mgmt.matrix`; DHCP option 42 advertises only `10.137.10.8` after the attended bastion validation passes |
 | VPN (downloads) | **Mullvad** via **Gluetun**, WireGuard | Strong privacy track record; provider is swappable |
 | Media server | **Plex** (lifetime pass) | Wife-acceptance + existing 100 GB metadata |
 | Storage (local) | **LVM under everything**; btrfs on `/opt`; **TopoLVM** for scratch | One VG: manual LVs for OS + `/opt` (btrfs snapshots + zstd); TopoLVM provisions enforced, resizable ext4 scratch LVs (Frigate cache, SABnzbd staging) from VG free space. Supersedes the earlier "no LVM" call — partition count + up-front sizing anxiety outweighed the abstraction overlap |
@@ -85,7 +86,7 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | Camera segment addressing | **`192.168.105.0/24`, host at `.1`**, authoritative per-camera `dnsmasq` reservations, NTP target `192.168.105.1` | Frozen once cameras are provisioned: the subnet and host/NTP address are reflected in host config and camera settings, while each camera's reserved DHCP address is baked into dnsmasq and Frigate. Renumbering therefore spans multiple systems. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
 
 Deferred / revisit later (see [operations.md](./docs/operations.md#follow-ups)):
-a replacement NTP source for VLAN 10, migration of the SLZB-MRW10U from its current
+migration of the SLZB-MRW10U from its current
 Trusted/VLAN 30 placement to IoT/VLAN 60, selected NFS exports from `minis`, a
 possible second node, Tailscale Funnel for Plex, and Immich.
 

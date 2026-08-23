@@ -11,7 +11,8 @@
 > path are substantially deployed, but the numbered UDM firewall policy below is the
 > approved target design and is still pending implementation and validation. Statements
 > in the firewall matrix describe intended end state, not current enforcement.
-> The OpenBSD bastion host, `Gi1/0/5` trunk stanza, DNS record, and Rule 940
+> The OpenBSD bastion host, `Gi1/0/5` trunk stanza, bastion/NTP DNS records,
+> VLAN 10 DHCP option 42, and Rule 940
 > cutover are likewise committed target state but not yet deployed; the
 > port remains access VLAN 30 until the attended bastion runbook reaches its
 > trunk-cutover step.
@@ -28,7 +29,8 @@ These are the non-negotiable implementation rules for both human operators and A
 * VLAN 99 is L2-only blackhole/native VLAN parking. It has no routed gateway, DHCP scope, or usable host subnet.
 * The YuanLey switch path must pass 802.1Q tags unchanged. Its only intended purpose is 2.5 GbE PoE+ service for UniFi WAPs; do not attach general-purpose clients to it.
 * `minis` must not bridge or NAT between its VLAN 20 server NIC and VLAN 105 camera NIC. k3s may enable kernel IP forwarding globally; the invariant is that nftables drops forwarded traffic entering or leaving `cam0`.
-* In steady state, `bastion` is the sole VLAN 10 administration path. VLAN 30
+* In steady state, `bastion` is the sole VLAN 10 administration path and the
+  sole VLAN 10 NTP source at `10.137.10.8:123/udp`. VLAN 30
   operators may reach only its SSH listener at `bastion.matrix` and use
   ProxyJump/local/SOCKS forwarding; `ryze`, `m5c`, and all other VLAN 30 clients
   are denied direct routed access to VLAN 10. Temporarily disabling Rule 940 is
@@ -58,7 +60,7 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
 | **Native VLAN 99 is an empty blackhole** on the Catalyst trunk | Untagged/rogue frames land in an empty, unrouted VLAN instead of a live data VLAN. | — |
 | **Camera VLAN 105 is fully isolated** (no gateway, off-trunk, reached only via the dual-homed `minis` NVR NIC, no bridging) | Cameras can't reach the internet or any other VLAN; only the NVR sees them. Strong containment for untrusted camera firmware. | — |
 | **IoT (VLAN 60) gets full outbound internet** | Most IoT devices depend on vendor cloud to function. Unsolicited inbound and lateral movement remain blocked. | Block/allowlist egress — revisit if you want to cut off chatty or untrusted devices. |
-| **VLAN 10 temporarily has no designated NTP source** | Morpheus was retired on 2026-08-10, so its DHCP option 42 advertisement and VLAN 10 → Morpheus UDP/123 exception are removed rather than pointing clients at a powered-off host. Camera NTP on `minis` is separate and remains active. | Select a replacement internal NTP source before restoring DHCP option 42 or adding a new firewall exception. |
+| **VLAN 10 NTP is served by the bastion only** | Morpheus was retired on 2026-08-10. The replacement OpenNTPD service listens only on `10.137.10.8`, accepts only directly attached VLAN 10 clients, and sources its two pinned Cloudflare peers and HTTPS constraint through VLAN 30. Camera NTP on `minis` is separate and remains active. | A single UPS-backed source is sufficient; loss of the bastion temporarily removes VLAN 10 time service rather than justifying another host, route, or internet-NTP exception. |
 | **SLZB-MRW10U is temporarily on Trusted VLAN 30; target placement is IoT VLAN 60** | The dual-radio coordinator is a network appliance rather than a trusted general-purpose client. Its consumers use the fixed `slzb-mrw10u.iot.matrix` name and TCP ports `6638` (Z-Wave) and `7638` (Zigbee), so it does not require mDNS reflection. | Before moving it, record its current IP/MAC, assign a stable VLAN 60 address, update the existing UDM A record, and stage the narrow VLAN 20 → VLAN 60 allow rule below. |
 | **Static-first addressing on VLAN 20 servers and VLAN 10 management; authoritative `dnsmasq` reservations for VLAN 105 cameras** | Servers and management devices retain static addresses with UDM reservations as fallback. Cameras receive their stable `.50-.99` addresses from the only DHCP server on the isolated segment, avoiding per-camera static-IP drift while keeping Frigate targets deterministic. | — |
 | **General wired ports default to Trusted VLAN 30** | Convenience: anything plugged in just works. Physical access to trusted Ethernet is treated as outside the threat model. | Park unused ports in VLAN 99 — revisit if the physical-access assumption changes. |
@@ -159,7 +161,7 @@ The Cisco Catalyst 3850 acts **strictly as an L2 switch**. All inter-VLAN routin
 * **Addressing:** All known VLAN 10 infrastructure should have static IPs configured outside the dynamic DHCP pool. UDM DHCP reservations are fallback/onboarding only.
 * **Internet egress:** VLAN 10 has no general-purpose internet access. Allow only tightly scoped infrastructure egress for the UDM Pro, UniFi U7 Pro, approved IPMI/IPKVM devices, and other approved management infrastructure.
 * **DNS:** VLAN 10 clients use the UDM gateway (`10.137.10.1`) as their DNS resolver. Do not open direct internet DNS egress from VLAN 10 clients.
-* **NTP:** VLAN 10 temporarily has no designated NTP source. Morpheus no longer serves NTP, and its UniFi DHCP option 42 advertisement and UDP/123 firewall exception are retired. Select a replacement internal source before advertising NTP again. Camera NTP remains independently served by `minis` on the isolated camera segment.
+* **NTP:** OpenNTPD on the bastion serves only `10.137.10.8:123/udp` to sources in `10.137.10.0/24`. It synchronizes only through `10.137.30.8` to the two pinned Cloudflare addresses plus the HTTPS constraint. Publish `ntp.service.mgmt.matrix` and advertise only `10.137.10.8` in DHCP option 42 after the attended local synchronization/listener gate passes. The retired `ntp.service.matrix`, `10.137.20.2` advertisement, and Morpheus exception remain absent. Camera NTP remains independently served by `minis` on the isolated camera segment.
 * **UniFi cloud/controller services:** Keep any required UniFi cloud, controller, firmware, or update exceptions scoped to the UDM Pro and UniFi U7 Pro unless a specific additional VLAN 10 device needs them. Identify the exact service requirements during implementation rather than granting blanket VLAN 10 internet access.
 * **Management access:** Rule 940 unconditionally denies Trusted/VLAN 30 routed
   access to VLAN 10. Operators first SSH to `bastion.matrix` on VLAN 30; sessions
@@ -207,7 +209,7 @@ Rule order matters during implementation. In UniFi, place specific allow rules a
 | 1010 | Yes | Allow Trusted to Internet | Allow | All | Trusted / Fastlane `VLAN 30` | Internet | Any | Normal client internet access. |
 | 1020 | Yes | Allow IoT to Internet | Allow | All | IoT / Home Integrated `VLAN 60` | Internet | Any | Full outbound internet permitted; do not block external DNS/DoH by design. |
 | 1030 | Yes | Allow Guest to Internet | Allow | All | Guest / Internet Only `VLAN 80` | Internet | Any | Internet-only by definition; local access remains blocked by LAN rules and client isolation. |
-| 1040 | Yes | Allow Admin infrastructure egress | Allow | Service-specific | UDM Pro / UniFi U7 Pro / approved VLAN 10 infrastructure, including approved IPMI/IPKVM devices | Internet | Firmware/update and UniFi cloud/controller services as needed | VLAN 10 clients use the UDM as DNS resolver; do not allow direct internet DNS from VLAN 10 clients. No per-device internet NTP egress is open; a replacement internal NTP source remains deferred. |
+| 1040 | Yes | Allow Admin infrastructure egress | Allow | Service-specific | UDM Pro / UniFi U7 Pro / approved VLAN 10 infrastructure, including approved IPMI/IPKVM devices | Internet | Firmware/update and UniFi cloud/controller services as needed | VLAN 10 clients use the UDM as DNS resolver; do not allow direct internet DNS or NTP from VLAN 10 clients. Their NTP source is the directly attached bastion service at `10.137.10.8`; its upstream traffic leaves through VLAN 30 and needs no UDM inter-VLAN exception. |
 | 1990 | Yes | Drop Admin general Internet | Drop | All | Admin / Management `VLAN 10` | Internet | Any | Other management devices are updated manually/on demand. |
 | N/A | N/A | Cameras to Internet | N/A | N/A | Cameras `VLAN 105` | Internet | N/A | Physically isolated, gateway-less segment. No routed path to the WAN exists. |
 
@@ -277,10 +279,12 @@ The Wyse 5070 runs a base-only, bare-metal OpenBSD 7.9 install. Catalyst
 `Gi1/0/5` is a restricted trunk with native VLAN 99 and allowed VLANs exactly
 `10,30,99`. The physical interface is unnumbered; `vlan30` owns
 `10.137.30.8/24` with the sole default route and SSH listener, while `vlan10`
-owns directly connected `10.137.10.8/24` with no gateway or listener. IPv6 and
+owns directly connected `10.137.10.8/24` with no gateway and the sole NTP
+listener. IPv6 and
 parent IPv4 autoconfiguration are disabled, `dhcpleased` is stopped, and both
-forwarding sysctls are zero. PF permits key-only operator SSH from VLAN 30, DNS
-through the VLAN 30 gateway, NTP only to Cloudflare's two documented IPv4
+forwarding sysctls are zero. PF permits key-only operator SSH from VLAN 30,
+NTP from VLAN 10 only to `10.137.10.8`, DNS through the VLAN 30 gateway, and
+upstream NTP only to Cloudflare's two documented IPv4
 anycast endpoints, HTTPS egress for the `_ntp` constraint process, HTTP(S)
 egress only for the `_file` and `_syspatch` base-system fetch users, and
 bastion-originated management traffic on VLAN 10. PF states are interface-bound,
@@ -406,23 +410,26 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 | `minis.matrix`               | `10.137.20.5`  | 20   | Homelab / Frigate NVR (server-side NIC)         |
 | `ryze.matrix`                | `10.137.30.6`  | 30   | Desktop workstation                              |
 | `bastion.matrix`             | `10.137.30.8`  | 30   | Dedicated OpenBSD VLAN 10 management bastion    |
+| `ntp.service.mgmt.matrix`    | `10.137.10.8`  | 10   | VLAN 10-only OpenNTPD service on the bastion     |
 | `slzb-mrw10u.iot.matrix`     | TBD            | 30 → 60 | SLZB-MRW10U Z-Wave/Zigbee coordinator; preserve this name and update its A record during migration |
 | `worm.run`                   | `10.137.20.10` | 20   | minis cluster load balancer                     |
 | `*.worm.run`                 | `10.137.20.10` | 20   | minis cluster load balancer                     |
 
-> **NTP gap after Morpheus retirement.** The cameras still sync from `minis` at
-> `192.168.105.1` using local `chrony` on the isolated camera-side NIC. VLAN 10 has no
-> designated NTP source until a replacement is selected. `ntp.service.matrix`, the
-> old DHCP option 42 advertisement, and the Morpheus UDP/123 exception must remain
-> absent; do not repurpose the camera-only service implicitly.
+> **Morpheus NTP retirement and replacement.** The 2026-08-10 retirement removed
+> `ntp.service.matrix`, the `10.137.20.2` DHCP option 42 advertisement, and the
+> Morpheus UDP/123 exception. Those remain absent. The replacement is the distinct
+> `ntp.service.mgmt.matrix` name and directly attached bastion address
+> `10.137.10.8`; publish and advertise it only after the attended bastion gate.
+> Cameras still sync independently from `minis` at `192.168.105.1` using local
+> `chrony` on the isolated camera-side NIC.
 
 **Deliberately excluded:**
 
 * **`minis` camera-side NIC (`192.168.105.1`, VLAN 105)** — VLAN 105 never reaches the UDM and is off the trunk, so the UDM has no interface on `192.168.105.0/24` and cannot resolve or route it. Camera-side naming/DHCP is handled by `minis` `dnsmasq`, which is intentionally DHCP-only with no DNS.
 * **`m5c` (`10.137.30.x`)** — DHCP-assigned with no static reservation, so its address is not stable enough for a fixed record.
-* **`bastion` VLAN 10 (`10.137.10.8`)** — record it in inventory but do not
-  publish it as an operator entry point. Operators resolve only
-  `bastion.matrix` on VLAN 30.
+* **`bastion` VLAN 10 (`10.137.10.8`)** — do not publish it as an operator entry
+  point. The only record for this address is `ntp.service.mgmt.matrix`; operators
+  resolve only `bastion.matrix` on VLAN 30 for SSH.
 * **WAN interfaces (AT&T / Spectrum)** — ISP-assigned, not internal hosts.
 
 ### Host Matrix
@@ -480,7 +487,7 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 * [X] Verify WAN failover prioritization: Primary = AT&T (Port 9), Failover = Spectrum (Port 8). This is **failover only** (not load-balancing); Spectrum sits idle until AT&T fails. Intentional for now — keeps a stable primary IP and avoids per-session path issues. Note: both WANs run on RJ45 ports (9 + 8), leaving the SFP+ WAN port (Port 10) free to be reassigned to LAN — this is confirmed working in the current setup. Since AT&T is 1G symmetric, the RJ45 WAN imposes no bottleneck.
 * [X] Build out virtual networks/VLAN scopes (10, 20, 30, 60, 80). Set management IP gateway to `10.137.10.1`. Set each dynamic DHCP pool to `.100-.199` within its subnet. Also create **VLAN 99 as a "VLAN Only" network** (no gateway, no DHCP) so it can be selected as the native VLAN on the Port 10 trunk profile — UniFi requires the network to exist before it can be assigned as a native VLAN, so the blackhole trunk config below cannot be applied without it. Do **not** build VLAN 105 on the controller (it is an isolated, gateway-less segment that lives only on the Catalyst).
 * [ ] Configure the UniFi U7 Pro management address as static-first at `10.137.10.7`, with a VLAN 10 UDM DHCP reservation for the same address as fallback.
-* [X] Removed the VLAN 10 DHCP option 42 advertisement for `10.137.20.2`, `ntp.service.matrix`, and the obsolete VLAN 10 → Morpheus UDP/123 firewall exception. The host-level `morpheus.matrix` record and DHCP reservation remain for cold-spare recovery use. VLAN 10 has no designated NTP source until the deferred replacement is implemented.
+* [X] Removed the VLAN 10 DHCP option 42 advertisement for `10.137.20.2`, `ntp.service.matrix`, and the obsolete VLAN 10 → Morpheus UDP/123 firewall exception. The host-level `morpheus.matrix` record and DHCP reservation remain for cold-spare recovery use. This historical gap is now resolved in committed target state by the distinct bastion service below; the old name, advertisement, and exception stay retired.
 * [X] Define the **DNS resolver strategy**: clients use the UDM per-VLAN gateway (`10.137.<vlan>.1`) as their resolver by default, and the UDM remains the long-term default resolver. VLAN 10 management devices and VLAN 20 hosts are static-first, but UDM DHCP reservations should map each known MAC to its intended address as fallback. Static addresses must be outside their dynamic DHCP pools. Set DNS manually on static hosts and point them at the UDM gateway unless a specific host has a deliberate exception. IoT (60) and Guest (80) are not forced through a specific upstream resolver, and external DNS/DoH is not blocked by design.
 * [X] Commit custom port mapping profiles on UDM built-in interfaces (Port 1 → V30, Port 2 → V20, Port 3 → V20).
 * [X] Configure UDM Port 10 as the Catalyst trunk profile: **Native/Untagged VLAN 99** (blackhole) to match the Catalyst's `switchport trunk native vlan 99`, plus tagged VLANs 10, 20, 30, 60, and 80. Both ends must agree on native VLAN 99 — a native-VLAN mismatch here would land untagged traffic in a live VLAN and defeat the blackhole design.
@@ -490,11 +497,19 @@ Create these forward (A) records on the UDM resolver. The network's local domain
   DNS before the VLAN 30 operator tests. Do not add an operator-facing record
   for `10.137.10.8`, and do not change Tailnet routes. This reversible DNS step
   does not authorize the Rule 940 firewall cutover.
+* [ ] After the bastion also has synchronized peers, a median HTTPS constraint,
+  and exactly `10.137.10.8:123/udp` listening, add
+  `ntp.service.mgmt.matrix` → `10.137.10.8` and advertise only `10.137.10.8`
+  through VLAN 10 DHCP option 42. Renew a test lease and prove `.20.2` is absent.
+  Keep `ntp.service.matrix` and the Morpheus UDP/123 exception retired.
 * [X] **Verify VLAN tag-transparency through the unmanaged YuanLey switch:** connect a client to the Guest SSID and confirm it receives a `10.137.80.x` address (and an IoT-SSID client a `10.137.60.x` address) — *not* a `10.137.10.x` management address. A management-range lease means the YuanLey is stripping tags and the SSID separation has silently collapsed onto the management VLAN. If this fails, replace the YuanLey with a managed 2.5G PoE switch or temporarily move the AP to a Catalyst 1G port while preserving SSID VLAN separation.
 * [ ] Migrate the SLZB-MRW10U from Trusted/VLAN 30 to IoT/VLAN 60: record its current IP and MAC, create a stable VLAN 60 UDM reservation, stage Rule 140 for TCP `6638`/`7638`, update `slzb-mrw10u.iot.matrix`, move the appliance, and rerun the Z-Wave JS UI, Zigbee2MQTT, and Zigbee2MQTT-monitoring validators. Preserve the fixed DNS name; do not enable mDNS reflection for this path.
 * [ ] Deploy the numbered firewall rules from the Firewall & Traffic Flow Matrix in order: specific allows first, broad inter-VLAN drops second, WAN/internet egress policy separately. Enable Rule 940 as an unconditional Trusted/VLAN 30 → Admin/VLAN 10 drop only after the bastion passes its full validation. Preserve Rule 140 and other justified service-specific flows.
 * [ ] Verify `ryze`, `m5c`, and another Trusted/VLAN 30 client cannot reach VLAN 10 directly but can reach `bastion.matrix:22` and use it for the documented ProxyJump, HTTPS local-forward, and SOCKS workflows.
-* [ ] Verify a VLAN 10 client is not directed to `10.137.20.2` for NTP and cannot reach arbitrary VLAN 20 services or internet NTP servers. Record the lack of a designated VLAN 10 NTP source until the deferred replacement is implemented.
+* [ ] Verify a VLAN 10 client is directed only to `10.137.10.8` for NTP, receives
+  a response sourced by that address, and cannot reach arbitrary VLAN 20
+  services or internet NTP servers. Confirm VLAN 30 and every other reachable
+  VLAN cannot query either bastion address for NTP.
 
 ### Network Step 2: Cisco Catalyst 3850 Initialization
 
@@ -514,6 +529,12 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 * [X] Configure `Gi1/0/1-4` as VLAN 10 access ports for IPMI/IPKVM devices.
 * [X] Configure the camera deployment ports (`Gi1/0/37-47`) per the Local Camera Isolation config block: `switchport access vlan 105`, `switchport protected` (so cameras cannot talk to each other), `switchport block unicast`, `switchport block multicast`, plus `spanning-tree portfast` and `bpduguard enable`.
 * [X] Configure the NVR camera-side ingestion port (`Gi1/0/48`) per the same block: `switchport access vlan 105` with `spanning-tree portfast` and `bpduguard enable`, but **without** `switchport protected` — this is intentional so the cameras on the protected ports can reach the `minis` NVR NIC.
+* [ ] After the bastion NTP service passes its local and VLAN 10 client gates,
+  apply `ntp server 10.137.10.8`, confirm the Catalyst synchronizes with `.10.8`,
+  but do not save it until the reboot and AC-loss gates pass. Configure other
+  static VLAN 10 devices to use `.10.8` where supported; document UDM/U7 Pro or
+  IPMI/IPKVM limitations instead of opening internet NTP or changing
+  static-first addressing.
 * [X] Harden device management access: configure a privilege-15 local admin secret, enable `service password-encryption`, and disable plaintext remote access by allowing SSH only on the vty lines (`transport input ssh`). `enable secret` is intentionally skipped to avoid complicating the break-glass recovery procedure.
 
 ### Network Step 2.1: Bastion validation and firewall cutover
@@ -521,19 +542,22 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 * [ ] Record the discovered Wyse Ethernet interface/MAC in the inventory and
   confirm the parent is unnumbered, only VLANs 10/30 exist, IPv6 is absent, the
   sole default route uses `10.137.30.1`, and both forwarding sysctls are zero.
-* [ ] Confirm the Catalyst restricted trunk and the bastion's local PF/SSH
+* [ ] Confirm the Catalyst restricted trunk and the bastion's local PF/SSH/NTP
   checks pass. With the bastion DNS item in [Network Step 1](#network-step-1-unifi-dream-machine-configuration)
   complete, verify from VLAN 30 that `bastion.matrix` resolves to
   `10.137.30.8`, then perform the named operator workflows below before the
   Rule 940 firewall cutover.
-* [ ] From VLAN 30, confirm only `10.137.30.8:22` accepts connections; approved
+* [ ] From VLAN 30, confirm only `10.137.30.8:22/tcp` accepts connections; approved
   keys work while root, password, and keyboard-interactive authentication fail.
-  Confirm `10.137.10.8` has no listener and Admin devices cannot initiate a new
-  session to the bastion. Inspect PF counters/pflog for expected drops.
+  Confirm neither bastion address answers NTP. From VLAN 10, confirm only
+  `10.137.10.8:123/udp` answers; TCP and ICMP remain denied and Admin devices
+  cannot initiate any other session to the bastion. Inspect PF counters/pflog
+  for expected drops.
 * [ ] Validate ProxyJump to Catalyst SSH, HTTPS local forwarding, and SOCKS from
   both `ryze` and `m5c`. Confirm host DNS/NTP/patch access leaves VLAN 30 and a
   two-client test cannot route through the host.
-* [ ] Repeat all tests after reboot and controlled AC loss. Only then remove
+* [ ] Repeat all host, DNS, DHCP option 42, NTP, scan, static-client, forwarding,
+  and operator tests after reboot and controlled AC loss. Only then remove
   the existing routed-management path by activating unconditional Rule 940. In
   a later break-glass event, disable Rule 940 through the VLAN 30 UDM UI when it
   is available and intentionally allow direct VLAN 30 to VLAN 10 management
@@ -543,7 +567,8 @@ Create these forward (A) records on the UDM resolver. The network's local domain
   `Gi1/0/5` to access VLAN 30 supports a fresh install, but does not by itself
   restore network access to an already-hardened bastion because its PF policy
   permits host traffic only on tagged `vlan30`. The DNS record already exists
-  for these tests and remains independent of the firewall cutover.
+  for these tests and remains independent of the firewall cutover. Save the UDM
+  and Catalyst configurations only after this complete gate passes.
 
 ### Network Step 2.5: Camera Segment Services
 

@@ -4,7 +4,9 @@ This is an attended, console-first deployment. The Wyse is a disposable
 OpenBSD 7.9 endpoint with one physical 802.1Q trunk and two tagged interfaces;
 it is not a router, bridge, NAT gateway, VPN endpoint, or Tailnet subnet router.
 Operators enter through `bastion.matrix` on VLAN 30 and originate new sessions
-to VLAN 10 from the host.
+to VLAN 10 from the host. OpenNTPD is the sole VLAN 10 inbound exception: it
+serves only `10.137.10.8:123/udp`, while all upstream synchronization and the
+HTTPS constraint leave through VLAN 30.
 
 ## 1. Pre-install gates
 
@@ -73,12 +75,15 @@ the two required directories over the mandatory installer address into a new,
 private deployment tree:
 
 ```sh
+shellcheck --severity=warning runbooks/bastion/*.sh
 tar -cf - runbooks/bastion host/bastion | \
   ssh charlie@10.137.30.8 \
     'umask 077; test ! -e "$HOME/bastion-deploy" && mkdir "$HOME/bastion-deploy" && tar -xf - -C "$HOME/bastion-deploy"'
 ```
 
-The command refuses to merge into an existing deployment tree. If SSH transfer
+Shellcheck runs on the operator client; do not install a package on the
+base-only bastion for this check. The transfer command refuses to merge into an
+existing deployment tree. If SSH transfer
 is unavailable during installation, create an archive containing exactly those
 same two paths on trusted removable media; never archive or copy the checkout
 root. Verify on the Wyse that `/home/charlie/bastion-deploy/age.key` does not
@@ -114,8 +119,9 @@ interface and MAC in `/var/db/bastion-wired-nic`; copy both into the inventory i
 `BASTION_EXPECTED_MAC=aa:bb:cc:dd:ee:ff`.
 
 Staging renders the actual interface name, checks `pfctl -nf`, `ntpd -n -f`,
-`sshd -t`, the public-key file, and a `netstart -n` preview, and installs but
-does not activate configuration. `ntpd -n -f` parses `query from`; in contrast,
+`sshd -t`, the public-key file, and a `netstart -n` preview before transferring
+the rendered files into `/etc`; it does not activate configuration.
+`ntpd -n -f` parses both `query from` and `listen on`; in contrast,
 `netstart -n` only prints the `ifconfig` operations it would run. It does not
 exercise the split `parent`/`vnetid` declarations or the parent's
 `inet -autoconf`/`-inet` commands against the kernel. Keep the local console
@@ -182,16 +188,19 @@ cleanup, and attach/configure the tagged interfaces.
 the two values directly so a parser or unrelated sysctl entry cannot leave the
 host exposed midway through activation. After address assignment and the final
 default route are in place, activation starts SSH from the staged hardened
-configuration and locally verifies that `10.137.30.8:22` is the only
-non-loopback TCP listener. The final PF policy replaces deny-all only after that
-verification, so a failure cannot expose the installer-era authentication
+configuration, restarts OpenNTPD, and locally verifies the exact listeners:
+`10.137.30.8:22/tcp` and `10.137.10.8:123/udp`. It rejects an NTP listener on
+`10.137.30.8` or a wildcard address. The final PF policy replaces deny-all only
+after those checks, so a failure cannot expose the installer-era authentication
 policy and `antispoof` expands against the connected networks.
 That policy binds every state to the interface where it was created; the local
 validator confirms the active pass rules carry `if-bound` state semantics.
 The staged `/etc/ntpd.conf` fixes OpenNTPD to Cloudflare's two documented IPv4
-anycast endpoints, sources queries from `10.137.30.8`, and retains an independent
-HTTPS time constraint; PF permits UDP/123 only to those endpoints and TCP/443
-only for the `_ntp` process that retrieves the constraint.
+anycast endpoints, sources queries from `10.137.30.8`, listens only on
+`10.137.10.8`, and retains an independent HTTPS time constraint. PF permits
+inbound UDP/123 only from VLAN 10 to that address, outbound UDP/123 only to the
+two pinned endpoints, and TCP/443 only for the `_ntp` process that retrieves the
+constraint.
 
 Confirm the switch independently:
 
@@ -206,11 +215,28 @@ The operational mode must be trunk, native VLAN 99, and allowed list exactly
 
 ## 4. Operator and isolation tests
 
-Add only `bastion.matrix -> 10.137.30.8` to UDM DNS. From both `ryze` and `m5c`,
+Before publishing the time service, use `ntpctl -s all` and `tcpdump` on the
+bastion to confirm both pinned peers are healthy, the clock is synchronized, a
+median HTTPS constraint is present, and every upstream UDP/123 packet sources
+from `10.137.30.8` toward only `162.159.200.1` or `162.159.200.123`. Confirm no
+upstream NTP leaves `vlan10`.
+
+Then add `bastion.matrix -> 10.137.30.8` and
+`ntp.service.mgmt.matrix -> 10.137.10.8` to UDM DNS. On the VLAN 10 network,
+advertise exactly one DHCP option 42 address: `10.137.10.8`. Confirm the retired
+`ntp.service.matrix`, `10.137.20.2` option 42 value, and Morpheus UDP/123
+exception are absent. Renew a VLAN 10 test lease, resolve the new name through
+the UDM, and inspect the lease to prove option 42 contains `.10.8` and never
+`.20.2`.
+
+From both `ryze` and `m5c`,
 verify key login succeeds and root/password/keyboard-interactive login fails.
 Scan or probe `10.137.30.8` and confirm TCP/22 is the only listener. Also confirm
-no service answers on `10.137.10.8` and that an Admin/VLAN 10 test host cannot
-start a new connection to either bastion address.
+NTP does not answer on either bastion address from VLAN 30. From an Admin/VLAN 10
+test host, confirm a query to `10.137.10.8` succeeds and its reply comes from
+that address; a combined TCP/UDP scan finds only UDP/123 on `.10.8`, ICMP remains
+denied, and no other new connection to either bastion address succeeds. From
+every other reachable VLAN, confirm neither bastion address answers NTP.
 
 Representative workflows:
 
@@ -234,8 +260,9 @@ Use `route -n show -inet`, `ifconfig`, `netstat -an`, `pfctl -sr -v`,
 `pfctl -ss`, `ntpctl -s all`, and `tcpdump -n -e -ttt -i pflog0` to verify the
 sole default route, listener, states/counters, NTP peers, active HTTPS constraint,
 and expected VLAN 10 drops. Do not accept NTP validation until `ntpctl -s all`
-shows a median constraint. Test ProxyJump, the local forward, and SOCKS against
-representative SSH/HTTPS endpoints. A two-client test must show that traffic
+shows synchronized peers and a median constraint. Test ProxyJump, the local
+forward, and SOCKS against representative SSH/HTTPS endpoints. A two-client
+test must show that traffic
 cannot traverse the host between VLANs even when a client tries to use it as a
 gateway.
 
@@ -247,16 +274,28 @@ The logged and unlogged counters must both increase, while `pflog0` must contain
 only the packets counted by `vlan10-denied-logged`. Label presence alone does not
 validate the rate transition.
 
+Only after local NTP synchronization, listener, and VLAN 10 client tests pass,
+apply `ntp server 10.137.10.8` from the canonical Catalyst configuration. Verify
+the switch reports synchronization with `.10.8`, but do not write memory yet.
+Configure each other known static VLAN 10 device to use `10.137.10.8` where its
+platform supports an explicit NTP server, and record its exposed time status.
+If the UDM Pro, U7 Pro, or an IPMI/IPKVM platform does not support a custom NTP
+server, document that limitation; do not grant internet NTP, add routing, or
+replace static-first addressing to work around it.
+
 Reboot and rerun `doas runbooks/bastion/03-validate.sh`, either at the physical
 console or over SSH, then repeat the client validation. Perform a controlled AC
 loss and repeat that same host and client validation, confirming automatic
 power-on, normal boot, tagged interfaces, PF, sshd, DNS/NTP/update egress, and
-all three operator workflows.
+all three operator workflows. Renew the VLAN 10 test lease again, repeat the
+NTP queries and isolation scans, and reconfirm the Catalyst and supported static
+clients after both reboot and AC loss.
 
-Only after those gates pass should the UDM change be made: enable Rule 940 as an
+Only after those gates pass should the UDM firewall change be made: enable Rule 940 as an
 unconditional VLAN 30 to VLAN 10 drop. Verify `ryze`, `m5c`, and another VLAN 30
 client cannot reach VLAN 10 directly while all can still reach
 `bastion.matrix:22`. Rule 140 and other service-specific flows remain.
+Save the UDM and Catalyst configurations only after this complete gate passes.
 
 ## 5. Remove deployment files
 
@@ -310,6 +349,13 @@ applicable steady-state recovery mode above rather than assuming the bastion can
 restore its own access. Return the Catalyst port to its temporary access
 configuration when local repair or a reinstall requires the untagged installer
 network:
+
+For an NTP-only rollback, first remove DHCP option 42 and
+`ntp.service.mgmt.matrix`, then return supported static clients to an
+unconfigured NTP state. Remove `ntp server 10.137.10.8` from the Catalyst before
+removing the bastion listener and PF exception. Never restore
+`ntp.service.matrix`, the `10.137.20.2` advertisement, or the retired Morpheus
+UDP/123 exception.
 
 ```ios
 configure terminal

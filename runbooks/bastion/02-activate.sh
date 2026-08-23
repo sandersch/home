@@ -96,10 +96,15 @@ ssh_listeners=$(netstat -an -f inet | awk '
 ')
 [ "$ssh_listeners" = "10.137.30.8.22" ] || \
   die "unexpected non-loopback TCP listeners before opening PF: ${ssh_listeners:-none}"
+ntp_listeners=$(netstat -an -f inet | awk '
+  $1 == "udp" && $4 ~ /\.123$/ && $4 !~ /^127\./ { print $4 }
+')
+[ "$ntp_listeners" = "10.137.10.8.123" ] || \
+  die "unexpected non-loopback NTP listeners before opening PF: ${ntp_listeners:-none}"
 
 # Replace deny-all only after both VLAN devices own their final addresses and
-# the hardened listener is verified, so no installer-era authentication policy
-# is ever reachable and antispoof expands against the connected networks.
+# the hardened listeners are verified, so no installer-era authentication
+# policy is ever reachable and antispoof expands against the connected networks.
 pfctl -f /etc/pf.conf
 
 ok "tagged interfaces activated; run 03-validate.sh locally, then test from ryze and m5c"

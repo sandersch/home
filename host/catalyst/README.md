@@ -35,6 +35,12 @@ Before the bastion cutover, leave Rule 940 inactive and confirm direct SSH from
 reach the UDM). After the bastion is operational, confirm ProxyJump through
 `bastion.matrix` can SSH to `10.137.10.2` before enabling Rule 940; that is the
 steady-state management path, not an initial bring-up dependency.
+Apply `ntp server 10.137.10.8` only after the bastion reports synchronized
+upstream peers, a median HTTPS constraint, the exact VLAN 10-only listener, and
+a successful VLAN 10 client query. Confirm `show ntp associations` and
+`show ntp status` identify `.10.8` as the synchronization source. Save the
+switch configuration only after the complete bastion reboot and controlled
+AC-loss gate passes.
 
 ## Steady-state break-glass
 

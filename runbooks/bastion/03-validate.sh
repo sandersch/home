@@ -56,6 +56,12 @@ only_external_tcp_listener() {
   listeners=$(netstat -an -f inet | awk '$1 == "tcp" && $6 == "LISTEN" && $4 !~ /^127\./ { print $4 }')
   [ "$listeners" = "10.137.30.8.22" ]
 }
+only_expected_ntp_listener() {
+  listeners=$(netstat -an -f inet | awk '
+    $1 == "udp" && $4 ~ /\.123$/ && $4 !~ /^127\./ { print $4 }
+  ')
+  [ "$listeners" = "10.137.10.8.123" ]
+}
 no_nat_or_rdr() { [ -z "$(pfctl -sn 2>/dev/null)" ]; }
 pf_states_are_interface_bound() {
   grep -qx 'set state-policy if-bound' /etc/pf.conf || return 1
@@ -74,6 +80,30 @@ vlan10_deny_limiter_is_loaded() {
     printf '%s\n' "$logged" | grep -q 'max-pkt-rate 5/1' &&
     printf '%s\n' "$unlogged" | grep -Eq 'block.* in quick on vlan10 ' &&
     ! printf '%s\n' "$unlogged" | grep -q 'max-pkt-rate'
+}
+vlan10_ntp_exception_is_exact() {
+  rules=$(pfctl -sr -n) || return 1
+  ntp_rules=$(printf '%s\n' "$rules" | awk '
+    $1 == "pass" && $2 == "in" && $0 ~ /on vlan10 / && $0 ~ /port = 123/ { print }
+  ')
+  [ "$(printf '%s\n' "$ntp_rules" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 1 ] &&
+    printf '%s\n' "$ntp_rules" | grep -Eq '^pass in quick on vlan10 inet proto udp from 10\.137\.10\.0/24 to 10\.137\.10\.8 port = 123 keep state '
+}
+ntpd_policy_is_canonical() {
+  active=$(awk 'NF && $1 !~ /^#/ { print }' /etc/ntpd.conf)
+  expected=$(printf '%s\n' \
+    'query from 10.137.30.8' \
+    'listen on 10.137.10.8' \
+    'server 162.159.200.1' \
+    'server 162.159.200.123' \
+    'constraint from "https://www.google.com/"')
+  [ "$active" = "$expected" ]
+}
+ntp_is_healthy() {
+  status=$(ntpctl -s all) || return 1
+  printf '%s\n' "$status" | grep -Eq '^2/2 peers valid, constraint offset [^,]+, clock synced, stratum [0-9]+$' &&
+    printf '%s\n' "$status" | grep -Eq '162\.159\.200\.1' &&
+    printf '%s\n' "$status" | grep -Eq '162\.159\.200\.123'
 }
 no_forwarding_or_autoconf_components() {
   ! ifconfig -a | grep -Eq '^(bridge|veb|vport|vether|trunk|carp|gif|gre|wg)[0-9]+:' &&
@@ -97,13 +127,17 @@ check "vlan10 owns 10.137.10.8" sh -c "ifconfig vlan10 | grep -q 'inet 10.137.10
 check "sole default route is via 10.137.30.1" one_default
 check "IPv4 and IPv6 forwarding are disabled" forwarding_off
 check "the only non-loopback TCP listener is 10.137.30.8:22" only_external_tcp_listener
+check "the only non-loopback NTP listener is 10.137.10.8:123/udp" only_expected_ntp_listener
 check "PF is enabled" sh -c 'pfctl -s info | grep -q "Status: Enabled"'
 check "PF has no NAT or redirection rules" no_nat_or_rdr
 check "all active PF pass states are interface-bound" pf_states_are_interface_bound
 check "active PF ruleset contains the VLAN 10 deny limiter and fallback" vlan10_deny_limiter_is_loaded
+check "active PF ruleset contains exactly the VLAN 10 NTP exception" vlan10_ntp_exception_is_exact
 check "no bridge, routing/relay, RA, or SLAAC component is active" no_forwarding_or_autoconf_components
 check "installed PF config parses" pfctl -nf /etc/pf.conf
 check "installed ntpd config parses" ntpd -n -f /etc/ntpd.conf
+check "installed OpenNTPD policy has the exact listener, query source, peers, and constraint" ntpd_policy_is_canonical
+check "OpenNTPD has both pinned peers, is synchronized, and has a median HTTPS constraint" ntp_is_healthy
 check "installed sshd config parses" sshd -t -f /etc/ssh/sshd_config
 
 if [ "$fail" -ne 0 ]; then

@@ -60,6 +60,9 @@ interface Vlan10
 ! Reach the VLAN 30 bastion and other off-subnet sources via the UDM. Required
 ! because the L2 switch has no routing table of its own.
 ip default-gateway 10.137.10.1
+! Use the bastion's VLAN 10-only OpenNTPD service. Apply only after the bastion
+! listener, upstream synchronization, and PF exception pass validation.
+ntp server 10.137.10.8
 !
 ! Vlan1 must be explicitly shut — it exists by default on every IOS switch and
 ! must never carry traffic on a managed deployment.

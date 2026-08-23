@@ -489,10 +489,16 @@ of waiting for the default interval.
 
 Deferred deliberately; revisit when the trigger condition is met.
 
+The former VLAN 10 NTP follow-up is resolved in committed target state: the
+pending bastion deployment serves only `10.137.10.8:123/udp` to VLAN 10 and
+synchronizes upstream through VLAN 30. Its attended runbook adds
+`ntp.service.mgmt.matrix`, DHCP option 42, and supported static clients only
+after local health checks. The retired Morpheus name, advertisement, and
+firewall exception remain absent.
+
 | Item | When to do it |
 |---|---|
 | **Bulk-storage backup plan** | Replace the current ad hoc external-drive copies with a documented, repeatable backup policy for irreplaceable content on `/mnt/media` (including personal pictures), `/mnt/games`, and any other selected bulk-array paths. Define the destination, cadence, retention, monitoring, and representative restore drills; until then, do not describe the RAID array itself as a backup. |
-| **VLAN 10 NTP replacement** | Replace the retired Morpheus service when an appropriate internal time source is selected. Until then, VLAN 10 has no designated NTP source; do not restore the obsolete DHCP option 42 advertisement or Morpheus firewall exception. Camera NTP remains independently served by `minis` at `192.168.105.1`. |
 | **Move SLZB-MRW10U to IoT VLAN 60** | The dual-radio coordinator currently resides on Trusted/VLAN 30. Follow the ordered migration checklist in [network.md](./network.md#network-step-1-unifi-dream-machine-configuration): record its current IP/MAC, assign a stable VLAN 60 address, stage the narrow `minis` TCP `6638`/`7638` allow, preserve `slzb-mrw10u.iot.matrix`, and rerun the Z-Wave, Zigbee, and monitoring validators. mDNS reflection is neither enabled nor required for this fixed DNS/TCP path. |
 | **Selected NFS exports from `minis`** | When a real remote consumer appears, export only `/mnt/media` and `/mnt/games` from `minis` with an explicit client/access policy. Nothing exports bulk storage over NFS today. Keep `/mnt/frigate` local-only; do not export `/mnt/backups` without a concrete use. |
 | **Second node** | Only on a *measured* need: HA must survive main-node maintenance, or Frigate outgrows the Coral/CPU budget. Repo layout already supports it via `nodeSelector`/affinity. |

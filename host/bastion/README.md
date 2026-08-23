@@ -8,19 +8,23 @@ It records the discovered interface and MAC in `/var/db/bastion-wired-nic`.
 `pf.cutover.conf` is a temporary, interface-independent deny-all ruleset used
 only while the tagged interfaces are being activated; `/etc/pf.conf` is the
 persistent runtime policy. Activation stops the installer-era SSH listener
-under deny-all, starts and verifies the hardened address-specific listener, and
-only then loads the persistent policy that admits VLAN 30 TCP/22.
+under deny-all, starts and verifies the two hardened address-specific listeners,
+and only then loads the persistent policy that admits VLAN 30 TCP/22 and VLAN 10
+UDP/123.
 
 The host has no address on its physical parent. `vlan30` owns
 `10.137.30.8/24`, the sole default route through `10.137.30.1`, DNS, NTP/update
-egress, and the only SSH listener. `vlan10` owns `10.137.10.8/24` solely as a
-source for operator-initiated management sessions. PF, SSH, and forwarding
-settings prevent it from becoming a router or a listener on Admin/VLAN 10.
+egress, and the only SSH listener. `vlan10` owns `10.137.10.8/24` as a source
+for operator-initiated management sessions and the only OpenNTPD listener. PF,
+SSH, and forwarding settings prevent it from becoming a router or exposing any
+other service on Admin/VLAN 10.
 PF states are interface-bound so established traffic cannot match on the other
 VLAN before its interface-specific rules are evaluated.
 OpenNTPD queries only Cloudflare's documented IPv4 anycast NTP endpoints and
-uses an independent HTTPS constraint; PF permits UDP/123 only to those two
-addresses and permits TCP/443 for the `_ntp` user that retrieves the constraint.
+uses an independent HTTPS constraint. It listens only on `10.137.10.8`; PF
+permits inbound UDP/123 only from `10.137.10.0/24`, outbound UDP/123 only to the
+two pinned addresses through VLAN 30, and TCP/443 for the `_ntp` user that
+retrieves the constraint.
 Base-system web retrieval is limited to `_file` and `_syspatch`, allowing
 `fw_update`, errata patching, and attended release upgrades without granting
 general web egress to operators. `fw_update` downloads as `_file`, the
