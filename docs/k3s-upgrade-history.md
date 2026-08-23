@@ -6,7 +6,7 @@ validation, observation, and cleanup fields only from evidence collected on `min
 
 | Source | Target | Target release date | Maintenance date | Validation | 24-hour observation | Rollback artifacts |
 |---|---|---|---|---|---|---|
-| `v1.36.2+k3s1` | `v1.36.3+k3s1` | 2026-08-04 | 2026-08-22 17:54Z | Passed initial Phase 2-5 validation; see notes below | In progress; closes after 2026-08-23 17:54Z | Retained through observation |
+| `v1.36.2+k3s1` | `v1.36.3+k3s1` | 2026-08-04 | 2026-08-22 17:54Z | Passed initial Phase 2-5 validation; see notes below | Passed; closed 2026-08-23 22:04Z | Removed 2026-08-23 22:05Z |
 
 Initial validation evidence:
 
@@ -34,6 +34,10 @@ Initial validation evidence:
   `/var/lib/rancher/k3s-upgrade-checkpoints/20260822T175432Z-v1.36.3+k3s1`.
   Read-only snapshot:
   `/opt/.snapshots/pre-k3s-v1.36.3+k3s1-20260822T175432Z`.
+
+At 2026-08-23 22:05Z, the exact root-owned rollback checkpoint and read-only btrfs
+snapshot recorded above were removed using the documented procedure; both paths were
+verified absent afterward. Independent Restic backups remain available.
 
 The target release updates Kubernetes to v1.36.3. Its Traefik v40 migration warning
 does not affect this cluster because bundled Traefik is disabled and ingress-nginx is
