@@ -82,7 +82,7 @@ vlan10_deny_limiter_is_loaded() {
     ! printf '%s\n' "$unlogged" | grep -q 'max-pkt-rate'
 }
 vlan10_ntp_exception_is_exact() {
-  rules=$(pfctl -sr -n) || return 1
+  rules=$(pfctl -sr) || return 1
   ntp_rules=$(printf '%s\n' "$rules" | awk '
     $1 == "pass" && $2 == "in" && $0 ~ /on vlan10 / && $0 ~ /port = 123/ { print }
   ')
@@ -104,6 +104,20 @@ ntp_is_healthy() {
   printf '%s\n' "$status" | grep -Eq '^2/2 peers valid, constraint offset [^,]+, clock synced, stratum [0-9]+$' &&
     printf '%s\n' "$status" | grep -Eq '162\.159\.200\.1' &&
     printf '%s\n' "$status" | grep -Eq '162\.159\.200\.123'
+}
+wait_for_ntp_health() {
+  timeout=180
+  interval=5
+  elapsed=0
+  while :; do
+    ntp_is_healthy && return 0
+    [ "$elapsed" -ge "$timeout" ] && return 1
+    if [ "$elapsed" -eq 0 ] || [ $((elapsed % 30)) -eq 0 ]; then
+      printf 'waiting for OpenNTPD health (%ss remaining)\n' "$((timeout - elapsed))"
+    fi
+    sleep "$interval"
+    elapsed=$((elapsed + interval))
+  done
 }
 no_forwarding_or_autoconf_components() {
   ! ifconfig -a | grep -Eq '^(bridge|veb|vport|vether|trunk|carp|gif|gre|wg)[0-9]+:' &&
@@ -137,10 +151,18 @@ check "no bridge, routing/relay, RA, or SLAAC component is active" no_forwarding
 check "installed PF config parses" pfctl -nf /etc/pf.conf
 check "installed ntpd config parses" ntpd -n -f /etc/ntpd.conf
 check "installed OpenNTPD policy has the exact listener, query source, peers, and constraint" ntpd_policy_is_canonical
-check "OpenNTPD has both pinned peers, is synchronized, and has a median HTTPS constraint" ntp_is_healthy
 check "installed sshd config parses" sshd -t -f /etc/ssh/sshd_config
 
 if [ "$fail" -ne 0 ]; then
   die "host validation failed; leave Rule 940 disabled and recover from the local console"
+fi
+
+step "Wait for OpenNTPD health"
+if wait_for_ntp_health; then
+  ok "OpenNTPD has both pinned peers, is synchronized, and has a median HTTPS constraint"
+else
+  printf 'last OpenNTPD status:\n' >&2
+  ntpctl -s all >&2 || true
+  die "NTP not ready/healthy after 180s; leave Rule 940 disabled and inspect PF counters and upstream reachability from the local console"
 fi
 ok "local host validation passed"

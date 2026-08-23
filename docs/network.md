@@ -78,9 +78,9 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
 *Shows how devices map to VLANs and the routing/trunk relationships. For exact physical ports and media types see the Detail view below — the two are consistent, not conflicting.*
 
 ```text
-[WAN]      AT&T Fiber · Port 9 ───┐
+[WAN]      AT&T Fiber · Port 9 ────┐
                                    ├──► (Dual-WAN Failover)
-           Spectrum · Port 8 ─────┘            │
+           Spectrum · Port 8 ──────┘            │
  [CORE]                                        ▼
          +──────────────────────────────────────────────────────────────+
          |                    UniFi Dream Machine Pro                   |
@@ -111,7 +111,7 @@ The choices below are deliberate and non-obvious. They are summarized here so a 
                                                   [V105 local camera segment]
                                                 cameras ↔ minis 192.168.105.1
                                                     Gi1/0/37-47 ↔ Gi1/0/48
-                                                     no gateway or bridge
+                                     same minis host as Port 3; no routed gateway or bridge
 ```
 
 ### Detail (Physical / Port View)
@@ -196,7 +196,19 @@ The Cisco Catalyst 3850 acts **strictly as an L2 switch**. All inter-VLAN routin
 
 ## 🔒 Planned Firewall & Traffic Flow Matrix
 
-The UDM will follow a **Default Deny** inter-VLAN policy once the pending rules are deployed. Traffic will be explicitly blocked unless defined below, with stateful inspection allowing legitimate return traffic. Any omitted inter-VLAN flow will be denied by default, including Servers/VLAN 20 → Admin/VLAN 10. **WAN/internet egress is a separate axis from inter-VLAN policy:** the target design allows outbound internet by default for VLANs 20, 30, 60, and 80, and denies it for VLAN 10 except for tightly scoped infrastructure exceptions.
+The UDM target is **deny by explicit policy**, implemented with the numbered
+broad drop rules below over UniFi's built-in Internal-to-Internal allow
+behavior. Specific allows precede those drops, and stateful inspection permits
+legitimate return traffic. An omitted inter-VLAN flow is a policy defect to
+resolve explicitly before deployment, not an implicit deny. Do not enable
+one-click Network Isolation or add an unlisted catch-all inter-VLAN drop: the
+documented break-glass procedure depends on Rule 940 being the sole
+Trusted/VLAN 30 → Admin/VLAN 10 drop, so disabling it temporarily restores the
+built-in routed access for that direction. Servers/VLAN 20 → Admin/VLAN 10
+remains denied explicitly by Rule 920. **WAN/internet egress is a separate axis
+from inter-VLAN policy:** the target design allows outbound internet by default
+for VLANs 20, 30, 60, and 80, and denies it for VLAN 10 except for tightly
+scoped infrastructure exceptions.
 
 Rule order matters during implementation. In UniFi, place specific allow rules above broader drop rules. Keep inter-VLAN rules in the LAN/local traffic policy area and keep WAN/internet egress policy separate.
 

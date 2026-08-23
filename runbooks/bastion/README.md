@@ -165,10 +165,14 @@ doas runbooks/bastion/03-validate.sh
 
 Activation is the first real execution of the rendered parent and VLAN
 `ifconfig` commands. It runs with `set -e`, and its explicit parent-address and
-`AUTOCONF4` assertions abort locally on failure. Do not leave the console or
+`AUTOCONF4` assertions abort locally on failure. Before changing runtime state,
+it also refuses an installed `/etc/rc.conf.local` that differs from the staged
+canonical file. Its `rcctl` actions start or stop daemons only; they do not
+rewrite that file. Do not leave the console or
 begin remote operator tests unless the immediately following
 `03-validate.sh` run confirms both VLAN addresses, exact parent/vnetid bindings,
-the default route, resolver policy, daemon state, and PF/SSH invariants.
+the default route, resolver policy, daemon state, PF/SSH invariants, and bounded
+OpenNTPD health gate.
 
 Activation first forces both forwarding sysctls to zero and loads/enables an
 interface-independent deny-all PF cutover policy. It then flushes the complete
@@ -180,10 +184,10 @@ session assertion belongs to the console-only activation script;
 `03-validate.sh` may be rerun later from either the physical console or an SSH
 session without rejecting the session that invoked it. Activation next creates
 only unattached VLAN devices needed to parse the final policy. Only after those
-operations succeed does it
-disable/stop `dhcpleased`, `resolvd`, `rad`, and `slaacd`, clear the parent's
-`AUTOCONF4` flag, remove all installer IPv4 addresses/default routes, verify that
-cleanup, and attach/configure the tagged interfaces.
+operations succeed does it confirm `dhcpleased`, `resolvd`, `rad`, and `slaacd`
+are configured disabled, stop any that remain running, clear the parent's
+`AUTOCONF4` flag, remove all installer IPv4 addresses/default routes, verify
+that cleanup, and attach/configure the tagged interfaces.
 `/etc/sysctl.conf` remains the boot-time source of truth; cutover sets
 the two values directly so a parser or unrelated sysctl entry cannot leave the
 host exposed midway through activation. After address assignment and the final
@@ -192,7 +196,11 @@ configuration, restarts OpenNTPD, and locally verifies the exact listeners:
 `10.137.30.8:22/tcp` and `10.137.10.8:123/udp`. It rejects an NTP listener on
 `10.137.30.8` or a wildcard address. The final PF policy replaces deny-all only
 after those checks, so a failure cannot expose the installer-era authentication
-policy and `antispoof` expands against the connected networks.
+policy and `antispoof` expands against the connected networks. Because that
+first OpenNTPD start occurred under deny-all only to prove its listener,
+activation restarts it once more after the final policy is active and verifies
+the listener again. This discards blocked bootstrap attempts and lets the peers
+and HTTPS constraint start with their exact egress policy available.
 That policy binds every state to the interface where it was created; the local
 validator confirms the active pass rules carry `if-bound` state semantics.
 The staged `/etc/ntpd.conf` fixes OpenNTPD to Cloudflare's two documented IPv4
@@ -201,6 +209,13 @@ anycast endpoints, sources queries from `10.137.30.8`, listens only on
 inbound UDP/123 only from VLAN 10 to that address, outbound UDP/123 only to the
 two pinned endpoints, and TCP/443 only for the `_ntp` process that retrieves the
 constraint.
+
+The local validator fails structural host, listener, configuration, and PF
+invariants immediately. Only live OpenNTPD health is allowed to converge: it
+waits up to 180 seconds for both pinned peers to become valid, the clock to
+synchronize, and a median HTTPS constraint to appear. If that bound expires, it
+prints the last `ntpctl -s all` status and reports a specific NTP health failure;
+leave Rule 940 disabled and diagnose upstream reachability from the console.
 
 Confirm the switch independently:
 
@@ -215,28 +230,34 @@ The operational mode must be trunk, native VLAN 99, and allowed list exactly
 
 ## 4. Operator and isolation tests
 
+After the local validator and Catalyst restricted-trunk checks pass, add only
+`bastion.matrix -> 10.137.30.8` to UDM DNS. Do not yet add
+`ntp.service.mgmt.matrix`, advertise DHCP option 42, publish an operator-facing
+record for `10.137.10.8`, or change Tailnet routes. From both `ryze` and `m5c`,
+confirm `bastion.matrix` resolves to `10.137.30.8`, key login succeeds, and
+root/password/keyboard-interactive login fails. Scan or probe `10.137.30.8` and
+confirm TCP/22 is the only listener. Also confirm NTP does not answer on either
+bastion address from VLAN 30.
+
 Before publishing the time service, use `ntpctl -s all` and `tcpdump` on the
 bastion to confirm both pinned peers are healthy, the clock is synchronized, a
 median HTTPS constraint is present, and every upstream UDP/123 packet sources
 from `10.137.30.8` toward only `162.159.200.1` or `162.159.200.123`. Confirm no
 upstream NTP leaves `vlan10`.
 
-Then add `bastion.matrix -> 10.137.30.8` and
-`ntp.service.mgmt.matrix -> 10.137.10.8` to UDM DNS. On the VLAN 10 network,
-advertise exactly one DHCP option 42 address: `10.137.10.8`. Confirm the retired
+Only after that health gate passes, add
+`ntp.service.mgmt.matrix -> 10.137.10.8` to UDM DNS and advertise exactly one
+DHCP option 42 address on VLAN 10: `10.137.10.8`. Confirm the retired
 `ntp.service.matrix`, `10.137.20.2` option 42 value, and Morpheus UDP/123
 exception are absent. Renew a VLAN 10 test lease, resolve the new name through
 the UDM, and inspect the lease to prove option 42 contains `.10.8` and never
 `.20.2`.
 
-From both `ryze` and `m5c`,
-verify key login succeeds and root/password/keyboard-interactive login fails.
-Scan or probe `10.137.30.8` and confirm TCP/22 is the only listener. Also confirm
-NTP does not answer on either bastion address from VLAN 30. From an Admin/VLAN 10
-test host, confirm a query to `10.137.10.8` succeeds and its reply comes from
-that address; a combined TCP/UDP scan finds only UDP/123 on `.10.8`, ICMP remains
-denied, and no other new connection to either bastion address succeeds. From
-every other reachable VLAN, confirm neither bastion address answers NTP.
+From an Admin/VLAN 10 test host, confirm a query to `10.137.10.8` succeeds and
+its reply comes from that address; a combined TCP/UDP scan finds only UDP/123 on
+`.10.8`, ICMP remains denied, and no other new connection to either bastion
+address succeeds. From every other reachable VLAN, confirm neither bastion
+address answers NTP.
 
 Representative workflows:
 
@@ -247,7 +268,7 @@ ssh -J charlie@bastion.matrix admin@10.137.10.2
 # Local HTTPS forward; browse locally to https://127.0.0.1:8443
 ssh -N -L 8443:10.137.10.1:443 charlie@bastion.matrix
 
-# Local SOCKS proxy (configure the client application for SOCKS5 localhost:1080)
+# Local SOCKS proxy for VLAN 10 targets only
 ssh -N -D 1080 charlie@bastion.matrix
 
 # Patch the bastion itself; DNS/NTP/update egress must use VLAN 30
@@ -261,8 +282,9 @@ Use `route -n show -inet`, `ifconfig`, `netstat -an`, `pfctl -sr -v`,
 sole default route, listener, states/counters, NTP peers, active HTTPS constraint,
 and expected VLAN 10 drops. Do not accept NTP validation until `ntpctl -s all`
 shows synchronized peers and a median constraint. Test ProxyJump, the local
-forward, and SOCKS against representative SSH/HTTPS endpoints. A two-client
-test must show that traffic
+forward, and SOCKS against representative SSH/HTTPS endpoints in
+`10.137.10.0/24`; forwarded connections outside that subnet are expected to
+fail. A two-client test must show that traffic
 cannot traverse the host between VLANs even when a client tries to use it as a
 gateway.
 

@@ -1,4 +1,4 @@
-description "directly connected management VLAN; no listener or gateway"
+description "directly connected management VLAN; NTP listener only; no gateway"
 parent __WIRED_IF__
 vnetid 10
 inet 10.137.10.8 255.255.255.0
