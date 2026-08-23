@@ -11,6 +11,7 @@ disks.
 |---|---|
 | `01-start-smart-tests.sh` | Starts an extended SMART test on each recorded disk that does not already have a self-test in progress. |
 | `02-check-smart-tests.sh` | Reports each test's state, coarse remaining percentage, and temperature, followed by an aggregate summary. |
+| `03-check-smart-test.sh` | Reports one concise status/temperature sample for a specified ATA or SAS disk. |
 
 Both scripts require `smartctl`, the exact serial-numbered `/dev/disk/by-id` paths,
 and non-interactive access to `sudo` after its initial credential prompt. They act
@@ -27,6 +28,16 @@ Run:
 ```bash
 ./runbooks/direct-attached-storage-migration/01-start-smart-tests.sh
 ./runbooks/direct-attached-storage-migration/02-check-smart-tests.sh
+```
+
+For a single disk, run the checker repeatedly (press Ctrl-C to stop):
+
+```bash
+while true; do
+  ./runbooks/direct-attached-storage-migration/03-check-smart-test.sh \
+    /dev/disk/by-id/wwn-0x5000c5008663d60b
+  sleep 60
+done
 ```
 
 The status helper exits nonzero if a disk is missing, cannot be queried, has a
