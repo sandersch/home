@@ -39,9 +39,10 @@ daemon_is_disabled_and_stopped() {
     ! rcctl check "$daemon" >/dev/null 2>&1
 }
 resolver_is_canonical() {
-  actual=$(awk 'NF && $1 !~ /^#/ { print }' /etc/resolv.conf)
-  expected=$(printf '%s\n' 'nameserver 10.137.30.1' 'lookup file bind')
-  [ "$actual" = "$expected" ]
+  cmp -s "$HOST_SOURCE/etc/resolv.conf" /etc/resolv.conf
+}
+pf_policy_is_canonical() {
+  cmp -s "$HOST_SOURCE/etc/pf.conf" /etc/pf.conf
 }
 vlan_has_parent_and_tag() {
   iface=$1
@@ -90,14 +91,7 @@ vlan10_ntp_exception_is_exact() {
     printf '%s\n' "$ntp_rules" | grep -Eq '^pass in quick on vlan10 inet proto udp from 10\.137\.10\.0/24 to 10\.137\.10\.8 port = 123 keep state '
 }
 ntpd_policy_is_canonical() {
-  active=$(awk 'NF && $1 !~ /^#/ { print }' /etc/ntpd.conf)
-  expected=$(printf '%s\n' \
-    'query from 10.137.30.8' \
-    'listen on 10.137.10.8' \
-    'server 162.159.200.1' \
-    'server 162.159.200.123' \
-    'constraint from "https://www.google.com/"')
-  [ "$active" = "$expected" ]
+  cmp -s "$HOST_SOURCE/etc/ntpd.conf" /etc/ntpd.conf
 }
 ntp_is_healthy() {
   status=$(ntpctl -s all) || return 1
@@ -131,7 +125,7 @@ check "dhcpleased is disabled and stopped" daemon_is_disabled_and_stopped dhcple
 check "resolvd is disabled and stopped" daemon_is_disabled_and_stopped resolvd
 check "rad is disabled and stopped" daemon_is_disabled_and_stopped rad
 check "slaacd is disabled and stopped" daemon_is_disabled_and_stopped slaacd
-check "/etc/resolv.conf contains only the canonical VLAN 30 resolver policy" resolver_is_canonical
+check "installed resolver policy exactly matches the canonical source" resolver_is_canonical
 check "only vlan10 and vlan30 VLAN interfaces exist" only_expected_vlans
 check "vlan10 uses the recorded physical parent and vnetid 10" vlan_has_parent_and_tag vlan10 10
 check "vlan30 uses the recorded physical parent and vnetid 30" vlan_has_parent_and_tag vlan30 30
@@ -144,13 +138,14 @@ check "the only non-loopback TCP listener is 10.137.30.8:22" only_external_tcp_l
 check "the only non-loopback NTP listener is 10.137.10.8:123/udp" only_expected_ntp_listener
 check "PF is enabled" sh -c 'pfctl -s info | grep -q "Status: Enabled"'
 check "PF has no NAT or redirection rules" no_nat_or_rdr
+check "installed PF policy exactly matches the canonical source" pf_policy_is_canonical
 check "all active PF pass states are interface-bound" pf_states_are_interface_bound
 check "active PF ruleset contains the VLAN 10 deny limiter and fallback" vlan10_deny_limiter_is_loaded
 check "active PF ruleset contains exactly the VLAN 10 NTP exception" vlan10_ntp_exception_is_exact
 check "no bridge, routing/relay, RA, or SLAAC component is active" no_forwarding_or_autoconf_components
 check "installed PF config parses" pfctl -nf /etc/pf.conf
 check "installed ntpd config parses" ntpd -n -f /etc/ntpd.conf
-check "installed OpenNTPD policy has the exact listener, query source, peers, and constraint" ntpd_policy_is_canonical
+check "installed OpenNTPD policy exactly matches the canonical source" ntpd_policy_is_canonical
 check "installed sshd config parses" sshd -t -f /etc/ssh/sshd_config
 
 if [ "$fail" -ne 0 ]; then

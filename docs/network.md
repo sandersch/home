@@ -543,7 +543,7 @@ Create these forward (A) records on the UDM resolver. The network's local domain
 
 * [X] Set `vtp mode transparent` so the switch manages its own VLAN database locally and does not participate in VTP (matches the topology diagram).
 * [X] Build out global VLAN tables database: `vlan 10,20,30,60,80,99,105`.
-* [X] Set the management SVI default gateway: `ip default-gateway 10.137.10.1`. As a pure L2 switch (no `ip routing`), the VLAN 10 SVI (`10.137.10.2`) needs this for off-subnet reachability; routine operator SSH will originate from the directly connected bastion VLAN 10 address.
+* [X] Set the management SVI default gateway: `ip default-gateway 10.137.10.1`. As a pure L2 switch (no `ip routing`), the VLAN 10 SVI (`10.137.10.2`) needs this return path for temporary UDM-routed break-glass management from VLAN 30 while Rule 940 is disabled. Routine operator SSH and NTP originate from the directly connected bastion VLAN 10 address and do not use this gateway.
 * [X] Provision SFP+ Uplink port `Te1/1/4` as a standard 802.1Q trunk. Force `switchport trunk native vlan 99` and set `switchport trunk allowed vlan 10,20,30,60,80,99` (VLAN 99 is included so the trunk carries its own native VLAN). Exclude VLAN 105 from the trunk.
 * [ ] Confirm `Gi1/0/5` and both `.8` addresses are unused. Install and patch
   OpenBSD while `Gi1/0/5` remains access VLAN 30. The installer network must use

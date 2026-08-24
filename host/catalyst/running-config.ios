@@ -57,8 +57,9 @@ interface Vlan10
  ip address 10.137.10.2 255.255.255.0
  no shutdown
 !
-! Reach the VLAN 30 bastion and other off-subnet sources via the UDM. Required
-! because the L2 switch has no routing table of its own.
+! Return path for temporary UDM-routed break-glass management from VLAN 30
+! while Rule 940 is disabled. Steady-state bastion SSH and NTP originate from
+! directly connected 10.137.10.8 and do not use this gateway.
 ip default-gateway 10.137.10.1
 ! Use the bastion's VLAN 10-only OpenNTPD service. Apply only after the bastion
 ! listener, upstream synchronization, and PF exception pass validation.

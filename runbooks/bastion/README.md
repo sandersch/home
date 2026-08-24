@@ -127,10 +127,20 @@ exercise the split `parent`/`vnetid` declarations or the parent's
 `inet -autoconf`/`-inet` commands against the kernel. Keep the local console
 open. Re-run staging safely if needed.
 
+Do not reboot after staging until `Gi1/0/5` has been converted to the canonical
+restricted trunk and activation and local validation have passed. A reboot in
+that interval applies the tagged interface files and VLAN 30-only SSH listener
+while the switch port is still untagged access VLAN 30, so remote access is
+expected to be unavailable. If an unplanned reboot occurs, keep Rule 940
+disabled and recover from the Wyse console: restore or establish Catalyst
+management access, complete the restricted-trunk cutover, and rerun activation
+and local validation. Use the deployment rollback section below if the trunk
+cannot be completed safely.
+
 The local validator later confirms all four network autoconfiguration daemons
-are disabled and stopped, `/etc/resolv.conf` retains only the canonical VLAN 30
-resolver policy, and both VLAN interfaces have the recorded physical parent and
-exact expected vnetid.
+are disabled and stopped, the installed resolver, PF, and OpenNTPD policies
+exactly match their canonical source files, and both VLAN interfaces have the
+recorded physical parent and exact expected vnetid.
 
 ## 3. Catalyst trunk cutover
 
@@ -173,6 +183,13 @@ begin remote operator tests unless the immediately following
 `03-validate.sh` run confirms both VLAN addresses, exact parent/vnetid bindings,
 the default route, resolver policy, daemon state, PF/SSH invariants, and bounded
 OpenNTPD health gate.
+
+If activation stops after changing runtime state, keep the local console open
+and Rule 940 disabled, correct the reported cause, and rerun `02-activate.sh`;
+the script reapplies deny-all before rebuilding the intended runtime state.
+Rerun `01-stage-config.sh` only when activation explicitly reports canonical
+installed-file or daemon-policy drift. Staging alone does not repair partially
+activated runtime state.
 
 Activation first forces both forwarding sysctls to zero and loads/enables an
 interface-independent deny-all PF cutover policy. It then flushes the complete
