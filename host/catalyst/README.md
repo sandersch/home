@@ -27,6 +27,10 @@ config. Then, from privileged EXEC:
    place): `crypto key generate rsa modulus 2048`. SSH won't come up without it.
    The template also installs the `admin` user's SSH public key via
    `ip ssh pubkey-chain`, so key auth should work after the host key exists.
+   That 2048-bit RSA key is **Catalyst-only**, forced by IOS-XE 16.12
+   `ip ssh pubkey-chain` accepting no other algorithm. The bastion authorizes
+   its own per-client Ed25519 keys and rejects this one; the two key sets are
+   intentionally independent and must not be re-synced.
 3. `write memory` to persist to `startup-config`.
 
 Before the bastion cutover, leave Rule 940 inactive and confirm direct SSH from

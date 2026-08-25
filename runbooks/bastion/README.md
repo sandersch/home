@@ -21,9 +21,13 @@ any ambiguity:
 - Confirm Catalyst `Gi1/0/5` is available, has no learned production MAC, and is
   still an access VLAN 30 port. Keep it that way through installation.
 - Confirm the Wyse has exactly one enabled wired NIC, the OpenBSD 7.9 hardware
-  support needed for its NIC/storage/console, a working local console, and the
-  approved SSH private key on each operator client. Disable Wi-Fi/Bluetooth in
-  BIOS even if OpenBSD would not attach it.
+  support needed for its NIC/storage/console, a working local console, and each
+  operator client's own approved Ed25519 private key. `ryze` holds
+  `charlie@ryze` and `m5c` holds `charlessanders@air`; the bastion accepts only
+  those two, listed in `host/bastion/home/charlie/.ssh/authorized_keys`. The
+  separate RSA key in the Catalyst config is for `10.137.10.2` only and is not
+  accepted here. Disable Wi-Fi/Bluetooth in BIOS even if OpenBSD would not
+  attach it.
 - Fetch the official OpenBSD 7.9 amd64 install image and `SHA256.sig` over HTTPS.
   Verify it with the release signing key documented by OpenBSD before writing
   installation media; do not treat HTTPS alone as signature verification. See
@@ -251,8 +255,12 @@ After the local validator and Catalyst restricted-trunk checks pass, add only
 `bastion.matrix -> 10.137.30.8` to UDM DNS. Do not yet add
 `ntp.service.mgmt.matrix`, advertise DHCP option 42, publish an operator-facing
 record for `10.137.10.8`, or change Tailnet routes. From both `ryze` and `m5c`,
-confirm `bastion.matrix` resolves to `10.137.30.8`, key login succeeds, and
-root/password/keyboard-interactive login fails. Scan or probe `10.137.30.8` and
+confirm `bastion.matrix` resolves to `10.137.30.8`, login with that client's own
+Ed25519 key succeeds, and root/password/keyboard-interactive login fails. Both
+clients must be tested: each authorizes a different key, so a success from one
+proves nothing about the other. Confirm the Catalyst RSA key is rejected by the
+bastion (`ssh -o IdentitiesOnly=yes -i <rsa-key> charlie@bastion.matrix` must
+fail) while ProxyJump to `10.137.10.2` with it still succeeds. Scan or probe `10.137.30.8` and
 confirm TCP/22 is the only listener. Also confirm NTP does not answer on either
 bastion address from VLAN 30.
 
