@@ -13,15 +13,15 @@ and only then loads the persistent policy that admits VLAN 30 TCP/22 and VLAN 10
 UDP/123.
 
 The host has no address on its physical parent. `vlan30` owns
-`10.137.30.8/24`, the sole default route through `10.137.30.1`, DNS, NTP/update
-egress, and the only SSH listener. `vlan10` owns `10.137.10.8/24` as a source
+`10.137.30.9/24`, the sole default route through `10.137.30.1`, DNS, NTP/update
+egress, and the only SSH listener. `vlan10` owns `10.137.10.9/24` as a source
 for operator-initiated management sessions and the only OpenNTPD listener. PF,
 SSH, and forwarding settings prevent it from becoming a router or exposing any
 other service on Admin/VLAN 10.
 PF states are interface-bound so established traffic cannot match on the other
 VLAN before its interface-specific rules are evaluated.
 OpenNTPD queries only Cloudflare's documented IPv4 anycast NTP endpoints and
-uses an independent HTTPS constraint. It listens only on `10.137.10.8`; PF
+uses an independent HTTPS constraint. It listens only on `10.137.10.9`; PF
 permits inbound UDP/123 only from `10.137.10.0/24`, outbound UDP/123 only to the
 two pinned addresses through VLAN 30, and TCP/443 for the `_ntp` user that
 retrieves the constraint.

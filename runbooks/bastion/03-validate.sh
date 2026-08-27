@@ -55,13 +55,13 @@ vlan_has_parent_and_tag() {
 }
 only_external_tcp_listener() {
   listeners=$(netstat -an -f inet | awk '$1 == "tcp" && $6 == "LISTEN" && $4 !~ /^127\./ { print $4 }')
-  [ "$listeners" = "10.137.30.8.22" ]
+  [ "$listeners" = "10.137.30.9.22" ]
 }
 only_expected_ntp_listener() {
   listeners=$(netstat -an -f inet | awk '
     $1 == "udp" && $4 ~ /\.123$/ && $4 !~ /^127\./ { print $4 }
   ')
-  [ "$listeners" = "10.137.10.8.123" ]
+  [ "$listeners" = "10.137.10.9.123" ]
 }
 no_nat_or_rdr() { [ -z "$(pfctl -sn 2>/dev/null)" ]; }
 pf_states_are_interface_bound() {
@@ -130,12 +130,12 @@ check "only vlan10 and vlan30 VLAN interfaces exist" only_expected_vlans
 check "vlan10 uses the recorded physical parent and vnetid 10" vlan_has_parent_and_tag vlan10 10
 check "vlan30 uses the recorded physical parent and vnetid 30" vlan_has_parent_and_tag vlan30 30
 check "parent and both VLANs have no IPv6 address" no_ipv6
-check "vlan30 owns 10.137.30.8" sh -c "ifconfig vlan30 | grep -q 'inet 10.137.30.8 '"
-check "vlan10 owns 10.137.10.8" sh -c "ifconfig vlan10 | grep -q 'inet 10.137.10.8 '"
+check "vlan30 owns 10.137.30.9" sh -c "ifconfig vlan30 | grep -q 'inet 10.137.30.9 '"
+check "vlan10 owns 10.137.10.9" sh -c "ifconfig vlan10 | grep -q 'inet 10.137.10.9 '"
 check "sole default route is via 10.137.30.1" one_default
 check "IPv4 and IPv6 forwarding are disabled" forwarding_off
-check "the only non-loopback TCP listener is 10.137.30.8:22" only_external_tcp_listener
-check "the only non-loopback NTP listener is 10.137.10.8:123/udp" only_expected_ntp_listener
+check "the only non-loopback TCP listener is 10.137.30.9:22" only_external_tcp_listener
+check "the only non-loopback NTP listener is 10.137.10.9:123/udp" only_expected_ntp_listener
 check "PF is enabled" sh -c 'pfctl -s info | grep -q "Status: Enabled"'
 check "PF has no NAT or redirection rules" no_nat_or_rdr
 check "installed PF policy exactly matches the canonical source" pf_policy_is_canonical

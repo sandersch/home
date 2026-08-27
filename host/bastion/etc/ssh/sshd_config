@@ -1,6 +1,6 @@
 # Single-purpose bastion: key-only access on the operator-side address.
 AddressFamily inet
-ListenAddress 10.137.30.8:22
+ListenAddress 10.137.30.9:22
 PermitRootLogin no
 PubkeyAuthentication yes
 PasswordAuthentication no

@@ -20,7 +20,7 @@ verify_ntp_listener() {
   ntp_listeners=$(netstat -an -f inet | awk '
     $1 == "udp" && $4 ~ /\.123$/ && $4 !~ /^127\./ { print $4 }
   ')
-  [ "$ntp_listeners" = "10.137.10.8.123" ] || \
+  [ "$ntp_listeners" = "10.137.10.9.123" ] || \
     die "unexpected non-loopback NTP listeners $phase: ${ntp_listeners:-none}"
 }
 
@@ -46,7 +46,7 @@ pfctl -F states >/dev/null
 remaining_pf_states=$(pfctl -ss) || die "could not inspect the PF state table after the cutover flush"
 [ -z "$remaining_pf_states" ] || die "PF state table is not empty after the cutover flush"
 remaining_ssh_sessions=$(netstat -an -f inet | awk '
-  $1 == "tcp" && $4 == "10.137.30.8.22" && $6 == "ESTABLISHED" { print }
+  $1 == "tcp" && $4 == "10.137.30.9.22" && $6 == "ESTABLISHED" { print }
 ')
 [ -z "$remaining_ssh_sessions" ] || \
   die "an installer-era SSH session remains established after the cutover flush"
@@ -110,7 +110,7 @@ rcctl restart ntpd
 ssh_listeners=$(netstat -an -f inet | awk '
   $1 == "tcp" && $6 == "LISTEN" && $4 !~ /^127\./ { print $4 }
 ')
-[ "$ssh_listeners" = "10.137.30.8.22" ] || \
+[ "$ssh_listeners" = "10.137.30.9.22" ] || \
   die "unexpected non-loopback TCP listeners before opening PF: ${ssh_listeners:-none}"
 verify_ntp_listener "before opening PF"
 

@@ -1,6 +1,6 @@
 description "directly connected management VLAN; NTP listener only; no gateway"
 parent __WIRED_IF__
 vnetid 10
-inet 10.137.10.8 255.255.255.0
+inet 10.137.10.9 255.255.255.0
 up
 -inet6

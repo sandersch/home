@@ -39,10 +39,10 @@ Before the bastion cutover, leave Rule 940 inactive and confirm direct SSH from
 reach the UDM). After the bastion is operational, confirm ProxyJump through
 `bastion.matrix` can SSH to `10.137.10.2` before enabling Rule 940; that is the
 steady-state management path, not an initial bring-up dependency.
-Apply `ntp server 10.137.10.8` only after the bastion reports synchronized
+Apply `ntp server 10.137.10.9` only after the bastion reports synchronized
 upstream peers, a median HTTPS constraint, the exact VLAN 10-only listener, and
 a successful VLAN 10 client query. Confirm `show ntp associations` and
-`show ntp status` identify `.10.8` as the synchronization source. Save the
+`show ntp status` identify `.10.9` as the synchronization source. Save the
 switch configuration only after the complete bastion reboot and controlled
 AC-loss gate passes.
 
@@ -63,7 +63,7 @@ If it fails after Rule 940 has been enabled, use one of these recovery modes:
    Enter `enable` if needed and verify `show privilege` before changing
    `Gi1/0/5` for a locally attended repair or reinstall.
 
-Reassigning `10.137.30.8` to the physical parent of an already-hardened bastion
+Reassigning `10.137.30.9` to the physical parent of an already-hardened bastion
 does not restore network access because its canonical PF policy permits traffic
 only on tagged `vlan30`. Repair it locally or reinstall it on the temporary
 access port; do not weaken PF for temporary remote access. The exact access-port
