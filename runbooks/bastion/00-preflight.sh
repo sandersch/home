@@ -14,7 +14,10 @@ command -v pfctl >/dev/null || die "pfctl is missing"
 command -v sshd >/dev/null || die "sshd is missing"
 command -v syspatch >/dev/null || die "syspatch is missing"
 [ -x /usr/X11R6/bin/X ] && die "X sets appear to be installed; rebuild with base/manual sets only"
-command -v cc >/dev/null 2>&1 && die "compiler set appears to be installed; rebuild with base/manual sets only"
+# OpenBSD 7.9's base set includes cc, ld, and make.  A standard C header is a
+# comp79.tgz-only marker; testing command -v cc incorrectly rejects a base-only
+# installation.
+[ -e /usr/include/stdio.h ] && die "compiler set appears to be installed; rebuild with base/manual sets only"
 if command -v pkg_info >/dev/null; then
   non_firmware_packages=$(pkg_info -q 2>/dev/null | grep -Ev '(^|-)firmware-[0-9]' || true)
   [ -z "$non_firmware_packages" ] || die "non-firmware packages are installed: $non_firmware_packages"
