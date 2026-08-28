@@ -25,13 +25,52 @@ config. Then, from privileged EXEC:
    and console access remains the recovery path.
 2. **Generate the SSH host key** (one-time, after `ip domain name mgmt.matrix` is in
    place): `crypto key generate rsa modulus 2048`. SSH won't come up without it.
-   The template also installs the `admin` user's SSH public key via
-   `ip ssh pubkey-chain`, so key auth should work after the host key exists.
+   The template installs distinct `admin` SSH public keys for `ryze` and `m5c`
+   via `ip ssh pubkey-chain`, so either operator client can authenticate after
+   the host key exists. IOS-XE 16.12 requires RSA here: `ryze` uses its 2048-bit
+   key (`SHA256:rWsuZT8VljfeL1hOcQphPqGnvkGAUHjpjzuqqrNEvrw`) and `m5c` uses its
+   3072-bit key (`SHA256:HfrmrOW9u1li1T0HTjhaD6O7hBvEQQNWMhM4vWrkNy4`). These
+   keys are **Catalyst-only**. The bastion authorizes the clients' separate
+   Ed25519 keys and rejects both RSA keys; the key sets are intentionally
+   independent and must not be re-synced.
 3. `write memory` to persist to `startup-config`.
 
-Confirm before relying on it: `ryze` (VLAN 30) can SSH to `10.137.10.2`, the
-`Te1/1/4` trunk is up to UDM Port 10, and VLAN 105 is **absent** from
-`show interface trunk` (cameras must never reach the UDM).
+Before the bastion cutover, leave Rule 940 inactive and confirm direct SSH from
+`ryze` (`10.137.30.6`) to `10.137.10.2`, the `Te1/1/4` trunk is up to UDM Port
+10, and VLAN 105 is **absent** from `show interface trunk` (cameras must never
+reach the UDM). After the bastion is operational, confirm ProxyJump through
+`bastion.matrix` can SSH to `10.137.10.2` before enabling Rule 940; that is the
+steady-state management path, not an initial bring-up dependency.
+Apply `ntp server 10.137.10.9` only after the bastion reports synchronized
+upstream peers, a median HTTPS constraint, the exact VLAN 10-only listener, and
+a successful VLAN 10 client query. Confirm `show ntp associations` and
+`show ntp status` identify `.10.9` as the synchronization source. Save the
+switch configuration only after the complete bastion reboot and controlled
+AC-loss gate passes.
+
+## Steady-state break-glass
+
+The bastion is the routine management path, but recovery does not depend on it.
+If it fails after Rule 940 has been enabled, use one of these recovery modes:
+
+1. From VLAN 30, open the UDM UI directly at `https://10.137.30.1` and disable
+   Rule 940 to restore the pre-cutover routed-management behavior. Confirm
+   `ryze` can again SSH directly to the Catalyst at `10.137.10.2`, then change
+   `Gi1/0/5` back to access VLAN 30 if the bastion requires a reinstall. Leave
+   Rule 940 disabled until the rebuilt bastion passes its complete validation.
+2. If UDM-mediated recovery is unavailable, use the Catalyst and bastion
+   physical consoles. Rule 940 may remain enabled and remote management access
+   is not expected. The Catalyst deliberately has no console login or enable
+   secret, so privilege-15 recovery requires no network or stored credential.
+   Enter `enable` if needed and verify `show privilege` before changing
+   `Gi1/0/5` for a locally attended repair or reinstall.
+
+Reassigning `10.137.30.9` to the physical parent of an already-hardened bastion
+does not restore network access because its canonical PF policy permits traffic
+only on tagged `vlan30`. Repair it locally or reinstall it on the temporary
+access port; do not weaken PF for temporary remote access. The exact access-port
+stanza, rebuild sequence, and validation gates are in
+[`runbooks/bastion/README.md`](../../runbooks/bastion/README.md#steady-state-break-glass-after-firewall-cutover).
 
 ## Invariants this config enforces
 
@@ -40,8 +79,12 @@ invariant wins if anything here ever conflicts.)
 
 - **Strictly L2.** `ip routing` stays off. The VLAN 10 SVI is a management host
   IP only — the UDM Pro does all inter-VLAN routing.
-- **VLAN 105 is never on the trunk.** The allowed list is `10,20,30,60,80,99`.
-  Cameras are reachable only via the `minis` NVR NIC on `Gi1/0/48`.
+- **VLAN 105 is never on the uplink trunk.** The uplink allowed list is
+  `10,20,30,60,80,99`. Cameras are reachable only via the `minis` NVR NIC on
+  `Gi1/0/48`.
+- **Gi1/0/5 is the bastion-only trunk.** Its native VLAN is 99 and its allowed
+  list is exactly `10,30,99`; DTP is disabled. General VLAN 30 access ports begin
+  at Gi1/0/6.
 - **VLAN 99 is the empty blackhole native VLAN.** Both trunk ends (here and UDM
   Port 10) must agree on native VLAN 99.
 - **Camera ports are isolated from each other** (`switchport protected` +

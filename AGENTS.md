@@ -13,8 +13,8 @@ The repo is operated alongside an AI coding session on a laptop, connected over 
 **Active build.** The repo is no longer planning-only: Phases 0-4 and the initial
 Phase 5 backup/observability slice of the [build plan](./docs/build-plan.md) are
 largely implemented. Host-level Phase 0-1 config lives under
-[`host/minis/etc`](./host/minis/etc), executable runbooks cover Phases 0-5, Flux
-bootstrap output exists under
+[`host/minis/etc`](./host/minis/etc), executable runbooks cover Phases 0-5 plus
+the attended OpenBSD bastion workflow, Flux bootstrap output exists under
 [`clusters/minis/flux-system`](./clusters/minis/flux-system), infrastructure
 controllers/configs are committed, and manifests exist for the media stack, Frigate,
 Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
@@ -35,7 +35,12 @@ drill and Pushover firing and recovery notifications. Zigbee2MQTT's critical HTT
 SLZB coordinator TCP, and MQTT-native bridge-health monitoring passed live validation
 on 2026-08-16, including fresh retained health metrics, successful blackbox paths,
 and healthy rules with no active Zigbee2MQTT alert. Zigbee device pairing, Home
-Assistant MQTT discovery, and real automation use are also validated. The bulk-storage RAID enclosure
+Assistant MQTT discovery, and real automation use are also validated. The dedicated
+OpenBSD 7.9 management bastion passed its attended host, reboot, controlled AC-loss,
+NTP, operator-workflow, and three-client Rule 940 isolation gates on 2026-08-27.
+Catalyst `Gi1/0/5` now carries only tagged VLANs 10 and 30 with native VLAN 99,
+Catalyst NTP synchronizes through `10.137.10.9`, and direct Trusted/VLAN 30 access
+to Admin/VLAN 10 is disabled in steady state. The bulk-storage RAID enclosure
 was migrated intact from Morpheus to the SAS HBA in `minis` on 2026-08-10. Array,
 filesystem, reboot-assembly, and application cutover gates passed. Morpheus was
 retired the same day and remains powered off, but network-connected, as a cold spare;
@@ -44,9 +49,10 @@ representative restores passed on 2026-08-10, and more than 48 hours of post-che
 observation closed the migration gates on 2026-08-13. The first direct-array
 consistency check completed cleanly but caused Frigate I/O stalls; deterministic
 timers and a check-only `50000` KiB/s cap are installed, with attended cap validation
-deferred to the next check window. The approved numbered UDM firewall policy remains
-pending deployment and validation; its matrix is the intended end state, not current
-enforcement. Standard-tier media resource tuning passed its seven-day gate on
+deferred to the next check window. Most of the approved numbered UDM firewall policy
+remains pending deployment and validation; Rule 940 is deployed and validated, while
+the rest of the matrix remains intended end state rather than current enforcement.
+Standard-tier media resource tuning passed its seven-day gate on
 2026-08-22; Frigate tuning and deferred apps follow the migration.
 Repo-authored runtime, init, validation, recovery, and container-build images are
 immutably pinned and guarded by CI; hosted Renovate configuration proposes attended
@@ -76,6 +82,8 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | DNS (internal) | Router wildcard `*.worm.run` → MetalLB ingress IP (`10.137.20.10`, **not** the node's `.5`) | One record; ingress routes by host |
 | DNS (cameras) | **dnsmasq** host service on NIC2 subnet | DHCP for the isolated camera segment |
 | Remote access | **Tailnet + LAN only**, nothing public | Zero inbound exposure; Funnel for Plex later if needed |
+| Admin access | **In steady state, Admin/VLAN 10 is reachable only through a dedicated OpenBSD bastion** | Keeps the UDM firewall free of per-workstation management exceptions. VLAN 30 operators use key-only SSH forwarding through the dual-homed endpoint, which never routes, bridges, NATs, or advertises subnets. Temporarily disabling Rule 940 is the documented network break-glass procedure; console-only recovery remains available when the UDM cannot be used |
+| Admin NTP | **OpenNTPD on the bastion serves only `10.137.10.9:123/udp` to VLAN 10 and synchronizes upstream only through VLAN 30** | Replaces retired Morpheus NTP without routing, NAT, an inter-VLAN exception, or another host. UDM DNS publishes `ntp.service.mgmt.matrix`; DHCP option 42 advertises only `10.137.10.9` after the attended bastion validation passes |
 | VPN (downloads) | **Mullvad** via **Gluetun**, WireGuard | Strong privacy track record; provider is swappable |
 | Media server | **Plex** (lifetime pass) | Wife-acceptance + existing 100 GB metadata |
 | Storage (local) | **LVM under everything**; btrfs on `/opt`; **TopoLVM** for scratch | One VG: manual LVs for OS + `/opt` (btrfs snapshots + zstd); TopoLVM provisions enforced, resizable ext4 scratch LVs (Frigate cache, SABnzbd staging) from VG free space. Supersedes the earlier "no LVM" call — partition count + up-front sizing anxiety outweighed the abstraction overlap |
@@ -84,7 +92,7 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | Camera segment addressing | **`192.168.105.0/24`, host at `.1`**, authoritative per-camera `dnsmasq` reservations, NTP target `192.168.105.1` | Frozen once cameras are provisioned: the subnet and host/NTP address are reflected in host config and camera settings, while each camera's reserved DHCP address is baked into dnsmasq and Frigate. Renumbering therefore spans multiple systems. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
 
 Deferred / revisit later (see [operations.md](./docs/operations.md#follow-ups)):
-a replacement NTP source for VLAN 10, migration of the SLZB-MRW10U from its current
+migration of the SLZB-MRW10U from its current
 Trusted/VLAN 30 placement to IoT/VLAN 60, selected NFS exports from `minis`, a
 possible second node, Tailscale Funnel for Plex, and Immich.
 
@@ -103,8 +111,9 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   ├── migration-runbook.md
 │   ├── direct-attached-storage-migration.md
 │   └── operations.md
-├── runbooks/                  # executable host/app/backup runbooks for Phases 0–5
-├── host/                      # canonical host/switch config for manual phases (0–1)
+├── runbooks/                  # Phases 0–5 plus attended bastion/DR/migration workflows
+├── host/                      # canonical bare-metal host and switch config
+│   ├── bastion/               #   OpenBSD management bastion config mirrored to disk
 │   ├── catalyst/              #   Catalyst 3850 reference config
 │   └── minis/                 #   MINIS host config mirrored to on-disk paths
 │       ├── README.md          #   files under etc/ mirror on-disk paths. NOT cluster-

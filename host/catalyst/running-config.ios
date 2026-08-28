@@ -11,6 +11,8 @@
 !     IP only, never an inter-VLAN gateway — the UDM Pro routes everything.
 !   * VLAN 105 (cameras) is NEVER added to the Te1/1/4 uplink trunk.
 !   * VLAN 99 is the empty blackhole native VLAN on the trunk.
+!   * The Gi1/0/5 bastion stanza is committed target state; keep the live port
+!     access VLAN 30 until runbooks/bastion reaches the attended trunk cutover.
 ! ============================================================================
 
 service password-encryption
@@ -55,9 +57,13 @@ interface Vlan10
  ip address 10.137.10.2 255.255.255.0
  no shutdown
 !
-! Reach ryze (VLAN 30) and other off-subnet admins via the UDM. Required
-! because the L2 switch has no routing table of its own.
+! Return path for temporary UDM-routed break-glass management from VLAN 30
+! while Rule 940 is disabled. Steady-state bastion SSH and NTP originate from
+! directly connected 10.137.10.9 and do not use this gateway.
 ip default-gateway 10.137.10.1
+! Use the bastion's VLAN 10-only OpenNTPD service. Apply only after the bastion
+! listener, upstream synchronization, and PF exception pass validation.
+ntp server 10.137.10.9
 !
 ! Vlan1 must be explicitly shut — it exists by default on every IOS switch and
 ! must never carry traffic on a managed deployment.
@@ -90,10 +96,21 @@ interface range GigabitEthernet1/0/1-4
  spanning-tree portfast
  spanning-tree bpduguard enable
 !
+! Restricted bastion trunk. Untagged traffic is parked in empty VLAN 99; the
+! Wyse consumes only tagged VLANs 10 and 30. DTP is explicitly disabled.
+interface GigabitEthernet1/0/5
+ description bastion restricted trunk (OpenBSD)
+ switchport mode trunk
+ switchport trunk native vlan 99
+ switchport trunk allowed vlan 10,30,99
+ switchport nonegotiate
+ spanning-tree portfast trunk
+ spanning-tree bpduguard enable
+!
 ! General wired clients. Convenience default: anything plugged in just works.
 ! Unused ports stay here on VLAN 30 by design (home-network tradeoff), not
 ! disabled or parked in VLAN 99.
-interface range GigabitEthernet1/0/5-36
+interface range GigabitEthernet1/0/6-36
  description General wired clients (VLAN 30)
  switchport mode access
  switchport access vlan 30
@@ -140,11 +157,12 @@ ip ssh version 2
 ! (exec) generate the host key once after setting 'ip domain name':
 !   crypto key generate rsa modulus 2048
 !
-! Allow admin SSH public-key auth from ryze/laptop.
-! NOTE: once imported, IOS renders this key as a 'key-hash ssh-rsa' line in the
-! running-config, not the key-string below. Expected hash (MD5 of the key blob):
-!   B5AB422B09EC7E4BA530D0E87C76A750
-! Match that against 'show running-config' to confirm sync without re-importing.
+! Allow per-client admin SSH public-key auth through the bastion workflow.
+! NOTE: once imported, IOS renders each key as a 'key-hash ssh-rsa' line in the
+! running-config, not the key-string below. Expected hashes (MD5 of each key blob):
+!   charlie@ryze:          B5AB422B09EC7E4BA530D0E87C76A750
+!   charlessanders@air:    458F62C74A994B5983398C49285FC091
+! Match both against 'show running-config' to confirm sync without re-importing.
 ip ssh pubkey-chain
  username admin
   key-string
@@ -153,6 +171,15 @@ ip ssh pubkey-chain
    zoVbqhE08kQz5xwzgsAfY679xgWUmX0nXEalBWUOEE/fqlLPSwuGHgFgeNueip5XwDdw1Hd+sEvWC3fj
    BVaHsdPDftk39KX1ARGtl8XpvwUYh5TRR5EUCQt5BxHXOhTkFzXPlzhzTiJjrTfc/Cg9WjCVltrBOlwp
    M/EsuOQ/m7EVFrwaAnvNTdj2ErfqfjrKq1F1RsmdzgFyfCRHFoJB
+  exit
+  key-string
+   AAAAB3NzaC1yc2EAAAADAQABAAABgQDE7fFjmXQc8rNtT+X6FVcIxt4djx5mbf1f0dbSOTkUp53gqUs+
+   K+mxPbEOIE+rFJfFz/p11cKS8IJpzdrtO2QFLCerakSZ1F93D+qhI7MdiKYdH/NJBvOJj3lImTB212T2
+   C4Bef5K9ob2wBor0pYpcviXBXpg/SKmlCJXX0VAx5xyH6slHsg66fMkrfWMfmIwQza9LQ/AHm3Z74jbM
+   VHJifoRBNSAS4uk/5WqGakTuqciqHF5/HbT3F8tTadOGTv3I1lIkIzVhNhqjrzL3CIZcSPTTnrLSYodX
+   jbcxKJB79ILsCllfoeLyuZ8xA6k//bwrhszk+WZM5sPEa3YqhqAZQpitceJ5PhyDOwAlwzMZ2Zv4IAuQ
+   I31146Ox6u7FV9RP6G4EpQH0klwsm7Gk1klBuWH8OrDMPq2ng4NWRoh5nIMFeeLvgNqHxt82OgtQmwYf
+   MRVyF2nvwApy0Uu1W0Hi1Av+lb7NLZmixMbKHK+OesC5OXsC+2SSO1TsGyCOQYM=
   exit
 !
 ! Kill the web UIs; manage over SSH.

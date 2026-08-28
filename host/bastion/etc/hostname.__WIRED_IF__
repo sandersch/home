@@ -1,0 +1,5 @@
+description "bastion physical trunk; no layer-3 address"
+inet -autoconf
+-inet
+up
+-inet6
