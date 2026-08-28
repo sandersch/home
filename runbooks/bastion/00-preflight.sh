@@ -46,7 +46,7 @@ key_file="$HOST_SOURCE/home/charlie/.ssh/authorized_keys"
 ssh-keygen -lf "$key_file" >/dev/null || die "canonical authorized_keys is invalid"
 ok "charlie and at least one valid approved public key are present"
 
-[ "${BASTION_DEPLOYMENT_GATES_CONFIRMED:-}" = yes ] || die "first verify both .8 addresses, Gi1/0/5, install-media signatures, hardware support, local console, and key possession; then rerun with BASTION_DEPLOYMENT_GATES_CONFIRMED=yes"
+[ "${BASTION_DEPLOYMENT_GATES_CONFIRMED:-}" = yes ] || die "first verify both .9 addresses, Gi1/0/5, install-media signatures, hardware support, local console, and key possession; then rerun with BASTION_DEPLOYMENT_GATES_CONFIRMED=yes"
 
 umask 077
 printf '%s %s\n' "$WIRED_IF" "$WIRED_MAC" > "$STATE_FILE"

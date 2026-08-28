@@ -88,7 +88,7 @@ vlan10_ntp_exception_is_exact() {
     $1 == "pass" && $2 == "in" && $0 ~ /on vlan10 / && $0 ~ /port = 123/ { print }
   ')
   [ "$(printf '%s\n' "$ntp_rules" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 1 ] &&
-    printf '%s\n' "$ntp_rules" | grep -Eq '^pass in quick on vlan10 inet proto udp from 10\.137\.10\.0/24 to 10\.137\.10\.8 port = 123 keep state '
+    printf '%s\n' "$ntp_rules" | grep -Eq '^pass in quick on vlan10 inet proto udp from 10\.137\.10\.0/24 to 10\.137\.10\.9 port = 123 keep state '
 }
 ntpd_policy_is_canonical() {
   cmp -s "$HOST_SOURCE/etc/ntpd.conf" /etc/ntpd.conf
