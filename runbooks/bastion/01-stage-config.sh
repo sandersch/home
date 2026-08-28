@@ -50,6 +50,9 @@ for name in "$WIRED_IF" vlan10 vlan30; do
   file="$tmpdir/etc/hostname.$name"
   [ -s "$file" ] || die "rendered $file is empty"
   grep -q '__WIRED_IF__' "$file" && die "unrendered interface token in $file"
+  description=$(sed -n 's/^description "\(.*\)"$/\1/p' "$file")
+  [ -n "$description" ] || die "$file has no quoted interface description"
+  [ "${#description}" -le 63 ] || die "$file interface description exceeds OpenBSD's 63-character limit"
 done
 grep -qx "parent $WIRED_IF" "$tmpdir/etc/hostname.vlan10" || die "vlan10 parent mismatch"
 grep -qx "parent $WIRED_IF" "$tmpdir/etc/hostname.vlan30" || die "vlan30 parent mismatch"
