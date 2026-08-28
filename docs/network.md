@@ -422,8 +422,8 @@ Use this table when creating DHCP reservations, static host records, ISP records
 | `minis` camera-side NIC | 105 | `192.168.105.1` | `38:05:25:35:fb:d2` | Static local NVR/NTP endpoint |
 | `ryze` desktop | 30 | `10.137.30.6` | `a8:a1:59:51:47:4e` | Static or UDM DHCP reservation |
 | `hardcopy` | 30 | `10.137.30.8` | `6c:02:e0:f3:9a:9c` | UDM fixed-IP reservation |
-| `bastion` tagged Admin interface | 10 | `10.137.10.9` | Wyse wired MAC: **TBD at guarded preflight** | Static; inventory-only, not an operator DNS entry point |
-| `bastion` tagged Trusted interface | 30 | `10.137.30.9` | Same Wyse wired MAC: **TBD at guarded preflight** | Static; sole SSH listener and default route |
+| `bastion` tagged Admin interface | 10 | `10.137.10.9` | `c0:25:a5:5e:4b:bf` | Static; inventory-only, not an operator DNS entry point |
+| `bastion` tagged Trusted interface | 30 | `10.137.30.9` | `c0:25:a5:5e:4b:bf` | Static; sole SSH listener and default route |
 | SLZB-MRW10U dual-radio coordinator | 30 currently; target 60 | Current `10.137.30.11`; target `10.137.60.11` TBD | `ea:f6:0a:d0:9c:58` | Current UDM fixed-IP reservation; create a stable VLAN 60 reservation before migration |
 | RATGDO `ratgdo0` | 60 | `10.137.60.12` | `28:05:a5:4f:f0:58` | UDM fixed-IP reservation; offline at inventory |
 | `m5c` Wi-Fi | 30 | DHCP `10.137.30.x` | `aa:9a:b7:f2:ea:2d` | DHCP; private MAC disabled |
@@ -500,8 +500,8 @@ Create or retain these forward (A) records on the UDM resolver. The network's lo
 * **bastion (Wyse 5070 management bastion)**
   * *Connection:* Catalyst `Gi1/0/5` restricted trunk; native VLAN 99, tagged
     VLANs 10 and 30 only
-  * *IP / MAC:* `10.137.10.9` (VLAN 10) and `10.137.30.9` (VLAN 30) | MAC TBD,
-    recorded from `/var/db/bastion-wired-nic` after guarded preflight
+  * *IP / MAC:* `10.137.10.9` (VLAN 10) and `10.137.30.9` (VLAN 30) |
+    `c0:25:a5:5e:4b:bf` (`re0`), recorded by guarded preflight
   * *Role:* Sole VLAN 10 administrative entry path; no routing, bridging, NAT,
     remote subnet advertisement, application state, operator private key, or
     device credential. Unique host-local account passwords support console
@@ -561,7 +561,7 @@ Create or retain these forward (A) records on the UDM resolver. The network's lo
 * [X] Build out global VLAN tables database: `vlan 10,20,30,60,80,99,105`.
 * [X] Set the management SVI default gateway: `ip default-gateway 10.137.10.1`. As a pure L2 switch (no `ip routing`), the VLAN 10 SVI (`10.137.10.2`) needs this return path for temporary UDM-routed break-glass management from VLAN 30 while Rule 940 is disabled. Routine operator SSH and NTP originate from the directly connected bastion VLAN 10 address and do not use this gateway.
 * [X] Provision SFP+ Uplink port `Te1/1/4` as a standard 802.1Q trunk. Force `switchport trunk native vlan 99` and set `switchport trunk allowed vlan 10,20,30,60,80,99` (VLAN 99 is included so the trunk carries its own native VLAN). Exclude VLAN 105 from the trunk.
-* [ ] Confirm `Gi1/0/5` and both `.8` addresses are unused. Install and patch
+* [ ] Confirm `Gi1/0/5` and both `.9` addresses are unused. Install and patch
   OpenBSD while `Gi1/0/5` remains access VLAN 30. The installer network must use
   static `10.137.30.9/24` with gateway/DNS `10.137.30.1`; the transfer path and
   staged SSH listener depend on that exact address. Then locally stage and parse
