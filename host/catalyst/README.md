@@ -25,12 +25,14 @@ config. Then, from privileged EXEC:
    and console access remains the recovery path.
 2. **Generate the SSH host key** (one-time, after `ip domain name mgmt.matrix` is in
    place): `crypto key generate rsa modulus 2048`. SSH won't come up without it.
-   The template also installs the `admin` user's SSH public key via
-   `ip ssh pubkey-chain`, so key auth should work after the host key exists.
-   That 2048-bit RSA key is **Catalyst-only**, forced by IOS-XE 16.12
-   `ip ssh pubkey-chain` accepting no other algorithm. The bastion authorizes
-   its own per-client Ed25519 keys and rejects this one; the two key sets are
-   intentionally independent and must not be re-synced.
+   The template installs distinct `admin` SSH public keys for `ryze` and `m5c`
+   via `ip ssh pubkey-chain`, so either operator client can authenticate after
+   the host key exists. IOS-XE 16.12 requires RSA here: `ryze` uses its 2048-bit
+   key (`SHA256:rWsuZT8VljfeL1hOcQphPqGnvkGAUHjpjzuqqrNEvrw`) and `m5c` uses its
+   3072-bit key (`SHA256:HfrmrOW9u1li1T0HTjhaD6O7hBvEQQNWMhM4vWrkNy4`). These
+   keys are **Catalyst-only**. The bastion authorizes the clients' separate
+   Ed25519 keys and rejects both RSA keys; the key sets are intentionally
+   independent and must not be re-synced.
 3. `write memory` to persist to `startup-config`.
 
 Before the bastion cutover, leave Rule 940 inactive and confirm direct SSH from

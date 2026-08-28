@@ -8,14 +8,13 @@
 * Dual WAN (AT&T + Spectrum)
 
 > **Implementation status:** the topology, Catalyst configuration, and isolated camera
-> path are substantially deployed, but the numbered UDM firewall policy below is the
-> approved target design and is still pending implementation and validation. Statements
-> in the firewall matrix describe intended end state, not current enforcement.
-> The OpenBSD bastion host, `Gi1/0/5` trunk stanza, bastion/NTP DNS records,
-> VLAN 10 DHCP option 42, and Rule 940
-> cutover are likewise committed target state but not yet deployed; the
-> port remains access VLAN 30 until the attended bastion runbook reaches its
-> trunk-cutover step.
+> path are substantially deployed, but most of the numbered UDM firewall policy below
+> remains an approved target design pending implementation and validation. Statements
+> in the firewall matrix therefore describe intended end state except where deployment
+> is recorded explicitly. The OpenBSD bastion, restricted `Gi1/0/5` trunk,
+> bastion/NTP DNS records, VLAN 10 DHCP option 42, Catalyst NTP client, and
+> unconditional Rule 940 cutover were deployed and passed their attended host, reboot,
+> AC-loss, NTP, operator, and three-client isolation gates on 2026-08-27.
 
 ---
 
@@ -383,10 +382,11 @@ through to the VM; VLAN policy should stay outside the guest.
   * *Addressing:* The physical parent is unnumbered. Tagged `vlan30` owns
     `10.137.30.9/24`, the only SSH listener, and the sole default route through
     `10.137.30.1`; tagged `vlan10` owns `10.137.10.9/24` for bastion-originated
-    management sessions only. The wired MAC remains TBD until guarded preflight.
-  * *Status:* **Committed target state, not yet deployed.** Catalyst `Gi1/0/5`
-    remains access VLAN 30 until the attended bastion runbook reaches trunk
-    cutover.
+    management sessions only. The wired `re0` MAC is `c0:25:a5:5e:4b:bf`.
+  * *Status:* **Installed and operational as of 2026-08-27.** The attended
+    deployment, reboot, controlled AC-loss, NTP, operator-workflow, and Rule 940
+    isolation gates passed; Catalyst startup-config contains the validated trunk
+    and NTP source.
 
 * **YuanLey 6-Port 2.5G PoE Switch (Unmanaged)**
   * *Roles:* Dedicated power/data extension for the wireless access point.
@@ -536,20 +536,20 @@ Create or retain these forward (A) records on the UDM resolver. The network's lo
 * [X] Commit custom port mapping profiles on UDM built-in interfaces (Port 1 → V30, Port 2 → V20, Port 3 → V20).
 * [X] Configure UDM Port 10 as the Catalyst trunk profile: **Native/Untagged VLAN 99** (blackhole) to match the Catalyst's `switchport trunk native vlan 99`, plus tagged VLANs 10, 20, 30, 60, and 80. Both ends must agree on native VLAN 99 — a native-VLAN mismatch here would land untagged traffic in a live VLAN and defeat the blackhole design.
 * [X] Configure UDM Port 11 as the WAP uplink profile: Native/Untagged VLAN 10 for AP management; Tagged VLANs 30, 60, and 80 for SSID client traffic.
-* [ ] After the bastion tagged interfaces, PF, SSH listener, and Catalyst trunk
+* [X] After the bastion tagged interfaces, PF, SSH listener, and Catalyst trunk
   pass their initial local checks, add `bastion.matrix` → `10.137.30.9` to UDM
   DNS before the VLAN 30 operator tests. Do not add an operator-facing record
   for `10.137.10.9`, and do not change Tailnet routes. This reversible DNS step
   does not authorize the Rule 940 firewall cutover.
-* [ ] After the bastion also has synchronized peers, a median HTTPS constraint,
+* [X] After the bastion also has synchronized peers, a median HTTPS constraint,
   and exactly `10.137.10.9:123/udp` listening, add
   `ntp.service.mgmt.matrix` → `10.137.10.9` and advertise only `10.137.10.9`
   through VLAN 10 DHCP option 42. Renew a test lease and prove `.20.2` is absent.
   Keep `ntp.service.matrix` and the Morpheus UDP/123 exception retired.
 * [X] **Verify VLAN tag-transparency through the unmanaged YuanLey switch:** connect a client to the Guest SSID and confirm it receives a `10.137.80.x` address (and an IoT-SSID client a `10.137.60.x` address) — *not* a `10.137.10.x` management address. A management-range lease means the YuanLey is stripping tags and the SSID separation has silently collapsed onto the management VLAN. If this fails, replace the YuanLey with a managed 2.5G PoE switch or temporarily move the AP to a Catalyst 1G port while preserving SSID VLAN separation.
 * [ ] Migrate the SLZB-MRW10U from Trusted/VLAN 30 to IoT/VLAN 60: verify its inventoried current `10.137.30.11` / `ea:f6:0a:d0:9c:58` identity, create a stable VLAN 60 UDM reservation, stage Rule 140 for TCP `6638`/`7638`, update `slzb-mrw10u.iot.matrix`, move the appliance, and rerun the Z-Wave JS UI, Zigbee2MQTT, and Zigbee2MQTT-monitoring validators. Preserve the fixed DNS name; do not enable mDNS reflection for this path.
-* [ ] Deploy the numbered firewall rules from the Firewall & Traffic Flow Matrix in order: specific allows first, broad inter-VLAN drops second, WAN/internet egress policy separately. Enable Rule 940 as an unconditional Trusted/VLAN 30 → Admin/VLAN 10 drop only after the bastion passes its full validation. Preserve Rule 140 and other justified service-specific flows.
-* [ ] Verify `ryze`, `m5c`, and another Trusted/VLAN 30 client cannot reach VLAN 10 directly but can reach `bastion.matrix:22` and use it for the documented ProxyJump, HTTPS local-forward, and SOCKS workflows.
+* [ ] Deploy the remaining numbered firewall rules from the Firewall & Traffic Flow Matrix in order: specific allows first, broad inter-VLAN drops second, WAN/internet egress policy separately. Rule 940 is the explicitly completed exception below; preserve Rule 140 and other justified service-specific flows.
+* [X] Enabled Rule 940 as an unconditional Trusted/VLAN 30 → Admin/VLAN 10 drop after the bastion passed its reboot and AC-loss validation. Verified `ryze`, `m5c`, and another Trusted/VLAN 30 client cannot reach VLAN 10 directly but can reach `bastion.matrix:22`; both operator clients also passed ProxyJump, HTTPS local-forward, and SOCKS workflows after cutover.
 * [ ] Verify a VLAN 10 client is directed only to `10.137.10.9` for NTP, receives
   a response sourced by that address, and cannot reach arbitrary VLAN 20
   services or internet NTP servers. Confirm VLAN 30 and every other reachable
@@ -561,7 +561,7 @@ Create or retain these forward (A) records on the UDM resolver. The network's lo
 * [X] Build out global VLAN tables database: `vlan 10,20,30,60,80,99,105`.
 * [X] Set the management SVI default gateway: `ip default-gateway 10.137.10.1`. As a pure L2 switch (no `ip routing`), the VLAN 10 SVI (`10.137.10.2`) needs this return path for temporary UDM-routed break-glass management from VLAN 30 while Rule 940 is disabled. Routine operator SSH and NTP originate from the directly connected bastion VLAN 10 address and do not use this gateway.
 * [X] Provision SFP+ Uplink port `Te1/1/4` as a standard 802.1Q trunk. Force `switchport trunk native vlan 99` and set `switchport trunk allowed vlan 10,20,30,60,80,99` (VLAN 99 is included so the trunk carries its own native VLAN). Exclude VLAN 105 from the trunk.
-* [ ] Confirm `Gi1/0/5` and both `.9` addresses are unused. Install and patch
+* [X] Confirm `Gi1/0/5` and both `.9` addresses are unused. Install and patch
   OpenBSD while `Gi1/0/5` remains access VLAN 30. The installer network must use
   static `10.137.30.9/24` with gateway/DNS `10.137.30.1`; the transfer path and
   staged SSH listener depend on that exact address. Then locally stage and parse
@@ -573,7 +573,7 @@ Create or retain these forward (A) records on the UDM resolver. The network's lo
 * [X] Configure `Gi1/0/1-4` as VLAN 10 access ports for IPMI/IPKVM devices.
 * [X] Configure the camera deployment ports (`Gi1/0/37-47`) per the Local Camera Isolation config block: `switchport access vlan 105`, `switchport protected` (so cameras cannot talk to each other), `switchport block unicast`, `switchport block multicast`, plus `spanning-tree portfast` and `bpduguard enable`.
 * [X] Configure the NVR camera-side ingestion port (`Gi1/0/48`) per the same block: `switchport access vlan 105` with `spanning-tree portfast` and `bpduguard enable`, but **without** `switchport protected` — this is intentional so the cameras on the protected ports can reach the `minis` NVR NIC.
-* [ ] After the bastion NTP service passes its local and VLAN 10 client gates,
+* [X] After the bastion NTP service passes its local and VLAN 10 client gates,
   apply `ntp server 10.137.10.9`, confirm the Catalyst synchronizes with `.10.9`,
   but do not save it until the reboot and AC-loss gates pass. Configure other
   static VLAN 10 devices to use `.10.9` where supported; document UDM/U7 Pro or
@@ -583,24 +583,24 @@ Create or retain these forward (A) records on the UDM resolver. The network's lo
 
 ### Network Step 2.1: Bastion validation and firewall cutover
 
-* [ ] Record the discovered Wyse Ethernet interface/MAC in the inventory and
+* [X] Record the discovered Wyse Ethernet interface/MAC in the inventory and
   confirm the parent is unnumbered, only VLANs 10/30 exist, IPv6 is absent, the
   sole default route uses `10.137.30.1`, and both forwarding sysctls are zero.
-* [ ] Confirm the Catalyst restricted trunk and the bastion's local PF/SSH/NTP
+* [X] Confirm the Catalyst restricted trunk and the bastion's local PF/SSH/NTP
   checks pass. With the bastion DNS item in [Network Step 1](#network-step-1-unifi-dream-machine-configuration)
   complete, verify from VLAN 30 that `bastion.matrix` resolves to
   `10.137.30.9`, then perform the named operator workflows below before the
   Rule 940 firewall cutover.
-* [ ] From VLAN 30, confirm only `10.137.30.9:22/tcp` accepts connections; approved
+* [X] From VLAN 30, confirm only `10.137.30.9:22/tcp` accepts connections; approved
   keys work while root, password, and keyboard-interactive authentication fail.
   Confirm neither bastion address answers NTP. From VLAN 10, confirm only
   `10.137.10.9:123/udp` answers; TCP and ICMP remain denied and Admin devices
   cannot initiate any other session to the bastion. Inspect PF counters/pflog
   for expected drops.
-* [ ] Validate ProxyJump to Catalyst SSH, HTTPS local forwarding, and SOCKS from
+* [X] Validate ProxyJump to Catalyst SSH, HTTPS local forwarding, and SOCKS from
   both `ryze` and `m5c`. Confirm host DNS/NTP/patch access leaves VLAN 30 and a
   two-client test cannot route through the host.
-* [ ] Repeat all host, DNS, DHCP option 42, NTP, scan, static-client, forwarding,
+* [X] Repeat all host, DNS, DHCP option 42, NTP, scan, static-client, forwarding,
   and operator tests after reboot and controlled AC loss. Only then remove
   the existing routed-management path by activating unconditional Rule 940. In
   a later break-glass event, disable Rule 940 through the VLAN 30 UDM UI when it

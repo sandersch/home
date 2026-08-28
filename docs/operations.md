@@ -489,12 +489,12 @@ of waiting for the default interval.
 
 Deferred deliberately; revisit when the trigger condition is met.
 
-The former VLAN 10 NTP follow-up is resolved in committed target state: the
-pending bastion deployment serves only `10.137.10.9:123/udp` to VLAN 10 and
-synchronizes upstream through VLAN 30. Its attended runbook adds
-`ntp.service.mgmt.matrix`, DHCP option 42, and supported static clients only
-after local health checks. The retired Morpheus name, advertisement, and
-firewall exception remain absent.
+The former VLAN 10 NTP follow-up was deployed and live-validated on 2026-08-27:
+the bastion serves only `10.137.10.9:123/udp` to VLAN 10 and synchronizes
+upstream through VLAN 30. `ntp.service.mgmt.matrix`, DHCP option 42, and the
+Catalyst static client were enabled only after the attended local and client
+health gates passed. The retired Morpheus name, advertisement, and firewall
+exception remain absent.
 
 | Item | When to do it |
 |---|---|

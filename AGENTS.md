@@ -35,7 +35,12 @@ drill and Pushover firing and recovery notifications. Zigbee2MQTT's critical HTT
 SLZB coordinator TCP, and MQTT-native bridge-health monitoring passed live validation
 on 2026-08-16, including fresh retained health metrics, successful blackbox paths,
 and healthy rules with no active Zigbee2MQTT alert. Zigbee device pairing, Home
-Assistant MQTT discovery, and real automation use are also validated. The bulk-storage RAID enclosure
+Assistant MQTT discovery, and real automation use are also validated. The dedicated
+OpenBSD 7.9 management bastion passed its attended host, reboot, controlled AC-loss,
+NTP, operator-workflow, and three-client Rule 940 isolation gates on 2026-08-27.
+Catalyst `Gi1/0/5` now carries only tagged VLANs 10 and 30 with native VLAN 99,
+Catalyst NTP synchronizes through `10.137.10.9`, and direct Trusted/VLAN 30 access
+to Admin/VLAN 10 is disabled in steady state. The bulk-storage RAID enclosure
 was migrated intact from Morpheus to the SAS HBA in `minis` on 2026-08-10. Array,
 filesystem, reboot-assembly, and application cutover gates passed. Morpheus was
 retired the same day and remains powered off, but network-connected, as a cold spare;
@@ -44,9 +49,10 @@ representative restores passed on 2026-08-10, and more than 48 hours of post-che
 observation closed the migration gates on 2026-08-13. The first direct-array
 consistency check completed cleanly but caused Frigate I/O stalls; deterministic
 timers and a check-only `50000` KiB/s cap are installed, with attended cap validation
-deferred to the next check window. The approved numbered UDM firewall policy remains
-pending deployment and validation; its matrix is the intended end state, not current
-enforcement. Standard-tier media resource tuning passed its seven-day gate on
+deferred to the next check window. Most of the approved numbered UDM firewall policy
+remains pending deployment and validation; Rule 940 is deployed and validated, while
+the rest of the matrix remains intended end state rather than current enforcement.
+Standard-tier media resource tuning passed its seven-day gate on
 2026-08-22; Frigate tuning and deferred apps follow the migration.
 Repo-authored runtime, init, validation, recovery, and container-build images are
 immutably pinned and guarded by CI; hosted Renovate configuration proposes attended
