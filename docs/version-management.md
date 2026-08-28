@@ -5,11 +5,12 @@ an unattended production deployment. It covers repo-authored workload, init,
 validation, recovery, and container-build images. Helm-managed images, generated Flux
 manifests, GitHub Actions versions, and k3s are outside this container-image slice.
 
-> **Status (2026-08-22): container-image slice and attended k3s lifecycle implemented.**
+> **Status (2026-08-23): container-image slice and attended k3s lifecycle implemented.**
 > The Phase 2 target pin and validated live baseline are `v1.36.3+k3s1`. Attended
-> maintenance and initial validation completed on 2026-08-22; the 24-hour observation
-> remains open in the [upgrade history](./k3s-upgrade-history.md). The bootstrap installer
-> rejects active-version drift and directs operators to the guarded upgrade runbook.
+> maintenance and initial validation completed on 2026-08-22. The 24-hour observation
+> passed and the temporary rollback artifacts were removed on 2026-08-23, as recorded
+> in the [upgrade history](./k3s-upgrade-history.md). The bootstrap installer rejects
+> active-version drift and directs operators to the guarded upgrade runbook.
 
 ## Immutable baseline
 
