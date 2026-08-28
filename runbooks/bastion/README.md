@@ -233,8 +233,10 @@ constraint.
 
 The local validator fails structural host, listener, configuration, and PF
 invariants immediately. Only live OpenNTPD health is allowed to converge: it
-waits up to 180 seconds for both pinned peers to become valid, the clock to
-synchronize, and a median HTTPS constraint to appear. If that bound expires, it
+waits up to 600 seconds for both pinned peers to become valid, the clock to
+synchronize, and a median HTTPS constraint to appear. This accommodates the
+observed seven-minute cold-boot convergence while retaining a bounded gate; a
+warm daemon restart usually converges much sooner. If that bound expires, it
 prints the last `ntpctl -s all` status and reports a specific NTP health failure;
 leave Rule 940 disabled and diagnose upstream reachability from the console.
 

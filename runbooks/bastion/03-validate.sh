@@ -100,7 +100,10 @@ ntp_is_healthy() {
     printf '%s\n' "$status" | grep -Eq '162\.159\.200\.123'
 }
 wait_for_ntp_health() {
-  timeout=180
+  # A warm ntpd restart usually synchronizes within three minutes, but a real
+  # cold boot can require several additional polling samples.  Keep the gate
+  # bounded while accommodating the observed seven-minute boot convergence.
+  timeout=600
   interval=5
   elapsed=0
   while :; do
@@ -158,6 +161,6 @@ if wait_for_ntp_health; then
 else
   printf 'last OpenNTPD status:\n' >&2
   ntpctl -s all >&2 || true
-  die "NTP not ready/healthy after 180s; leave Rule 940 disabled and inspect PF counters and upstream reachability from the local console"
+  die "NTP not ready/healthy after 600s; leave Rule 940 disabled and inspect PF counters and upstream reachability from the local console"
 fi
 ok "local host validation passed"
