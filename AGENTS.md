@@ -35,7 +35,11 @@ drill and Pushover firing and recovery notifications. Zigbee2MQTT's critical HTT
 SLZB coordinator TCP, and MQTT-native bridge-health monitoring passed live validation
 on 2026-08-16, including fresh retained health metrics, successful blackbox paths,
 and healthy rules with no active Zigbee2MQTT alert. Zigbee device pairing, Home
-Assistant MQTT discovery, and real automation use are also validated. The dedicated
+Assistant MQTT discovery, and real automation use are also validated. The NFSv4-only
+`/mnt/media` and `/mnt/games` exports passed attended server, VLAN 30 client, squash,
+NFSv3-refusal, VLAN 105/IoT/Guest/Tailnet isolation, neighbouring host-state, and
+monitoring validation on 2026-08-29. The optional `NFSServerDown` outage/Pushover
+drill remains deferred to a quiet window. The dedicated
 OpenBSD 7.9 management bastion passed its attended host, reboot, controlled AC-loss,
 NTP, operator-workflow, and three-client Rule 940 isolation gates on 2026-08-27.
 Catalyst `Gi1/0/5` now carries only tagged VLANs 10 and 30 with native VLAN 99,
