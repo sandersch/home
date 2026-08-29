@@ -60,11 +60,18 @@ protocol version. Paste this whole block on the client:
     && echo "CONTROL OK: v4.2 mounted on $d" || echo "CONTROL FAILED: fix this first"
   sudo umount "$d" 2>/dev/null
   echo "--- v3 (MUST be refused) ---"
-  sudo mount -t nfs -o vers=3 10.137.20.5:/mnt/media "$d" 2>&1 | tee /tmp/v3-test.log
+  set +e
+  sudo timeout 30 mount -vvv -t nfs \
+    -o vers=3,retry=0,timeo=10,retrans=1 \
+    10.137.20.5:/mnt/media "$d" 2>&1 | tee /tmp/v3-test.log
+  v3_status=${PIPESTATUS[0]}
+  set -e
   if mountpoint -q "$d"; then
     echo "VERDICT: FAIL - v3 mounted; the version lockdown is not in effect"
     sudo umount "$d"
-  elif grep -qiE 'not supported|Protocol not supported|Connection refused|Program not registered|RPC' /tmp/v3-test.log; then
+  elif [ "$v3_status" -eq 124 ]; then
+    echo "VERDICT: INCONCLUSIVE - v3 attempt timed out without an explicit refusal"
+  elif grep -qiE 'requested NFS version or transport protocol is not supported|Protocol not supported|Connection refused|Program not registered|RPC: [A-Z]' /tmp/v3-test.log; then
     echo "VERDICT: PASS - v3 refused at the protocol/RPC layer"
   else
     echo "VERDICT: INCONCLUSIVE - mount failed for an unrelated reason:"
