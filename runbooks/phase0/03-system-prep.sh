@@ -8,7 +8,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root; require_sudo; require_host_etc
-require_tools sysctl
+require_tools sysctl ss
 
 step "apt update + upgrade"
 sudo apt-get update
@@ -20,13 +20,39 @@ step "Install base packages"
 # Coral check and radio-blocking below — not guaranteed on a minimal server image.
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
   curl git vim sqlite3 jq age nftables dnsmasq nut chrony mdadm lvm2 smartmontools \
-  usbutils rfkill
+  usbutils rfkill nfs-kernel-server
 ok "packages installed"
 
 # Phase 0 installs dnsmasq so the dependency is present, but Phase 1 owns the
 # camera DHCP config and enables the service after /etc/dnsmasq.d/cameras.conf lands.
 sudo systemctl disable --now dnsmasq
 ok "dnsmasq installed but disabled until Phase 1 camera DHCP config is in place"
+
+# Same pattern for NFS: the package is a dependency here, but runbooks/nfs-exports/
+# owns /etc/exports, the NFSv4-only drop-in, and the nfs_access firewall table, and
+# enables the server only once all three are in place. An nfsd started before then
+# would export nothing, but it would also bind 0.0.0.0:2049 without the drop-in.
+sudo systemctl disable --now nfs-server
+ok "nfs-kernel-server installed but disabled until runbooks/nfs-exports/ configures it"
+
+# Mask the RPC sidecars here rather than leaving it to runbooks/nfs-exports/01.
+# Installing nfs-kernel-server pulls in rpcbind, and its postinst enables and starts
+# rpcbind.socket on 0.0.0.0:111 and [::]:111, TCP and UDP. Every table in
+# host/minis/etc/nftables.conf is `policy accept` by design (a drop policy would break
+# k3s's own nft chains), so nothing else would close that port — and runbooks/nfs-exports/
+# is a separate workflow that may run much later, or not at all on a rebuild that stops
+# at Phase 5. Masking here keeps the exposure window closed for the whole gap;
+# runbooks/nfs-exports/01-install-server-config.sh re-verifies the same list.
+#
+# rpc.mountd is deliberately absent from NFS_MASKED_UNITS: nfsd still uses it as the
+# export-authentication upcall handler under v4, and masking it breaks exports.
+mask_units "${NFS_MASKED_UNITS[@]}"
+# Both transports: rpcbind binds TCP and UDP 111. The `sport` filter is used instead of
+# an awk column because `ss -tu` prepends a Netid column that `ss -t` alone does not.
+rpcbind_listeners="$(ss -H -lntu 'sport = :111' 2>/dev/null || true)"
+[ -z "$rpcbind_listeners" ] \
+  || die "something still listens on port 111 after masking rpcbind: $rpcbind_listeners"
+ok "rpcbind and the statd/gssd sidecars are masked; nothing listens on port 111"
 
 step "Set host timezone (America/Chicago)"
 # Frigate event timestamps + cross-log correlation depend on a non-UTC host tz.

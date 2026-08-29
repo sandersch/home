@@ -8,7 +8,7 @@ they copy it, so `host/minis/etc/` stays the single source of truth.
 Shared shell helpers live in [`lib.sh`](./lib.sh); each phase keeps only its
 phase-specific assertions in its own `lib.sh`.
 
-Three directory-level workflows are exceptions to the normal `minis` phase
+Four directory-level workflows are exceptions to the normal `minis` phase
 execution model. Run the attended
 [`direct-attached-storage-migration/`](./direct-attached-storage-migration/)
 helpers on whichever host currently owns the enclosure. The guarded
@@ -17,7 +17,10 @@ environment and composes the phase validators with a real staged Restic `/opt`
 restore and ordered Git-based resume. The attended
 [`bastion/`](./bastion/) workflow runs on the separate OpenBSD Wyse from its
 physical console; its transfer, bootstrap, and privilege rules are summarized
-below and specified fully in its own README.
+below and specified fully in its own README. The attended
+[`nfs-exports/`](./nfs-exports/) workflow runs on `minis` after Phases 0–2 and
+publishes `/mnt/media` and `/mnt/games` over NFSv4; it is additive — no cluster
+workload depends on it — so it can be run, or skipped, independently of the phases.
 
 These complement the prose in `docs/build-plan.md`; they don't replace it. Read the
 phase section there first, then run the scripts.
@@ -33,6 +36,7 @@ phase section there first, then run the scripts.
 | 5 | [`phase5/`](./phase5/) | Direct-array/B2 Restic setup and validation plus encrypted external-heartbeat and Pushover notification workflows |
 | DR | [`disaster-recovery/`](./disaster-recovery/) | Fresh full-state `/opt` restore, hot-database recovery, and two-stage app/monitoring resume validation |
 | Bastion | [`bastion/`](./bastion/) | Attended OpenBSD 7.9 Wyse preflight, interface-aware config staging, trunk activation, validation, and rollback |
+| NFS | [`nfs-exports/`](./nfs-exports/) | NFSv4-only `/mnt/media` and `/mnt/games` exports from `minis`: server config, `nfs_access` firewall table, attended client/squash/negative gates, and monitoring validation |
 
 ## Assumptions
 

@@ -89,3 +89,29 @@ spec:
         service_tier: critical
       static:
         - slzb-mrw10u.iot.matrix:7638
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: nfs
+  namespace: monitoring
+spec:
+  interval: 30s
+  jobName: blackbox-nfs
+  module: tcp_connect
+  prober:
+    path: /probe
+    scheme: http
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      # service_tier: standard (10m -> warning) rather than critical. No cluster
+      # workload depends on NFS -- Plex, the download stack, and RomM use hostPath --
+      # so an outage costs remote clients their share and nothing else. Promote to
+      # critical if the emulation box becomes a hard dependency.
+      labels:
+        probe_scope: nfs
+        service_tier: standard
+      static:
+        - 10.137.20.5:2049

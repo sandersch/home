@@ -393,6 +393,9 @@ the enclosure was moved intact from the Morpheus HBA to the MINIS HBA:
 - Nothing currently exports the bulk filesystems over NFS. A future service on
   `minis` may export `/mnt/media` and `/mnt/games`; `/mnt/frigate` remains local-only,
   and `/mnt/backups` will not be exported without a concrete consumer.
+  **Superseded:** `minis` now exports `/mnt/media` and `/mnt/games` over NFSv4 to
+  VLANs 20 and 30. `/mnt/frigate` and `/mnt/backups` are unchanged. See
+  [operations.md → NFS exports](./operations.md#nfs-exports).
 
 ## Low-I/O pre-unmount fingerprints
 

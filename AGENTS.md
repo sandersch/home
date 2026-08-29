@@ -89,13 +89,14 @@ These are settled. Do not re-litigate without explicit instruction; if you think
 | Media server | **Plex** (lifetime pass) | Wife-acceptance + existing 100 GB metadata |
 | Storage (local) | **LVM under everything**; btrfs on `/opt`; **TopoLVM** for scratch | One VG: manual LVs for OS + `/opt` (btrfs snapshots + zstd); TopoLVM provisions enforced, resizable ext4 scratch LVs (Frigate cache, SABnzbd staging) from VG free space. Supersedes the earlier "no LVM" call — partition count + up-front sizing anxiety outweighed the abstraction overlap |
 | Backups | **Restic** → direct backup LV nightly + **Backblaze B2** weekly | Cheap, deduplicating, offsite copy |
+| Storage (shared) | **NFSv4-only exports of `/mnt/media` and `/mnt/games` from `minis`** to VLAN 20 servers and VLAN 30 trusted clients; `/mnt/frigate` and `/mnt/backups` stay unexported | v4-only collapses the service to one port (TCP 2049), so rpcbind and the statd machinery are masked and there is no auxiliary port sprawl to firewall. The squash policy is deliberately split: `/mnt/media` keeps `root_squash` so per-uid identity survives on the shared library — the accepted cost is that every read/write client must be uid 1000 — while `/mnt/games` uses `all_squash` to `1000:1000` because Batocera runs its userland as root and RetroPie images vary, so client uid coordination is not achievable. The export is additive: cluster workloads keep using `hostPath`, and it depends on UDM Rule 110 rather than adding a rule of its own. See [operations.md](./docs/operations.md#nfs-exports) |
 | Alerting | **Dead Man's Snitch** for the off-node Watchdog; hosted **Pushover** for actionable alerts | The independent heartbeat covers total node/monitoring failure; Pushover delivers warning/critical phone notifications without adding a same-node workload or relay |
 | Camera segment addressing | **`192.168.105.0/24`, host at `.1`**, authoritative per-camera `dnsmasq` reservations, NTP target `192.168.105.1` | Frozen once cameras are provisioned: the subnet and host/NTP address are reflected in host config and camera settings, while each camera's reserved DHCP address is baked into dnsmasq and Frigate. Renumbering therefore spans multiple systems. No collision with LAN (`10.137.20/24`), pods/services (`10.42`/`10.43`), or Tailscale (`100.64/10`). Treat as permanent |
 
 Deferred / revisit later (see [operations.md](./docs/operations.md#follow-ups)):
 migration of the SLZB-MRW10U from its current
-Trusted/VLAN 30 placement to IoT/VLAN 60, selected NFS exports from `minis`, a
-possible second node, Tailscale Funnel for Plex, and Immich.
+Trusted/VLAN 30 placement to IoT/VLAN 60, a possible second node, Tailscale Funnel
+for Plex, and Immich.
 
 ## Repository structure
 
@@ -112,7 +113,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   ├── migration-runbook.md
 │   ├── direct-attached-storage-migration.md
 │   └── operations.md
-├── runbooks/                  # Phases 0–5 plus attended bastion/DR/migration workflows
+├── runbooks/                  # Phases 0–5 plus attended bastion/DR/migration/NFS workflows
 ├── host/                      # canonical bare-metal host and switch config
 │   ├── bastion/               #   OpenBSD management bastion config mirrored to disk
 │   ├── catalyst/              #   Catalyst 3850 reference config

@@ -1,0 +1,53 @@
+# NFSv4-only exports from the direct-attached bulk array.
+# Canonical copy of /etc/exports on minis. See docs/operations.md -> NFS exports.
+#
+# Scope is exactly these two filesystems. /mnt/frigate stays local to the colocated
+# Frigate workload and /mnt/backups stays unexported (docs/architecture.md).
+#
+# Clients: VLAN 20 servers (10.137.20.0/24) and VLAN 30 trusted (10.137.30.0/24).
+# UDM Rule 110 already allows VLAN 30 -> VLAN 20 on all ports and Rules 900/910 drop
+# IoT/Guest -> internal, so no UDM rule change is needed for this export. Host-side,
+# nfsd listens only on the lan0 and loopback addresses, nfs_access filters source
+# addresses/interfaces, and these client selectors are the final mount authorization.
+#
+# Option rationale:
+#   root_squash (media)  Every local consumer runs as uid 1000 (Plex/*arr PUID=1000,
+#                        mount root 1000:100 0775), so a workstation user at uid 1000
+#                        writes files the pods can rewrite. Remote root maps to the
+#                        anonymous 65534:65534, which is "other" against a 1000:100
+#                        0775 root and cannot write there at all. Under sec=sys this
+#                        trusts each client's uid mapping: a client user neither uid
+#                        1000 nor in gid 100 also cannot write at the root, and one in
+#                        gid 100 writes files the apps cannot rewrite. Every read/write
+#                        client must therefore use uid 1000. That is the accepted cost
+#                        of keeping per-user identity on the shared library.
+#   all_squash (games)   Batocera runs its whole userland as root and RetroPie images
+#                        vary, so client uid coordination is not achievable. Squashing
+#                        everything to 1000:1000 matches RomM's runAsUser: 1000 and the
+#                        1000:1000 0755 mount root exactly, making ownership drift
+#                        structurally impossible.
+#   sync                 The default, and correct here: async risks silent corruption
+#                        on an unclean server reboot, and this array holds
+#                        irreplaceable content with no backup policy yet.
+#   no_subtree_check     Modern default; both exports are whole filesystems.
+#   mountpoint           exportfs refuses the export if the path is not a mountpoint,
+#                        so a failed array assembly cannot silently export an empty
+#                        directory on the root filesystem. NOTE: fstab uses
+#                        x-systemd.automount, so an autofs mount is present even
+#                        before the real ext4 mounts and this guard is weaker than it
+#                        looks. Real coverage is the BulkStorageMountSetIncomplete
+#                        alert, plus the fact that nfsd access triggers the automount.
+#   fsid=<uuid>          Reuses the canonical ext4 UUIDs from host/minis/etc/fstab so
+#                        NFS filehandles stay stable across any device renumbering and
+#                        clients do not see ESTALE.
+#   sec=sys              Explicit. Kerberos is out of scope; the trust boundary is the
+#                        VLAN, enforced by UDM routing/firewall policy, the nfs_access
+#                        packet filter, and these export client selectors.
+
+/mnt/media \
+  10.137.20.0/24(rw,sync,root_squash,no_subtree_check,mountpoint,sec=sys,fsid=0a94d86c-76a0-44b5-bc52-930d97ab155f) \
+  10.137.30.0/24(rw,sync,root_squash,no_subtree_check,mountpoint,sec=sys,fsid=0a94d86c-76a0-44b5-bc52-930d97ab155f)
+
+/mnt/games \
+  10.137.20.0/24(rw,sync,all_squash,anonuid=1000,anongid=1000,no_subtree_check,mountpoint,sec=sys,fsid=b43f1bcc-0556-4ed5-b038-765134aba7d3) \
+  10.137.30.0/24(rw,sync,all_squash,anonuid=1000,anongid=1000,no_subtree_check,mountpoint,sec=sys,fsid=b43f1bcc-0556-4ed5-b038-765134aba7d3)

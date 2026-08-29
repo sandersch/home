@@ -31,8 +31,8 @@ Run the host-side scripts in numeric order, or run `./run-all.sh` for steps 00-0
 ## Notes
 
 - `01-host-isolation.sh` replaces `/etc/nftables.conf` with the canonical file, but
-  that file manages only the `camera_isolation`, `frigate_access`, and `ups_access`
-  tables. It does not use `flush ruleset`, so later k3s nft/iptables state is not wiped
+  that file manages only the `camera_isolation`, `frigate_access`, `ups_access`, and
+  `nfs_access` tables. It does not use `flush ruleset`, so later k3s nft/iptables state is not wiped
   on reload. `frigate_access` keeps Frigate's unauthenticated TCP/5000 listener local
   to the host while authenticated TCP/8971 remains available through Service/Ingress.
 - **After Phase 2, reload nftables, never restart it.** Stock Ubuntu's `nftables.service`

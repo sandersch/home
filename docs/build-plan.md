@@ -256,7 +256,15 @@ confirm both interfaces are up.
 **0.3 System prep + hardware checks.**
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y curl git vim sqlite3 jq age nftables dnsmasq nut chrony mdadm lvm2 smartmontools
+sudo apt install -y curl git vim sqlite3 jq age nftables dnsmasq nut chrony mdadm lvm2 \
+  smartmontools usbutils rfkill nfs-kernel-server
+sudo systemctl disable --now dnsmasq nfs-server   # Phase 1 and runbooks/nfs-exports/ own
+                            #   these; they stay off until their config lands. Installing
+                            #   nfs-kernel-server also pulls in rpcbind and starts it on
+                            #   0.0.0.0:111, so mask it and the statd/gssd sidecars now —
+                            #   NFSv4-only needs none of them and no nft table closes 111.
+sudo systemctl mask --now rpcbind.service rpcbind.socket rpc-statd.service \
+  rpc-statd-notify.service rpc-gssd.service   # NOT nfs-mountd: nfsd needs rpc.mountd under v4
 sudo timedatectl set-timezone America/Chicago   # set the HOST tz explicitly — Frigate event
                             #   timestamps and cross-log correlation depend on it; the default
                             #   is often UTC. (chrony in 1.3 serves time to cameras; this sets

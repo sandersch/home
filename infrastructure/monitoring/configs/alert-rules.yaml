@@ -119,6 +119,67 @@ spec:
           annotations:
             description: "UPS {{ $labels.ups }} has been running on battery for at least one minute."
             summary: UPS is running on battery
+    - name: homelab.nfs
+      rules:
+        # nfsd is loaded but serving nothing. Distinct from the blackbox 2049 probe,
+        # which also fires on a network-path failure; this one is specifically the daemon.
+        #
+        # Deliberately NOT `absent(node_nfsd_server_threads) or ... == 0`. The nfsd module
+        # stays loaded across `systemctl stop nfs-server` (ExecStop is `rpc.nfsd 0`), so a
+        # real outage leaves the series present and reading 0 and still fires here. An
+        # absent series instead means the module was never loaded -- a host that has not
+        # run runbooks/nfs-exports/ at all -- and on a rebuild that state can last hours.
+        # Alerting on it paged three times during every recovery. The never-started case
+        # is covered by the blackbox probe (StandardEndpointDown, 10m).
+        #
+        # This rests on the module staying loaded across a stop. `NFS_ALERT_DRILL=1
+        # runbooks/nfs-exports/04-validate-monitoring.sh` proves it end to end; if that
+        # drill ever fails to see this alert fire, restore the absent() arm.
+        - alert: NFSServerDown
+          expr: node_nfsd_server_threads == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            description: nfsd on minis is not running, so the /mnt/media and /mnt/games exports are unavailable.
+            summary: NFS server is down
+        # Invariant check: the exports are NFSv4-only (nfs.conf.d/10-homelab.conf sets
+        # vers2/vers3 = n). Any v2/v3 request actually served means that lockdown
+        # regressed -- most likely a stock nfs.conf or package upgrade overwrote it.
+        - alert: NFSLegacyVersionServed
+          expr: sum(increase(node_nfsd_requests_total{proto!="4"}[15m])) > 0
+          labels:
+            severity: warning
+          annotations:
+            description: minis served an NFSv2 or NFSv3 request; the NFSv4-only configuration has regressed.
+            summary: NFS server answered a pre-v4 request
+        # Without this, a broken collector makes both alerts above silently vacuous
+        # rather than firing -- NFSServerDown in particular now treats an absent series
+        # as "not deployed", so a collector that breaks while NFS is up would disarm it
+        # silently. The absent() arm is the load-bearing half: a disabled or renamed
+        # collector emits no series at all, and a bare `== 0` would then match nothing.
+        #
+        # The probe gate is what makes that safe. On a host with no nfsd the collector
+        # reports a hard failure, not no-data -- measured on this cluster: 0, with
+        # node_nfsd_server_threads absent -- so an ungated rule fires on every host that
+        # has not run runbooks/nfs-exports/. Requiring probe_success means "TCP 2049
+        # answers, so NFS is deployed and up, yet its stats are unreadable", which is the
+        # only state worth paging for. It is correctly silent both before deployment and
+        # during a real outage, when NFSServerDown and StandardEndpointDown own the page.
+        - alert: NFSDCollectorFailing
+          expr: |
+            (
+              absent(node_scrape_collector_success{collector="nfsd"})
+              or node_scrape_collector_success{collector="nfsd"} == 0
+            )
+            and on() probe_success{probe_scope="nfs"} == 1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            description: node-exporter cannot read /proc/net/rpc/nfsd, so the NFS server alerts cannot evaluate.
+            summary: node-exporter nfsd collector is failing
+
     - name: homelab.node-and-apps
       rules:
         - alert: OptFilesystemFillingUp
