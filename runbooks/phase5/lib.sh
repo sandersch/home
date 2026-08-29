@@ -262,6 +262,40 @@ assert_phase5_observability_invariants() {
       .labels.severity == "critical")
   ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
     || die "local backup or direct-attached bulk-storage alerts changed unexpectedly"
+  # NFSServerDown must NOT regain an absent() arm and NFSDCollectorFailing must keep its
+  # probe gate: without both, every host that has not run runbooks/nfs-exports/ pages
+  # during each rebuild (measured on the live cluster before the gates were added).
+  yq -e '
+    select(.kind == "PrometheusRule" and .metadata.name == "homelab-alerts") |
+    any(.spec.groups[];
+      .name == "homelab.nfs" and
+      any(.rules[];
+        .alert == "NFSServerDown" and
+        .for == "5m" and
+        .labels.severity == "warning" and
+        (.expr | contains("node_nfsd_server_threads == 0")) and
+        (.expr | contains("absent") | not)) and
+      any(.rules[];
+        .alert == "NFSLegacyVersionServed" and
+        .labels.severity == "warning" and
+        (.expr | contains("node_nfsd_requests_total{proto!=\"4\"}"))) and
+      any(.rules[];
+        .alert == "NFSDCollectorFailing" and
+        .for == "15m" and
+        .labels.severity == "warning" and
+        (.expr | contains("absent(node_scrape_collector_success{collector=\"nfsd\"})")) and
+        (.expr | contains("node_scrape_collector_success{collector=\"nfsd\"} == 0")) and
+        (.expr | contains("and on() probe_success{probe_scope=\"nfs\"} == 1"))))
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
+    || die "the homelab.nfs export alerts changed unexpectedly"
+  yq -e '
+    select(.kind == "Probe" and .metadata.name == "nfs") |
+    .spec.module == "tcp_connect" and
+    .spec.jobName == "blackbox-nfs" and
+    .spec.targets.staticConfig.labels.probe_scope == "nfs" and
+    (.spec.targets.staticConfig.static | index("10.137.20.5:2049") != null)
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
+    || die "the NFS export blackbox probe target, module, or scope changed unexpectedly"
   yq -e '
     select(.kind == "PrometheusRule" and .metadata.name == "homelab-alerts") |
     any(.spec.groups[].rules[];

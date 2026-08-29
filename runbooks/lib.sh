@@ -148,6 +148,36 @@ assert_phase0_network_settled() {
   ok "default route points at 10.137.20.1"
 }
 
+# NFSv4-only needs none of the RPC sidecars, and each one is an extra listener.
+# Shared rather than kept in runbooks/nfs-exports/lib.sh because Phase 0.3 installs
+# nfs-kernel-server — which pulls in rpcbind and starts it on 0.0.0.0:111 — long
+# before runbooks/nfs-exports/ runs, and must not leave that port open in the gap.
+#
+# rpc.mountd is deliberately NOT in this list: nfsd still uses it as the
+# export-authentication upcall handler under v4, and masking it breaks exports.
+# shellcheck disable=SC2034
+NFS_MASKED_UNITS=(
+  rpcbind.service
+  rpcbind.socket
+  rpc-statd.service
+  rpc-statd-notify.service
+  rpc-gssd.service
+)
+
+# Idempotent: `systemctl mask --now` on an already-masked unit is a no-op, but
+# reporting the difference keeps the runbook output honest about what it changed.
+mask_units() {
+  local unit
+  for unit in "$@"; do
+    if [ "$(systemctl is-enabled "$unit" 2>/dev/null || true)" = "masked" ]; then
+      ok "$unit already masked"
+    else
+      sudo systemctl mask --now "$unit" >/dev/null
+      ok "masked $unit"
+    fi
+  done
+}
+
 service_active() {
   local svc="$1"
   if systemctl is-active --quiet "$svc"; then

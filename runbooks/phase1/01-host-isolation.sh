@@ -35,7 +35,8 @@ step "Confirm host isolation tables are loaded"
 sudo nft list table inet camera_isolation
 sudo nft list table inet frigate_access
 sudo nft list table inet ups_access
-ok "camera_isolation, frigate_access, and ups_access tables are active"
+sudo nft list table inet nfs_access
+ok "camera_isolation, frigate_access, ups_access, and nfs_access tables are active"
 
 cat <<'EOF'
 

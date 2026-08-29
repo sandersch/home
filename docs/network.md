@@ -43,6 +43,7 @@ These are the non-negotiable implementation rules for both human operators and A
 * Infrastructure addressing is **static-first** on VLANs 10 and 20: known devices use static IPs outside the dynamic DHCP pool, with UDM DHCP reservations serving only as fallback. Camera addressing is the deliberate exception: `minis` is static at `192.168.105.1`, while `dnsmasq` DHCP reservations are authoritative for known cameras in `.50-.99`; `.100-.199` is the dynamic onboarding pool.
 * Server/NAS links operate at 1 Gb. The `minis` NICs are 2.5GbE, but the router and switch ports they connect to are 1GbE, so those links negotiate at 1 Gb.
 * VLAN 20 server internet egress remains unrestricted by design.
+* NFSv4 listens only on `minis`'s LAN and loopback addresses (`10.137.20.5:2049` and `127.0.0.1:2049`) and exports only `/mnt/media` and `/mnt/games` to VLANs 20 and 30. Binding the socket prevents listeners on `cam0` and other local addresses, but does not restrict the interface on which a packet may arrive. The `nfs_access` nftables table enforces the on-host source/interface policy, and `/etc/exports` independently authorizes VLAN 20/30 client addresses. The current Tailnet Connector does not advertise the node's `.5` address.
 
 ---
 
@@ -227,6 +228,15 @@ Rule order matters during implementation. In UniFi, place specific allow rules a
 | 940 | Yes | Drop Trusted to Admin | Drop | All | Trusted / Fastlane `VLAN 30` | Admin / Management `VLAN 10` | Any | Steady-state rule with no `ryze`, `m5c`, or other host exception. Operators reach `bastion.matrix:22` within VLAN 30, then originate management sessions from the bastion's directly connected VLAN 10 interface. Temporarily disable the whole rule only for the documented network break-glass window. |
 | 950 | Yes | Drop Trusted to IoT | Drop | All | Trusted / Fastlane `VLAN 30` | IoT / Home Integrated `VLAN 60` | Any | Placed below Rule 130+ so only justified Trusted-to-IoT exceptions are allowed. |
 | 960 | Yes | Drop internal networks to Guest | Drop | All | Internal VLANs `10/20/30/60` | Guest / Internet Only `VLAN 80` | Any | Net-new effect is blocking **Trusted/VLAN 30 → Guest** — Trusted has no other blanket internal-drop rule, while Rules 910/920/930 already drop IoT/Servers/Admin to the Guest subnet (it is RFC1918). Together these make Guest unreachable from every internal VLAN. |
+
+> **The `minis` NFS exports depend on Rule 110 and add no rule of their own.** VLAN 30
+> clients reach `10.137.20.5:2049` through the existing broad Trusted → Servers allow, and
+> VLAN 20 clients are intra-subnet and unrouted. Rules 900/910 already deny Guest and IoT.
+> Before ever narrowing Rule 110 to specific services, add TCP `2049` to the replacement or
+> the exports go dark. Host-side, nfsd listener scoping limits the local destination
+> addresses, `nfs_access` enforces the packet source/interface policy, and `/etc/exports`
+> authorizes the client CIDRs — see
+> [operations.md → NFS exports](./operations.md#nfs-exports).
 
 ### WAN / Internet Egress Policy
 
@@ -441,7 +451,7 @@ Create or retain these forward (A) records on the UDM resolver. The network's lo
 | `udm.mgmt.matrix`            | `10.137.10.1`  | 10   | UDM Pro — gateway / firewall / UniFi controller |
 | `catalyst.mgmt.matrix`       | `10.137.10.2`  | 10   | Cisco Catalyst 3850 management SVI              |
 | `morpheus.matrix`            | `10.137.20.2`  | 20   | Retired host retained as a cold spare           |
-| `*.nfs.service.matrix`       | `10.137.20.2`  | 20   | Retained NFS alias for `morpheus`                |
+| `*.nfs.service.matrix`       | `10.137.20.5`  | 20   | NFSv4 exports on `minis` (`/mnt/media`, `/mnt/games`); repointed from `morpheus` |
 | `trinity.matrix`             | `10.137.20.3`  | 20   | Device identity TBD; static record found during inventory |
 | `archer.matrix`              | `10.137.10.4`  | 10   | Device identity TBD; static record found during inventory |
 | `minis.matrix`               | `10.137.20.5`  | 20   | Homelab / Frigate NVR (server-side NIC)         |
@@ -520,7 +530,7 @@ Create or retain these forward (A) records on the UDM resolver. The network's lo
   * *Server Link:* UDM Port 3 (Native VLAN 20) | `10.137.20.5` | `38:05:25:35:fb:d3` (NIC `lan0`)
   * *Camera Link:* Catalyst Port `Gi1/0/48` (Access VLAN 105) | Static `192.168.105.1` | `38:05:25:35:fb:d2` (NIC `cam0`)
   * *Link speed:* Both `minis` NICs are 2.5GbE, but the ports they connect to are only 1GbE — UDM Port 3 (`lan0` server-side) and Catalyst `Gi1/0/48` (`cam0` camera-side) — so both links negotiate at 1G.
-  * *NFS:* No bulk filesystem is currently exported. A future service may export `/mnt/media` and `/mnt/games`; `/mnt/frigate` remains local-only and `/mnt/backups` stays unexported until a concrete consumer exists.
+  * *NFS:* Exports `/mnt/media` and `/mnt/games` read/write over **NFSv4 only**, on the LAN address (`10.137.20.5:2049`) to VLANs 20 and 30. `nfsd` opens sockets only on the LAN and loopback addresses; this limits local destinations, not ingress interfaces. The `nfs_access` table enforces the source/interface packet policy, and `/etc/exports` authorizes the client CIDRs. The export relies on UDM Rule 110 for VLAN 30 reachability and adds no UDM rule of its own. Clients reach it through the `*.nfs.service.matrix` wildcard record, by convention one name per export (`media.`/`games.`); the bare `nfs.service.matrix` does not resolve, since a wildcard does not match its own owner name. `/mnt/frigate` remains local-only and `/mnt/backups` stays unexported until a concrete consumer exists. See [operations.md → NFS exports](./operations.md#nfs-exports).
 
 ---
 

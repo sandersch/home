@@ -56,7 +56,11 @@ It binds retries to the selected repository, snapshot, and staging path.
 2. Restore the existing `age.key` from the password manager to the repository root.
 3. Add `spec.suspend: true` to both `clusters/minis/apps.yaml` and
    `clusters/minis/monitoring.yaml`; commit and push before Flux bootstrap.
-4. Complete Phases 0–3, including exact direct-mount validation.
+4. Complete Phases 0–3, including exact direct-mount validation. If this cluster
+   serves NFS, run `runbooks/nfs-exports/00`–`03` between Phase 2 and Phase 3: the
+   `nfs` blackbox probe reconciles with `monitoring-configs` at Phase 3 and will raise
+   `StandardEndpointDown` after ten minutes if nothing is listening on 2049 yet. Its
+   `04-validate-monitoring.sh` needs Prometheus, so run that one after Stage 3.
 5. Leave `/opt` empty and do not create application resources manually.
 6. Explicitly switch from the normal read-only kubeconfig to the admin context for
    this recovery. The preflight checks the required Secret, Job, Namespace, and Flux

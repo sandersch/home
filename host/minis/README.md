@@ -98,7 +98,7 @@ to describe the real rebuild path.
 
 | Repo file | Destination | Owner / perms | Apply |
 |---|---|---|---|
-| `etc/nftables.conf` | `/etc/nftables.conf` | `root:root` `644` | `sudo systemctl enable --now nftables` (replaces the stock default; manages only the `camera_isolation`, `frigate_access`, and `ups_access` tables — no `flush ruleset`, so k3s's own nft chains survive a reload) |
+| `etc/nftables.conf` | `/etc/nftables.conf` | `root:root` `644` | `sudo systemctl enable --now nftables` (replaces the stock default; manages only the `camera_isolation`, `frigate_access`, `ups_access`, and `nfs_access` tables — no `flush ruleset`, so k3s's own nft chains survive a reload) |
 | `etc/sysctl.d/99-camera-no-ipv6.conf` | same | `root:root` `644` | `sudo sysctl --system` (disables IPv6 on NIC2) |
 | `etc/dnsmasq.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl enable --now dnsmasq` (DHCP-only, NIC2; `port=0` so no `:53` clash with systemd-resolved) |
 | `etc/chrony/conf.d/cameras.conf` | same | `root:root` `644` | `sudo systemctl enable --now chrony && sudo systemctl restart chrony` (serve NTP to the segment) |
@@ -118,6 +118,26 @@ adding that camera to Frigate.
 | Repo file | Destination | Owner / perms | Apply |
 |---|---|---|---|
 | `etc/rancher/k3s/config.yaml` | `/etc/rancher/k3s/config.yaml` | `root:root` `600` | `sudo systemctl restart k3s` |
+
+### NFS exports — `runbooks/nfs-exports/`
+
+| Repo file | Destination | Owner / perms | Apply |
+|---|---|---|---|
+| `etc/nfs.conf.d/10-homelab.conf` | same | `root:root` `644` | `sudo systemctl restart nfs-server` (NFSv4-only; opens nfsd sockets only on `10.137.20.5`/`127.0.0.1`, not on the `cam0` addresses; `nfs_access` separately filters ingress sources/interfaces) |
+| `etc/exports` | `/etc/exports` | `root:root` `644` | `sudo exportfs -ra` |
+| `etc/systemd/system/nfs-server.service.d/10-wait-mounts.conf` | same | `root:root` `644` | `sudo systemctl daemon-reload` (orders nfsd after the `/mnt/media` and `/mnt/games` automount units) |
+
+`etc/nftables.conf` also carries the `nfs_access` table; it is installed by the Phase 1
+step above and by `runbooks/nfs-exports/02-firewall.sh`. **Reload nftables, never restart
+it.**
+
+On restore, mask `rpcbind.service`, `rpcbind.socket`, `rpc-statd.service`,
+`rpc-statd-notify.service`, and `rpc-gssd.service` — NFSv4-only needs none of them, and
+installing `nfs-kernel-server` otherwise leaves rpcbind listening on `0.0.0.0:111`. Phase 0.3
+masks them as part of installing the package; `runbooks/nfs-exports/01-install-server-config.sh`
+re-verifies the same list and validates the result. Do **not** mask `nfs-mountd.service`: nfsd
+still uses `rpc.mountd` as its export-authentication upcall handler under v4. See
+[operations.md → NFS exports](../../docs/operations.md#nfs-exports).
 
 The k3s config sets the cluster-wide terminal Pod garbage-collection threshold to 20.
 This bounds the failed Pods left by the upstream device-plugin reboot admission race,

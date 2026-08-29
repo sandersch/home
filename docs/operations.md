@@ -267,6 +267,10 @@ and its functionality moved to Grafana Alloy.
 | Actionable warning/critical alert | Alertmanager sends firing and resolved notifications to Pushover | deployed and live-validated 2026-07-20 |
 | Monitoring pipeline absent | Dead Man's Snitch misses the Alertmanager Watchdog | deployed and live-validated; external check healthy 2026-07-20 |
 | UPS on battery | `cp1500` reports `OB=1` for one minute | deployed and live-validated; mains-loss/Pushover drill passed 2026-07-25 |
+| NFS server down | `nfsd` is loaded but has no running threads for five minutes | committed |
+| NFS pre-v4 request served | any NFSv2/v3 request is answered, meaning the NFSv4-only lockdown regressed | committed |
+| NFS collector failing | TCP 2049 answers but node-exporter cannot read `/proc/net/rpc/nfsd`, so the two rules above cannot evaluate | committed |
+| NFS endpoint down | blackbox TCP probe of `10.137.20.5:2049` fails beyond the standard tier window | committed |
 
 ### External dead-man and actionable notification routing
 
@@ -407,6 +411,204 @@ failure. Repo-owned `BulkStorageMountSetIncomplete` and
 45 minutes. Treat HBA resets, I/O errors, a nonzero degraded count, or an unexpected
 resync/recovery as immediate investigation conditions.
 
+## NFS exports
+
+`minis` exports exactly two bulk filesystems, **NFSv4 only**, read/write, to VLAN 20
+servers and VLAN 30 trusted clients. `/mnt/frigate` stays local to the colocated Frigate
+workload and `/mnt/backups` stays unexported. The colocated media apps keep using
+`hostPath` and do not mount NFS, so the export is additive: nothing in the cluster
+depends on it.
+
+Canonical config lives under `host/minis/etc/` (`exports`, `nfs.conf.d/10-homelab.conf`,
+`systemd/system/nfs-server.service.d/10-wait-mounts.conf`, and the `nfs_access` table in
+`nftables.conf`) and is applied by [`runbooks/nfs-exports/`](../runbooks/nfs-exports/).
+
+| Export | Device / UUID | Squash | Consumers |
+|---|---|---|---|
+| `/mnt/media` | `hoardvg-medialv` / `0a94d86c-…` | `root_squash` | Linux workstations (VLAN 30), other VLAN 20 servers |
+| `/mnt/games` | `hoardvg-games` / `b43f1bcc-…` | `all_squash,anonuid=1000,anongid=1000` | the emulation box (RetroPie/Batocera), workstations |
+
+### Access control
+
+Four controls apply, in order of how a request meets them:
+
+1. **UDM.** Rule 110 already allows VLAN 30 → VLAN 20 on all ports and VLAN 20 → VLAN 20
+   is intra-subnet and unrouted, so the export needs **no new UDM rule**. Rules 900/910
+   already deny Guest and IoT. This also means the export *depends* on Rule 110 — if that
+   rule is ever narrowed to specific services, TCP `2049` must be carried into the
+   replacement.
+2. **Listener addresses.** `nfs.conf.d/10-homelab.conf` sets
+   `host = 10.137.20.5,127.0.0.1` (comma-separated — `nfsd(8)` parses a
+   space-separated value as a single hostname and fails to start). This prevents nfsd
+   from opening sockets on `cam0` (`192.168.105.1` and the `192.168.1.2` alias), a
+   wildcard address, or another future local address. It does **not** constrain the
+   ingress interface: a packet arriving through another interface but addressed to
+   `10.137.20.5` can still reach the LAN socket.
+3. **`nfs_access` nftables table.** Enforces the on-host packet policy. It accepts TCP
+   `2049` from loopback, the k3s pod CIDR
+   (`10.42.0.0/16`, for the blackbox probe only), `10.137.20.0/24`, and
+   `10.137.30.0/24`; rate-limit-logs and drops everything else, with an explicit `cam0`
+   drop for clarity.
+4. **`/etc/exports`.** Independently authorizes only VLAN 20 and VLAN 30 client
+   addresses to mount `/mnt/media` and `/mnt/games`. The pod CIDR can complete the
+   blackbox TCP handshake but is not authorized to mount either export.
+
+The bind setting is useful listener scoping, not a source firewall. `nfs_access` is the
+host-side source/interface filter, and the export client selectors are the final NFS
+authorization. The current in-cluster Tailnet Connector advertises only
+`10.137.20.10/32` and `10.137.20.1/32`, not the node's `10.137.20.5`; revisit this policy
+before advertising `.5`, especially if a future subnet router source-NATs clients into
+an authorized VLAN address. **Reload nftables, never restart it** — stock Ubuntu's
+`nftables.service` ships `ExecStop=/usr/sbin/nft flush ruleset`, which would flush the
+chains k3s/flannel/kube-proxy own.
+
+### Why the squash policy is split
+
+Every local consumer of both trees runs as uid 1000 (Plex and the *arr stack with
+`PUID=1000`, RomM with `runAsUser: 1000`), and the mount roots are `1000:100` `0775` and
+`1000:1000` `0755` respectively.
+
+`/mnt/media` keeps **`root_squash` only**, so a workstation user at uid 1000 writes files
+the pods can rewrite and per-user identity survives on the shared library. Remote root is
+mapped to the anonymous `65534:65534`, which against a `1000:100` `0775` mount root is
+"other" — so a client's root cannot create anything there at all. That denial is the
+observable proof root squashing is on, and the validator gates on it.
+
+The cost is real and accepted: under `sec=sys` this trusts each client's uid mapping, and
+any client user who is neither uid 1000 nor a member of gid 100 is likewise "other" and
+cannot write at the mount root. One who *is* in gid 100 can write, but the resulting files
+carry their own uid, and the media apps (uid 1000) cannot rewrite them. In practice this
+means every workstation mounting `/mnt/media` read/write must use uid 1000.
+
+`/mnt/games` uses **`all_squash` to `1000:1000`** because client uid coordination is not
+achievable there — Batocera runs its whole userland as root and RetroPie images vary.
+Squashing everything to the RomM owner makes ownership drift structurally impossible, at
+the price of no per-user accountability on that volume.
+
+### NFSv4-only
+
+`vers2`, `vers3`, and `udp` are off and `vers4.0` is disabled (4.1/4.2 carry callbacks on
+the existing session, so there is no inbound-to-client requirement). The whole service is
+therefore one port, TCP `2049`. `rpcbind`, `rpc-statd`, `rpc-statd-notify`, and
+`rpc-gssd` are masked by Phase 0.3 the moment `nfs-kernel-server` is installed — its
+postinst otherwise starts rpcbind on `0.0.0.0:111`, and every table in `nftables.conf` is
+`policy accept`, so nothing else would close that port. `runbooks/nfs-exports/` re-verifies
+the same list. **`rpc.mountd` is deliberately not masked** — nfsd still uses it as
+the export-authentication upcall handler under v4. If a future release makes `nfs-server`
+genuinely require `rpcbind`, unmask `rpcbind.socket`, record why here, and re-run the
+validators.
+
+### The alerts are silent on a host that does not serve NFS
+
+`NFSServerDown` reads `node_nfsd_server_threads == 0` with no `absent()` arm, and
+`NFSDCollectorFailing` is gated on `probe_success{probe_scope="nfs"} == 1`. Both are
+deliberate. On a host that has never run `runbooks/nfs-exports/`, the `nfsd` module is not
+loaded, `node_nfsd_server_threads` does not exist, and node-exporter's `nfsd` collector
+reports a hard failure rather than no-data — measured on this cluster before deployment:
+`node_scrape_collector_success{collector="nfsd"}` was `0`. Ungated, both rules therefore
+page on every rebuild, for the hours between Phase 3 reconciling `monitoring-configs` and
+an operator running this workflow.
+
+The gates cost nothing real. `systemctl stop nfs-server` runs `rpc.nfsd 0` and leaves the
+module loaded, so a genuine outage keeps the series present at `0` and still fires; the
+never-started case is covered by the blackbox probe. And an absent series can no longer
+disarm `NFSServerDown` silently, because that is exactly the state `NFSDCollectorFailing`
+watches for once the probe says the port is answering.
+
+`NFSServerDown` therefore depends on the module surviving a stop. The
+`NFS_ALERT_DRILL=1` path in `runbooks/nfs-exports/04-validate-monitoring.sh` proves it end
+to end; if that drill ever stops seeing the alert fire, restore the `absent()` arm and
+accept the rebuild noise. The probe-driven `StandardEndpointDown` cannot be gated this way
+— see [the runbook](../runbooks/nfs-exports/README.md#when-to-run-it) for the ordering
+that avoids it.
+
+### The `mountpoint` guard is weaker than it looks
+
+Both exports carry the `mountpoint` option so `exportfs` refuses to export a bare
+directory on the root filesystem after a failed array assembly. But `fstab` uses
+`x-systemd.automount`, so an autofs mount is present on both paths even before the real
+ext4 filesystem mounts, and the guard passes. Real coverage for an unmounted volume is
+the `BulkStorageMountSetIncomplete` alert, plus the fact that any nfsd access triggers
+the automount. The `nfs-server.service` drop-in orders the daemon `After=` both
+`.automount` units — deliberately not `RequiresMountsFor=`, which would force both
+filesystems up at boot and defeat the automount.
+
+### Client mount options
+
+Server names come from the `*.nfs.service.matrix` wildcard A record (`10.137.20.5`,
+[network.md](./network.md#static-dns-records-udm)), repointed from the retired
+`morpheus`. Any label under it resolves; the examples use one name per export so an
+`fstab` line says which tree it mounts. The bare `nfs.service.matrix` is deliberately
+not used — a DNS wildcard does not match its own owner name (RFC 4592), so it would
+only work if a separate A record for it also existed.
+
+Linux workstation (VLAN 30) or another VLAN 20 server, in `/etc/fstab`:
+
+```
+media.nfs.service.matrix:/mnt/media  /mnt/media  nfs4  rw,nfsvers=4.2,sec=sys,hard,proto=tcp,noatime,nodiratime,actimeo=60,_netdev,nofail,x-systemd.automount,x-systemd.idle-timeout=600,x-systemd.mount-timeout=30s  0 0
+games.nfs.service.matrix:/mnt/games  /mnt/games  nfs4  rw,nfsvers=4.2,sec=sys,hard,proto=tcp,noatime,nodiratime,actimeo=60,_netdev,nofail,x-systemd.automount,x-systemd.idle-timeout=600,x-systemd.mount-timeout=30s  0 0
+```
+
+* **`hard`, never `soft`.** `soft` returns `EIO` to the application on timeout, which
+  silently corrupts writes. Combined with `x-systemd.automount` the client never blocks at
+  boot, so the usual reason to reach for `soft` does not apply.
+* **`nfsvers=4.2` pinned.** A client that would otherwise fall back to v3 fails loudly
+  against this server instead of hanging.
+* **`noatime,nodiratime`.** atime updates are synchronous NFS writes; pure overhead here.
+* **`actimeo=60`.** The media tree is near-append-only, so a 60-second attribute cache cuts
+  GETATTR chatter substantially. Drop it on any client that must see another host's writes
+  promptly.
+* **`nofail` + `x-systemd.automount` + `idle-timeout=600`.** Boot never waits on `minis`;
+  the mount appears on first access and unmounts after ten idle minutes. Omit the automount
+  options on an always-on server that should hold the mount persistently.
+* **`rsize`/`wsize` deliberately omitted.** The negotiated 1 MiB default is already optimal.
+* **`nconnect` deliberately omitted.** Both `minis` NICs are 2.5GbE but the UDM and Catalyst
+  ports negotiate 1 Gb, so a single TCP connection saturates the link and extra connections
+  only add server state. Revisit only if that link is upgraded.
+
+Emulation box, `/mnt/games` only. `all_squash` means client uid mapping is irrelevant — do
+not pass `uid=`/`gid=`, and do not pass `nolock` (a v3-ism; NFSv4 has integrated locking).
+
+* **RetroPie** — an `/etc/fstab` entry over the ROM directory:
+  ```
+  games.nfs.service.matrix:/mnt/games  /home/pi/RetroPie/roms  nfs4  rw,nfsvers=4.2,sec=sys,hard,proto=tcp,noatime,_netdev,nofail,x-systemd.automount,x-systemd.mount-timeout=30s  0 0
+  ```
+* **Batocera** — the image is read-only, so put the mount in `/userdata/system/custom.sh`
+  rather than `fstab`, targeting `/userdata/roms`, with a retry loop because Batocera's boot
+  races the network. Batocera's built-in network-share UI defaults to v3 and will fail
+  against this server; use an explicit `mount -t nfs4 -o vers=4.2,…` call.
+* Consider mounting the emulation box **`ro`** on the client side. The export is `rw`, but
+  nothing on a RetroPie/Batocera box legitimately writes ROMs, and a client-side `ro`
+  removes the largest accidental-deletion surface on the games volume.
+
+### Day-to-day
+
+```bash
+sudo exportfs -v                     # effective exports and options
+cat /proc/fs/nfsd/versions           # `-3 +4 -4.0 +4.1 +4.2` on minis (see below)
+ss -tlnp | grep 2049                 # must be 10.137.20.5 and 127.0.0.1 only
+sudo nft list table inet nfs_access  # allow list and drop counters
+sudo exportfs -ra                    # re-read /etc/exports after editing it
+```
+
+`/proc/fs/nfsd/versions` reads approximately `-3 +4 -4.0 +4.1 +4.2` on `minis`, with
+NFSv2 omitted entirely rather than shown as `-2`: Ubuntu 24.04's 6.8 kernel is built
+without `CONFIG_NFSD_V2`, and a version the kernel does not implement is left out of the
+file. `+4` is the v4 family switch and is listed alongside the minor versions.
+
+The invariant is therefore about the `+` forms, in both directions — `+2`, `+3`, and
+`+4.0` must be absent, and `+4`, `+4.1`, and `+4.2` present. A `-N` token and a missing
+token are equally acceptable for a version we do not serve. `assert_nfs_versions_locked`
+in `runbooks/nfs-exports/lib.sh` checks exactly that, comparing whitespace-separated
+tokens for equality rather than using `grep -w`: `.` is not a word character, so
+`grep -w -- '+4'` also matches inside `+4.1` and would pass a host with the whole v4
+family switched off.
+
+After changing `host/minis/etc/exports`, re-run `runbooks/nfs-exports/01-install-server-config.sh`
+(it installs the file and runs `exportfs -ra`) rather than editing `/etc/exports` in place,
+so the repo stays the source of truth. Restarting `nfs-server` is safe; restarting
+`nftables` is not.
+
 ## Resource tuning
 
 `runbooks/phase5/14-audit-resources.sh` is the repeatable audit path. It opens a
@@ -500,7 +702,6 @@ exception remain absent.
 |---|---|
 | **Bulk-storage backup plan** | Replace the current ad hoc external-drive copies with a documented, repeatable backup policy for irreplaceable content on `/mnt/media` (including personal pictures), `/mnt/games`, and any other selected bulk-array paths. Define the destination, cadence, retention, monitoring, and representative restore drills; until then, do not describe the RAID array itself as a backup. |
 | **Move SLZB-MRW10U to IoT VLAN 60** | The dual-radio coordinator currently resides on Trusted/VLAN 30. Follow the ordered migration checklist in [network.md](./network.md#network-step-1-unifi-dream-machine-configuration): record its current IP/MAC, assign a stable VLAN 60 address, stage the narrow `minis` TCP `6638`/`7638` allow, preserve `slzb-mrw10u.iot.matrix`, and rerun the Z-Wave, Zigbee, and monitoring validators. mDNS reflection is neither enabled nor required for this fixed DNS/TCP path. |
-| **Selected NFS exports from `minis`** | When a real remote consumer appears, export only `/mnt/media` and `/mnt/games` from `minis` with an explicit client/access policy. Nothing exports bulk storage over NFS today. Keep `/mnt/frigate` local-only; do not export `/mnt/backups` without a concrete use. |
 | **Second node** | Only on a *measured* need: HA must survive main-node maintenance, or Frigate outgrows the Coral/CPU budget. Repo layout already supports it via `nodeSelector`/affinity. |
 | **Tailscale Funnel for Plex** | Evaluate only if sharing with non-Tailnet users or casting to uncontrolled clients becomes a real need. Funnel is still beta and subject to Tailscale's non-configurable bandwidth limits, so validate sustained Plex throughput and target-client compatibility before choosing it over another narrowly scoped remote-access design. |
 | **Immich** | When ready — coordinate the initial import in a quiet window, watch memory. Originals on the direct bulk array, thumbs/ML on `/opt/immich`. |
