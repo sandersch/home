@@ -267,7 +267,7 @@ and its functionality moved to Grafana Alloy.
 | Actionable warning/critical alert | Alertmanager sends firing and resolved notifications to Pushover | deployed and live-validated 2026-07-20 |
 | Monitoring pipeline absent | Dead Man's Snitch misses the Alertmanager Watchdog | deployed and live-validated; external check healthy 2026-07-20 |
 | UPS on battery | `cp1500` reports `OB=1` for one minute | deployed and live-validated; mains-loss/Pushover drill passed 2026-07-25 |
-| NFS server down | `nfsd` is loaded but has no running threads for five minutes | deployed; rule and metrics live-validated 2026-08-29, outage/Pushover drill deferred |
+| NFS server down | `nfsd` is loaded but has no running threads for five minutes | deployed and live-validated 2026-08-29; outage plus firing/resolved Pushover delivery passed |
 | NFS pre-v4 request served | any NFSv2/v3 request is answered, meaning the NFSv4-only lockdown regressed | deployed and live-validated 2026-08-29, including explicit NFSv3 refusal |
 | NFS collector failing | TCP 2049 answers but node-exporter cannot read `/proc/net/rpc/nfsd`, so the two rules above cannot evaluate | deployed and live-validated 2026-08-29 |
 | NFS endpoint down | blackbox TCP probe of `10.137.20.5:2049` fails beyond the standard tier window | deployed and live-validated 2026-08-29 |
@@ -422,8 +422,8 @@ depends on it.
 The attended deployment gate passed on 2026-08-29: server/listener/export invariants,
 VLAN 30 read/write and squash behavior, explicit NFSv3 refusal, VLAN 105/IoT/Guest/
 Tailnet isolation, camera/hostPath/device/throughput regressions, the blackbox probe,
-all three Prometheus rules, and the nfsd collector were healthy. The optional six-minute
-`NFSServerDown` outage and Pushover delivery drill remains deferred to a quiet window.
+all three Prometheus rules, and the nfsd collector were healthy. A controlled
+`NFSServerDown` outage drill also passed with firing and resolved Pushover delivery.
 
 Canonical config lives under `host/minis/etc/` (`exports`, `nfs.conf.d/10-homelab.conf`,
 `systemd/system/nfs-server.service.d/10-wait-mounts.conf`, and the `nfs_access` table in
