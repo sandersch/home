@@ -50,6 +50,30 @@
       "groupName": "download stack images"
     },
     {
+      "description": "LinuxServer.io tags carry the build number in the suffix, which docker versioning would freeze as an unchangeable compatibility string",
+      "matchPackageNames": ["lscr.io/linuxserver/sabnzbd"],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<build>\\d+)$"
+    },
+    {
+      "description": "The *arr images add a fourth upstream version part ahead of the LinuxServer build number",
+      "matchPackageNames": [
+        "lscr.io/linuxserver/prowlarr",
+        "lscr.io/linuxserver/radarr",
+        "lscr.io/linuxserver/sonarr"
+      ],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-ls(?<revision>\\d+)$"
+    },
+    {
+      "description": "qBittorrent tags append the bundled libtorrent version, which stays outside the numeric capture groups",
+      "matchPackageNames": ["lscr.io/linuxserver/qbittorrent"],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)_v[\\d.]+-ls(?<build>\\d+)$"
+    },
+    {
+      "description": "Plex tags carry an upstream commit hash between the version and the LinuxServer build number",
+      "matchPackageNames": ["lscr.io/linuxserver/plex"],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-[0-9a-f]+-ls(?<revision>\\d+)$"
+    },
+    {
       "description": "The custom Restic image is published only through its attended workflow",
       "matchPackageNames": ["ghcr.io/sandersch/restic-backup"],
       "enabled": false
