@@ -102,6 +102,16 @@ migration of the SLZB-MRW10U from its current
 Trusted/VLAN 30 placement to IoT/VLAN 60, a possible second node, Tailscale Funnel
 for Plex, and Immich.
 
+**Backups beyond cluster app state are not implemented.** [docs/backups.md](./docs/backups.md)
+is a **draft** policy covering personal photos, documents, credentials, the workstations, and
+the mail archive. The decisions it records — the `vault`/`appstate`/`workstations` dataset
+split, `restic copy` for NAS→B2 replication, an append-only `--private-repos` REST server
+with a per-client repo and credential for workstation pushes, and excluding Frigate
+recordings — are **provisional pending implementation** and are *not* part of the settled
+decision log above. Until it is built and drilled, only `/opt`, the
+k3s datastore, and the required hot dumps are backed up; everything on the bulk array has a
+single copy.
+
 ## Repository structure
 
 Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
@@ -116,6 +126,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   ├── network.md
 │   ├── migration-runbook.md
 │   ├── direct-attached-storage-migration.md
+│   ├── backups.md             #   DRAFT backup policy — proposed, not implemented
 │   └── operations.md
 ├── runbooks/                  # Phases 0–5 plus attended bastion/DR/migration/NFS workflows
 ├── host/                      # canonical bare-metal host and switch config
@@ -205,3 +216,5 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 5. [docs/architecture.md](./docs/architecture.md) — the design and its rationale.
 6. [docs/migration-runbook.md](./docs/migration-runbook.md) — historical Plex + *arr migration path.
 7. [docs/operations.md](./docs/operations.md) — backups, monitoring, tuning, follow-ups.
+8. [docs/backups.md](./docs/backups.md) — **draft** whole-estate backup policy. Proposed
+   design only; nothing in it is deployed.

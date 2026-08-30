@@ -76,6 +76,11 @@ backuplv  ext4   /mnt/backups   1 TiB
 mounted or consumed by the current platform. The array identity is pinned to
 `/dev/md3` by UUID in the canonical mdadm configuration.
 
+A fifth LV, `vaultlv` at `/mnt/vault`, is **proposed but not created**. It would give
+irreplaceable data (photos, documents, credentials, mail archive) a single source root
+separate from the re-acquirable bulk library. See the draft policy in
+[backups.md](./backups.md); the layout above reflects what exists today.
+
 Rationale for the splits:
 
 - **`/var` 100 GB** — container image layers for ~10 apps plus k3s SQLite datastore state and
@@ -210,6 +215,12 @@ The rule: **latency-sensitive state on local NVMe; bulk data on the direct array
 | Zigbee2MQTT | Device DB + coordinator backup + network config | `/opt/zigbee2mqtt` | btrfs (NVMe) |
 | Immich (later) | Thumbnails + ML cache | `/opt/immich` | btrfs (NVMe) |
 | Immich (later) | Originals | direct bulk array | mdadm/LVM/ext4 |
+
+**Backup coverage of the above is partial.** Everything on `/opt` is captured by the nightly
+Restic pipeline plus the weekly B2 copy. Everything on the direct array — `/mnt/media`,
+`/mnt/games`, `/mnt/frigate` — is **not backed up**, and that includes personal pictures
+currently under `/mnt/media`. [backups.md](./backups.md) proposes a policy to close this, but
+it is a draft and none of it is deployed.
 
 The four UUID-based ext4 mounts use `nofail,x-systemd.automount` plus bounded device
 and mount timeouts. This lets the host boot if the enclosure is absent while exact
