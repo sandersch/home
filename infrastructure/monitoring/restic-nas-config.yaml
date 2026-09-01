@@ -16,7 +16,6 @@ data:
     plex/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.blobs.db
     frigate/config/frigate.db
     home-assistant/config/home-assistant_v2.db
-    prowlarr/config/prowlarr.db
     radarr/config/radarr.db
     sonarr/config/sonarr.db
     seerr/config/db/db.sqlite3
