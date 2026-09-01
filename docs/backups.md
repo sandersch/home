@@ -184,11 +184,15 @@ offline media, and a repository is retired by re-initializing it (`--from-repo`,
 by pruning it. The two drives alternate quarterly, so the newest offline copy is
 at most **90 days old** when rotations happen on time, and **180 days** if the most recent
 drive is lost, destroyed, or unreadable. A skipped rotation extends both figures without
-limit, which is what the alert exists to catch. That is the number to weigh against `ResticOfflineDriveStale`
-firing at 120d (§ 9): the alert catches a *missed* rotation before the worst case doubles
-again. At ~35 GB growing 5 GB/yr with no pruning, either 2 TB drive has ample headroom for
-the intended retention; capacity is measured during rotation rather than projected from a
-fixed replacement date.
+limit, which is what the alerts exist to catch. `ResticOfflineDriveStale` evaluates the
+newest successful rotation across **either** drive and fires at 120d, so it catches a missed
+quarterly rotation without paging merely because the other drive is waiting its normal
+turn. A separate per-drive `ResticOfflineDriveRotationOverdue` fires at 210d: each physical
+drive is normally updated every 180d, and the extra 30d allows scheduling slack while still
+detecting that one SSD was skipped or repeatedly left out of rotation (§ 9). At ~35 GB
+growing 5 GB/yr with no pruning, either 2 TB drive has ample headroom for the intended
+retention; capacity is measured during rotation rather than projected from a fixed
+replacement date.
 
 The drive not being updated remains off-site throughout the attended rotation. The operator
 retrieves only the drive whose turn it is and runs one attended command. The runbook verifies
@@ -1274,7 +1278,8 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticWorkstationBackupStale` | newest `ryze`/`m5c` snapshot older than 7d (warning) |
 | `BackupsVolumeFillingUp` | `/mnt/backups` below 20% free (warning) / 10% free (critical) |
 | `ResticPruneOverdue` | no prune in 10d (warning) |
-| `ResticOfflineDriveStale` | last offline rotation older than 120d (warning) |
+| `ResticOfflineDriveStale` | newest successful offline rotation across either drive older than 120d (warning) |
+| `ResticOfflineDriveRotationOverdue` | last successful rotation of an individual drive older than 210d (warning) — per drive |
 | `ResticReplicationLag` | prune skipped a repo for unreplicated snapshots on two consecutive runs (warning) |
 | `ResticRepoNearCeiling` | repo size above 80% of its ceiling (warning) |
 | `VaultLocked` | `/mnt/vault` not mounted for 30m (warning) — see below |
@@ -1461,15 +1466,19 @@ The surface covers every state-derived rule, not only repository age:
 - prune success, held state, unreplicated removal-candidate count, and consecutive
   replication-gated skip count;
 - invalid workstation snapshot-time holds;
-- last successful offline rotation per physical drive;
+- last successful offline rotation per physical drive; the global rule computes the newest
+  of those two timestamps rather than relying on a separate heartbeat;
 - last successful mail archive that actually ran `mbsync`; and
 - last successful Strongbox `ccs.kdbx` offer and promotion; and
 - last successful `~/Documents` offer and promotion per workstation host.
 
 The metric files always contain the complete configured label set, including both
 workstation hosts and both offline drives; a missing underlying state is emitted as zero
-rather than silently dropping one host from a vector. Alerts still carry `or absent(...)`
-to catch deletion of the collector surface itself.
+rather than silently dropping one host from a vector. `ResticOfflineDriveStale` takes the
+maximum of the two per-drive timestamps, while `ResticOfflineDriveRotationOverdue`
+evaluates each labeled series independently. There is no separate aggregate heartbeat that
+can drift from the per-drive state. Alerts still carry `or absent(...)` to catch deletion
+of the collector surface itself.
 
 State is refreshed whenever a process already opens the relevant repository: vault local
 on its four-hour backup, vault B2 on daily copy, appstate local nightly and B2 weekly,
@@ -1594,8 +1603,11 @@ Ordered so the highest-value, least-reversible data is protected first.
 8. **Offline drives** — init **both** drives `--from-repo <NAS> --copy-chunker-params`
    (with their own distinct password, § 8) on the two existing 2 TB portable USB SSDs, record
    their labels and filesystem UUIDs, and install the single-command attended rotation
-   runbook. Complete the first rotation and restore drill, then use the lightweight quarterly
-   and substantive annual procedures above.
+   runbook. Seed and validate each drive in separate attended sessions before normal
+   alternation begins, so both per-drive rotation timestamps have a real initial checkpoint
+   and the 210d rule does not start from an invented success. Return one drive off-site
+   before retrieving the other, as required above. Then use the lightweight quarterly and
+   substantive annual procedures above.
 
 ## Verification (proposed)
 
@@ -1727,6 +1739,11 @@ Backups are only worth what a restore proves, so every phase ends with one.
   36 hours in the controlled test fixture, and prove `StrongboxVaultIngestionStale` routes.
   Disable each host's document-ingestion timer in turn, age its heartbeat past seven days,
   and prove `VaultDocumentsIngestionStale` preserves the affected `host` label.
+  Exercise the offline metrics separately: two per-drive timestamps 90d and 180d old must
+  fire neither offline alert; aging the newest of both beyond 120d must fire
+  `ResticOfflineDriveStale`; and aging only one labeled drive beyond 210d must fire
+  `ResticOfflineDriveRotationOverdue` for that drive without firing the global stale rule
+  while the other drive remains current.
   `runbooks/phase5/12-test-pushover.sh` is the existing precedent.
 - **Flux reconciliation.** `flux reconcile kustomization monitoring --with-source`, then
   confirm no drift and all new CronJobs are scheduled.
