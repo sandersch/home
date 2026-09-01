@@ -400,7 +400,8 @@ the mail process has no reason to read:
 └── gmail-app-password
 ```
 
-Reserve numeric UID/GID **`2000:2000`** for the mail archive. The Phase 6 preflight fails if
+Reserve numeric UID/GID **`2000:2000`** for the mail archive. The mail-archive preflight
+(phase 7 of [Phasing](#phasing-proposed)) fails if
 `getent passwd 2000` or `getent group 2000` finds an unrelated host identity; no login
 account is required on the host, because hostPath permissions use the numeric IDs directly.
 The mounted vault filesystem root is `root:root` `0711`: UID 2000 can traverse a known path
@@ -1045,7 +1046,7 @@ The API path (gphotos-sync, rclone's Google Photos backend) strips GPS EXIF and
 recompresses, so it is the wrong tool for building an archive intended to be kept forever.
 Takeout preserves originals and ships sidecar JSON with the metadata Google holds.
 
-`runbooks/phase6/02-seed-vault-from-takeout.sh` unpacks the Takeout archives into
+`runbooks/backups/02-seed-vault-from-takeout.sh` unpacks the Takeout archives into
 `/mnt/vault/photos`, merges the sidecar JSON back into file mtimes, de-duplicates against
 the existing pre-2018 local archive, and reports counts to eyeball before the first backup
 runs. Until ongoing ingestion is solved, photos taken after the bootstrap are protected only
@@ -1498,21 +1499,33 @@ Dead Man's Snitch continues to cover the "monitoring itself is down" case.
 `rest-server-deployment.yaml`, `rest-server-service.yaml`, `rest-server-storage.yaml`,
 `rest-server.sops.yaml`
 
-**Intentionally absent:** `restic-vault.sops.yaml` and `mail-archive.sops.yaml`. Phase 6
-creates the vault NAS/B2 password files and dedicated B2 application-key files directly
-under the mounted, encrypted `.backup-credentials` directory, and creates the Gmail app
-password under `.mail-credentials`, all with silent prompts. It verifies that no rendered
-vault or mail Pod references a Kubernetes Secret for them (§ 1b). The values themselves
-never enter git; the break-glass cards recover the vault repository credentials, while the
-external password manager holds the independent Gmail app-password copy.
+**Intentionally absent:** `restic-vault.sops.yaml` and `mail-archive.sops.yaml`. These
+credentials are written directly under the mounted, encrypted `.backup-credentials` and
+`.mail-credentials` directories, with silent prompts, by the phase that first needs each
+one: phase 1 the vault NAS repository password, phase 4 the distinct vault B2 repository
+password and dedicated B2 application-key files, and phase 7 the Gmail app password. Each
+of those phases verifies that no rendered vault or mail Pod references a Kubernetes Secret
+for them (§ 1b). The values themselves never enter git; the break-glass cards recover the
+vault repository credentials, while the external password manager holds the independent
+Gmail app-password copy.
 
 **New — elsewhere:** `apps/mail-archive/`,
 `containers/mail-archive/{Containerfile,VERSION}`,
 `.github/workflows/mail-archive-image.yaml`, `host/ryze/`, `host/m5c/`, and
-`runbooks/phase6/` (00-preflight → 12, plus `lib.sh` and `README.md` per
+`runbooks/backups/` (00-preflight → 12, plus `lib.sh` and `README.md` per
 `runbooks/README.md` conventions), plus the released vault and per-workstation contracts
 under both `infrastructure/monitoring/contracts/` and
 `runbooks/disaster-recovery/contracts/`.
+
+**`runbooks/backups/` is a directory-level workflow, not a numbered build-plan phase.** It
+joins `direct-attached-storage-migration/`, `disaster-recovery/`, `bastion/`, and
+`nfs-exports/` as an exception to the one-subdirectory-per-phase model in
+`runbooks/README.md`. That is the right shape here: this work spans host, cluster, and
+workstation surfaces and is run in stages over months, rather than once from an SSH-ready
+host in build-plan order. So `docs/build-plan.md` stays at Phase 5 and gains nothing, and
+the numbered phases in [Phasing](#phasing-proposed) below are stages *within* this
+workflow — they are **not** `runbooks/phaseN/` directories, and they do not correspond to
+the existing `runbooks/phase5/` scripts this document cites.
 
 **Modified:** `infrastructure/monitoring/kustomization.yaml`,
 `infrastructure/monitoring/configs/alert-rules.yaml`,
@@ -1530,6 +1543,9 @@ promotion path),
 `chattr +i` on the unmounted mountpoint, ordered `Before=mnt-vault.mount`),
 `docs/architecture.md`, `docs/version-management.md` (document the second repo-built image),
 `docs/operations.md` (retire the deferred item **only once implemented**),
+`runbooks/README.md` (add `runbooks/backups/` to the directory-level workflow list — the
+"four directory-level workflows are exceptions" sentence and the phase table both become
+five),
 `host/minis/etc/exports` (update the "no backup policy yet" comment),
 `AGENTS.md` (decision log — record the discontinued photo export **and** the manual-unlock
 trade-off in § 1b)
@@ -1613,7 +1629,7 @@ Ordered so the highest-value, least-reversible data is protected first.
 
 Backups are only worth what a restore proves, so every phase ends with one.
 
-- **Per-phase restore drill, per repo.** `runbooks/phase6/06-validate-vault-restore.sh`
+- **Per-phase restore drill, per repo.** `runbooks/backups/06-validate-vault-restore.sh`
   restores to a scratch path and diffs against source, in the shape of the existing
   `runbooks/phase5/05-validate-restore.sh` and `09-validate-b2-restore.sh`, but uses
   `restic check --read-data` rather than repeating their fixed `1/100` subset. A fixed
