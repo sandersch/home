@@ -86,9 +86,7 @@ data:
         out="$SQLITE_DUMPS/${rel}.sqlite-backup"
         mkdir -p "$(dirname "$out")"
         escaped="${out//\'/\'\'}"
-        if sqlite3 -readonly "$db" \
-          '.timeout 60000' \
-          ".backup '$escaped'" 2>"$err"; then
+        if sqlite_backup_with_wait "$db" "$out" "$err"; then
           if sqlite_backup_health_check "$db" "$out" "$err"; then
             count=$((count + 1))
           else
@@ -115,6 +113,28 @@ data:
       done < <(required_sqlite_databases)
       [ "$required_count" -gt 0 ] || die "required SQLite inventory is empty"
       log "created $count SQLite backup file(s); validated $required_count required export(s)"
+    }
+
+    sqlite_backup_with_wait() {
+      local db="$1" out="$2" err="$3" attempt rc
+      for attempt in $(seq 1 6); do
+        rc=0
+        sqlite3 -readonly "$db" \
+          '.timeout 60000' \
+          ".backup '$(printf "%s" "$out" | sed "s/'/''/g")'" \
+          2>"$err" || rc=$?
+        [ "$rc" -eq 0 ] && return 0
+        case "$(sqlite_error_summary "$err")" in
+          *"SQLITE_BUSY"*|*"database is locked"*|*"unable to open database file"*)
+            log "waiting for possibly busy SQLite database (attempt $attempt/6): $db"
+            sleep 20
+            ;;
+          *)
+            return "$rc"
+            ;;
+        esac
+      done
+      return 1
     }
 
     sqlite_backup_health_check() {
