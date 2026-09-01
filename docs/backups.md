@@ -109,7 +109,7 @@ file?"
 | Repository | Retention arguments | Nominal RPO | Max tolerated staleness | Recovery window | Applied by |
 |---|---|---|---|---|---|
 | `vault` (NAS) | `--keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 12w --keep-within-monthly 24m` | 4h | 8h (`ResticVaultBackupOverdue`) | 24 months | weekly prune job (§ 2) |
-| `vault` (B2) | `--keep-within-daily 30d --keep-within-weekly 12w --keep-within-monthly 24m` | 24h | 36h (`ResticVaultCopyOverdue`) | 24 months | weekly prune job, against the B2 repo |
+| `vault` (B2) | `--keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 12w --keep-within-monthly 24m` | 24h | 36h (`ResticVaultCopyOverdue`) | 24 months | weekly prune job, against the B2 repo |
 | `vault` (offline) | **none — `forget` never runs**, see below | 90d | 120d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
 | `appstate` (NAS) | `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` — **existing, unchanged** | 24h | 30h (`ResticLocalBackupOverdue`) | ~12 months | inline in `restic-nas-backup` (§ 3) |
 | `appstate` (B2) | `--keep-weekly 8 --keep-monthly 12` — **existing, unchanged** | 7d | 8d (`ResticB2BackupOverdue`) | ~12 months | inline in `restic-b2-backup` |
@@ -137,6 +137,14 @@ columns: its NAS and B2 retention run *inline* at the end of `restic-nas-backup`
 `restic-b2-backup` respectively, with the keep values supplied per-job through
 `RESTIC_KEEP_*` — the existing arrangement, deliberately left alone (§ 3). Nothing prunes
 offline media at all.
+
+For every new NAS→B2 repository pair, the shared job always applies NAS retention first and
+B2 retention second. The destination policy must never discard a snapshot before the source
+policy makes that same lineage eligible: in particular, vault B2 repeats NAS's
+`--keep-within-hourly 48h` tier even though copies run only daily. This ordering lets the
+NAS-side gate prove that every source removal candidate is still physically present in B2;
+only after the source forget succeeds may B2 independently remove lineages selected by its
+own policy.
 
 The `appstate` rows are not a proposal — they record what
 `restic-nas-config.yaml` and `restic-b2-cronjob.yaml` already set, so the table describes
@@ -753,9 +761,17 @@ data:
   destination's matching canonical lineage in the destination ledger. The ledgers contain
   no file data or secrets, can be reconstructed by attended revalidation, and fail closed
   if missing or malformed.
-- **Prune decoupled from backup.** A 4-hourly job must not prune. `forget --prune` moves to
-  a separate weekly `restic-prune-cronjob.yaml` covering the **new** repos — `vault` and the
-  two workstation repos. `appstate` is not included; see below.
+
+  A ledger records **validation evidence**, not repository presence. It is intentionally
+  historical: retention may remove a snapshot without erasing the fact that its lineage was
+  once validated. Every consumer therefore reconciles it with a fresh `snapshots --json`
+  listing and treats only their intersection as the current validated set. A stale ledger
+  row can never make copy, prune, metrics, or an operator conclude that a missing B2
+  snapshot still exists. Conversely, an actual snapshot absent from the ledger remains
+  unvalidated until attended revalidation records it.
+- **Prune decoupled from backup.** A 4-hourly job must not prune. Retention and prune work
+  move to a separate weekly `restic-prune-cronjob.yaml` covering the **new** repos — `vault`
+  and the two workstation repos. `appstate` is not included; see below.
 
   Because the guard now lives in one job and the prune in another, the guard cannot be a
   decision the backup run makes about its own trailing step — a truncated snapshot at 04:00
@@ -767,8 +783,10 @@ data:
     comparison the backup-side guard makes, computed independently);
   - the newest snapshot and every removal candidate are present in the root-controlled
     validation ledger, rather than merely carrying a client-selectable tag;
-  - every validated snapshot `forget` would remove has already been replicated to that
-    repo's **B2** destination and is present in its destination ledger;
+  - for a NAS repository, every validated snapshot `forget` would remove has already been
+    replicated to its **B2** destination and is both physically present there and recorded
+    in its destination validation ledger; this downstream-replication gate does not apply
+    while pruning the B2 destination itself;
   - no hold is present in `/mnt/backups/.control/<repo>/`.
 
   The replication precondition is what keeps the off-site recovery window from being
@@ -779,11 +797,29 @@ data:
   to `id` — on **both** sides, never by `id` alone (§ 3).
   Concretely: run `forget --dry-run --json` to get the removal candidates, collect
   `original`/`id` from B2's `snapshots --json`, cross-check both sides against the
-  validation ledgers, and skip the repo if any candidate is unmatched. A repo skipped this
-  way is the expected steady state when the copy job has
+  validation ledgers, and skip the NAS repo if any candidate is unmatched. A repo skipped
+  this way is the expected steady state when the copy job has
   failed for a while, so it exports the count of unreplicated candidates as a metric and
   `ResticReplicationLag` (§ 9) fires on it — the prune stall itself is the safe outcome,
   not the problem to fix.
+
+  **The destructive step consumes the verified IDs, not the policy a second time.** The
+  dry-run releases its Restic lock before the next command, so a new backup can arrive after
+  candidate selection. Re-running `forget` with the policy could then select a different
+  set from the one whose validation and replication were proved. Instead, after verifying
+  the candidate set, the job runs `restic forget <candidate-id>...` with those exact source
+  repository IDs and then runs `restic prune` separately. A snapshot created between the
+  dry-run and explicit forget is therefore outside the deletion set. If any selected ID is
+  no longer present when the destructive step begins, that repository is skipped and
+  reported rather than silently recomputing policy.
+
+  **Ordering is per pair: NAS first, B2 second.** Vault B2 carries the same
+  `--keep-within-hourly 48h` tier as vault NAS, so it cannot age out an hourly lineage that
+  NAS still needs to prove replicated on a later run. The job completes the NAS candidate
+  check, explicit forget, and prune before evaluating the corresponding B2 policy. B2 then
+  performs its own dry-run, ledger/health checks, exact-ID forget, and prune; it has no
+  downstream-replication gate. The same source-before-destination order applies separately
+  to `workstations/ryze` and `workstations/m5c`.
 
   **Only B2 gates pruning. The offline drives deliberately do not.** They are disconnected
   by design — that is the entire point of the control — so the prune job cannot query them,
@@ -839,13 +875,17 @@ take non-exclusive repo locks and coexist; the weekly prune takes an exclusive o
 is a further reason it lives in its own job (§ 2) rather than tailing a backup.
 
 Replication is an allow-list operation, not a mirror command. The job enumerates only
-canonical lineage IDs recorded in the NAS validation ledger, revalidates each source
-snapshot, and copies explicit snapshot IDs that are absent from the destination ledger.
-After `restic copy`, it locates the destination snapshot by canonical lineage, validates
-that exact destination, and only then commits the destination-ledger entry and success
-metric. Invalid candidates and snapshots that merely claim a `validated` tag are never
-eligible. This prevents a post-backup contract or secret-exclusion failure from being
-faithfully replicated off-site.
+canonical lineage IDs both present in a fresh NAS `snapshots --json` listing and recorded in
+the NAS validation ledger, then revalidates each source snapshot. It copies explicit source
+snapshot IDs whose lineage is absent from a fresh destination `snapshots --json` listing;
+a historical destination-ledger row alone never suppresses a copy. After `restic copy`, it
+locates the destination snapshot by canonical lineage, validates that exact destination,
+and only then records the destination-ledger entry and success metric. Invalid candidates,
+snapshots that merely claim a `validated` tag, and actual destination snapshots absent from
+the validation ledger are never eligible as proof of a healthy copy; the latter condition
+is held for attended revalidation rather than overwritten or silently accepted. This
+prevents a post-backup contract or secret-exclusion failure from being faithfully
+replicated off-site and prevents stale ledger state from disguising a missing B2 snapshot.
 
 **The copy is intentionally vault-gated even though its data source is `/mnt/backups`.** It
 maps host `/mnt/vault` at `/data/vault` to obtain the source and destination password files
@@ -958,15 +998,16 @@ processes must never serve the same repository path.
 
 **Pruning cannot go through the REST endpoint.** No credential deletes through an
 append-only server, so the weekly prune job (§ 2) addresses these repos **directly on the
-filesystem** — `restic -r /mnt/backups/workstations/ryze forget --prune` — using the same
-hostPath the rest-server is backed by. This is why prune is a cluster-side job rather than
-something a client triggers, and it avoids standing up a second, non-append-only Service
-whose only purpose would be to hold delete rights.
+filesystem** — using the same hostPath the rest-server is backed by and the dry-run,
+exact-ID `forget`, then separate `prune` sequence in § 2. This is why prune is a cluster-side
+job rather than something a client triggers, and it avoids standing up a second,
+non-append-only Service whose only purpose would be to hold delete rights.
 
-Prune and a client push do **not** run concurrently: `forget --prune` takes an *exclusive*
-repo lock, and restic's locking is enforced on the repo itself, so it applies equally whether
-a process arrived over REST or over the hostPath. Locking makes overlap safe, not free — the
-loser of a race fails rather than corrupting anything. Give the workstation wrappers
+Prune and a client push do **not** run concurrently: destructive `forget` and `prune`
+operations take exclusive repo locks, and restic's locking is enforced on the repo itself,
+so it applies equally whether a process arrived over REST or over the hostPath. Locking
+makes overlap safe, not free — the loser of a race fails rather than corrupting anything.
+Give the workstation wrappers
 `--retry-lock` (a few minutes is plenty for these repo sizes) and schedule the weekly prune
 away from the workstation timers, so a legitimate overlap waits instead of paging.
 
@@ -1753,6 +1794,17 @@ Backups are only worth what a restore proves, so every phase ends with one.
   snapshots B2 does not, then run the prune job and confirm it skips the repo, exports a
   non-zero unreplicated-candidate count, and prunes normally on the next run once the copy
   job has caught up.
+- **Retention ordering and exact-candidate deletion.** In paired disposable repositories,
+  create the vault's four-hour snapshot pattern and run both retention policies across more
+  than one weekly cycle. Confirm B2's matching 48-hour hourly tier never removes a lineage
+  NAS still retains, and confirm the job processes NAS before B2. After NAS dry-run
+  candidate selection but before the destructive command, add another valid snapshot; the
+  job must forget only the previously verified explicit IDs and leave the new snapshot
+  untouched. Remove a copied destination snapshot while retaining its historical validation
+  ledger row, then run copy again: the fresh destination listing must expose the absence and
+  cause that source lineage to be copied and validated again. Finally, create an actual B2
+  snapshot with no destination-ledger entry and confirm it is held for attended
+  revalidation rather than accepted as replication proof.
 - **Off-site independence.** Restore a document and a photo from B2 on a machine that is not
   `minis`, using only the break-glass card — no access to this repo's decrypted secrets.
   This is the only test that validates the disaster path end to end.
