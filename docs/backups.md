@@ -460,6 +460,7 @@ The host permissions are exact:
 | `/mnt/vault/.mail-credentials/gmail-app-password` | `root:2000` | `0440` | read only |
 | `/mnt/vault/mail` | `2000:2000` | `0700` | read and write |
 | `/mnt/vault/.backup-credentials` | `root:root` | `0700` | none |
+| `/mnt/vault/.vault-sentinel` | `root:root` | `0444` | read only |
 
 Every credential is a regular, non-symlink file. All other vault datasets deny UID/GID
 2000 at their own directory boundary. The app password is also stored in the external
@@ -467,8 +468,30 @@ password manager as its independent recovery source; it is not printed on the br
 cards because it can be revoked and reissued through Google without being needed to decrypt
 an existing backup.
 
+`.vault-sentinel` holds the vault contract version and the recorded ext4 UUID of the vault
+filesystem, and every sentinel assertion checks both. Carrying the UUID is what makes the
+§ 2 "damaged, incorrectly initialized, or **wrong** vault" case actually detectable: a
+presence-only sentinel is satisfied by a copied file on a restored or substituted
+filesystem, which is the same reasoning that puts the UUID in the `/mnt/backups` sentinel.
+It is named for the filesystem it identifies so it is never confused with that one; the two
+files have different contents, live on different filesystems, and are not interchangeable.
+
+**The sentinel is world-readable on purpose, and it is the one file here that must be.**
+Like the `/mnt/backups` sentinel (§ [`/mnt/backups` must fail
+closed](#mntbackups-must-fail-closed)) it is a regular, root-owned, non-symlink file that no
+non-root identity may write, and it carries no secret. But the vault root is `0711`, so a
+non-root workload can traverse to a known path and nothing more, and *several distinct
+non-root identities must read this file before they are allowed to touch anything else*: the
+mail job at `2000:2000` (§ 6) and the Frigate ingestion init container at its own UID (§ 7)
+both run `drop: [ALL]` without `DAC_OVERRIDE` and are required to assert the sentinel before
+a credential, source, or destination is opened. `0440 root:2000` would grant the check to
+mail and silently deny it to every other such identity — turning a guard that is supposed to
+fail *closed on a locked vault* into one that fails closed on a healthy one, for the
+workloads that need it most. `0444` is the mode that lets every writer perform the assertion
+while leaving root the only identity that can create, modify, or remove it.
+
 Every vault Pod maps hostPath `/mnt/vault` to `/data/vault`, verifies the backing
-filesystem identity at `/data/vault` and then `/data/vault/.backup-sentinel` *before*
+filesystem identity at `/data/vault` and then `/data/vault/.vault-sentinel` *before*
 looking for credentials, and passes only **paths** in its Pod specification:
 
 - `RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password` for the NAS job;
@@ -533,7 +556,7 @@ fails" sounds like the desired behaviour:
   failure this whole arrangement exists to avoid.
 
 Without the automount, a locked `/mnt/vault` is simply the bare, immutable mountpoint directory
-on the root filesystem: `[ -f /mnt/vault/.backup-sentinel ]` returns false immediately, no
+on the root filesystem: `[ -f /mnt/vault/.vault-sentinel ]` returns false immediately, no
 device unit is consulted, no timeout elapses, and no password agent is involved. Mounting is
 then solely `vault-unlock`'s job. The crypttab entry pins the LUKS UUID. The helper verifies
 that UUID on the raw LV before prompting, runs `cryptsetup open`, verifies the configured
@@ -605,7 +628,7 @@ Gmail onto the root filesystem until it filled. Two guards, both required:
 
 - **A mount-identity and sentinel check in every writer**, not only in the backup job —
   `/data/vault` must resolve to the expected vault filesystem and
-  `/data/vault/.backup-sentinel` must be present before any credential or destination is
+  `/data/vault/.vault-sentinel` must be present before any credential or destination is
   touched (§ 2). The same guard the read side already uses, now applied in both directions.
   The identity check distinguishes an ordinary locked vault, which skips cleanly, from a
   mounted wrong filesystem or a damaged vault, which fails rather than being mistaken for
@@ -721,10 +744,12 @@ data:
   mountinfo form Kubernetes exposes so a bind-mount formatting assumption cannot weaken
   this check.
 - **Sentinel assertion after identity.** Every source root on an expected mounted filesystem
-  must contain its contract-versioned `.backup-sentinel`; for the vault, the exact check is
-  `/data/vault/.backup-sentinel`. If the expected vault filesystem is mounted but its
-  sentinel is absent, the job fails: that means a damaged, incorrectly initialized, or
-  wrong vault, not an ordinary locked reboot. Without this check the job can cheerfully back
+  must contain its own contract-versioned sentinel, named for the filesystem it identifies;
+  for the vault, the exact check is `/data/vault/.vault-sentinel`, and it verifies the
+  recorded contract version and ext4 UUID rather than mere presence (§ 1b). If the expected
+  vault filesystem is mounted but its sentinel is absent, unreadable, or carries a version
+  or UUID that does not match, the job fails: that means a damaged, incorrectly initialized,
+  or wrong vault, not an ordinary locked reboot. Without this check the job can cheerfully back
   up an empty mounted filesystem. The same file is the write-side guard for every job that
   writes into the vault (§ 1b, § 6, § 7), so one sentinel covers both directions. Because
   the vault has no automount, the preceding locked-state check remains cheap and cannot
@@ -1256,7 +1281,7 @@ neither mail state nor credentials.
 
 **Mail archival may be unavailable until unlock, and that is acceptable** — Gmail still
 holds the mail; the archive is the second copy, not the only one. The job asserts the vault
-mount identity at `/data/vault` and `/data/vault/.backup-sentinel` before invoking `mbsync`
+mount identity at `/data/vault` and `/data/vault/.vault-sentinel` before invoking `mbsync`
 and, when the vault is locked (§ 1b), skips with the same exit-0-plus-metric shape as the
 backup job (§ 2). This guard matters more here than anywhere else in the design: without it,
 mbsync writes a maildir through `/data/vault` onto `vg0/root` under the unmounted host
@@ -1725,7 +1750,9 @@ Ordered so the highest-value, least-reversible data is protected first.
    mapping it to `vault` (**not** `vaultlv` — § 1b), the
    `noauto,nofail` fstab entry on `/dev/mapper/vault` (**no `x-systemd.automount`** — § 1b),
    and the `0555` **immutable** mountpoint plus the boot unit that re-asserts it,
-   initialize the mounted filesystem root as `root:root` `0711`, install `vault-unlock`,
+   initialize the mounted filesystem root as `root:root` `0711`, write
+   `.vault-sentinel` (`root:root` `0444`, contract version plus the recorded ext4 UUID —
+   § 1b) so every later writer has something to assert against, install `vault-unlock`,
    create the root-only `.backup-credentials` directory and NAS password file, seed
    `ccs.kdbx` + documents, init the `vault` NAS repo *normally* — it is the chunker-params
    source for every later destination (§ 3) — first backup, prove the credential-directory
@@ -1857,12 +1884,14 @@ Backups are only worth what a restore proves, so every phase ends with one.
 - **Mail identity boundary.** Before creating mail-owned paths, prove host UID and GID 2000
   are unassigned. Verify the rendered CronJob has the exact § 6 security context, no
   `fsGroup`, no root ownership-fixing init container, and the pinned repo-built image. In
-  the running mail container, prove `id -u` and `id -g` are both 2000; it can read (but
-  never print) only `/data/vault/.mail-credentials/gmail-app-password`, create and remove a
-  probe under `/data/vault/mail`, and complete an IMAP sync. The same process must fail to
+  the running mail container, prove `id -u` and `id -g` are both 2000; that it can read
+  `/data/vault/.vault-sentinel` and verify both its recorded values; that it can read (but
+  never print) `/data/vault/.mail-credentials/gmail-app-password`; and that it can create
+  and remove a probe under `/data/vault/mail` and complete an IMAP sync. Those two files are
+  the *only* readable paths it gets: the same process must fail to
   list `/data/vault`, read `/data/vault/.backup-credentials`, read another vault dataset,
-  or create a top-level vault entry. Finally, verify `stat` still reports the exact § 1b
-  ownership and modes; the Pod must not repair drift by changing them.
+  write `.vault-sentinel`, or create a top-level vault entry. Finally, verify `stat` still
+  reports the exact § 1b ownership and modes; the Pod must not repair drift by changing them.
 - **Locked-vault behaviour, end to end.** Reboot `minis` without unlocking and confirm the
   whole degraded path is the intended one: the host and k3s come up, camera recording keeps
   running, Frigate exports still land on `/mnt/frigate`, the `appstate` and workstation
