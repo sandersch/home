@@ -26,6 +26,12 @@
 > key or a credential that can read the mailbox. Frigate exports
 > therefore stay on `/mnt/frigate` and are synced into the vault (§ 7) instead of the vault
 > being mounted into the container, as an earlier draft had it.
+>
+> **Revised 2026-08-31:** recovery objectives are now explicit; Strongbox's encrypted
+> `~/Dropbox/ccs.kdbx` file replaces the earlier generic "credentials export" and has a
+> concrete restricted-SFTP ingestion contract (§ 1c); workstation B2 storage is one
+> destination repository per host; and the capacity, alerting, metric, integrity-check, and
+> restore-drill inconsistencies found during review are corrected below.
 
 ## What exists today
 
@@ -53,7 +59,7 @@ One table is the contract. Every proposed manifest points back to it.
 
 | Dataset | Contents | Size | NAS | Off-site (B2) | Offline drive |
 |---|---|---|---|---|---|
-| `vault` | credentials export, documents, photos, mail archive, firmware, Frigate exports | ~35 GB (+5 GB/yr) | **every 4h** | daily (copy) | quarterly (copy) |
+| `vault` | Strongbox/KeePass database archive, documents, photos, mail archive, firmware, Frigate exports | ~35 GB (+5 GB/yr) | **every 4h once ingested** | daily (copy) | quarterly (copy) |
 | `appstate` | `/opt`, k3s datastore, hot dumps — **existing, unchanged** | ~20 GB | nightly | weekly | quarterly (copy) |
 | `workstations` | `ryze` home (curated), `m5c` home (curated) | **~70 GB** (`ryze` 50, `m5c` 20) | daily push | weekly (copy) | — |
 | *(none)* | disk images, Frigate **recordings**, `/mnt/media`, `/mnt/games` | 18 TiB+ | local only, GC'd | — | — |
@@ -61,6 +67,15 @@ One table is the contract. Every proposed manifest points back to it.
 Photos and documents land in all three columns — RAID6, Backblaze, and an offline disk.
 That is the 3-2-1 target, and the offline disk is the only copy the cluster has no
 authority to delete.
+
+The vault cadence starts only after data reaches `/mnt/vault`; it is not an ingestion
+guarantee. The Strongbox database has its own source-to-vault contract (§ 1c):
+`~/Dropbox/ccs.kdbx` is offered by `ryze` every four hours, ingestion alerts at 36 hours,
+and the next vault run protects an accepted file within another four hours. Ordinary
+documents remain protected by the daily workstation repositories until they are deliberately
+placed in the curated vault archive. Post-bootstrap phone photos remain Google-only until
+the deferred photo-ingestion project is built. These distinctions prevent a four-hour
+repository schedule from being misread as a four-hour RPO for data that has not arrived.
 
 **The workstation figure is deliberately pessimistic.** `ryze` is budgeted at **50 GB**
 against the ~5 GB an aggressive exclude list is expected to yield from the 69 GB currently
@@ -94,8 +109,9 @@ file?"
 | `appstate` (NAS) | `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` — **existing, unchanged** | 24h | 30h (`ResticLocalBackupOverdue`) | ~12 months | inline in `restic-nas-backup` (§ 3) |
 | `appstate` (B2) | `--keep-weekly 8 --keep-monthly 12` — **existing, unchanged** | 7d | 8d (`ResticB2BackupOverdue`) | ~12 months | inline in `restic-b2-backup` |
 | `appstate` (offline) | none — `forget` never runs | 90d | 120d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
-| `workstations` (NAS) | `--keep-within 30d --keep-within-daily 30d --keep-within-weekly 12w --keep-within-monthly 12m` | 24h | 7d (`ResticWorkstationBackupStale`) | every snapshot for 30d; selected history for 12 months | weekly prune job, over hostPath (§ 4) |
-| `workstations` (B2) | `--keep-within 30d --keep-within-weekly 12w --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the B2 repo |
+| each workstation (NAS) | `--keep-within 30d --keep-within-daily 30d --keep-within-weekly 12w --keep-within-monthly 12m` | 24h | 7d (`ResticWorkstationBackupStale`) | every snapshot for 30d; selected history for 12 months | weekly prune job, over each hostPath (§ 4) |
+| `workstations/ryze` (B2) | `--keep-within 30d --keep-within-weekly 12w --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the `ryze` B2 repo |
+| `workstations/m5c` (B2) | `--keep-within 30d --keep-within-weekly 12w --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the `m5c` B2 repo |
 
 **"Nominal" is the schedule, not a guarantee.** These RPOs are what the cadence produces
 when every job succeeds. The *true* worst case is unbounded — a job can fail every night, a
@@ -131,6 +147,25 @@ any more. Every `forget` invocation in this design therefore passes `--group-by 
 explicitly. `appstate` keeps the default — its source paths are fixed by contract v2, so
 the failure mode cannot arise there.
 
+### Recovery-time objectives (proposed)
+
+These are loose operational targets, not availability SLAs. The clock starts when an
+operator begins recovery with compatible replacement hardware, repository credentials,
+and network access available; hardware procurement and operator unavailability are outside
+it.
+
+| Dataset | Recovery target |
+|---|---|
+| `appstate` | core cluster services restored within 24h |
+| `vault` | priority documents and `ccs.kdbx` restored within 24h; full vault within 72h |
+| `workstations` | curated home restored within 7d after the replacement OS is ready |
+| Mail archive and Frigate exports | restored within 7d; neither blocks service recovery |
+| Offline-drive recovery | best effort within 7d, including retrieval of the drive |
+
+Quarterly drills record elapsed restore time as well as success. If repeated drills miss a
+target, change the target or the procedure explicitly rather than continuing to call it an
+objective without evidence.
+
 **Offline media are cumulative, and there are two drives.** Each physical drive holds two
 separate persistent repositories, `vault` and `appstate`; it is never one mixed repository.
 All four repositories are only ever copied *into*: `forget` and `prune` never run against
@@ -162,13 +197,14 @@ observable rather than aspirational:
 |---|---|---|
 | `vault` (NAS) | 250 GiB | `ResticRepoNearCeiling` at 80% (§ 9) |
 | `appstate` (NAS) | 250 GiB | same |
-| `workstations/ryze` | 100 GiB | dedicated rest-server `--max-size`, hard (§ 4) |
+| `workstations/ryze` | 150 GiB | dedicated rest-server `--max-size`, hard (§ 4) |
 | `workstations/m5c` | 100 GiB | dedicated rest-server `--max-size`, hard (§ 4) |
 | `vault` (B2) | 100 GB | alert only |
 | `appstate` (B2) | 50 GB | alert only |
-| `workstations` (B2) | 150 GB total | alert only |
+| `workstations/ryze` (B2) | 100 GB | alert only |
+| `workstations/m5c` (B2) | 50 GB | alert only |
 
-That totals 800 GiB locally against 1 TiB, with the margin arriving from retiring the legacy
+That totals 750 GiB locally against 1 TiB, with the margin arriving from retiring the legacy
 rsnapshot tree in phase 6. Only the workstation caps are hard limits — they are the
 ones facing an untrusted client. The rest are alerts, because a cluster-side job hitting a
 hard cap would fail a backup to protect disk space, which is the wrong trade for data the
@@ -176,7 +212,7 @@ cluster itself produces. A separate filesystem-level alert fires when `/mnt/back
 less than 20% free (warning) or 10% free (critical), independently of the per-repository
 measurements; the sum of soft ceilings is not itself an enforcement mechanism.
 
-**The 800 GiB is a ceiling sum, not a forecast, and the margin is not yet freed.**
+**The 750 GiB is a ceiling sum, not a forecast, and part of the margin is not yet freed.**
 Expected steady-state occupancy is far lower — `appstate` is ~20 GB of source today, and
 even the pessimistic 50 GB / 20 GB workstation budgets are well under their caps — so the
 ceilings are headroom against growth rather than a prediction. What makes them safe to
@@ -185,13 +221,13 @@ correcting: `~177 GiB` is the **whole-filesystem** usage recorded in the migrati
 not a measurement of the tree. The only direct measurement (2026-08-30) puts
 `/mnt/backups/snapshots/` at **119 GiB**; the remaining ~58 GiB is other content on the LV.
 Plan on the measured 119 GiB and have phase 6 account for the difference rather than
-budgeting the larger number. Either reading clears the ceilings — 800 GiB against 1,008 GiB
-leaves 208 GiB of headroom, or 89 GiB on the conservative 119 GiB reclaim — but re-derive
-this from a fresh `du` when phase 6 runs instead of trusting it from here. **The 89 GiB
-figure is the one to watch.** It is positive but thin, and it is the reason the workstation
-caps were raised only to 150/100 GiB rather than to a round 200 GiB each: a round number
-would consume the entire conservative margin. If the measured workstation size comes in
-near the pessimistic budget, revisit these caps before the vault has grown into its own.
+budgeting the larger number. The ceiling sum leaves 258 GiB against the 1,008 GiB
+filesystem; while the measured 119 GiB legacy tree still exists, the conservative temporary
+margin is 139 GiB. The remaining ~58 GiB already on the LV must be classified during phase
+6 so current repository data is not counted twice and unrelated content is not omitted.
+Re-derive all three numbers from fresh `du` and `df` output before granting the caps. The
+150/100 GiB workstation split is intentional; raising both to a round 200 GiB would consume
+another 150 GiB and erase most of the pre-cleanup margin.
 
 **The B2 ceilings are split rather than shared, because a shared one hides which dataset
 is growing.** Under the earlier single `vault` + `appstate` 150 GB ceiling, the vault —
@@ -266,7 +302,7 @@ the vault, an application boundary rather than `sec=sys`.
 
 `vaultlv` is a LUKS2 container. Every *copy* of this data is already encrypted — the NAS
 repo, B2, and the offline drives are all restic repositories — so `/mnt/vault` is the one
-place tier-0 material (credentials export, documents, mail, photos) would otherwise sit in
+place tier-0 material (the Strongbox database archive, documents, mail, photos) would otherwise sit in
 plaintext. Nothing else on `minis` is encrypted today; this is the first place it is worth
 the complexity, because it is the largest concentration of secrets on the estate.
 
@@ -510,25 +546,64 @@ binds — see § 7, where exports stay on `/mnt/frigate` and are synced into the
 than the vault being mounted into the container. Backups (§ 2) and mail archival (§ 6) may
 safely remain unavailable until unlock; they skip, emit a metric, and alert.
 
-### 1c. Workstation-to-vault ingestion is still a separate decision
+### 1c. Workstation-to-vault ingestion over restricted SFTP
 
-How ordinary documents and password-manager exports arrive in `/mnt/vault` is **not yet
-settled**. SFTP is the leading candidate; NFS export of the vault remains prohibited. If
-implemented, it must be a key-only, non-root SFTP endpoint chrooted or otherwise confined
-to a dedicated `/mnt/vault/inbox/<client>` drop area, unavailable while the vault is locked,
-with no dependency from host or k3s startup. A separate ingestion job would validate names,
-types, ownership, and size before moving files atomically from the inbox into their canonical
-vault roots. Direct client write access to `credentials/`, `documents/`, or the repository
-credential directories is out of scope.
+Strongbox syncs its encrypted KeePass database through Dropbox, and the ordinary filesystem
+path on both workstations is exactly `~/Dropbox/ccs.kdbx`. That KDBX file is the backup
+artifact; there is no routine CSV or plaintext password export. Strongbox/Dropbox remains
+the live synchronization path, so manual vault unlock never affects password-manager use.
+The vault receives an archival copy rather than becoming Strongbox's primary SFTP backend.
 
-Restic does **not** solve this ingestion problem. It is appropriate for the append-only
-workstation backup repositories (§ 4), but restoring a client-created restic snapshot into
-the canonical vault on a schedule would turn a backup format into a transfer queue, require
-the vault side to trust client-controlled paths and snapshot selection, and blur the source
-of truth. Phase 6 may seed the vault with attended local copies, but it does not deploy an
-ingestion endpoint until SFTP or another transport is explicitly chosen and threat-modeled.
-The open decision is tracked under [Deferred](#deferred-documented-not-built), not hidden in
-an implementation placeholder.
+`ryze` is the designated uploader because its systemd timer is the more predictable
+execution surface. Every four hours it:
+
+1. proves `~/Dropbox/ccs.kdbx` is a local, non-symlink regular file rather than a cloud
+   placeholder, checks the KDBX signature and a measured minimum size, and records its
+   metadata;
+2. copies it to a private memory-backed path below `/run/user/$UID`, then proves the source
+   size and modification time did not change during the copy;
+3. uploads it with its dedicated SSH key to a temporary name under the SFTP inbox and
+   atomically renames it into place; and
+4. updates a separate success heartbeat even when the database content hash is unchanged.
+
+The host runs a dedicated ingestion-only `sshd` listener on the selected Tailnet/trusted
+address and a non-management port, with `AllowUsers vault-ingest-ryze` and only
+key-authenticated `internal-sftp` for that identity. Its
+`ChrootDirectory` is a root-owned, non-writable `/mnt/vault/inbox/ryze` and the client may
+write only a child `upload/` directory; shell, forwarding, tunnelling, agent forwarding,
+and direct access to canonical vault directories are disabled. The host firewall/Tailnet
+policy admits that listener only from `ryze`'s selected trusted source. The ordinary
+management `sshd` configuration and reachability do not change, and there is no public
+listener. While the vault is locked,
+the chroot is absent and upload fails safely rather than writing to the root filesystem.
+The client retains the last local success state and retries on its next timer; the server's
+`VaultLocked` alert names the usual cause.
+
+A host-side promotion service accepts only the expected `ccs.kdbx` name, validates it as a
+regular non-symlink file with the expected KDBX signature, size floor, and stable hash, then
+atomically replaces `/mnt/vault/credentials/strongbox/ccs.kdbx`. It never unlocks the
+database and holds no Strongbox master credential. `StrongboxVaultIngestionStale` warns
+when the last successful offered-and-promoted copy is older than 36 hours while the vault
+is mounted; `VaultLocked` owns the locked state. Both workstation
+backup contracts also include the exact `~/Dropbox/ccs.kdbx` path, so the daily workstation
+repositories remain an independent recovery route when vault ingestion is unavailable.
+
+Ordinary documents use the same transport but a separate `upload/documents/` subtree. A
+daily `ryze` job copies a deliberately curated `~/VaultDrop/Documents/` tree; it is not a
+bidirectional document share. Promotion validates names, types, ownership, and size before
+moving files into `/mnt/vault/documents/`. Working documents outside that tree remain covered
+by the workstation repositories, not by the vault RPO. The client heartbeat distinguishes
+"nothing changed" from "the delivery job did not run."
+
+Restic does **not** serve as this ingestion transport. Restoring client-created snapshots
+into the canonical vault on a schedule would turn a backup format into a transfer queue,
+require the vault side to trust client-controlled paths and snapshot selection, and blur the
+source of truth.
+
+The KDBX recovery factor remains independent of the file. If `ccs.kdbx` uses only a master
+password, its sealed recovery record must not be stored inside the database. If it also uses
+a key file or YubiKey challenge-response, the key file, spare key, or recovery secret is
+stored and drilled separately rather than beside `ccs.kdbx` in the same backup.
 
 ### 2. Generic dataset backup job
 
@@ -762,6 +837,13 @@ Separately, the `appstate` repository on each drive is initialized
 `--from-repo <appstate-NAS> --copy-chunker-params`. A physical drive is only a carrier; it
 does not collapse the two datasets into one repository or one password.
 
+Workstation off-site storage follows the same one-source/one-destination rule. `ryze` and
+`m5c` each have a distinct B2 repository, repository password, validation ledger, and
+ceiling. Initialize `workstations/ryze` (B2) from the `ryze` NAS repository and
+`workstations/m5c` (B2) from the `m5c` NAS repository with `--copy-chunker-params`; never
+copy both NAS repositories into one shared B2 repository. Their separate 100 GB and 50 GB
+ceilings sum to the 150 GB workstation allowance without hiding which host is growing.
+
 **Copied and retagged snapshots do not necessarily keep their IDs.** `restic copy`
 re-creates a snapshot in the destination, which gets a new ID and records source lineage in
 its `original` field (visible in `snapshots --json`); tag operations can introduce another
@@ -770,9 +852,9 @@ identity hop. Two consequences worth being explicit about:
 - **A restore drill on one repo is not evidence about the other.** It says nothing about the
   destination's pack files, index, or B2's stored bytes. Each repo needs its own drill —
   which is why [Verification](#verification-proposed) lists a local restore *and* a
-  from-B2 restore as separate line items, each running its own
-  `restic check --read-data-subset` the way `runbooks/phase5/05-validate-restore.sh` and
-  `09-validate-b2-restore.sh` already do.
+  from-B2 restore as separate line items, each running its own data-reading repository
+  check. The new quarterly drills use `restic check --read-data`; they do not copy the
+  existing fixed `1/100` subset unchanged (§ Verification).
 - **Correlation is by canonical lineage, not by ID.** Anything matching snapshots across repos —
   the copy job's "is this already replicated?" check, the prune job's per-repo newest-
   snapshot metric, an operator eyeballing a drill — must compare `original // id` on both
@@ -816,9 +898,9 @@ one "key", and the design does not work if they are:
 | htpasswd user + password | HTTP authentication | who may reach that workstation's dedicated endpoint |
 | restic repo password | repository encryption | decrypting contents. It grants **no** delete permission through an append-only endpoint; that is the server's call, not the crypto's |
 
-Each Deployment therefore runs `--append-only --max-size=107374182400` against exactly one
-repository root: `/mnt/backups/workstations/ryze` or
-`/mnt/backups/workstations/m5c`. It has one-entry htpasswd data, one Service/Tailscale
+The `ryze` Deployment runs `--append-only --max-size=161061273600`; the `m5c` Deployment
+runs `--append-only --max-size=107374182400`. Each addresses exactly one repository root,
+`/mnt/backups/workstations/ryze` or `/mnt/backups/workstations/m5c`, and has one-entry htpasswd data, one Service/Tailscale
 hostname, and one repository password. `--private-repos` is deliberately **not** used: its
 extra username subdirectory would add no isolation when the entire process, endpoint,
 credential, path, and quota are already per-client. NetworkPolicy admits only the
@@ -848,7 +930,8 @@ replacement Pod to become Ready. The prune job receives a projected, short-lived
 Account token and a Role limited to `get`/`patch` on the two named rest-server Deployments;
 no rest-server Pod receives a token. If the PATCH or readiness wait fails, that repository's
 prune is reported failed and its success metric is not advanced. The stale overcount fails
-closed by refusing future uploads; it cannot permit the real repository to exceed 100 GiB.
+closed by refusing future uploads; it cannot permit the real repository to exceed its
+configured 150 GiB or 100 GiB cap.
 This restart-and-recount behavior is part of the restore/prune drill, not an implementation
 detail that may be omitted.
 
@@ -886,11 +969,23 @@ existing `host/minis/etc/` and `host/bastion/etc/` convention:
 - `host/ryze/` — systemd service + timer, `restic-excludes`, wrapper script
 - `host/m5c/` — launchd plist, `restic-excludes`, wrapper script
 
+Each released client scope has an immutable contract,
+`workstation-ryze-v1.json` or `workstation-m5c-v1.json`, committed beside the wrapper and
+copied into the recovery runbook. It fixes the exact source root, exclusion-file hash,
+minimum file and byte floors, expected hostname, and the required
+`~/Dropbox/ccs.kdbx` path. The wrapper includes a measured manifest in every snapshot.
+Cluster-side validation checks that contract and manifest, the KDBX presence and size,
+snapshot time, and shrink tolerance before adding the canonical lineage to the validation
+ledger. Without that positive decision the snapshot is neither copied nor eligible for
+pruning.
+
 Excludes target the obvious bulk (`.cache`, `node_modules`, virtualenvs, Steam, container
 images, build dirs) plus `--exclude-caches` to honor `CACHEDIR.TAG`. Target ~5 GB from the
 69 GB used on `ryze`, **but plan capacity at 50 GB** (see the sizing note in
 [The data policy](#the-data-policy-proposed)). On macOS, exclude `~/Library/Caches` and the
-Photos/Mail libraries but **include** `~/Library/Application Support` for app state.
+Photos/Mail libraries but **include** `~/Library/Application Support` for app state. Both
+host contracts explicitly include `~/Dropbox/ccs.kdbx` even if a broader Dropbox exclusion
+is added later.
 
 **The preflight must measure rather than assume.** `restic backup --dry-run` (or `restic
 backup` against a throwaway repo) reports the exact post-exclude byte and file count for the
@@ -901,7 +996,8 @@ before enrollment, not a surprise discovered when the cap is hit months later.
 The Mac scope records three accepted facts from the owner: iCloud Drive does not use
 Optimize Storage, neither Photos nor Mail is a unique source of data, and the purpose of
 this repository is curated workstation recovery rather than a full-disk or Time Machine
-clone. The preflight records those settings and stops enrollment if any is false; otherwise
+clone. It also proves Dropbox has materialized `ccs.kdbx` locally rather than presenting an
+online-only placeholder. The preflight records those settings and stops enrollment if any is false; otherwise
 an excluded cloud placeholder could look like a local file without its contents being
 recoverable. Full Disk Access for the launchd/restic binary is still required and tested,
 because otherwise macOS privacy controls can silently omit protected home-library paths.
@@ -948,8 +1044,10 @@ SyncState *
 and Gmail's deleted state is itself a flag that must not be copied into an archive and later
 expunged. Nothing is ever pushed to Gmail. The selected Gmail mailboxes are `INBOX`,
 `[Gmail]/All Mail`, `[Gmail]/Spam`, and `[Gmail]/Trash`; arbitrary label mailboxes are
-excluded to avoid duplicate copies of the same message, while Spam and Trash are included
-so a message first seen there is not missed before Gmail expires it. This preserves mail
+excluded to avoid multiplying copies for every label, while Spam and Trash are included
+so a message first seen there is not missed before Gmail expires it. `INBOX` deliberately
+duplicates messages also present in All Mail so the familiar inbox view survives recovery;
+Restic deduplicates the repeated content in its repository. This preserves mail
 from the first successful sync onward; it cannot recover messages Gmail permanently deleted
 before enrollment. The committed config and validation test these exact semantics against
 the [isync operation definitions](https://isync.sourceforge.io/mbsync.html), rather than
@@ -957,7 +1055,8 @@ relying on `Sync Full` defaults.
 
 Run daily at 01:30, before the next 4-hour vault snapshot. A successful run validates the
 Maildir structure and atomically updates a last-success metric; `MailArchiveStale` warns at
-36 hours and includes `or absent(...)`. Maildir delivery is rename-based and mbsync protects
+36 hours while the vault is mounted and includes `or absent(...)`; `VaultLocked` owns the
+locked state. Maildir delivery is rename-based and mbsync protects
 each mailbox's state file, so an overlapping read-only restic walk is safe: at worst a
 message arriving during the walk appears in the next 4-hour snapshot. The CronJob uses
 `concurrencyPolicy: Forbid` so two syncs never share state.
@@ -1032,6 +1131,13 @@ in one pass. Frigate writes exports via ffmpeg rather than hardlinking, so cross
 filesystems is safe. Exports then inherit vault cadence, off-site replication, and the
 offline copy.
 
+The ingestion is archival, not a mirror: it never uses `--delete`, so removing a saved clip
+from Frigate does not silently remove the vault copy. It considers only regular non-symlink
+files whose size and modification time remain stable across the copy, writes a temporary
+destination, validates the resulting image or video container, and renames it atomically.
+A file still being written is deferred to the next run. A same-name destination with
+different content is a hard failure requiring attended resolution rather than an overwrite.
+
 This trades a hard dependency for eventual consistency: an export is unprotected between
 being written and the next successful vault run — nominally 4h, unbounded while the vault
 stays locked — and briefly exists in two places, which is immaterial at this size. Frigate's
@@ -1064,14 +1170,18 @@ password manager. It is excluded from Restic along with the repository credentia
 of both copies is an availability problem, not a backup-decryption problem: revoke the old
 app password in Google, issue a replacement, and resume `mbsync`.
 
-The password manager export is itself part of the vault dataset. **That creates a recovery
-circularity:** total loss of `minis` plus loss of password-manager access would make every
-backup unreadable unless the required material also exists outside both systems.
+The encrypted Strongbox database `ccs.kdbx` is itself part of the vault and workstation
+datasets. **That still creates a recovery circularity:** restoring the file is useless if
+total device loss also removes the master password, key file, or YubiKey recovery factor,
+and putting that factor only inside Strongbox cannot solve the problem.
 
 The fix is offline and outside the system: a printed / physically-stored card carrying the
 age public+private key, all restic repository passwords, **the `vaultlv` LUKS passphrase**
 (§ 1b), the B2 application key ID and secret, and a one-page pointer to
-`runbooks/disaster-recovery/`. Two sealed copies live in two locations: one in a secure
+`runbooks/disaster-recovery/`. The Strongbox master/recovery factor is carried either on
+that card or on a separately sealed record stored in the same two locations; a key file is
+never stored beside `ccs.kdbx`, and a YubiKey deployment requires a tested spare or recorded
+challenge-response recovery secret. Two sealed copies live in two locations: one in a secure
 home safe physically separated from `minis` and every backup drive, and one in an off-site
 bank safe-deposit box. A card is never stored with an offline drive: doing so would place
 the encrypted repository beside its password and collapse the control to the physical
@@ -1118,16 +1228,18 @@ actually unlocking with it at each refresh.
 ### 9. Alerting
 
 Extend the `homelab.backups` group in `infrastructure/monitoring/configs/alert-rules.yaml`,
-following the established pattern exactly — including `or absent(...)` so a deleted CronJob
-still fires:
+using `or absent(...)` on expected CronJob or textfile surfaces so deletion still fires,
+except for the deliberately mount-gated filesystem rule described below:
 
 | Alert | Condition |
 |---|---|
-| `ResticVaultBackupOverdue` | no success in 8h (critical) |
-| `ResticVaultCopyOverdue` | no B2 copy in 36h (critical) |
+| `ResticVaultBackupOverdue` | newest validated NAS snapshot older than 8h while vault mounted (critical) |
+| `ResticVaultCopyOverdue` | newest validated B2 lineage older than 36h while vault mounted (critical) |
 | `ResticWorkstationCopyOverdue` | no workstation→B2 copy in 8d (warning) — per host |
 | `ResticWorkstationSnapshotTimeInvalid` | a held workstation snapshot has an implausible clock (warning) — § 4 |
 | `MailArchiveFailed` | mail archive Job failed with no later success (warning) |
+| `MailArchiveStale` | no successful mail archive in 36h while vault mounted (warning) |
+| `StrongboxVaultIngestionStale` | no successful `ccs.kdbx` promotion in 36h while vault mounted (warning) |
 | `ResticWorkstationBackupStale` | newest `ryze`/`m5c` snapshot older than 7d (warning) |
 | `BackupsVolumeFillingUp` | `/mnt/backups` below 20% free (warning) / 10% free (critical) |
 | `ResticPruneOverdue` | no prune in 10d (warning) |
@@ -1140,11 +1252,12 @@ still fires:
 `VaultLocked` exists because manual unlock (§ 1b) introduces a state nothing else in this
 table models: the host rebooted cleanly, every core service is healthy, the existing vault
 data remains encrypted, but ingestion and vault backup/copy/prune work are paused.
-`ResticVaultBackupOverdue` *does* eventually catch it — at 8h, as a critical page, naming
-the backup pipeline rather than the passphrase. That is the wrong alert for a 30-second fix,
-and every unattended reboot would produce one. A warning at 30m that names the remedy is
-the right shape; the vault jobs skipping quietly (§ 2, § 3, § 6) is what keeps it to one
-alert instead of repeated failed CronJobs.
+The two vault-overdue rules key off validated repository state, not CronJob success, because
+a locked-vault skip exits zero and would otherwise look fresh. They are also joined to the
+mounted-vault filesystem series: while locked, `VaultLocked` is the single actionable
+warning; after unlock, an old NAS or B2 recovery point becomes critical at its stated
+threshold. This avoids both false freshness from successful skips and duplicate critical
+pages during an intentional locked period.
 
 It keys off the mount rather than a CronJob's last success — the same `absent()` shape the
 bulk set uses, but as its own rule:
@@ -1194,27 +1307,34 @@ mount-gating — but it is kept separate so it can carry a vault-specific runboo
 asymmetry is the thing to remember: the device-error rule tolerates the vault, the
 mount-set rule does not.
 
-Widen the existing `ResticBackupFailed` and `ResticBackupSuspended` regexes from
-`restic-(nas|b2)-backup` to cover the new job names, using the same
-`kube_job_created * kube_job_owner and kube_job_status_failed` join shape:
+Widen the existing critical `ResticBackupFailed` regex without dropping its two running
+jobs, and do not fold warning-only mail, workstation-copy, or prune failures into it. The
+critical rule covers `restic-nas-backup`, `restic-b2-backup`, `restic-vault-backup`, and
+`restic-vault-copy` using the same `kube_job_created * kube_job_owner and
+kube_job_status_failed` join shape:
 
 ```
 expr: |
   max by (namespace, owner_name) (
     (
-      kube_job_created{namespace="monitoring",job_name=~"restic-(vault|vault-copy|workstations-copy|prune|workstations-prune)-.*|mail-archive-.*"}
+      kube_job_created{namespace="monitoring",job_name=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)-.*"}
       * on (namespace, job_name) group_left(owner_name)
-        kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name=~"restic-vault-backup|restic-vault-copy|restic-workstations-copy|restic-prune|mail-archive"}
+        kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)"}
     )
     and on (namespace, job_name)
-      (kube_job_status_failed{namespace="monitoring",job_name=~"restic-(vault|vault-copy|workstations-copy|prune|workstations-prune)-.*|mail-archive-.*"} > 0)
+      (kube_job_status_failed{namespace="monitoring",job_name=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)-.*"} > 0)
   )
   > on (namespace, owner_name)
   label_replace(
-    kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob=~"restic-vault-backup|restic-vault-copy|restic-workstations-copy|restic-prune|mail-archive"},
+    kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)"},
     "owner_name", "$1", "cronjob", "(.*)"
   )
 ```
+
+`ResticBackupSuspended` may cover every Restic CronJob because suspension has the same
+warning severity and remedy. Failed `restic-workstations-copy` and `restic-prune` runs use
+the same last-success join in separate warning rules, so they cannot turn a degraded
+workstation copy or retention delay into a critical appstate page.
 
 **`mail-archive` needs its own rule rather than a regex on `ResticBackupFailed`,** because
 the two want different severities and different remedies. A failed Restic run means the
@@ -1248,18 +1368,20 @@ succeeded is a deployment problem the deployer is still watching — and it is r
 but it means `MailArchiveFailed` cannot catch a mail job that fails on its very first run.
 `MailArchiveStale` (36h, § 6) is the backstop for that window, and it is why both exist.
 
-**`ResticWorkstationCopyOverdue` keys off the same CronJob surface, not the snapshot
-timestamp,** so it carries `or absent(...)` like the other overdue rules:
+**`ResticWorkstationCopyOverdue` keys off destination state per host, not one shared
+CronJob timestamp.** A successful no-op copy run does not prove that both B2 repositories
+contain a current validated snapshot. The backup-state exporter emits the newest validated
+destination lineage timestamp for each host, and the alert preserves that `host` label:
 
 ```
 expr: |
-  (time() - kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-workstations-copy"} > 8 * 24 * 60 * 60)
-  or absent(kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-workstations-copy"})
+  (time() - homelab_restic_destination_snapshot_timestamp_seconds{dataset="workstations",destination="b2"} > 8 * 24 * 60 * 60)
+  or absent(homelab_restic_destination_snapshot_timestamp_seconds{dataset="workstations",destination="b2"})
 for: 30m   severity: warning
 ```
 
-It is a warning, not a critical, because the workstation NAS copy is already durable on
-B2-independent storage; a lagging replication job degrades the off-site recovery window
+It is a warning, not a critical, because the workstation NAS copy remains available;
+a lagging replication job degrades the off-site recovery window
 without losing data. That is the same reasoning that makes `ResticB2BackupOverdue` fire at
 8d with a 30m `for` — match its shape.
 
@@ -1293,39 +1415,36 @@ the reason this rule correctly goes quiet rather than lying during an array fail
 
 ### The metric surface for job-derived alerts
 
-`ResticWorkstationBackupStale`, `ResticOfflineDriveStale`, and `ResticRepoNearCeiling`
-cannot key off `kube_cronjob_status_last_successful_time` — they measure the state of
-*repositories*, not of CronJobs — so they need a small metric surface the jobs write and
-Prometheus scrapes.
+Repository state cannot always key off `kube_cronjob_status_last_successful_time`. A copy
+CronJob can succeed with nothing eligible, a locked-vault mail job deliberately exits zero
+without archiving, and manual offline rotation has no CronJob at all. Enable node-exporter's
+textfile collector and mount the root-only host directory
+`/mnt/backups/.control/metrics/` into it. Trusted jobs and attended runbooks write one
+owner-specific `.prom` file through temporary-file-plus-rename; workstation clients cannot
+reach the directory. This adds no Pushgateway or long-running custom exporter.
 
-**This is a new dependency, and the mechanism is not yet chosen.** The draft's earlier
-"the prune job writes a textfile/Pushgateway metric" was a hand-wave over two things that
-do not exist in this cluster today: node-exporter's textfile collector is **not** enabled
-(no `textFile` volume or `--collector.textfile.directory` in
-`infrastructure/monitoring/controllers/kube-prometheus-stack.yaml`), and there is no
-Pushgateway anywhere in the repo. Batch Jobs are also a poor fit for either: the textfile
-collector expects a long-lived node-local directory and Pushgateway needs an explicit push
-plus its own lifecycle and stale-metric handling.
+The surface covers every state-derived rule, not only repository age:
 
-The preferred shape is a **small PodMonitor over a long-lived exporter sidecar or
-Deployment** that reads the same state the jobs write — newest snapshot timestamp per repo
-per host, per-repo size, and per-repo prune outcome — and exposes it as gauges. The jobs
-write plain state files under `/mnt/backups/.control/<repo>/`; the exporter reads them.
-That keeps the scrape model consistent with `configs/flux-podmonitor.yaml`, needs no
-Pushgateway, and survives Job completion. Decide this during implementation and record the
-choice here; until it is settled, these three alerts have no data source.
+- newest validated NAS and B2 snapshot timestamp per dataset and workstation host;
+- per-repository size and configured ceiling;
+- prune success, held state, unreplicated removal-candidate count, and consecutive
+  replication-gated skip count;
+- invalid workstation snapshot-time holds;
+- last successful offline rotation per physical drive;
+- last successful mail archive that actually ran `mbsync`; and
+- last successful Strongbox `ccs.kdbx` offer and promotion.
 
-Two properties the surface must have regardless of mechanism:
+The metric files always contain the complete configured label set, including both
+workstation hosts and both offline drives; a missing underlying state is emitted as zero
+rather than silently dropping one host from a vector. Alerts still carry `or absent(...)`
+to catch deletion of the collector surface itself.
 
-- **Per-host, per-repo labels**, so `ResticWorkstationBackupStale` can distinguish `ryze`
-  from `m5c` rather than alerting on the pair, and so `ResticRepoNearCeiling` can name the
-  repo against its own ceiling.
-- **Emitted on the job's own cadence, not weekly.** `ResticRepoNearCeiling` is the sharp
-  case: § 2 had the prune job exporting repo size, but prune runs weekly, so a vault repo
-  crossing 80% of 250 GiB would sit unobserved for up to six days. Repo size must therefore
-  be refreshed by the **daily copy job**, which already opens every repository, and the
-  newest-snapshot timestamps by the backup jobs that create them. Prune contributes only
-  its own skip/outcome counters, which are genuinely weekly.
+State is refreshed whenever a process already opens the relevant repository: vault local
+on its four-hour backup, vault B2 on daily copy, appstate local nightly and B2 weekly,
+workstation local during daily cluster-side validation and B2 during weekly copy. Prune
+contributes its genuinely weekly outcome. This avoids the false claim that one daily copy
+job opens every repository while still observing each ceiling on the cadence that can grow
+that destination.
 
 Dead Man's Snitch continues to cover the "monitoring itself is down" case.
 
@@ -1350,14 +1469,22 @@ external password manager holds the independent Gmail app-password copy.
 `containers/mail-archive/{Containerfile,VERSION}`,
 `.github/workflows/mail-archive-image.yaml`, `host/ryze/`, `host/m5c/`, and
 `runbooks/phase6/` (00-preflight → 12, plus `lib.sh` and `README.md` per
-`runbooks/README.md` conventions)
+`runbooks/README.md` conventions), plus the released vault and per-workstation contracts
+under both `infrastructure/monitoring/contracts/` and
+`runbooks/disaster-recovery/contracts/`.
 
 **Modified:** `infrastructure/monitoring/kustomization.yaml`,
 `infrastructure/monitoring/configs/alert-rules.yaml`,
+`infrastructure/monitoring/controllers/kube-prometheus-stack.yaml` (enable and mount the
+node-exporter textfile collector at `/mnt/backups/.control/metrics`),
 `host/minis/etc/fstab` — the vault entry is `noauto,nofail` on `/dev/mapper/vaultlv`,
 intentionally unlike its automounted siblings (§ 1b),
 `host/minis/etc/crypttab` (new `noauto` entry for `vaultlv`),
 `host/minis/usr/local/sbin/vault-unlock` (new),
+`host/minis/etc/ssh/sshd_config_vault_ingest` plus its dedicated systemd service/socket
+(new restricted SFTP listener),
+`host/minis/usr/local/sbin/vault-ingest` and its systemd service (new KDBX/document
+promotion path),
 `host/minis/etc/systemd/system/vault-mountpoint-guard.service` (new — asserts `0555` and
 `chattr +i` on the unmounted mountpoint, ordered `Before=mnt-vault.mount`),
 `docs/architecture.md`, `docs/version-management.md` (document the second repo-built image),
@@ -1389,9 +1516,11 @@ Ordered so the highest-value, least-reversible data is protected first.
    and the `0555` **immutable** mountpoint plus the boot unit that re-asserts it,
    initialize the mounted filesystem root as `root:root` `0711`, install `vault-unlock`,
    create the root-only `.backup-credentials` directory and NAS password file, seed
-   credentials + documents, init the `vault` NAS repo *normally* — it is the chunker-params
+   `ccs.kdbx` + documents, init the `vault` NAS repo *normally* — it is the chunker-params
    source for every later destination (§ 3) — first backup, prove the credential-directory
-   exclusion, **restore drill**.
+   exclusion, **restore drill**. Then install the restricted SFTP inbox, promotion service,
+   `ryze` four-hour `ccs.kdbx` uploader, and 36-hour ingestion alert; prove a locked vault
+   rejects the upload without writing beneath the mountpoint.
    Protects the irreplaceable-and-tiny within the first sitting.
 2. **Break-glass card** — produce and distribute it, LUKS passphrase included (§ 8). Do
    this before there is enough in the repos to feel safe, not after — and note that from
@@ -1411,9 +1540,11 @@ Ordered so the highest-value, least-reversible data is protected first.
 5. **Workstations** — **two** rest-server Deployments, each with `--append-only` and a
    per-client repo path, htpasswd credential, and repo password (§ 4). Do **not** pass
    `--private-repos`: one shared process would make `--max-size` a server-wide limit and
-   quietly collapse the two 100 GiB per-workstation caps in
-   [Capacity ceilings](#capacity-ceilings-proposed) into one shared 100 GiB. Point the
-   weekly prune job at those repos over hostPath, not REST; enroll `ryze`, then `m5c`.
+   quietly collapse the 150/100 GiB per-workstation caps in
+   [Capacity ceilings](#capacity-ceilings-proposed) into one shared process-wide quota. Point the
+   weekly prune job at those repos over hostPath, not REST. Initialize two corresponding B2
+   repositories from their own NAS sources with `--copy-chunker-params`, then enroll `ryze`
+   and `m5c` against their released contracts.
 6. **Housekeeping** — firmware into vault, Frigate exports sync job (§ 7 — a sync, not a
    volume mount), disk-image GC policy,
    retire the legacy rsnapshot tree on `/mnt/backups` (validate it holds nothing unique
@@ -1437,10 +1568,13 @@ Backups are only worth what a restore proves, so every phase ends with one.
 
 - **Per-phase restore drill, per repo.** `runbooks/phase6/06-validate-vault-restore.sh`
   restores to a scratch path and diffs against source, in the shape of the existing
-  `runbooks/phase5/05-validate-restore.sh` and `09-validate-b2-restore.sh` — including
-  their `restic check --read-data-subset=1/100`. Every repo gets its own: a copy
+  `runbooks/phase5/05-validate-restore.sh` and `09-validate-b2-restore.sh`, but uses
+  `restic check --read-data` rather than repeating their fixed `1/100` subset. A fixed
+  `n/t` value always selects the same partition; if repository growth eventually makes a
+  full quarterly read impractical, rotate `1/4` through `4/4` by calendar quarter so all
+  packs are covered annually. Every repo gets its own check: a copy
   destination shares no storage with its source and a passing drill upstream proves
-  nothing about it (§ 3).
+  nothing about it (§ 3). Record elapsed restore time against the targets above.
 - **Powered-off credential boundary.** With the vault unmounted and the mapper closed,
   render every manifest and inspect the live API: no vault NAS/B2 repository password,
   vault B2 application key, or Gmail app password may exist in a Kubernetes Secret, Pod
@@ -1456,6 +1590,14 @@ Backups are only worth what a restore proves, so every phase ends with one.
   exact new snapshot. Restore validation must reject a deliberately constructed test
   snapshot containing either path even if every positive manifest assertion otherwise
   passes.
+- **Strongbox ingestion and recovery.** With the vault unlocked, change a harmless test
+  entry in `~/Dropbox/ccs.kdbx`, let the `ryze` timer upload it, and prove the SFTP chroot
+  cannot list or write outside `upload/`. Confirm temporary-name upload, atomic promotion,
+  KDBX signature/size checks, and the success heartbeat. Lock the vault and prove the next
+  upload fails without creating anything below the bare mountpoint, then unlock and confirm
+  retry succeeds. Restore `ccs.kdbx` independently from the vault NAS repo, vault B2 repo,
+  `ryze` workstation repo, and `m5c` workstation repo; manually open each restored copy in
+  Strongbox without exposing the master credential in logs or automation.
 - **Mail identity boundary.** Before creating mail-owned paths, prove host UID and GID 2000
   are unassigned. Verify the rendered CronJob has the exact § 6 security context, no
   `fsGroup`, no root ownership-fixing init container, and the pinned repo-built image. In
@@ -1506,19 +1648,20 @@ Backups are only worth what a restore proves, so every phase ends with one.
 - **Manifest rejection.** Restore-validate a snapshot whose manifest lists a source root
   the restore does not expect, and confirm the drill script refuses it rather than
   reporting a successful restore of a partial dataset.
-- **Restore the two system-written datasets, not just the seeded ones.** Mail and Frigate
-  exports are the only vault contents the system *writes* rather than seeds from an
-  operator copy, and a vault-wide snapshot diff does not prove either is usable — a
+- **Restore and parse mail and Frigate exports, not just seeded files.** A vault-wide
+  snapshot diff does not prove either is usable — a
   zero-byte Maildir file or a truncated `.mp4` both compare equal against the source that
   produced them. Both are therefore restored to a scratch path and validated by content,
   not merely by presence:
 
   - **Mail.** Restore `/data/vault/mail` and assert each mailbox contains the
-    `cur`/`new`/`tmp` triad, that at least one message per selected mailbox is a
-    non-zero-byte regular file whose `Message-ID` header parses and whose byte count
-    matches the source, and that `dovecot-uidlist`-equivalent state files are present. A
-    Maildir that restores as an empty directory tree passes a presence check and contains
-    nothing.
+    `cur`/`new`/`tmp` triad and the exact isync state expected from `SyncState *`
+    (`.mbsyncstate` plus Maildir UID metadata such as `.uidvalidity`). For every source
+    mailbox that was nonempty at backup time, validate at least one non-zero-byte regular
+    message whose `Message-ID` parses and whose byte count matches the source. Spam or Trash
+    may legitimately be empty; the drill must not invent a failure merely to satisfy a
+    positive-count assertion. Seed a harmless test message when a representative content
+    restore is required.
   - **Frigate exports.** Restore `/data/vault/frigate-exports` and assert each file is
     non-zero, that the count matches the source directory at backup time, and that the
     container is recognized — `ffprobe` reports a video stream with a nonzero duration, or
@@ -1528,9 +1671,8 @@ Backups are only worth what a restore proves, so every phase ends with one.
   Run both against a **local** snapshot and a **B2** snapshot (§ 3: a passing upstream
   drill proves nothing about a copy destination), and record the result in the drill table.
   Because these datasets are small, there is no reason to subsample — validate all of them.
-  Note that `restic check --read-data-subset=1/100` will not catch either failure on its
-  own: it proves the repository can return bytes, not that the bytes constitute a valid
-  message or video.
+  Even `restic check --read-data` cannot catch either semantic failure on its own: it proves
+  the repository can return bytes, not that the bytes constitute a valid message or video.
 - **Copy-before-forget.** Pause the copy job for long enough that the NAS repo holds
   snapshots B2 does not, then run the prune job and confirm it skips the repo, exports a
   non-zero unreplicated-candidate count, and prunes normally on the next run once the copy
@@ -1541,9 +1683,16 @@ Backups are only worth what a restore proves, so every phase ends with one.
 - **Vault is not reachable over NFS.** From `ryze`, confirm `/mnt/vault` is not exported
   and cannot be mounted, and that no path under `/mnt/media` resolves into it.
 - **Append-only proof.** From `ryze`, attempt `restic forget` against the workstations repo
-  and confirm it is rejected.
+  and confirm it is rejected; repeat from `m5c` against its distinct endpoint.
+- **Workstation recovery.** Restore representative files from each host's NAS and B2
+  repositories onto a scratch installation, including a regular file, directory tree,
+  symlink, executable, hidden application-state file, and `ccs.kdbx`. Verify ownership and
+  mode on Linux and the metadata the macOS contract promises to preserve. Record separate
+  drill rows for `ryze` and `m5c`; one host is not evidence for the other.
 - **Alert proof.** Suspend each new CronJob and confirm the corresponding alert fires to
-  Pushover; `runbooks/phase5/12-test-pushover.sh` is the existing precedent.
+  Pushover; separately disable the `ryze` ingestion timer, age its last-success state past
+  36 hours in the controlled test fixture, and prove `StrongboxVaultIngestionStale` routes.
+  `runbooks/phase5/12-test-pushover.sh` is the existing precedent.
 - **Flux reconciliation.** `flux reconcile kustomization monitoring --with-source`, then
   confirm no drift and all new CronJobs are scheduled.
 - **Quarterly drill**, recorded in the table below with a date — pair it with the offline
@@ -1557,6 +1706,9 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | `appstate` local + B2 restore | 2026-08-22 | passed (contract v2; local `731326fa`, B2 `fe10c1ff`) |
 | `vault` local restore | *not yet* | — |
 | `vault` B2 restore, break-glass only | *not yet* | — |
+| Strongbox `ccs.kdbx` ingestion + four-source open | *not yet* | — |
+| `ryze` workstation local + B2 restore | *not yet* | — |
+| `m5c` workstation local + B2 restore | *not yet* | — |
 | Mail archive restore (local + B2) | *not yet* | — |
 | Frigate exports restore (local + B2) | *not yet* | — |
 | Offline drive rotation (drive A) | *not yet* | — |
