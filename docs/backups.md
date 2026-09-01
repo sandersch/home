@@ -279,6 +279,42 @@ pessimistic 70 GB source budget plus retention headroom. All three remain alerts
 than hard caps — B2 is billed, not bounded, and a hard cap there would fail a backup to
 save a few dollars a month.
 
+### `/mnt/backups` must fail closed
+
+Every local repository and the control/metric state share `/mnt/backups`. Its existing
+`nofail,x-systemd.automount` entry keeps a missing array from blocking boot, but that also
+leaves an ordinary directory on the root filesystem at the same path. A backup, copy,
+prune, verification, or rest-server process that writes there without proving the mount
+could fill the root NVMe while appearing to protect data.
+
+Use two independent guards. First, make the *unmounted* `/mnt/backups` directory
+`root:root 0555` and immutable, and add a small boot unit that re-asserts those properties
+before `mnt-backups.automount`. Mounting the real filesystem over an immutable directory is
+allowed; creating an entry in the uncovered directory is not. Second, put a root-owned
+`.backup-sentinel` on the mounted filesystem containing its recorded filesystem UUID. Every
+writer — the existing `appstate` jobs, vault jobs, workstation rest-server Deployments,
+copy/prune/verification jobs, metric writers, and attended offline runbook — must run the
+same preflight before opening a repository or destination credential:
+
+- let the configured automount resolve through a read of the expected sentinel (or have an
+  attended host runbook explicitly start `mnt-backups.mount`), then resolve the sentinel
+  path with `findmnt --target`; never accept an autofs entry as the backing filesystem;
+- require source `/dev/mapper/hoardvg-backuplv`, the recorded filesystem UUID, `ext4`, and
+  a read-write mount;
+- require the sentinel to be a regular root-owned, non-group/world-writable file on that
+  same mount and require its contents to match the recorded UUID; and
+- fail before creating a directory, writing a metric, or opening a repository on any
+  mismatch. A scheduled Job fails non-zero; rest-server has both a startup/init gate and a
+  continuing readiness check, and does not accept clients while either fails; an attended
+  runbook stops with an actionable error.
+
+The device, UUID, filesystem type, and sentinel are all required: a path-only check accepts
+the root filesystem, a sentinel-only check can accept a copied file, and a device-only check
+does not prove the intended filesystem was recreated after an accident. Test the guard with
+the real mount, an unmounted fixture, a wrong sentinel, a read-only mount, and a disposable
+filesystem with the wrong UUID; never unmount the production backup LV merely to manufacture
+a failure case.
+
 ## Architecture (proposed)
 
 ### 1. A dedicated home for irreplaceable data: `/mnt/vault`
@@ -513,9 +549,11 @@ load-bearing.** The LV is `hoardvg/vaultlv`, so the *ciphertext* device is
 `/dev/mapper/hoardvg-vaultlv`; the mapping opened over it is the *plaintext* device. Naming
 that mapping `vaultlv` too would put ciphertext and plaintext at
 `/dev/mapper/hoardvg-vaultlv` and `/dev/mapper/vaultlv` — two adjacent, nearly identical
-paths where one is safe to `mkfs`, `fsck`, or `resize2fs` and the other destroys the LUKS
-header and every copy's decryption path with it. `vault` is unmistakable at a glance and at
-a tab-completion. It is also the only device pin in `alert-rules.yaml` that is not
+paths where filesystem tools belong only on the plaintext mapping. During initial
+provisioning, `mkfs` targets `/dev/mapper/vault`; after initialization, running `mkfs` on
+either path is destructive. Running it on the ciphertext LV destroys the LUKS header and
+every copy's decryption path with it. `vault` is unmistakable at a glance and at a
+tab-completion. It is also the only device pin in `alert-rules.yaml` that is not
 `hoardvg-*`, which under the old name would have read like a typo to anyone auditing the
 rules; under this one it reads as what it is — a mapper device that is deliberately not an
 LV. Everywhere below, `vaultlv` means the LV and the LUKS container on it, and
@@ -734,10 +772,10 @@ data:
   versioned exclusions file. Before backup, the script refuses to run if either rule is
   absent or broader than its exact hidden directory. After backup it runs `restic ls`
   against the exact new snapshot and fails the Job, writes a hold under the root-only
-  `/mnt/backups/.control/vault/` control directory, and pages if either credential-directory
-  path appears. Holds and validation state never live *inside* a restic repository, where a
-  client or repo operation could alter or copy them. Restore validation makes the same
-  negative assertions before accepting a snapshot.
+  `/mnt/backups/.control/vault/holds/` control directory, and pages if either
+  credential-directory path appears. Holds and validation state never live *inside* a
+  restic repository, where a client or repo operation could alter or copy them. Restore
+  validation makes the same negative assertions before accepting a snapshot.
 - **Shrink guard.** Compare the new snapshot against a *healthy baseline* — the largest of
   the last N snapshots, not simply the previous one. Comparing against `[-1]` self-heals in
   the wrong direction: once a truncated snapshot lands, the next run measures against the
@@ -746,6 +784,54 @@ data:
   external control directory recording the snapshot ID and reason, and exit non-zero. This
   is the failure mode that actually destroys archives: an empty or truncated backup
   followed by a prune that reaps every good snapshot.
+
+  **A source-side hold is an alarm, not an override.** Holds are structured JSON records under
+  `/mnt/backups/.control/<repo>/holds/`, keyed by canonical lineage and containing the exact
+  snapshot ID, reason, contract version/hash, measured root counts and bytes, baseline
+  generation, and creation time. Backup may continue producing investigative snapshots,
+  but copy and prune skip the affected NAS→B2 repository pair while any source hold remains
+  unresolved. Deleting a hold file by hand is unsupported and authorizes nothing: the
+  independent validation and baseline checks still fail closed.
+
+  Resolution is an attended operation through
+  `runbooks/backups/resolve-validation-hold.sh`, with the source repository and full
+  snapshot ID as mandatory arguments and a typed-ID confirmation before any mutation. It
+  uses a root-only state record keyed by repository, hold, and full ID so only the same
+  interrupted resolution may resume. On a new resolution it reopens the repository, proves
+  that the hold still names that exact snapshot and lineage, re-runs the manifest, contract,
+  floor, credential-negative, clock, and repository checks, and records an audit result
+  without copying file contents or secrets. On resume it accepts a missing snapshot only
+  when the state record proves the exact-ID forget step already completed and confirms that
+  ID remains absent. It then permits exactly one of two outcomes:
+
+  - **Reject.** Use this for truncation, wrong scope, credential inclusion, corruption, or
+    an unexplained shrink. The helper first proves the lineage is absent from every B2
+    destination; unexpected replication is a separate incident and aborts this path. It
+    writes a rejection record, runs `restic forget <exact-snapshot-id>` against the source
+    repository, confirms that exact snapshot is gone, and runs `restic prune`. Only after
+    both commands succeed does it remove the hold. The rejected lineage is never added to
+    the validation ledger. An interruption leaves the hold in place, and rerunning the same
+    command resumes by checking which exact steps already completed.
+  - **Accept legitimate shrink.** This is available only when shrink is the sole failed
+    check; a credential, contract, manifest, floor, clock, or repository-integrity failure
+    cannot be waived. The operator supplies a nonempty reason after inspecting the measured
+    per-root delta and confirming the deletion is intentional. The helper revalidates the
+    exact snapshot, atomically records its lineage in the validation ledger, and atomically
+    replaces `/mnt/backups/.control/<repo>/baseline.json` with a new generation anchored at
+    that snapshot. The baseline record contains the anchor ID/lineage, contract version and
+    hash, measured counts and bytes, prior generation, acceptance time, operator, and
+    reason. It removes the hold last.
+
+  The healthy-baseline window is scoped to the current baseline generation: comparisons use
+  the accepted anchor plus the largest of the last N positively validated snapshots at or
+  after that anchor. Older, larger snapshots remain restorable but cannot make an approved
+  shrink fail forever. Initial enrollment creates generation 1 only after the first backup
+  and restore drill pass; unattended jobs may add healthy snapshots to its comparison
+  window but may never start a new generation or lower the anchor. Because copy is gated by
+  unresolved holds and the resolver removes the hold last, a crash between ledger and
+  baseline updates cannot release a half-accepted snapshot off-site. The accept operation is
+  idempotent for the same hold, snapshot, and target generation and rejects conflicting
+  retries.
 - **Only positively validated snapshots may leave the NAS.** `restic backup --json` yields
   the exact candidate snapshot ID. The job validates that snapshot's manifest, floors,
   shrink result, and credential-negative listing; only then does it atomically append the
@@ -845,9 +931,10 @@ data:
   Any repo failing a check is skipped — not the whole job — and its skip is exposed as a
   metric so `ResticPruneOverdue` (§ 9) fires on the stall. The external hold is the fast
   path, not the mechanism: prune stays safe on a repo whose backup job crashed before
-  writing anything, never ran, or was deleted outright. Clearing a hold is an operator
-  action — look at the snapshot, then remove the file — and the repo resumes pruning on the
-  next weekly run.
+  writing anything, never ran, or was deleted outright. A hold is cleared only by the
+  attended reject or accept workflow above. Removing its file manually does not change the
+  validation ledger or baseline generation, so the independent precondition continues to
+  block pruning rather than treating file deletion as approval.
 
 Same security posture as the existing backup cronjobs — `readOnlyRootFilesystem`,
 `drop: [ALL]` plus `DAC_OVERRIDE` (which is why the locked-vault write guard cannot be
@@ -1326,6 +1413,7 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticVaultCopyOverdue` | newest validated B2 lineage older than 36h while vault mounted (critical) |
 | `ResticWorkstationCopyOverdue` | no workstation→B2 copy in 8d (warning) — per host |
 | `ResticWorkstationSnapshotTimeInvalid` | a held workstation snapshot has an implausible clock (warning) — § 4 |
+| `ResticSnapshotValidationHeld` | unresolved validation hold for 15m — critical for `vault`, warning per workstation repo |
 | `MailArchiveFailed` | mail archive Job failed with no later success (warning) |
 | `MailArchiveStale` | no successful mail archive in 36h while vault mounted (warning) |
 | `StrongboxVaultIngestionStale` | no successful `ccs.kdbx` promotion in 36h while vault mounted (warning) |
@@ -1337,6 +1425,8 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticOfflineDriveRotationOverdue` | last successful rotation of an individual drive older than 210d (warning) — per drive |
 | `ResticReplicationLag` | prune skipped a repo for unreplicated snapshots on two consecutive runs (warning) |
 | `ResticRepoNearCeiling` | repo size above 80% of its ceiling (warning) |
+| `ResticRepositoryCheckOverdue` | no successful monthly structural + rotating data check in 40d (warning) — per NAS/B2 repo; vault destinations arm only while mounted |
+| `ResticRestoreDrillOverdue` | quarterly program older than 100d, or a repo/destination without its required annual semantic drill in 400d (warning); vault destinations arm only while mounted |
 | `VaultLocked` | `/mnt/vault` not mounted for 30m (warning) — see below |
 | `VaultFilesystemDeviceError` | `node_filesystem_device_error` on a **mounted** `/mnt/vault` for 5m (critical) — see below |
 
@@ -1518,9 +1608,13 @@ The surface covers every state-derived rule, not only repository age:
 
 - newest validated NAS and B2 snapshot timestamp per dataset and workstation host;
 - per-repository size and configured ceiling;
-- prune success, held state, unreplicated removal-candidate count, and consecutive
-  replication-gated skip count;
+- prune success, validation-held state and oldest-hold age per repo, unreplicated
+  removal-candidate count, and consecutive replication-gated skip count; the metric uses a
+  bounded reason class rather than snapshot IDs or free-form operator text as labels;
 - invalid workstation snapshot-time holds;
+- last successful structural check, rotating data-subset number, and data-check success per
+  NAS/B2 repository; last successful quarterly restore program run and annual semantic
+  restore per repository/destination;
 - last successful offline rotation per physical drive; the global rule computes the newest
   of those two timestamps rather than relying on a separate heartbeat;
 - last successful mail archive that actually ran `mbsync`; and
@@ -1550,6 +1644,7 @@ Dead Man's Snitch continues to cover the "monitoring itself is down" case.
 `restic-vault-config.yaml`, `restic-vault-cronjob.yaml`, `restic-copy-config.yaml`,
 `restic-vault-copy-cronjob.yaml`,
 `restic-workstations-copy-cronjob.yaml`, `restic-prune-cronjob.yaml`,
+`restic-verify-cronjob.yaml`,
 `rest-server-deployment.yaml`, `rest-server-service.yaml`, `rest-server-storage.yaml`,
 `rest-server.sops.yaml`
 
@@ -1566,9 +1661,10 @@ Gmail app-password copy.
 **New — elsewhere:** `apps/mail-archive/`,
 `containers/mail-archive/{Containerfile,VERSION}`,
 `.github/workflows/mail-archive-image.yaml`, `host/ryze/`, `host/m5c/`, and
-`runbooks/backups/` (00-preflight → 12, plus `lib.sh` and `README.md` per
-`runbooks/README.md` conventions), plus the released vault and per-workstation contracts
-under both `infrastructure/monitoring/contracts/` and
+`runbooks/backups/` (00-preflight → 12, the separately callable attended
+`resolve-validation-hold.sh`, plus `lib.sh` and `README.md` per `runbooks/README.md`
+conventions), plus the released vault and per-workstation contracts under both
+`infrastructure/monitoring/contracts/` and
 `runbooks/disaster-recovery/contracts/`.
 
 **`runbooks/backups/` is a directory-level workflow, not a numbered build-plan phase.** It
@@ -1596,6 +1692,8 @@ intentionally unlike its automounted siblings (§ 1b),
 promotion path),
 `host/minis/etc/systemd/system/vault-mountpoint-guard.service` (new — asserts `0555` and
 `chattr +i` on the unmounted mountpoint, ordered `Before=mnt-vault.mount`),
+`host/minis/etc/systemd/system/backups-mountpoint-guard.service` (new — asserts the same
+fail-closed properties on the unmounted `/mnt/backups` directory before its automount),
 `docs/architecture.md`, `docs/version-management.md` (document the second repo-built image),
 `docs/operations.md` (retire the deferred item **only once implemented**),
 `runbooks/README.md` (add `runbooks/backups/` to the directory-level workflow list — the
@@ -1681,6 +1779,13 @@ Ordered so the highest-value, least-reversible data is protected first.
    before retrieving the other, as required above. Then use the lightweight quarterly and
    substantive annual procedures above.
 
+Enrollment of any NAS or B2 repository is incomplete until the recurring verification job
+and metrics below include it. Add the local vault repo in phase 1, its B2 destination in
+phase 4, and both destinations for each workstation in phase 5; the existing `appstate`
+pair joins when the checker is first installed. Install the `/mnt/backups` mountpoint guard
+before the first new writer in phase 1, then retrofit the shared preflight into the existing
+`appstate` writers in the same attended change.
+
 ## Verification (proposed)
 
 Backups are only worth what a restore proves, so every phase ends with one.
@@ -1692,6 +1797,40 @@ Backups are only worth what a restore proves, so every phase ends with one.
   `n/t` value always selects the same partition. Every repo gets its own check: a copy
   destination shares no storage with its source and a passing drill upstream proves
   nothing about it (§ 3). Record elapsed restore time against the targets above.
+- **Backup-LV identity guard.** Prove every writer uses the shared `/mnt/backups` preflight
+  and that rest-server readiness includes it. Against disposable fixtures, accept the exact
+  expected device/filesystem/UUID/read-write/sentinel tuple and reject an uncovered
+  mountpoint, autofs-only entry, wrong or permissive sentinel, read-only mount, wrong device,
+  wrong filesystem type, and wrong UUID before a repository credential is opened or any
+  file is created. Confirm the host boot unit restores `root:root 0555` plus the immutable
+  bit on the bare mountpoint and does not prevent the real LV from mounting. Do not unmount
+  the production backup LV to run negative tests.
+- **Recurring online repository checks.** A monthly `restic-verify` CronJob checks every
+  enrolled NAS and B2 repository independently. It first runs structural `restic check`,
+  then `restic check --read-data-subset=<month>/12`, where `<month>` is the calendar month
+  number from 1 through 12. The changing numerator is load-bearing: a fixed `1/12` would
+  reread the same partition forever. This bounds normal B2 verification egress to roughly
+  one stored-repository read per year while continually exercising local and remote pack
+  reads. Run it away from backups, copy, prune, the md consistency window, and the quarterly
+  restore; a failure in one repository is recorded without skipping the remaining repos.
+  Vault checks skip without advancing success state while the vault is locked because their
+  repository credentials correctly remain unavailable; their overdue alerts are mount-gated
+  like the vault backup/copy alerts so `VaultLocked` remains the one warning in that state.
+  The 40-day alert evaluates each other configured repository from day one and is enabled
+  for a vault repository only after its first real successful check — never seed a fictional
+  timestamp to silence rollout.
+- **Recurring restores test meaning, not merely packs.** Once per quarter, run the attended
+  restore workflow against at least one online repository/destination, rotating datasets and
+  NAS/B2 destinations rather than repeatedly choosing the smallest repo. Once per year,
+  every online NAS and B2 repository gets its own semantic drill: `appstate` must pass the
+  released restore contract; `vault` must restore and validate `ccs.kdbx`, a document, a
+  photo, mail, and a Frigate export when present; and each workstation repo must restore the
+  file and metadata matrix below. Restore into a newly created scratch directory, never over
+  a live source, record elapsed time and exact repository/destination, and remove scratch
+  data only after validation. The quarterly program is overdue at 100 days and an individual
+  annual repo/destination drill at 400 days. A quarterly run counts toward the annual
+  requirement only when it performs that repository's full semantic matrix. These online
+  checks supplement rather than replace the separate annual offline-drive procedure.
 - **Powered-off credential boundary.** With the vault unmounted and the mapper closed,
   render every manifest and inspect the live API: no vault NAS/B2 repository password,
   vault B2 application key, or Gmail app password may exist in a Kubernetes Secret, Pod
@@ -1756,12 +1895,24 @@ Backups are only worth what a restore proves, so every phase ends with one.
   wrong sentinel must fail; and any third backing filesystem tuple must fail before a
   credential or destination path is touched. Do not manufacture those latter states by
   rebinding the host's production `/mnt/vault` path. Point the job at a truncated source and
-  confirm the shrink guard fails the run and writes `.prune-hold`; then run the prune job
-  and confirm it skips that repo. Run
-  the prune job a second time with `.prune-hold` removed but the truncated snapshot still
-  newest, and confirm it *still* skips — that is the check that proves the prune job's own
-  precondition works rather than merely trusting the marker. These are the checks that
-  matter most and the ones that silently rot if never exercised.
+  confirm the shrink guard fails the run, writes the structured lineage-keyed hold, and
+  causes both copy and prune to skip that repo. In a disposable fixture, remove the hold
+  file by hand while leaving the truncated snapshot newest and confirm prune *still* skips
+  because the snapshot is absent from the validation ledger and outside the approved
+  baseline generation — that proves the marker is not authorization.
+
+  Exercise both attended resolutions against disposable repositories. For **reject**,
+  confirm the helper requires the full typed snapshot ID, refuses a lineage found in B2,
+  records the rejection, forgets only the held source snapshot, completes prune, and removes
+  the hold last; interrupt it after forget and prove an idempotent rerun finishes safely.
+  For **accept**, use a deliberately smaller but otherwise valid snapshot, confirm every
+  non-shrink check is rerun, and verify the helper writes the validation-ledger entry and a
+  new baseline generation before removing the hold. The next same-size backup must validate
+  against the new generation even while older, larger snapshots remain restorable. Interrupt
+  acceptance between ledger and baseline writes and prove copy and prune remain gated until
+  the same resolution resumes. Attempting to accept a credential, contract, floor, clock,
+  or integrity failure must be rejected. These are the checks that matter most and the ones
+  that silently rot if never exercised.
 - **Manifest rejection.** Restore-validate a snapshot whose manifest lists a source root
   the restore does not expect, and confirm the drill script refuses it rather than
   reporting a successful restore of a partial dataset.
@@ -1822,6 +1973,15 @@ Backups are only worth what a restore proves, so every phase ends with one.
   36 hours in the controlled test fixture, and prove `StrongboxVaultIngestionStale` routes.
   Disable each host's document-ingestion timer in turn, age its heartbeat past seven days,
   and prove `VaultDocumentsIngestionStale` preserves the affected `host` label.
+  Create controlled vault and workstation validation holds, age them past 15 minutes, and
+  prove `ResticSnapshotValidationHeld` routes the vault as critical and the affected
+  workstation repo as warning without using snapshot IDs or free-form reasons as metric
+  labels.
+  Age a repository-check timestamp beyond 40 days and prove
+  `ResticRepositoryCheckOverdue` preserves its dataset and destination labels; remove the
+  series and prove the `absent()` arm also fires. Repeat for the 100-day quarterly and
+  400-day per-repository annual restore states. With the vault locked, prove its check/drill
+  age does not duplicate `VaultLocked`, then unlock and prove stale state becomes actionable.
   Exercise the offline metrics separately: two per-drive timestamps 90d and 180d old must
   fire neither offline alert; aging the newest of both beyond 120d must fire
   `ResticOfflineDriveStale`; and aging only one labeled drive beyond 210d must fire
@@ -1851,6 +2011,8 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | Offline drive rotation (drive A) | *not yet* | — |
 | Offline drive rotation (drive B) | *not yet* | — |
 | Annual offline data check + representative restore | *not yet* | — |
+| Recurring online repository checks (all NAS + B2 repos) | *not yet* | — |
+| Quarterly online restore program | *not yet* | — |
 | Locked-vault degraded boot (§ 1b) | *not yet* | — |
 
 ## Deferred (documented, not built)
