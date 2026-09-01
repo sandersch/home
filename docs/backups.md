@@ -32,6 +32,10 @@
 > concrete restricted-SFTP ingestion contract (§ 1c); workstation B2 storage is one
 > destination repository per host; and the capacity, alerting, metric, integrity-check, and
 > restore-drill inconsistencies found during review are corrected below.
+> Strongbox uses only a master password; both workstations use their existing `~/Documents`
+> trees rather than a staging directory; and the two already-owned 2 TB portable USB SSDs
+> alternate as the offline tier. Quarterly rotations are deliberately lightweight, with one
+> substantive offline restore and full data check per year rather than every quarter.
 
 ## What exists today
 
@@ -72,10 +76,11 @@ The vault cadence starts only after data reaches `/mnt/vault`; it is not an inge
 guarantee. The Strongbox database has its own source-to-vault contract (§ 1c):
 `~/Dropbox/ccs.kdbx` is offered by `ryze` every four hours, ingestion alerts at 36 hours,
 and the next vault run protects an accepted file within another four hours. Ordinary
-documents remain protected by the daily workstation repositories until they are deliberately
-placed in the curated vault archive. Post-bootstrap phone photos remain Google-only until
-the deferred photo-ingestion project is built. These distinctions prevent a four-hour
-repository schedule from being misread as a four-hour RPO for data that has not arrived.
+documents are offered daily from each workstation's `~/Documents` tree, with a seven-day
+staleness alert, and remain independently protected by the daily workstation repositories.
+Post-bootstrap phone photos remain Google-only until the deferred photo-ingestion project
+is built. These distinctions prevent a four-hour repository schedule from being misread as
+a four-hour RPO for data that has not arrived.
 
 **The workstation figure is deliberately pessimistic.** `ryze` is budgeted at **50 GB**
 against the ~5 GB an aggressive exclude list is expected to yield from the 69 GB currently
@@ -162,12 +167,18 @@ it.
 | Mail archive and Frigate exports | restored within 7d; neither blocks service recovery |
 | Offline-drive recovery | best effort within 7d, including retrieval of the drive |
 
-Quarterly drills record elapsed restore time as well as success. If repeated drills miss a
+Restore drills record elapsed restore time as well as success. If repeated drills miss a
 target, change the target or the procedure explicitly rather than continuing to call it an
 objective without evidence.
 
-**Offline media are cumulative, and there are two drives.** Each physical drive holds two
-separate persistent repositories, `vault` and `appstate`; it is never one mixed repository.
+**Offline media are cumulative, and there are two drives.** The two already-owned drives
+are 2 TB portable USB SSDs from different production batches. Each is initialized with GPT
+and one ext4 filesystem, given a unique label and recorded filesystem UUID, and mounted only
+by the attended rotation runbook with `noauto,nodev,nosuid,noexec`. The filesystems do not
+add LUKS: Restic already encrypts repository contents and metadata, and another passphrase
+would add a recovery dependency without changing the offline threat model. Each physical
+drive holds two separate persistent repositories, `vault` and `appstate`; it is never one
+mixed repository.
 All four repositories are only ever copied *into*: `forget` and `prune` never run against
 offline media, and a repository is retired by re-initializing it (`--from-repo`, § 3), not
 by pruning it. The two drives alternate quarterly, so the newest offline copy is
@@ -175,16 +186,30 @@ at most **90 days old** when rotations happen on time, and **180 days** if the m
 drive is lost, destroyed, or unreadable. A skipped rotation extends both figures without
 limit, which is what the alert exists to catch. That is the number to weigh against `ResticOfflineDriveStale`
 firing at 120d (§ 9): the alert catches a *missed* rotation before the worst case doubles
-again. At ~35 GB growing 5 GB/yr with no pruning, a 1 TB drive holds well over a decade of
-quarterly copies before re-initialization is a real consideration.
+again. At ~35 GB growing 5 GB/yr with no pruning, either 2 TB drive has ample headroom for
+the intended retention; capacity is measured during rotation rather than projected from a
+fixed replacement date.
 
 The drive not being updated remains off-site throughout the attended rotation. The operator
-retrieves only the drive whose turn it is, updates both repositories, completes both restore
-checks, and returns that drive off-site before the other drive may be brought home. Each
-rotation copies a **tagged checkpoint** — the newest validated `vault` and `appstate`
-snapshots at that moment — rather than every snapshot the NAS has accumulated since the
-last trip. The reasoning, and why offline media are deliberately excluded from prune's
-replication gate, is in § 2.
+retrieves only the drive whose turn it is and runs one attended command. The runbook verifies
+the recorded device and filesystem UUIDs, mounts the expected ext4 filesystem, copies a
+**tagged checkpoint** containing the newest validated `vault` and `appstate` snapshots,
+confirms both checkpoints are listable from the drive, records the snapshot IDs and success
+metric, runs `sync`, and unmounts cleanly. It does not require a quarterly filesystem repair,
+SMART test, full repository read, or test restore. The drive returns off-site before the
+other drive may be brought home. The reasoning, and why offline media are deliberately
+excluded from prune's replication gate, is in § 2.
+
+Once per year, the rotation runbook performs the confidence-building work omitted from the
+quarterly path: on the SSD in rotation it runs `restic check --read-data` for both
+repositories and restores `ccs.kdbx`, one representative document, and the `appstate`
+backup manifest to scratch. The selected SSD alternates by year so each physical drive
+receives the full check at least every two years. Filesystem repair and deeper device
+diagnostics are response actions for an unclean mount, I/O error, or failed repository
+operation, not routine quarterly ceremony. A drive is replaced after persistent errors;
+there is no arbitrary age-based retirement date. This intentionally accepts less assurance
+than validating both drives every quarter in exchange for a rotation an operator will
+realistically perform.
 
 ### Capacity ceilings (proposed)
 
@@ -567,14 +592,14 @@ execution surface. Every four hours it:
 4. updates a separate success heartbeat even when the database content hash is unchanged.
 
 The host runs a dedicated ingestion-only `sshd` listener on the selected Tailnet/trusted
-address and a non-management port, with `AllowUsers vault-ingest-ryze` and only
-key-authenticated `internal-sftp` for that identity. Its
-`ChrootDirectory` is a root-owned, non-writable `/mnt/vault/inbox/ryze` and the client may
-write only a child `upload/` directory; shell, forwarding, tunnelling, agent forwarding,
-and direct access to canonical vault directories are disabled. The host firewall/Tailnet
-policy admits that listener only from `ryze`'s selected trusted source. The ordinary
-management `sshd` configuration and reachability do not change, and there is no public
-listener. While the vault is locked,
+address and a non-management port, with `AllowUsers vault-ingest-ryze vault-ingest-m5c`
+and only key-authenticated `internal-sftp` for those identities. Each has its own root-owned,
+non-writable `ChrootDirectory` below `/mnt/vault/inbox/<host>` and may write only its child
+`upload/` directory; shell, forwarding, tunnelling, agent forwarding, cross-host inbox
+access, and direct access to canonical vault directories are disabled. The host
+firewall/Tailnet policy admits each identity only from its selected trusted source. The
+ordinary management `sshd` configuration and reachability do not change, and there is no
+public listener. While the vault is locked,
 the chroot is absent and upload fails safely rather than writing to the root filesystem.
 The client retains the last local success state and retries on its next timer; the server's
 `VaultLocked` alert names the usual cause.
@@ -588,22 +613,27 @@ is mounted; `VaultLocked` owns the locked state. Both workstation
 backup contracts also include the exact `~/Dropbox/ccs.kdbx` path, so the daily workstation
 repositories remain an independent recovery route when vault ingestion is unavailable.
 
-Ordinary documents use the same transport but a separate `upload/documents/` subtree. A
-daily `ryze` job copies a deliberately curated `~/VaultDrop/Documents/` tree; it is not a
-bidirectional document share. Promotion validates names, types, ownership, and size before
-moving files into `/mnt/vault/documents/`. Working documents outside that tree remain covered
-by the workstation repositories, not by the vault RPO. The client heartbeat distinguishes
-"nothing changed" from "the delivery job did not run."
+Ordinary documents use the same transport but a separate `upload/documents/` subtree. Both
+workstations upload their existing `~/Documents` tree daily; no extra `VaultDrop` staging
+directory is required. This is archival ingestion, not a bidirectional document share:
+promotion validates names, types, ownership, and size and writes into separate canonical
+paths, `/mnt/vault/documents/ryze/` and `/mnt/vault/documents/m5c/`. It never propagates a
+client deletion into the vault. Keeping host namespaces avoids same-name collisions and
+makes provenance explicit; cross-host duplicates are accepted until an attended cleanup
+decides they are truly identical. A per-host heartbeat distinguishes "nothing changed"
+from "the delivery job did not run," and `VaultDocumentsIngestionStale` warns when either
+mounted-vault heartbeat is older than seven days. The daily workstation repositories also
+include each `~/Documents` tree directly, so a failed vault delivery does not leave the
+working copy unprotected.
 
 Restic does **not** serve as this ingestion transport. Restoring client-created snapshots
 into the canonical vault on a schedule would turn a backup format into a transfer queue,
 require the vault side to trust client-controlled paths and snapshot selection, and blur the
 source of truth.
 
-The KDBX recovery factor remains independent of the file. If `ccs.kdbx` uses only a master
-password, its sealed recovery record must not be stored inside the database. If it also uses
-a key file or YubiKey challenge-response, the key file, spare key, or recovery secret is
-stored and drilled separately rather than beside `ccs.kdbx` in the same backup.
+Strongbox uses only a master password. That password remains independent of the file: its
+sealed recovery record must not be stored only inside `ccs.kdbx`, and no automation receives
+it. The recovery drill supplies it manually when opening a restored database.
 
 ### 2. Generic dataset backup job
 
@@ -853,8 +883,8 @@ identity hop. Two consequences worth being explicit about:
   destination's pack files, index, or B2's stored bytes. Each repo needs its own drill —
   which is why [Verification](#verification-proposed) lists a local restore *and* a
   from-B2 restore as separate line items, each running its own data-reading repository
-  check. The new quarterly drills use `restic check --read-data`; they do not copy the
-  existing fixed `1/100` subset unchanged (§ Verification).
+  check. Implementation drills and the annual offline drill use `restic check --read-data`;
+  they do not copy the existing fixed `1/100` subset unchanged (§ Verification).
 - **Correlation is by canonical lineage, not by ID.** Anything matching snapshots across repos —
   the copy job's "is this already replicated?" check, the prune job's per-repo newest-
   snapshot metric, an operator eyeballing a drill — must compare `original // id` on both
@@ -971,9 +1001,10 @@ existing `host/minis/etc/` and `host/bastion/etc/` convention:
 
 Each released client scope has an immutable contract,
 `workstation-ryze-v1.json` or `workstation-m5c-v1.json`, committed beside the wrapper and
-copied into the recovery runbook. It fixes the exact source root, exclusion-file hash,
+copied into the recovery runbook. It fixes the exact source roots, exclusion-file hash,
 minimum file and byte floors, expected hostname, and the required
-`~/Dropbox/ccs.kdbx` path. The wrapper includes a measured manifest in every snapshot.
+`~/Dropbox/ccs.kdbx` and `~/Documents` paths. The wrapper includes a measured manifest in
+every snapshot.
 Cluster-side validation checks that contract and manifest, the KDBX presence and size,
 snapshot time, and shrink tolerance before adding the canonical lineage to the validation
 ledger. Without that positive decision the snapshot is neither copied nor eligible for
@@ -1172,16 +1203,15 @@ app password in Google, issue a replacement, and resume `mbsync`.
 
 The encrypted Strongbox database `ccs.kdbx` is itself part of the vault and workstation
 datasets. **That still creates a recovery circularity:** restoring the file is useless if
-total device loss also removes the master password, key file, or YubiKey recovery factor,
-and putting that factor only inside Strongbox cannot solve the problem.
+total device loss also removes its master password, and putting that password only inside
+Strongbox cannot solve the problem.
 
 The fix is offline and outside the system: a printed / physically-stored card carrying the
 age public+private key, all restic repository passwords, **the `vaultlv` LUKS passphrase**
 (§ 1b), the B2 application key ID and secret, and a one-page pointer to
-`runbooks/disaster-recovery/`. The Strongbox master/recovery factor is carried either on
-that card or on a separately sealed record stored in the same two locations; a key file is
-never stored beside `ccs.kdbx`, and a YubiKey deployment requires a tested spare or recorded
-challenge-response recovery secret. Two sealed copies live in two locations: one in a secure
+`runbooks/disaster-recovery/`. The Strongbox master password is carried on the card or on a
+separately sealed record stored in the same two locations; it never enters git or an
+automated restore script. Two sealed copies live in two locations: one in a secure
 home safe physically separated from `minis` and every backup drive, and one in an off-site
 bank safe-deposit box. A card is never stored with an offline drive: doing so would place
 the encrypted repository beside its password and collapse the control to the physical
@@ -1240,6 +1270,7 @@ except for the deliberately mount-gated filesystem rule described below:
 | `MailArchiveFailed` | mail archive Job failed with no later success (warning) |
 | `MailArchiveStale` | no successful mail archive in 36h while vault mounted (warning) |
 | `StrongboxVaultIngestionStale` | no successful `ccs.kdbx` promotion in 36h while vault mounted (warning) |
+| `VaultDocumentsIngestionStale` | no successful `~/Documents` promotion in 7d while vault mounted (warning) — per host |
 | `ResticWorkstationBackupStale` | newest `ryze`/`m5c` snapshot older than 7d (warning) |
 | `BackupsVolumeFillingUp` | `/mnt/backups` below 20% free (warning) / 10% free (critical) |
 | `ResticPruneOverdue` | no prune in 10d (warning) |
@@ -1432,7 +1463,8 @@ The surface covers every state-derived rule, not only repository age:
 - invalid workstation snapshot-time holds;
 - last successful offline rotation per physical drive;
 - last successful mail archive that actually ran `mbsync`; and
-- last successful Strongbox `ccs.kdbx` offer and promotion.
+- last successful Strongbox `ccs.kdbx` offer and promotion; and
+- last successful `~/Documents` offer and promotion per workstation host.
 
 The metric files always contain the complete configured label set, including both
 workstation hosts and both offline drives; a missing underlying state is emitted as zero
@@ -1544,7 +1576,9 @@ Ordered so the highest-value, least-reversible data is protected first.
    [Capacity ceilings](#capacity-ceilings-proposed) into one shared process-wide quota. Point the
    weekly prune job at those repos over hostPath, not REST. Initialize two corresponding B2
    repositories from their own NAS sources with `--copy-chunker-params`, then enroll `ryze`
-   and `m5c` against their released contracts.
+   and `m5c` against their released contracts. Add each host's daily `~/Documents` uploader,
+   isolated SFTP identity and inbox, host-namespaced promotion path, heartbeat, and seven-day
+   ingestion alert.
 6. **Housekeeping** — firmware into vault, Frigate exports sync job (§ 7 — a sync, not a
    volume mount), disk-image GC policy,
    retire the legacy rsnapshot tree on `/mnt/backups` (validate it holds nothing unique
@@ -1558,9 +1592,10 @@ Ordered so the highest-value, least-reversible data is protected first.
    `2000:2000` mbsync app without a Kubernetes Secret or `fsGroup`, and prove a successful
    sync, least-privilege boundary, and credential exclusion from the next vault snapshot.
 8. **Offline drives** — init **both** drives `--from-repo <NAS> --copy-chunker-params`
-   (with their own distinct password, § 8) so the alternating rotation has somewhere to go
-   from the first quarter onward; first rotation, restore drill from the drive, record the
-   rotation date in the drill table.
+   (with their own distinct password, § 8) on the two existing 2 TB portable USB SSDs, record
+   their labels and filesystem UUIDs, and install the single-command attended rotation
+   runbook. Complete the first rotation and restore drill, then use the lightweight quarterly
+   and substantive annual procedures above.
 
 ## Verification (proposed)
 
@@ -1570,9 +1605,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
   restores to a scratch path and diffs against source, in the shape of the existing
   `runbooks/phase5/05-validate-restore.sh` and `09-validate-b2-restore.sh`, but uses
   `restic check --read-data` rather than repeating their fixed `1/100` subset. A fixed
-  `n/t` value always selects the same partition; if repository growth eventually makes a
-  full quarterly read impractical, rotate `1/4` through `4/4` by calendar quarter so all
-  packs are covered annually. Every repo gets its own check: a copy
+  `n/t` value always selects the same partition. Every repo gets its own check: a copy
   destination shares no storage with its source and a passing drill upstream proves
   nothing about it (§ 3). Record elapsed restore time against the targets above.
 - **Powered-off credential boundary.** With the vault unmounted and the mapper closed,
@@ -1692,14 +1725,18 @@ Backups are only worth what a restore proves, so every phase ends with one.
 - **Alert proof.** Suspend each new CronJob and confirm the corresponding alert fires to
   Pushover; separately disable the `ryze` ingestion timer, age its last-success state past
   36 hours in the controlled test fixture, and prove `StrongboxVaultIngestionStale` routes.
+  Disable each host's document-ingestion timer in turn, age its heartbeat past seven days,
+  and prove `VaultDocumentsIngestionStale` preserves the affected `host` label.
   `runbooks/phase5/12-test-pushover.sh` is the existing precedent.
 - **Flux reconciliation.** `flux reconcile kustomization monitoring --with-source`, then
   confirm no drift and all new CronJobs are scheduled.
-- **Quarterly drill**, recorded in the table below with a date — pair it with the offline
-  drive rotation so one trip to the safe covers both. The rotation entry records which
-  drive was rotated, the `offline-checkpoint-<YYYY>-Q<n>` tag applied, and the snapshot IDs
-  copied under it (§ 2), so the contents of a disconnected drive are known without
-  connecting it.
+- **Quarterly offline rotation**, recorded in the table below with a date. It is intentionally
+  not a restore drill: the one-command runbook verifies drive identity, copies and lists the
+  two `offline-checkpoint-<YYYY>-Q<n>` snapshots, records their IDs, and unmounts cleanly.
+  Once annually, alternate the selected SSD and add full `--read-data` checks plus scratch
+  restores of `ccs.kdbx`, one document, and the `appstate` manifest. The contents of a
+  disconnected drive therefore remain recorded without making an elaborate quarterly test
+  a precondition for maintaining the offline copy.
 
 | Drill | Last run | Result |
 |---|---|---|
@@ -1713,6 +1750,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | Frigate exports restore (local + B2) | *not yet* | — |
 | Offline drive rotation (drive A) | *not yet* | — |
 | Offline drive rotation (drive B) | *not yet* | — |
+| Annual offline data check + representative restore | *not yet* | — |
 | Locked-vault degraded boot (§ 1b) | *not yet* | — |
 
 ## Deferred (documented, not built)
