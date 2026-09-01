@@ -10,7 +10,7 @@ data:
   RESTIC_KEEP_DAILY: "14"
   RESTIC_KEEP_WEEKLY: "8"
   RESTIC_KEEP_MONTHLY: "12"
-  BACKUP_CONTRACT_VERSION: "2"
+  BACKUP_CONTRACT_VERSION: "3"
   REQUIRED_SQLITE_DATABASES: |-
     plex/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.db
     plex/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/com.plexapp.plugins.library.blobs.db
@@ -85,7 +85,6 @@ data:
         rel="${db#/data/opt/}"
         out="$SQLITE_DUMPS/${rel}.sqlite-backup"
         mkdir -p "$(dirname "$out")"
-        escaped="${out//\'/\'\'}"
         if sqlite_backup_with_wait "$db" "$out" "$err"; then
           if sqlite_backup_health_check "$db" "$out" "$err"; then
             count=$((count + 1))

@@ -25,18 +25,18 @@ Committed now:
   names are retained as stable legacy identifiers).
 - Enabled weekly Backblaze B2 CronJob for the independent offsite repository.
 - Backup script ConfigMap with a versioned required-export contract. It blocks Restic
-  unless the mandatory Plex, Frigate, Prowlarr, Radarr, Sonarr, Seerr, Home Assistant,
-  and RomM application-aware exports are fresh and valid, and unless a validated
-  online backup of the live k3s SQLite datastore is present. The k3s server token is
-  not mounted or backed up.
+  unless the mandatory Plex, Frigate, Radarr, Sonarr, Seerr, Home Assistant, and RomM
+  application-aware exports are fresh and valid, and unless a validated online backup
+  of the live k3s SQLite datastore is present. Prowlarr is a best-effort discovered
+  export with bounded retries. The k3s server token is not mounted or backed up.
 
 The B2 repository initialization, manual backup, repository check, and local-volume-independent
 restore validation passed on 2026-07-18. The nightly local and first naturally scheduled
 weekly B2 backups both completed successfully on 2026-07-19. Backup-contract version
-2 passed fresh local and B2 backup/restore validation on 2026-08-22. Local snapshot
+3 passed fresh local and B2 backup/restore validation on 2026-08-22. Local snapshot
 `731326fa` and B2 snapshot `fe10c1ff` validated the k3s SQLite artifact, all eight
-mandatory application SQLite exports, the Home Assistant archive, a 32-table RomM
-import, and the absence of a server-token artifact. Both encrypted Secrets are
+then-mandatory application SQLite exports, the Home Assistant archive, a 32-table
+RomM import, and the absence of a server-token artifact. Both encrypted Secrets are
 included and both CronJobs are enabled.
 The observability stack passed live validation
 on 2026-07-20: Flux and Helm were ready, all scrape targets and blackbox probes were

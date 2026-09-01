@@ -30,11 +30,11 @@ merge into nonempty state unless it is resuming its own recorded, interrupted co
   `.db`, `.sqlite`, and `.sqlite3` database files in staging, with stale WAL/SHM files
   removed. Before activation, the restore requires the current backup-contract version
   and exact mandatory inventory: both Plex library databases plus the primary Frigate,
-  Home Assistant, Prowlarr, Radarr, Sonarr, and Seerr databases.
+  Home Assistant, Radarr, Sonarr, and Seerr databases.
 - The same contract requires a readable Home Assistant managed backup, a structurally
   valid RomM logical dump, and an export-completion timestamp. Any mismatch rejects the
   selected snapshot before anything is copied into `/opt`.
-- Contract version 2 additionally requires an integrity-checked, nonempty k3s SQLite
+- Contract version 3 additionally requires an integrity-checked, nonempty k3s SQLite
   datastore artifact with the expected `kine` schema. It remains in the root-only
   staging tree and is never copied into `/opt` or installed as the active datastore.
   Optional attended k3s recovery is documented separately in
@@ -158,7 +158,7 @@ This makes the state machine ready for a future event but does not remove stagin
 Delete only the exact staged path printed by the script, as a separate deliberate
 operation.
 
-After deploying backup-contract version 2, create and validate fresh direct and B2
+After deploying backup-contract version 3, create and validate fresh direct and B2
 snapshots. Contract-v1 snapshots remain stored according to retention but are
 deliberately rejected by current recovery tooling; use the matching older repository
 revision if one must be interpreted.

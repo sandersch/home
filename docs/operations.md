@@ -46,7 +46,7 @@ Local snapshot
 validated 2,445 k3s `kine` rows; local-volume-independent B2 snapshot
 `fe10c1ffa810ab7d5af75a52fd1f5b69315a3411e96e5deab93363406baea166`
 validated 2,815. Both passed full k3s SQLite integrity/schema checks, all eight
-required application SQLite exports, a readable Home Assistant archive, a 32-table
+then-required application SQLite exports, a readable Home Assistant archive, a 32-table
 RomM import/check, and an explicit scan proving no server-token artifact was present.
 
 ```bash
@@ -98,7 +98,7 @@ backing up `/opt`.
 | Plex | `sqlite3 .backup` of both `library.db` + `library.blobs.db` | precious; days to rebuild; validate with schema reads because Plex can define a custom SQLite tokenizer |
 | Home Assistant | `sqlite3 .backup` of `home-assistant_v2.db` plus REST API `backup.create_automatic` | require both a direct-restore DB and one new readable managed archive |
 | Frigate | `sqlite3 .backup` of `frigate.db` | required; small and quick to validate |
-| Radarr/Sonarr/Prowlarr | `sqlite3 .backup` of each primary application DB | all three are required; log DBs are optional |
+| Radarr/Sonarr/Prowlarr | `sqlite3 .backup` of each primary application DB | Radarr and Sonarr are required; Prowlarr and log DBs are best-effort, with bounded retries for transient busy/open failures |
 | Seerr | `sqlite3 .backup` of `db.sqlite3` | required |
 | RomM | `mariadb-check` followed by `mariadb-dump --single-transaction` | require a nonempty logical dump containing application tables |
 | SABnzbd | none | queue/history are throwaway |
@@ -112,10 +112,12 @@ RomM's MariaDB sidecar is exposed only inside the cluster as
 `ROMM_DB_PASSWORD` must match the RomM Secret's `MARIADB_PASSWORD`; if a manual backup
 fails with MariaDB error 1045, rerun
 `runbooks/phase5/02-encrypt-restic-secret.sh` and reconcile `monitoring`.
-Before Restic starts, the shared script enforces backup-contract version 2. Both Plex
-databases plus the primary Frigate, Home Assistant, Prowlarr, Radarr, Sonarr, and Seerr
-databases must exist, must have been exported during the current Job, and must pass
-their applicable SQLite validation. The new Home Assistant archive must pass `tar -tf`; RomM must pass
+Before Restic starts, the shared script enforces backup-contract version 3. Both Plex
+databases plus the primary Frigate, Home Assistant, Radarr, Sonarr, and Seerr databases
+must exist, must have been exported during the current Job, and must pass their
+applicable SQLite validation. Prowlarr and optional discovered log/history/cache
+databases are best-effort exports, but transient busy/open failures receive bounded
+retries. The new Home Assistant archive must pass `tar -tf`; RomM must pass
 `mariadb-check`, and its completed logical dump must contain tables. Missing, stale, or
 invalid required output aborts the Job before `restic backup`, so it cannot create a
 successful-looking but full-recovery-ineligible snapshot. Other discovered SQLite log,
@@ -146,13 +148,13 @@ replaces the active datastore automatically.
 
 ### Optional emergency k3s datastore recovery
 
-GitOps clean rebuild remains the default recovery model. Use the contract-v2 k3s
+GitOps clean rebuild remains the default recovery model. Use the current-contract k3s
 artifact only as an attended, operator-only same-cluster recovery source, following
 the [k3s datastore backup and restore model](https://docs.k3s.io/datastore/backup-restore).
 The database and server token must come from the same cluster state; the authoritative
 token remains in the external password manager and is never present in Restic.
 
-1. Select a validated contract-v2 snapshot and restore only
+1. Select a validated current-contract snapshot and restore only
    `/work/hot-dumps/k3s/state.db.sqlite-backup` into a root-owned mode-`0700` staging
    directory. Repeat `PRAGMA integrity_check`, require both `kine` and
    `sqlite_sequence`, and require at least one `kine` row.

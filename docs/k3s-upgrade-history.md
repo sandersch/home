@@ -11,7 +11,7 @@ validation, observation, and cleanup fields only from evidence collected on `min
 Initial validation evidence:
 
 - Fresh local snapshot `195b4c6d` and B2 snapshot `59acba9b` independently passed
-  backup contract 2 before maintenance. Both contained all eight required application
+  backup contract 2 before maintenance. Both contained all eight then-required application
   SQLite exports, a valid k3s datastore, readable Home Assistant archive, successful
   RomM import, and no server-token artifact.
 - The exact k3s binary and kubelet version are `v1.36.3+k3s1`; the API and node are

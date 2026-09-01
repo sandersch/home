@@ -23,7 +23,7 @@ manifests:
 | 3 — infrastructure | Flux Kustomizations, controller releases, ClusterIssuer, MetalLB, storage, scheduling, Tailscale, Intel GPU plugin, and encrypted infra secrets are committed. | Reconcile/validation gate on the live cluster after any manifest or secret changes. |
 | 3.5 — data migration | Stopped-host archive copy runbooks are present; final copy validation and the quiesced cutover passed. | Historical migration path only. A current-state rebuild restores `/opt` from Restic as described below. |
 | 4 — core workloads | Download stack, Plex, Seerr, RomM, Frigate, Home Assistant, MQTT, Z-Wave JS UI, and Zigbee2MQTT manifests plus validation/secret helper runbooks are present. The pre-existing workloads are validated on the live cluster, including Frigate Coral/QSV, authenticated MQTT, Home Assistant's Frigate integration, Z-Wave controller connectivity/device inclusion/HA integration, Zigbee device pairing/discovery/automation use, and HA's API-managed backup/restore path. Zigbee2MQTT and its monitoring exporter are reconciled and Ready. All repo-authored workload/helper image references are exact release-and-digest pins (or the documented Gluetun digest-only exception), enforced by CI and proposed for attended updates by Renovate. | Tune Frigate cameras. |
-| 5 — observability + expansion | Direct-array and B2 backups passed live validation under backup-contract version 2, which blocks snapshots missing validated Plex, Frigate, Prowlarr, Radarr, Sonarr, Seerr, Home Assistant, RomM, or k3s SQLite exports. Fresh local and B2 backup/restore drills passed on 2026-08-22, including k3s integrity/schema/data and server-token-absence gates. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. Zigbee2MQTT's critical ingress, SLZB coordinator TCP, and MQTT-native bridge-health monitoring passed live validation on 2026-08-16. The NFSv4-only media/games exports and their blackbox/nfsd monitoring passed attended live validation on 2026-08-29, including a controlled `NFSServerDown` outage with firing and resolved Pushover delivery. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. Post-cutover backup/restore and observation gates passed on 2026-08-13. The standard-tier media resource tuning slice was deployed on 2026-08-13 and passed its seven-day gate on 2026-08-22. | Validate the new mdcheck cap during the next attended check, then tune Frigate before optional phase-two logs or deferred apps. |
+| 5 — observability + expansion | Direct-array and B2 backups passed live validation under backup-contract version 2, which blocked snapshots missing validated Plex, Frigate, Prowlarr, Radarr, Sonarr, Seerr, Home Assistant, RomM, or k3s SQLite exports. Contract version 3 now requires Radarr and Sonarr but treats Prowlarr as best-effort. Fresh local and B2 backup/restore drills passed on 2026-08-22, including k3s integrity/schema/data and server-token-absence gates. The pinned kube-prometheus-stack and blackbox releases, probes/rules, Grafana access, Flux metrics, SOPS-safe Dead Man's Snitch heartbeat, and hosted Pushover actionable-alert route are deployed and passed live validation on 2026-07-20. Synthetic Pushover warning/critical firing and resolved notifications reached the iPhone; the external Snitch remains healthy. The nut-exporter workload, CP1500 dashboard, and critical on-battery rule passed live validation on 2026-07-25, including the controlled mains-loss/Pushover drill. Zigbee2MQTT's critical ingress, SLZB coordinator TCP, and MQTT-native bridge-health monitoring passed live validation on 2026-08-16. The NFSv4-only media/games exports and their blackbox/nfsd monitoring passed attended live validation on 2026-08-29, including a controlled `NFSServerDown` outage with firing and resolved Pushover delivery. The direct-attached storage alerts now validate exact LVM/ext4 mount mappings and stalled md checks. Post-cutover backup/restore and observation gates passed on 2026-08-13. The standard-tier media resource tuning slice was deployed on 2026-08-13 and passed its seven-day gate on 2026-08-22. | Validate the new mdcheck cap during the next attended check, then tune Frigate before optional phase-two logs or deferred apps. |
 
 ## Fresh rebuild and disaster recovery
 
@@ -103,7 +103,7 @@ to `/opt` with ownership, ACLs, xattrs, hard links, and numeric IDs preserved. V
 the Home Assistant managed backup artifact as an independent application-aware fallback.
 Keep every application stopped throughout this gate. The executable recovery scripts
 enforce these database-specific steps.
-Validate the staged contract-v2 k3s SQLite artifact independently, but leave it under
+Validate the staged current-contract k3s SQLite artifact independently, but leave it under
 the root-only recovery staging tree. The default runner must never copy it into `/opt`
 or replace the active k3s datastore; the optional attended procedure is documented in
 [operations.md](./operations.md#optional-emergency-k3s-datastore-recovery).
@@ -120,8 +120,10 @@ snapshot ID and verify at minimum:
 
 The backup job discovers SQLite databases with `.db`, `.sqlite`, and `.sqlite3`
 suffixes, but it has a stricter required contract: both Plex library databases and the
-primary Frigate, Home Assistant, Prowlarr, Radarr, Sonarr, and Seerr databases must
-have fresh, validated hot backups. A new validated Home Assistant managed archive and a checked
+primary Frigate, Home Assistant, Radarr, Sonarr, and Seerr databases must
+have fresh, validated hot backups. Prowlarr and optional discovered log/history/cache
+databases are best-effort exports with bounded retries for transient busy/open
+failures. A new validated Home Assistant managed archive and a checked
 RomM logical dump and a fresh, integrity-checked k3s SQLite online backup are also
 mandatory. Restic does not start if any required export
 fails. Full recovery rejects snapshots without the current contract version, exact
@@ -889,9 +891,9 @@ entities in Home Assistant.
   backups to `/mnt/backups/opt` plus an independent weekly Backblaze B2 repository.
   The initial B2 backup, repository check, and local-volume-free restore drill passed on
   2026-07-18. The nightly local and first naturally scheduled weekly B2 runs both
-  completed successfully on 2026-07-19. Backup-contract version 2 passed fresh
+  completed successfully on 2026-07-19. Backup-contract version 3 passed fresh
   attended local and B2 backup/restore drills on 2026-08-22. Local snapshot
-  `731326fa` and B2 snapshot `fe10c1ff` covered all eight mandatory application SQLite
+  `731326fa` and B2 snapshot `fe10c1ff` covered all eight then-mandatory application SQLite
   exports, the Home Assistant archive, a 32-table RomM import, validated k3s SQLite
   integrity/schema/data, and the absence of any server-token artifact.
   Design and operating notes are in
