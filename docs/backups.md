@@ -467,7 +467,7 @@ Manual unlock is only acceptable if nothing important waits on it. Three require
 follow, and the third is the one that is not automatic.
 
 **1. Boot must not block, and neither may a job that touches the path.** The
-`/etc/crypttab` entry carries `noauto`, so `systemd-cryptsetup@vaultlv.service` is not
+`/etc/crypttab` entry carries `noauto`, so `systemd-cryptsetup@vault.service` is not
 pulled in by `cryptsetup.target` and boot never stalls on a passphrase prompt at a console
 nobody is sitting at.
 
@@ -497,8 +497,21 @@ ext4 UUID and filesystem type on the resulting mapper, and closes the mapper and
 any mismatch; only then does it run `systemctl start mnt-vault.mount` (the unit still exists
 under `noauto`; it is merely not wanted by `local-fs.target`). For the same reason the
 fstab entry names
-`/dev/mapper/vaultlv` rather than a filesystem `UUID=`, which does not resolve until the
+`/dev/mapper/vault` rather than a filesystem `UUID=`, which does not resolve until the
 container is open.
+
+**The crypttab mapping is named `vault`, not `vaultlv`, and the difference is
+load-bearing.** The LV is `hoardvg/vaultlv`, so the *ciphertext* device is
+`/dev/mapper/hoardvg-vaultlv`; the mapping opened over it is the *plaintext* device. Naming
+that mapping `vaultlv` too would put ciphertext and plaintext at
+`/dev/mapper/hoardvg-vaultlv` and `/dev/mapper/vaultlv` — two adjacent, nearly identical
+paths where one is safe to `mkfs`, `fsck`, or `resize2fs` and the other destroys the LUKS
+header and every copy's decryption path with it. `vault` is unmistakable at a glance and at
+a tab-completion. It is also the only device pin in `alert-rules.yaml` that is not
+`hoardvg-*`, which under the old name would have read like a typo to anyone auditing the
+rules; under this one it reads as what it is — a mapper device that is deliberately not an
+LV. Everywhere below, `vaultlv` means the LV and the LUKS container on it, and
+`/dev/mapper/vault` means the decrypted filesystem.
 
 Nothing else on the host references `/mnt/vault`, and `/mnt/backups` is a separate,
 unencrypted LV — so k3s, the existing `appstate` pipeline, and camera recording all come up
@@ -655,7 +668,7 @@ data:
   credential. If the in-container `/data/vault` mount has the pinned host-root
   backing-source/type tuple for the bare host mountpoint, that is the expected locked or
   otherwise unavailable state: exit 0, export a `vault_locked` metric, and let
-  `VaultLocked` (§ 9) name the remedy. If it has the pinned `/dev/mapper/vaultlv`
+  `VaultLocked` (§ 9) name the remedy. If it has the pinned `/dev/mapper/vault`
   backing-source/type tuple, continue. Any other tuple is a hard failure. The host unlock
   helper separately verifies the configured LUKS and ext4 UUIDs before mounting. The
   rendered job configuration pins both runtime tuples, and the live drill records the exact
@@ -1300,7 +1313,7 @@ It keys off the mount rather than a CronJob's last success — the same `absent(
 bulk set uses, but as its own rule:
 
 ```
-absent(node_filesystem_size_bytes{device="/dev/mapper/vaultlv",fstype="ext4",mountpoint="/mnt/vault"})
+absent(node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"})
 for: 30m   severity: warning
 ```
 
@@ -1319,7 +1332,7 @@ own threshold and its own severity, which a clause in a shared rule cannot have.
 reintroduces the same defect one alert over. It follows `BulkStorageFilesystemDeviceError`:
 
 ```
-node_filesystem_device_error{device="/dev/mapper/vaultlv",fstype="ext4",mountpoint="/mnt/vault"} == 1
+node_filesystem_device_error{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} == 1
 for: 5m   severity: critical
 ```
 
@@ -1339,10 +1352,10 @@ The two conditions are genuinely different and route to different responses: `Va
 means nobody has unlocked it yet, which a human fixes with a passphrase over SSH;
 `VaultFilesystemDeviceError` means a mounted vault's filesystem is reporting errors, which
 is a hardware or corruption problem and a different runbook entirely. Extending the existing
-`BulkStorageFilesystemDeviceError` regex to include `vaultlv` would in fact be *safe* — same
-mount-gating — but it is kept separate so it can carry a vault-specific runbook pointer. The
-asymmetry is the thing to remember: the device-error rule tolerates the vault, the
-mount-set rule does not.
+`BulkStorageFilesystemDeviceError` regex to include `/dev/mapper/vault` would in fact be
+*safe* — same mount-gating — but it is kept separate so it can carry a vault-specific
+runbook pointer. The asymmetry is the thing to remember: the device-error rule tolerates
+the vault, the mount-set rule does not.
 
 Widen the existing critical `ResticBackupFailed` regex without dropping its two running
 jobs, and do not fold warning-only mail, workstation-copy, or prune failures into it. The
@@ -1531,9 +1544,10 @@ the existing `runbooks/phase5/` scripts this document cites.
 `infrastructure/monitoring/configs/alert-rules.yaml`,
 `infrastructure/monitoring/controllers/kube-prometheus-stack.yaml` (enable and mount the
 node-exporter textfile collector at `/mnt/backups/.control/metrics`),
-`host/minis/etc/fstab` — the vault entry is `noauto,nofail` on `/dev/mapper/vaultlv`,
+`host/minis/etc/fstab` — the vault entry is `noauto,nofail` on `/dev/mapper/vault`,
 intentionally unlike its automounted siblings (§ 1b),
-`host/minis/etc/crypttab` (new `noauto` entry for `vaultlv`),
+`host/minis/etc/crypttab` (new `noauto` entry mapping `vault` onto the
+`hoardvg/vaultlv` LUKS container, pinned by LUKS UUID — § 1b),
 `host/minis/usr/local/sbin/vault-unlock` (new),
 `host/minis/etc/ssh/sshd_config_vault_ingest` plus its dedicated systemd service/socket
 (new restricted SFTP listener),
@@ -1568,8 +1582,9 @@ contract-version pattern. Vault Job manifests change `/work` and `/tmp` to
 Ordered so the highest-value, least-reversible data is protected first.
 
 1. **Vault foundation** — create `vaultlv` **as a LUKS2 container from the start** (§ 1b —
-   retrofitting leaves plaintext extents on the array), add the `noauto` crypttab entry, the
-   `noauto,nofail` fstab entry on `/dev/mapper/vaultlv` (**no `x-systemd.automount`** — § 1b),
+   retrofitting leaves plaintext extents on the array), add the `noauto` crypttab entry
+   mapping it to `vault` (**not** `vaultlv` — § 1b), the
+   `noauto,nofail` fstab entry on `/dev/mapper/vault` (**no `x-systemd.automount`** — § 1b),
    and the `0555` **immutable** mountpoint plus the boot unit that re-asserts it,
    initialize the mounted filesystem root as `root:root` `0711`, install `vault-unlock`,
    create the root-only `.backup-credentials` directory and NAS password file, seed
