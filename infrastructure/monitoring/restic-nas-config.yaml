@@ -97,7 +97,8 @@ data:
         fi
       done < <(find /data/opt \
         -path /data/opt/.snapshots -prune -o \
-        -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) -print0)
+        -type f \( -name '*.db' -o -name '*.sqlite' -o -name '*.sqlite3' \) \
+        ! -name 'logs.db' -print0)
       required_count=0
       while IFS= read -r rel; do
         source="/data/opt/$rel"
@@ -124,7 +125,10 @@ data:
           2>"$err" || rc=$?
         [ "$rc" -eq 0 ] && return 0
         case "$(sqlite_error_summary "$err")" in
-          *"SQLITE_BUSY"*|*"database is locked"*|*"unable to open database file"*)
+          *"unable to open database file"*)
+            return "$rc"
+            ;;
+          *"SQLITE_BUSY"*|*"database is locked"*)
             log "waiting for possibly busy SQLite database (attempt $attempt/6): $db"
             sleep 20
             ;;
