@@ -4,6 +4,7 @@ set -Eeuo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python3 - "$repo_root" <<'PY'
 import hashlib
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -29,17 +30,31 @@ with tempfile.TemporaryDirectory() as temporary:
     (scripts / 'validate.sh').write_text(script)
     (scripts / 'detect-vault-exclusions.jq').write_text(data['detect-vault-exclusions.jq'])
     mock = bindir / 'restic'
-    mock.write_text('''#!/usr/bin/env python3
-import os, pathlib, sys
-p=pathlib.Path(os.environ['FIXTURE'])
-if os.environ.get('FAIL_COMMAND') == sys.argv[1]: sys.exit(1)
-if sys.argv[1] == 'snapshots': name='metadata'
-elif sys.argv[1] == 'ls': name='listing'
-else: name={'/work/backup-manifest.json':'manifest','/data/vault/.vault-sentinel':'sentinel','/data/vault/credentials/strongbox/ccs.kdbx':'kdbx'}[sys.argv[3]]
-sys.stdout.buffer.write((p/name).read_bytes())
+    # Keep the fixture executable in the production image, which has no Python.
+    mock.write_text('''#!/bin/bash
+set -euo pipefail
+[ "${FAIL_COMMAND:-}" != "$1" ] || exit 1
+case "$1" in
+  snapshots) name=metadata ;;
+  ls) name=listing ;;
+  dump)
+    case "$3" in
+      /work/backup-manifest.json) name=manifest ;;
+      /data/vault/.vault-sentinel) name=sentinel ;;
+      /data/vault/credentials/strongbox/ccs.kdbx) name=kdbx ;;
+      *) exit 1 ;;
+    esac ;;
+  *) exit 1 ;;
+esac
+cat "$FIXTURE/$name"
 ''')
     mock.chmod(0o755)
     env = dict(os.environ, PATH=str(bindir) + ':' + os.environ['PATH'], FIXTURE=str(fixture))
+    # Opt in to testing the complete validator with the manifest's pinned image:
+    # VAULT_TEST_RUNTIME=docker ./runbooks/backups/test-review-regressions.sh
+    runtime = os.environ.get('VAULT_TEST_RUNTIME', '')
+    assert runtime in ('', 'docker'), 'VAULT_TEST_RUNTIME must be empty or docker'
+    image = yaml.safe_load((repo / 'infrastructure/monitoring/restic-vault-cronjob.yaml').read_text())['spec']['jobTemplate']['spec']['template']['spec']['containers'][0]['image']
     sid = 'a' * 64
     kdbx = bytes.fromhex('03d9a29a67fb4bb5') + bytes(102400-8)
     (fixture / 'kdbx').write_bytes(kdbx)
@@ -57,10 +72,28 @@ sys.stdout.buffer.write((p/name).read_bytes())
         (fixture/'listing').write_text(''.join(json.dumps(n)+'\n' for n in (nodes if listing is None else listing)))
         (fixture/'manifest').write_text(json.dumps(manifest if claimed is None else claimed))
         (fixture/'metadata').write_text(json.dumps(metadata if meta is None else meta))
-        result=subprocess.run(['bash', str(scripts/'validate.sh'),sid],env=dict(env,FAIL_COMMAND=failure),capture_output=True,text=True)
+        command = ['bash', str(scripts/'validate.sh'), sid]
+        if runtime:
+            command = ['docker', 'run', '--rm', '--network', 'none', '--read-only',
+                       '--mount', f'type=bind,src={root},dst={root}',
+                       '--mount', f'type=bind,src={contracts},dst={contracts},readonly',
+                       '--env', f'PATH={bindir}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+                       '--env', f'FIXTURE={fixture}', '--env', f'FAIL_COMMAND={failure}',
+                       '--entrypoint', '/bin/bash', image, str(scripts/'validate.sh'), sid]
+        result=subprocess.run(command,env=dict(env,FAIL_COMMAND=failure),capture_output=True,text=True)
         assert (result.returncode == 0) == valid, (name,result.stderr)
         print('PASS:', name)
     run_case('healthy snapshot', valid=True)
+    current = datetime.now(timezone.utc).replace(microsecond=0)
+    for name, stamp, valid in [
+        ('current UTC timestamp', current.strftime('%Y-%m-%dT%H:%M:%SZ'), True),
+        ('timestamp within clock tolerance', (current + timedelta(seconds=240)).strftime('%Y-%m-%dT%H:%M:%SZ'), True),
+        ('timestamp beyond clock tolerance', (current + timedelta(hours=1)).strftime('%Y-%m-%dT%H:%M:%SZ'), False),
+        ('malformed timestamp', 'not-a-date', False),
+        ('impossible calendar date', '2026-02-30T00:00:00Z', False),
+        ('missing timestamp', None, False),
+    ]:
+        run_case(name, valid=valid, claimed=dict(manifest, generated_at=stamp))
     run_case('file removed after source measurement', listing=nodes[:-1])
     truncated = json.loads(json.dumps(nodes)); truncated[-1]['size']=0
     run_case('file truncated after source measurement', listing=truncated)

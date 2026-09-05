@@ -72,7 +72,14 @@ data:
           .path == $required.path and .kind == $required.kind and
           .files >= $required.minimum_files and .bytes >= $required.minimum_bytes))
     ' "$work/manifest.json" >/dev/null
-    generated_epoch="$(date -u -d "$(jq -er '.generated_at' "$work/manifest.json")" +%s)"
+    # jq parses our UTC format in both the Alpine runtime and host fixtures;
+    # BusyBox date -d does not accept the emitted ISO 8601 timestamp.
+    generated_epoch="$(jq -er '
+      .generated_at as $timestamp |
+      ($timestamp | fromdateiso8601) as $epoch |
+      if ($epoch | todateiso8601) == $timestamp then $epoch
+      else error("generated_at is not a valid canonical UTC timestamp") end
+    ' "$work/manifest.json")"
     [ "$generated_epoch" -le $(( $(date +%s) + 300 )) ]
     restic dump "$snapshot" /data/vault/.vault-sentinel >"$work/sentinel"
     grep -qxF 'vault-contract-version=1' "$work/sentinel"
