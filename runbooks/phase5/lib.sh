@@ -438,13 +438,12 @@ assert_phase5_backup_invariants() {
     .data.RESTIC_KEEP_DAILY == "14" and
     .data.RESTIC_KEEP_WEEKLY == "8" and
     .data.RESTIC_KEEP_MONTHLY == "12" and
-    .data.BACKUP_CONTRACT_VERSION == "2" and
-    (.data.REQUIRED_SQLITE_DATABASES | split("\n") | length) == 8 and
+    .data.BACKUP_CONTRACT_VERSION == "3" and
+    (.data.REQUIRED_SQLITE_DATABASES | split("\n") | length) == 7 and
     (.data.REQUIRED_SQLITE_DATABASES | contains("com.plexapp.plugins.library.db")) and
     (.data.REQUIRED_SQLITE_DATABASES | contains("com.plexapp.plugins.library.blobs.db")) and
     (.data.REQUIRED_SQLITE_DATABASES | contains("frigate/config/frigate.db")) and
     (.data.REQUIRED_SQLITE_DATABASES | contains("home-assistant/config/home-assistant_v2.db")) and
-    (.data.REQUIRED_SQLITE_DATABASES | contains("prowlarr/config/prowlarr.db")) and
     (.data.REQUIRED_SQLITE_DATABASES | contains("radarr/config/radarr.db")) and
     (.data.REQUIRED_SQLITE_DATABASES | contains("sonarr/config/sonarr.db")) and
     (.data.REQUIRED_SQLITE_DATABASES | contains("seerr/config/db/db.sqlite3"))' "$rendered" >/dev/null \
@@ -565,7 +564,7 @@ assert_phase5_backup_invariants() {
   done
   grep -Fq -- '/work/hot-dumps/k3s/state.db.sqlite-backup' \
     "$REPO_ROOT/runbooks/disaster-recovery/01-list-snapshots.sh" \
-    || die "full-recovery selection does not require the contract-v2 k3s artifact"
+    || die "full-recovery selection does not require the current-contract k3s artifact"
   grep -Fq -- '-path /data/opt/.snapshots -prune -o' \
     "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "SQLite discovery does not prune the local btrfs snapshot tree"

@@ -29,12 +29,12 @@ available as `/dev/mapper/hoardvg-backuplv` at `/mnt/backups`.
 
 Both repositories have passed initialization, manual backup, and representative restore
 validation. The nightly local and first naturally scheduled weekly B2 backups both
-completed successfully on 2026-07-19. Backup-contract version 2 passed fresh attended
+completed successfully on 2026-07-19. Backup-contract version 3 passed fresh attended
 local and B2 backup/restore drills on 2026-08-22. The local restore validated snapshot
 `731326fa530f2c54686210a360ee4dc30833a418d145e95b39de591ead8cdca0`
 with 2,445 k3s `kine` rows; the local-volume-independent B2 restore validated snapshot
 `fe10c1ffa810ab7d5af75a52fd1f5b69315a3411e96e5deab93363406baea166`
-with 2,815. Each drill checked k3s SQLite integrity and schema, all eight mandatory
+with 2,815. Each drill checked k3s SQLite integrity and schema, all eight then-mandatory
 application SQLite exports, a readable Home Assistant archive, a RomM dump imported
 as 32 healthy tables, and the absence of any server-token artifact.
 
@@ -42,13 +42,15 @@ The shared backup workflow excludes `/data/opt/.snapshots` from both SQLite disc
 and Restic input. Local btrfs snapshots remain available for same-device rollback but
 are not recursively embedded in the independent local or B2 recovery points.
 
-Backup-contract version 2 makes both Plex library databases and the primary Frigate,
-Home Assistant, Prowlarr, Radarr, Sonarr, and Seerr databases mandatory. Each must be
-exported during the current Job and pass SQLite validation. A newly created, readable Home Assistant
-managed backup and a `mariadb-check`-validated RomM logical dump are also mandatory.
+Backup-contract version 3 makes both Plex library databases and the primary Frigate,
+Home Assistant, Radarr, Sonarr, and Seerr databases mandatory. Each must be exported
+during the current Job and pass SQLite validation. Prowlarr and optional discovered
+log/history/cache databases are best-effort exports with bounded retries for transient
+busy/open failures. A newly created, readable Home Assistant managed backup and a
+`mariadb-check`-validated RomM logical dump are also mandatory.
 The Job stops before Restic if any required artifact is missing, stale, or invalid.
 Optional discovered log/history/cache databases do not block the recovery point.
-Contract version 2 also requires a current-job SQLite online backup of
+Contract version 3 also requires a current-job SQLite online backup of
 `/var/lib/rancher/k3s/server/db/state.db`. It must pass full integrity, contain the
 `kine` and `sqlite_sequence` tables, and have at least one `kine` row. The CronJobs
 mount only the database directory read-only; the server token remains exclusively in
