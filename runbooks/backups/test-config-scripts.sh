@@ -39,6 +39,43 @@ grep -qx 'UsePAM yes' "$ingest_sshd" \
 grep -qx 'PasswordAuthentication no' "$ingest_sshd"
 grep -qx 'KbdInteractiveAuthentication no' "$ingest_sshd"
 
+# A file hostPath is already the mount source; subPath would resolve a child
+# beneath that file and fail before the container can execute any guard.
+for cronjob in restic-vault-cronjob.yaml restic-verify-cronjob.yaml; do
+  yq -e '
+    .spec.jobTemplate.spec.template.spec as $pod |
+    [$pod.volumes[] | select(.hostPath.type == "File" or .hostPath.type == "FileOrCreate") | .name] as $files |
+    all($pod.containers[].volumeMounts[];
+      . as $mount |
+      if ($files | index($mount.name)) != null then
+        (.subPath // "") == "" and (.subPathExpr // "") == ""
+      else true end)
+  ' "$repo_root/infrastructure/monitoring/$cronjob" >/dev/null \
+    || { echo "$cronjob mounts a child beneath a file hostPath" >&2; exit 1; }
+done
+
+# Exercise the actual attended Job transformation, including its ownership
+# privilege, without creating anything in the cluster.
+restore_filter="$tmpdir/restore-job.jq"
+awk '
+  $0 == "yq -y -i \047" { printing = 1; next }
+  printing && index($0, "\047 ") == 1 { exit }
+  printing { print }
+' "$repo_root/runbooks/backups/06-validate-vault-restore.sh" >"$restore_filter"
+[ -s "$restore_filter" ]
+yq -y '{spec: .spec.jobTemplate.spec}' \
+  "$repo_root/infrastructure/monitoring/restic-vault-cronjob.yaml" \
+  >"$tmpdir/restore-job.yaml"
+VAULT_SNAPSHOT=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
+  yq -y -i -f "$restore_filter" "$tmpdir/restore-job.yaml"
+yq -e '
+  .spec.template.spec.containers[0] |
+  (.securityContext.capabilities.drop == ["ALL"]) and
+  (.securityContext.capabilities.add | sort == ["CHOWN", "DAC_OVERRIDE"]) and
+  (.command[-1] | endswith("exec /scripts/validate-vault-restore.sh")) and
+  any(.volumeMounts[]; .name == "vault" and .readOnly == false)
+' "$tmpdir/restore-job.yaml" >/dev/null
+
 promoter="$repo_root/host/minis/usr/local/sbin/vault-ingest-promote"
 grep -q 'mv -- "$archive" "$claimed_archive"' "$promoter" \
   && grep -q 'sha256sum "$frozen_archive"' "$promoter" \

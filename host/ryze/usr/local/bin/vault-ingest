@@ -43,7 +43,7 @@ if [ "$mode" = kdbx ]; then
   chmod 0600 "$temporary"
   after="$(stat -c '%s:%Y' "$source_file")"
   [ "$before" = "$after" ] || die "$source_file changed while being copied"
-  printf 'put %s upload/ccs.kdbx.%s.tmp\nrename upload/ccs.kdbx.%s.tmp upload/ccs.kdbx.%s.ready\n' \
+  printf 'put %s /upload/ccs.kdbx.%s.tmp\nrename /upload/ccs.kdbx.%s.tmp /upload/ccs.kdbx.%s.ready\n' \
     "$temporary" "$token" "$token" "$token" | sftp_batch
   rm -f "$temporary"
   exit 0
@@ -61,7 +61,7 @@ checksum="$runtime/documents.$token.sha256"
 tar -cf "$archive" -C "$source_directory" .
 sha256sum "$archive" | awk '{print $1 "  archive"}' >"$checksum"
 chmod 0600 "$archive" "$checksum"
-printf 'put %s upload/documents.%s.tar.tmp\nrename upload/documents.%s.tar.tmp upload/documents.%s.tar.ready\nput %s upload/documents.%s.sha256.tmp\nrename upload/documents.%s.sha256.tmp upload/documents.%s.sha256.ready\n' \
+printf 'put %s /upload/documents.%s.tar.tmp\nrename /upload/documents.%s.tar.tmp /upload/documents.%s.tar.ready\nput %s /upload/documents.%s.sha256.tmp\nrename /upload/documents.%s.sha256.tmp /upload/documents.%s.sha256.ready\n' \
   "$archive" "$token" "$token" "$token" \
   "$checksum" "$token" "$token" "$token" | sftp_batch
 rm -f "$archive" "$checksum"

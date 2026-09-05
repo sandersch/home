@@ -87,7 +87,6 @@ spec:
                   readOnly: true
                 - name: host-config
                   mountPath: /host-config/vault.conf
-                  subPath: vault.conf
                   readOnly: true
                 - name: vault
                   mountPath: /data/vault

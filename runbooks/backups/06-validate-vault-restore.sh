@@ -20,11 +20,14 @@ trap 'rm -f "$manifest"' EXIT
 kubectl -n monitoring create job "$job" \
   --from=cronjob/restic-vault-backup \
   --dry-run=client -o yaml >"$manifest"
+# The attended restore must recover root:root ownership while the Pod runs with
+# primary group nogroup. Keep CHOWN scoped to this Job, not recurring backups.
 yq -y -i '
   .spec.template.spec.containers[0].command =
     ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/validate-vault-restore.sh"] |
   .spec.template.spec.containers[0].env +=
     [{"name": "RESTORE_SNAPSHOT", "value": env.VAULT_SNAPSHOT}] |
+  .spec.template.spec.containers[0].securityContext.capabilities.add += ["CHOWN"] |
   (.spec.template.spec.containers[0].volumeMounts[] | select(.name == "vault")).readOnly = false
 ' "$manifest"
 kubectl apply -f "$manifest" >/dev/null

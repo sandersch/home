@@ -32,8 +32,13 @@ sudo install -d -o root -g root -m 0755 \
   /mnt/vault/inbox/ryze
 sudo install -d -o vault-ingest-ryze -g vault-ingest-ryze -m 0700 \
   /mnt/vault/inbox/ryze/upload
-sudo install -o root -g root -m 0600 "$authorized_source" \
+# sshd reads authorized keys as the authenticating user. The public key must be
+# readable by that user while remaining writable only by root.
+sudo install -o root -g root -m 0644 "$authorized_source" \
   /etc/ssh/vault-ingest-authorized-keys/vault-ingest-ryze
+sudo -u vault-ingest-ryze test -r \
+  /etc/ssh/vault-ingest-authorized-keys/vault-ingest-ryze \
+  || die "the ingestion user cannot read its authorized-key file"
 
 sudo install -o root -g root -m 0600 \
   "$REPO_ROOT/host/minis/etc/ssh/sshd_config_vault_ingest" \
