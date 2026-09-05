@@ -9,6 +9,12 @@ require_host_etc
 require_tools awk chattr cryptsetup findmnt flux jq kubectl lsattr lvs mountpoint readlink stat systemctl vgs yq
 require_backup_yq
 
+step "Verify the pinned bare-root mount identity"
+root_identity="$(findmnt -rn -o SOURCE,FSTYPE,FSROOT --target / | awk '{$1=$1; print}')"
+[ "$root_identity" = '/dev/mapper/vg0-root ext4 /' ] \
+  || die "root mount is $root_identity; review the vault backup and verifier pins before provisioning"
+ok "root mount matches the locked-vault identity pin"
+
 step "Verify the direct backup filesystem"
 assert_direct_mount_layout "$BACKUPS_MOUNT" "$BACKUPS_SOURCE" "$BACKUPS_UUID"
 df -h "$BACKUPS_MOUNT"

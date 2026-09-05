@@ -27,6 +27,7 @@ jobs:
           runbooks/backups/test-mount-guard.sh
           runbooks/backups/test-contracts.sh
           runbooks/backups/test-config-scripts.sh
+          runbooks/backups/test-review-regressions.sh
 
       - name: Check changed shell scripts
         env:

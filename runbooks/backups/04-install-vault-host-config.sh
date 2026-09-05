@@ -6,7 +6,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_not_root
 require_sudo
 require_host_etc
-require_tools blkid chattr cryptsetup findmnt install lsattr mountpoint systemctl
+require_tools awk blkid chattr cryptsetup findmnt install lsattr mountpoint systemctl
 [ -t 0 ] || die "vault host configuration requires an attended TTY"
 : "${VAULT_LUKS_UUID:?set VAULT_LUKS_UUID from 03-provision-vault.sh}"
 : "${VAULT_FS_UUID:?set VAULT_FS_UUID from 03-provision-vault.sh}"
@@ -32,29 +32,58 @@ mkdir -p "$host_homelab"
 config_tmp="$(mktemp)"
 crypttab_tmp="$(mktemp)"
 fstab_tmp="$(mktemp)"
+live_crypttab_tmp="$(mktemp)"
+live_fstab_tmp="$(mktemp)"
 sentinel_tmp=""
 credential_tmp=""
-trap 'rm -f "$config_tmp" "$crypttab_tmp" "$fstab_tmp" "$sentinel_tmp" "$credential_tmp"' EXIT
+trap 'rm -f "$config_tmp" "$crypttab_tmp" "$fstab_tmp" "$live_crypttab_tmp" "$live_fstab_tmp" "$sentinel_tmp" "$credential_tmp"' EXIT
 printf 'VAULT_LUKS_UUID=%s\nVAULT_FS_UUID=%s\n' \
   "$VAULT_LUKS_UUID" "$VAULT_FS_UUID" >"$config_tmp"
 install -m 0644 "$config_tmp" "$canonical_config"
 
+crypttab_line="$(printf 'vault\tUUID=%s\tnone\tluks,noauto' "$VAULT_LUKS_UUID")"
+fstab_line='/dev/mapper/vault /mnt/vault ext4 defaults,noauto,nofail 0 2'
 if [ -f "$canonical_crypttab" ]; then
-  awk '$1 != "vault" {print}' "$canonical_crypttab" >"$crypttab_tmp"
+  cat "$canonical_crypttab" >"$crypttab_tmp"
 else
   printf '# <target name>\t<source device>\t<key file>\t<options>\n' >"$crypttab_tmp"
 fi
-printf 'vault\tUUID=%s\tnone\tluks,noauto\n' "$VAULT_LUKS_UUID" >>"$crypttab_tmp"
-install -m 0644 "$crypttab_tmp" "$canonical_crypttab"
+cat "$canonical_fstab" >"$fstab_tmp"
+# The redirect intentionally writes an operator-owned, mode-0600 staged copy.
+# shellcheck disable=SC2024
+sudo cat /etc/fstab >"$live_fstab_tmp"
+crypttab_mode=0644
+if sudo test -e /etc/crypttab; then
+  crypttab_mode="$(sudo stat -c '%a' /etc/crypttab)"
+  # shellcheck disable=SC2024
+  sudo cat /etc/crypttab >"$live_crypttab_tmp"
+fi
 
-awk '$2 != "/mnt/vault" {print}' "$canonical_fstab" >"$fstab_tmp"
-printf '/dev/mapper/vault /mnt/vault ext4 defaults,noauto,nofail 0 2\n' >>"$fstab_tmp"
+# Validate all four candidates before installing anything. Live unrelated entries
+# remain on the host; do not import possibly sensitive live configuration into git.
+for staged in "$crypttab_tmp" "$live_crypttab_tmp"; do
+  ensure_mount_table_entry "$staged" 1 vault "$crypttab_line"
+done
+for staged in "$fstab_tmp" "$live_fstab_tmp"; do
+  ensure_mount_table_entry "$staged" 2 /mnt/vault "$fstab_line"
+done
+install -m 0644 "$crypttab_tmp" "$canonical_crypttab"
 install -m 0644 "$fstab_tmp" "$canonical_fstab"
+
+step "Back up existing host mount configuration"
+backup_dir="$(sudo mktemp -d /etc/vault-mount-config-backup.XXXXXX)"
+sudo cp -a /etc/fstab "$backup_dir/fstab"
+if sudo test -e /etc/crypttab; then
+  sudo cp -a /etc/crypttab "$backup_dir/crypttab"
+else
+  sudo touch "$backup_dir/crypttab-was-absent"
+fi
+ok "original mount configuration saved in $backup_dir"
 
 step "Install vault host configuration"
 sudo install -D -o root -g root -m 0644 "$canonical_config" /etc/homelab/vault.conf
-sudo install -o root -g root -m 0644 "$canonical_crypttab" /etc/crypttab
-sudo install -o root -g root -m 0644 "$canonical_fstab" /etc/fstab
+sudo install -o root -g root -m "$crypttab_mode" "$live_crypttab_tmp" /etc/crypttab
+sudo install -o root -g root -m 0644 "$live_fstab_tmp" /etc/fstab
 sudo install -D -o root -g root -m 0755 \
   "$REPO_ROOT/host/minis/usr/local/sbin/vault-mountpoint-guard" \
   /usr/local/sbin/vault-mountpoint-guard

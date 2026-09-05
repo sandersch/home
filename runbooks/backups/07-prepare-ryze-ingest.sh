@@ -5,9 +5,46 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root
 require_sudo
-require_tools install sftp ssh-keygen ssh-keyscan systemctl timeout
+require_tools python3 install sftp ssh-keygen ssh-keyscan systemctl timeout
 [ "$(hostname -s)" = ryze ] || die "run this step on ryze"
 [ "$(id -u)" -eq 1000 ] || die "run this step as ryze's uid-1000 operator"
+
+step "Verify ryze source data against the released vault floors"
+python3 - "$REPO_ROOT/infrastructure/monitoring/contracts/vault-v1.json" <<'PYTHON'
+import json
+import os
+from pathlib import Path
+import sys
+
+contract = json.loads(Path(sys.argv[1]).read_text())
+home = Path.home()
+def fail_walk(error):
+    raise error
+for required in contract['required_content']:
+    source = home / ('Dropbox/ccs.kdbx' if required['kind'] == 'kdbx' else 'Documents')
+    if source.is_symlink() or not source.exists():
+        sys.exit(f'{source} must be a local non-symlink source')
+    if required['kind'] == 'kdbx':
+        if not source.is_file():
+            sys.exit(f'{source} must be a regular file')
+        with source.open('rb') as stream:
+            if stream.read(8) != bytes.fromhex('03d9a29a67fb4bb5'):
+                sys.exit('KDBX signature is invalid')
+        files, size = 1, source.stat().st_size
+    else:
+        if not source.is_dir():
+            sys.exit(f'{source} must be a directory')
+        files = size = 0
+        for base, _, names in os.walk(source, followlinks=False, onerror=fail_walk):
+            for name in names:
+                path = Path(base) / name
+                if path.is_file() and not path.is_symlink():
+                    files += 1
+                    size += path.stat().st_size
+    print(f'{source}: {files} regular files, {size} bytes')
+    if files < required['minimum_files'] or size < required['minimum_bytes']:
+        sys.exit(f'{source} is below the released contract floor; inspect before enrollment')
+PYTHON
 
 client_root="$REPO_ROOT/host/ryze"
 client_config="$HOME/.config/vault-ingest"

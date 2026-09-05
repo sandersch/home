@@ -70,7 +70,11 @@ fi
 step "Expose and harden the underlying mountpoint"
 sudo systemctl stop mnt-backups.automount
 automount_stopped=1
-sudo umount "$BACKUPS_MOUNT"
+# Stopping the automount can already detach the filesystem above it.
+if mountpoint -q "$BACKUPS_MOUNT"; then
+  sudo umount "$BACKUPS_MOUNT"
+fi
+! mountpoint -q "$BACKUPS_MOUNT" || die "$BACKUPS_MOUNT is still mounted"
 sudo systemctl enable backups-mountpoint-guard.service >/dev/null
 sudo systemctl restart backups-mountpoint-guard.service
 sudo systemctl start mnt-backups.automount

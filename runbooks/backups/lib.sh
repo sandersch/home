@@ -54,3 +54,19 @@ assert_backup_jobs_quiesced() {
   [ -z "$active_jobs" ] || die "active Restic Jobs remain: $active_jobs"
   ok "backup schedules are suspended and no Restic Job is active"
 }
+
+# Work only on staged copies. Preserve unrelated entries and reject duplicates or
+# conflicting definitions instead of replacing an operator's mount configuration.
+ensure_mount_table_entry() {
+  local file="$1" key_field="$2" key="$3" expected="$4" entries normalized
+  entries="$(awk -v field="$key_field" -v key="$key" \
+    '$1 !~ /^#/ && $field == key {$1=$1; print}' "$file")"
+  normalized="$(awk '{$1=$1; print}' <<<"$expected")"
+  if [ -n "$entries" ]; then
+    [ "$entries" = "$normalized" ] \
+      || die "$file contains conflicting or duplicate entries for $key; reconcile them before retrying"
+  else
+    # A preceding newline also handles a source file without a final newline.
+    printf '\n%s\n' "$expected" >>"$file"
+  fi
+}

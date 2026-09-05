@@ -17,6 +17,71 @@ data:
         . == "/data/vault/.restore-tests" or
         startswith("/data/vault/.restore-tests/")
       )
+  validate-vault-snapshot.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    # Shared by backup, enrollment restore, and attended shrink acceptance. Always
+    # measure the immutable snapshot, never the live tree or its claimed inventory.
+    snapshot="${1:?a full snapshot ID is required}"
+    [[ "$snapshot" =~ ^[0-9a-f]{64}$ ]] || exit 1
+    contract=/contracts/vault-v1.json
+    exclusions=/contracts/vault-v1.excludes
+    work="$(mktemp -d /work/validate-snapshot.XXXXXX)"
+    trap 'rm -rf -- "$work"' EXIT
+    trap 'printf "snapshot validation failed at line %s for %s\n" "$LINENO" "$snapshot" >&2' ERR
+    contract_hash="$(sha256sum "$contract" | awk '{print $1}')"
+    exclusion_hash="$(sha256sum "$exclusions" | awk '{print $1}')"
+    [ "$exclusion_hash" = "$(jq -er '.exclusion_sha256' "$contract")" ]
+
+    # Separate reads from predicates so a listing/dump error cannot mean "no leak".
+    restic snapshots "$snapshot" --json >"$work/metadata.json"
+    jq -e --arg snapshot "$snapshot" '
+      length == 1 and .[0].id == $snapshot and .[0].hostname == "minis-vault" and
+      (.[0].paths | sort) == ["/data/vault", "/work/backup-manifest.json"]
+    ' "$work/metadata.json" >/dev/null
+    restic ls --json "$snapshot" >"$work/listing.jsonl"
+    jq -f /scripts/detect-vault-exclusions.jq "$work/listing.jsonl" >"$work/excluded"
+    [ ! -s "$work/excluded" ]
+    restic dump "$snapshot" /work/backup-manifest.json >"$work/manifest.json"
+    jq -s --slurpfile released "$contract" '
+      [.[] | select(.message_type == "node")] as $nodes |
+      [$released[0].required_content[] |
+        . as $required |
+        [$nodes[] | select(.path == $required.path)] as $root |
+        if ($root | length) != 1 or
+           $root[0].type != (if .kind == "kdbx" then "file" else "dir" end)
+        then error("required snapshot path is missing or has the wrong type")
+        else
+          [$nodes[] | select(.type == "file") |
+            select(.path == $required.path or (.path | startswith($required.path + "/")))] as $files |
+          {path:.path, kind:.kind, files:($files | length), bytes:([$files[].size] | add // 0)}
+        end]
+    ' "$work/listing.jsonl" >"$work/measured.json"
+    jq -e --arg contract_hash "$contract_hash" --arg exclusion_hash "$exclusion_hash" \
+      --slurpfile released "$contract" --slurpfile measured "$work/measured.json" '
+      . as $manifest |
+      .contract == $released[0].contract and
+      .contract_sha256 == $contract_hash and .exclusion_sha256 == $exclusion_hash and
+      .measurements == $measured[0] and
+      .total_files == ([$measured[0][].files] | add) and
+      .total_bytes == ([$measured[0][].bytes] | add) and
+      all($released[0].required_content[];
+        . as $required |
+        any($manifest.measurements[];
+          .path == $required.path and .kind == $required.kind and
+          .files >= $required.minimum_files and .bytes >= $required.minimum_bytes))
+    ' "$work/manifest.json" >/dev/null
+    generated_epoch="$(date -u -d "$(jq -er '.generated_at' "$work/manifest.json")" +%s)"
+    [ "$generated_epoch" -le $(( $(date +%s) + 300 )) ]
+    restic dump "$snapshot" /data/vault/.vault-sentinel >"$work/sentinel"
+    grep -qxF 'vault-contract-version=1' "$work/sentinel"
+    grep -qxF "filesystem-uuid=$(jq -er '.filesystem_uuid' "$work/manifest.json")" "$work/sentinel"
+    restic dump "$snapshot" /data/vault/credentials/strongbox/ccs.kdbx >"$work/ccs.kdbx"
+    [ "$(od -An -tx1 -N8 "$work/ccs.kdbx" | tr -d ' \n')" = 03d9a29a67fb4bb5 ]
+    [ "$(stat -c '%s' "$work/ccs.kdbx")" = "$(jq -er '.[0].bytes' "$work/measured.json")" ]
+    cat "$work/manifest.json"
+
   backup-vault.sh: |
     #!/usr/bin/env bash
     set -Eeuo pipefail
@@ -42,10 +107,21 @@ data:
     : "${RESTIC_PASSWORD_FILE:?RESTIC_PASSWORD_FILE is required}"
 
     write_metrics() {
-      local locked="$1" snapshot_time="${2:-0}" repo_kib="${3:-0}" hold_count="${4:-0}"
+      local locked="$1" snapshot_time="${2:-0}" repo_kib="${3:-0}" hold_count="${4:-0}" repo_bytes
       local tmp="${metrics}.tmp.$$" enrolled=0 restore_time=0 previous
+      repo_bytes=$((repo_kib * 1024))
+      if [ "$locked" -eq 1 ]; then
+        hold_count=0
+        if [ -d "$control/holds" ]; then
+          hold_count="$(find "$control/holds" -type f -name '*.json' | wc -l)"
+        fi
+      fi
       [ -f "$control/baseline.json" ] && enrolled=1
       if [ -f "$metrics" ]; then
+        if [ "$locked" -eq 1 ]; then
+          repo_bytes="$(awk '/^homelab_restic_repository_size_bytes/ {print $NF}' "$metrics" | tail -n 1)"
+          repo_bytes="${repo_bytes:-0}"
+        fi
         previous="$(awk '/homelab_restic_destination_snapshot_timestamp_seconds/ {print $NF}' "$metrics" | tail -n 1)"
         [ "$snapshot_time" -ne 0 ] || snapshot_time="${previous:-0}"
         restore_time="$(awk '/homelab_restic_restore_drill_timestamp_seconds/ {print $NF}' "$metrics" | tail -n 1)"
@@ -56,7 +132,7 @@ data:
         printf 'homelab_vault_backup_locked %s\n' "$locked"
         printf 'homelab_backup_repository_enrolled{dataset="vault",destination="nas"} %s\n' "$enrolled"
         printf 'homelab_restic_destination_snapshot_timestamp_seconds{dataset="vault",destination="nas"} %s\n' "$snapshot_time"
-        printf 'homelab_restic_repository_size_bytes{dataset="vault",destination="nas"} %s\n' "$((repo_kib * 1024))"
+        printf 'homelab_restic_repository_size_bytes{dataset="vault",destination="nas"} %s\n' "$repo_bytes"
         printf 'homelab_restic_repository_ceiling_bytes{dataset="vault",destination="nas"} 268435456000\n'
         printf 'homelab_restic_validation_hold{dataset="vault",destination="nas"} %s\n' "$hold_count"
         printf 'homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="nas"} %s\n' "$restore_time"
@@ -251,16 +327,12 @@ data:
       die "$message; snapshot $snapshot_id is held"
     }
 
-    if restic ls --json "$snapshot_id" \
-      | jq -e -f /scripts/detect-vault-exclusions.jq >/dev/null; then
-      hold_candidate credential 0 0 0 "snapshot contains an excluded vault path"
+    if ! restored_manifest="$(/scripts/validate-vault-snapshot.sh "$snapshot_id")"; then
+      hold_candidate validation 0 0 0 "snapshot failed captured-content validation"
     fi
-    restored_manifest="$(restic dump "$snapshot_id" /work/backup-manifest.json)"
-    if ! jq -e --arg contract_sha256 "$contract_hash" --arg exclusion_sha256 "$exclusion_hash" \
-      '.contract == "vault-v1" and .contract_sha256 == $contract_sha256 and .exclusion_sha256 == $exclusion_sha256' \
-      <<<"$restored_manifest" >/dev/null; then
-      hold_candidate manifest 0 0 0 "snapshot does not contain the released manifest"
-    fi
+    measurements="$(jq -c '.measurements' <<<"$restored_manifest")"
+    total_files="$(jq -er '.total_files' <<<"$restored_manifest")"
+    total_bytes="$(jq -er '.total_bytes' <<<"$restored_manifest")"
 
     if [ ! -f "$control/baseline.json" ]; then
       [ "${INITIAL_ENROLLMENT:-0}" = 1 ] \
@@ -318,8 +390,6 @@ data:
     [[ "$RESTORE_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] \
       || die "RESTORE_SNAPSHOT must be a full 64-character lowercase ID"
 
-    contract=/contracts/vault-v1.json
-    exclusions=/contracts/vault-v1.excludes
     control=/repo/nas/.control/vault
     restore_root="/data/vault/.restore-tests/$RESTORE_SNAPSHOT"
     pending="$control/pending/$RESTORE_SNAPSHOT.json"
@@ -357,22 +427,13 @@ data:
     lineage="$(jq -er '.[0] | .original // .id' <<<"$metadata")"
 
     restic check --read-data
-    if restic ls --json "$RESTORE_SNAPSHOT" \
-      | jq -e -f /scripts/detect-vault-exclusions.jq >/dev/null; then
-      die "snapshot contains an excluded vault path"
-    fi
+    /scripts/validate-vault-snapshot.sh "$RESTORE_SNAPSHOT" >/work/validated-manifest.json
 
     restic restore "$RESTORE_SNAPSHOT" --target "$restore_root"
     restored_manifest="$restore_root/work/backup-manifest.json"
     restored_vault="$restore_root/data/vault"
-    [ -f "$restored_manifest" ] || die "restored backup manifest is missing"
-    contract_hash="$(sha256sum "$contract" | awk '{print $1}')"
-    exclusion_hash="$(sha256sum "$exclusions" | awk '{print $1}')"
-    jq -e --arg contract_hash "$contract_hash" --arg exclusion_hash "$exclusion_hash" '
-      .contract == "vault-v1" and
-      .contract_sha256 == $contract_hash and
-      .exclusion_sha256 == $exclusion_hash
-    ' "$restored_manifest" >/dev/null || die "restored manifest does not match v1"
+    cmp -s /work/validated-manifest.json "$restored_manifest" \
+      || die "restored manifest differs from the validated snapshot"
 
     cmp -s \
       /data/vault/credentials/strongbox/ccs.kdbx \
@@ -446,7 +507,6 @@ data:
       || die "accept requires a nonempty HOLD_REASON"
 
     contract=/contracts/vault-v1.json
-    exclusions=/contracts/vault-v1.excludes
     control=/repo/nas/.control/vault
     hold="$control/holds/$HOLD_SNAPSHOT.json"
     state="$control/resolutions/$HOLD_SNAPSHOT.json"
@@ -480,7 +540,6 @@ data:
     hold_reason="$(jq -er '.reason' "$hold")"
     hold_generation="$(jq -er '.generation' "$hold")"
     contract_hash="$(sha256sum "$contract" | awk '{print $1}')"
-    exclusion_hash="$(sha256sum "$exclusions" | awk '{print $1}')"
     [ "$hold_snapshot" = "$HOLD_SNAPSHOT" ] || die "hold names a different snapshot"
     [ "$(jq -er '.contract_sha256' "$hold")" = "$contract_hash" ] \
       || die "hold contract hash differs from the released contract"
@@ -501,7 +560,7 @@ data:
       mv "$state_tmp" "$state"
     fi
 
-    snapshot_metadata="$(restic snapshots "$HOLD_SNAPSHOT" --json 2>/dev/null || printf '[]')"
+    snapshot_metadata="$(restic snapshots --json | jq --arg id "$HOLD_SNAPSHOT" '[.[] | select(.id == $id)]')"
     snapshot_present="$(jq 'length == 1' <<<"$snapshot_metadata")"
     if [ "$snapshot_present" = true ]; then
       lineage="$(jq -er '.[0] | .original // .id' <<<"$snapshot_metadata")"
@@ -538,45 +597,15 @@ data:
       [ "$snapshot_present" = true ] || die "cannot accept a missing snapshot"
       [ "$hold_reason" = shrink ] || die "only a shrink-only hold may be accepted"
       restic check
-      if restic ls --json "$HOLD_SNAPSHOT" \
-        | jq -e -f /scripts/detect-vault-exclusions.jq >/dev/null; then
-        die "snapshot contains an excluded vault path"
-      fi
-      candidate_manifest="$(restic dump "$HOLD_SNAPSHOT" /work/backup-manifest.json)"
-      jq -e \
-        --arg contract_hash "$contract_hash" \
-        --arg exclusion_hash "$exclusion_hash" \
-        --slurpfile released "$contract" '
-        . as $manifest |
-        $manifest.contract == $released[0].contract and
-        $manifest.contract_sha256 == $contract_hash and
-        $manifest.exclusion_sha256 == $exclusion_hash and
-        ([$manifest.measurements[].path] == [$released[0].required_content[].path]) and
-        all($released[0].required_content[];
-          . as $required |
-          any($manifest.measurements[];
-            .path == $required.path and
-            .kind == $required.kind and
-            .files >= $required.minimum_files and
-            .bytes >= $required.minimum_bytes))
-      ' <<<"$candidate_manifest" >/dev/null \
-        || die "snapshot manifest fails the released contract or floors"
-      generated_epoch="$(date -u -d "$(jq -er '.generated_at' <<<"$candidate_manifest")" +%s)"
-      [ "$generated_epoch" -le $(( $(date +%s) + 300 )) ] \
-        || die "snapshot manifest time is implausibly in the future"
-      held_kdbx=/work/held-ccs.kdbx
-      restic dump "$HOLD_SNAPSHOT" /data/vault/credentials/strongbox/ccs.kdbx \
-        >"$held_kdbx"
-      signature="$(od -An -tx1 -N8 "$held_kdbx" | tr -d ' \n')"
-      rm -f "$held_kdbx"
-      [ "$signature" = 03d9a29a67fb4bb5 ] \
-        || die "snapshot KDBX signature is invalid"
+      candidate_manifest="$(/scripts/validate-vault-snapshot.sh "$HOLD_SNAPSHOT")" \
+        || die "held snapshot failed captured-content validation"
     }
 
     if [ "$HOLD_ACTION" = reject ]; then
       stage="$(jq -er '.stage' "$state")"
       if [ "$snapshot_present" = true ]; then
-        [ "$stage" = started ] || die "snapshot still exists after a recorded forget step"
+        [ "$stage" = started ] || [ "$stage" = forgetting ] \
+          || die "snapshot still exists after a recorded forget step"
         printf '%s\n' "$(jq -cn \
           --arg snapshot_id "$HOLD_SNAPSHOT" \
           --arg lineage "$lineage" \
@@ -584,12 +613,13 @@ data:
           --arg rejected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
           '{snapshot_id:$snapshot_id,lineage:$lineage,operator:$operator,rejected_at:$rejected_at}')" \
           >>"$control/rejected.jsonl"
+        update_state forgetting
         restic forget "$HOLD_SNAPSHOT"
         update_state forgotten
-      elif [ "$stage" != forgotten ] && [ "$stage" != pruned ]; then
+      elif [ "$stage" != forgetting ] && [ "$stage" != forgotten ] && [ "$stage" != pruned ]; then
         die "snapshot is missing without a completed exact-ID forget record"
       fi
-      after_metadata="$(restic snapshots "$HOLD_SNAPSHOT" --json 2>/dev/null || printf '[]')"
+      after_metadata="$(restic snapshots --json | jq --arg id "$HOLD_SNAPSHOT" '[.[] | select(.id == $id)]')"
       jq -e 'length == 0' <<<"$after_metadata" >/dev/null \
         || die "rejected snapshot remains present"
       if [ "$(jq -er '.stage' "$state")" != pruned ]; then
