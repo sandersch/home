@@ -6,6 +6,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_not_root
 require_sudo
 require_tools jq kubectl yq
+require_backup_yq
 [ "$(hostname -s)" = minis ] || die "run this step on minis"
 : "${HOLD_SNAPSHOT:?set HOLD_SNAPSHOT to the full held Restic ID}"
 : "${HOLD_ACTION:?set HOLD_ACTION to reject or accept}"
@@ -51,14 +52,14 @@ HOLD_SNAPSHOT="$HOLD_SNAPSHOT" \
 HOLD_ACTION="$HOLD_ACTION" \
 HOLD_OPERATOR="$(id -un)@$(hostname -s)" \
 HOLD_REASON="$resolution_reason" \
-yq -i '
+yq -y -i '
   .spec.template.spec.containers[0].command =
     ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/resolve-validation-hold.sh"] |
   .spec.template.spec.containers[0].env += [
-    {"name": "HOLD_SNAPSHOT", "value": strenv(HOLD_SNAPSHOT)},
-    {"name": "HOLD_ACTION", "value": strenv(HOLD_ACTION)},
-    {"name": "HOLD_OPERATOR", "value": strenv(HOLD_OPERATOR)},
-    {"name": "HOLD_REASON", "value": strenv(HOLD_REASON)}
+    {"name": "HOLD_SNAPSHOT", "value": env.HOLD_SNAPSHOT},
+    {"name": "HOLD_ACTION", "value": env.HOLD_ACTION},
+    {"name": "HOLD_OPERATOR", "value": env.HOLD_OPERATOR},
+    {"name": "HOLD_REASON", "value": env.HOLD_REASON}
   ]
 ' "$manifest"
 kubectl apply -f "$manifest" >/dev/null

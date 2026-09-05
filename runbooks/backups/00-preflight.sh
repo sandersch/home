@@ -7,6 +7,7 @@ require_not_root
 require_sudo
 require_host_etc
 require_tools awk chattr cryptsetup findmnt flux jq kubectl lsattr lvs mountpoint readlink stat systemctl vgs yq
+require_backup_yq
 
 step "Verify the direct backup filesystem"
 assert_direct_mount_layout "$BACKUPS_MOUNT" "$BACKUPS_SOURCE" "$BACKUPS_UUID"

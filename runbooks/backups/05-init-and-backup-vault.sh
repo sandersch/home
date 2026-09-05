@@ -6,6 +6,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_not_root
 require_sudo
 require_tools jq kubectl yq
+require_backup_yq
 sudo /usr/local/sbin/vault-unlock
 assert_direct_mount_layout "$BACKUPS_MOUNT" "$BACKUPS_SOURCE" "$BACKUPS_UUID"
 
@@ -17,7 +18,7 @@ run_job() {
   kubectl -n monitoring create job "$name" \
     --from=cronjob/restic-vault-backup \
     --dry-run=client -o yaml >"$manifest"
-  yq -i ".spec.template.spec.containers[0].env += [{\"name\": \"$mode_name\", \"value\": \"1\"}]" "$manifest"
+  yq -y -i ".spec.template.spec.containers[0].env += [{\"name\": \"$mode_name\", \"value\": \"1\"}]" "$manifest"
   kubectl apply -f "$manifest" >/dev/null
   kubectl -n monitoring wait --for=condition=complete "job/$name" --timeout=7200s \
     || { kubectl -n monitoring logs "job/$name" --all-containers=true || true; die "$name failed"; }
@@ -47,4 +48,3 @@ Validate that exact snapshot next:
 
 The CronJob must remain suspended until that restore succeeds.
 EOF
-

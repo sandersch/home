@@ -6,6 +6,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_not_root
 require_sudo
 require_tools flux kubectl yq
+require_backup_yq
 [ "$(hostname -s)" = minis ] || die "run this step on minis"
 sudo /usr/local/sbin/vault-unlock
 
@@ -45,9 +46,11 @@ for metric in \
     || die "monthly verification did not produce $metric"
 done
 
-yq -i '.spec.suspend = false' \
+for manifest in \
   "$REPO_ROOT/infrastructure/monitoring/restic-vault-cronjob.yaml" \
-  "$REPO_ROOT/infrastructure/monitoring/restic-verify-cronjob.yaml"
+  "$REPO_ROOT/infrastructure/monitoring/restic-verify-cronjob.yaml"; do
+  yq -y -i '.spec.suspend = false' "$manifest"
+done
 
 cat <<'EOF'
 

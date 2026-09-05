@@ -6,6 +6,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_not_root
 require_sudo
 require_tools kubectl yq
+require_backup_yq
 : "${VAULT_SNAPSHOT:?set VAULT_SNAPSHOT to the full ID printed by 05-init-and-backup-vault.sh}"
 [[ "$VAULT_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] \
   || die "VAULT_SNAPSHOT must be a full 64-character lowercase Restic ID"
@@ -19,11 +20,11 @@ trap 'rm -f "$manifest"' EXIT
 kubectl -n monitoring create job "$job" \
   --from=cronjob/restic-vault-backup \
   --dry-run=client -o yaml >"$manifest"
-yq -i '
+yq -y -i '
   .spec.template.spec.containers[0].command =
     ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/validate-vault-restore.sh"] |
   .spec.template.spec.containers[0].env +=
-    [{"name": "RESTORE_SNAPSHOT", "value": strenv(VAULT_SNAPSHOT)}] |
+    [{"name": "RESTORE_SNAPSHOT", "value": env.VAULT_SNAPSHOT}] |
   (.spec.template.spec.containers[0].volumeMounts[] | select(.name == "vault")).readOnly = false
 ' "$manifest"
 kubectl apply -f "$manifest" >/dev/null
@@ -44,4 +45,3 @@ memory-backed file, open it in Strongbox with the master password, then remove i
 After that manual semantic check, remove only the named restore tree and completed Jobs.
 Do not enable the recurring CronJob until the break-glass records are also verified.
 EOF
-

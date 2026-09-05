@@ -10,6 +10,19 @@ export BACKUPS_SENTINEL="$BACKUPS_MOUNT/.backup-sentinel"
 export BACKUPS_GUARD_SCRIPT="$REPO_ROOT/host/minis/usr/local/sbin/backups-mountpoint-guard"
 export BACKUPS_GUARD_UNIT="$REPO_ROOT/host/minis/etc/systemd/system/backups-mountpoint-guard.service"
 
+require_backup_yq() {
+  local probe
+  probe="$(mktemp)"
+  printf 'value: old\n' >"$probe"
+  if ! BACKUP_YQ_PROBE=new yq -y -i '.value = env.BACKUP_YQ_PROBE' "$probe" \
+      >/dev/null 2>&1 \
+    || [ "$(yq -r '.value' "$probe" 2>/dev/null)" != new ]; then
+    rm -f "$probe"
+    die "yq must be the Python jq wrapper with working -y -i and jq env support"
+  fi
+  rm -f "$probe"
+}
+
 assert_backup_sentinel() {
   local metadata value
   sudo test -f "$BACKUPS_SENTINEL" || die "$BACKUPS_SENTINEL is missing"
