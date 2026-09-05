@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+config=/etc/homelab/vault.conf
+raw_device=/dev/mapper/hoardvg-vaultlv
+mapper=/dev/mapper/vault
+mountpoint_path=/mnt/vault
+
+[ -r "$config" ] || { echo "missing $config" >&2; exit 1; }
+# shellcheck disable=SC1090
+source "$config"
+: "${VAULT_LUKS_UUID:?VAULT_LUKS_UUID is required}"
+: "${VAULT_FS_UUID:?VAULT_FS_UUID is required}"
+
+die() { printf 'vault-unlock: %s\n' "$*" >&2; exit 1; }
+
+validate_mounted_vault() {
+  local source filesystem actual_fs_uuid sentinel
+
+  source="$(findmnt -n -o SOURCE --target "$mountpoint_path")"
+  filesystem="$(findmnt -n -o FSTYPE --target "$mountpoint_path")"
+  [ "$(readlink -f "$source")" = "$(readlink -f "$mapper")" ] \
+    || die "$mountpoint_path is mounted from $source, expected $mapper"
+  [ "$filesystem" = ext4 ] || die "$mountpoint_path uses $filesystem, expected ext4"
+
+  actual_fs_uuid="$(blkid -s UUID -o value "$mapper" 2>/dev/null || true)"
+  [ "$actual_fs_uuid" = "$VAULT_FS_UUID" ] \
+    || die "$mapper does not have the configured ext4 filesystem UUID"
+
+  sentinel="$mountpoint_path/.vault-sentinel"
+  [ -f "$sentinel" ] && [ ! -L "$sentinel" ] \
+    || die "$sentinel is missing or invalid"
+  grep -qxF 'vault-contract-version=1' "$sentinel" \
+    || die "$sentinel has the wrong contract version"
+  grep -qxF "filesystem-uuid=$VAULT_FS_UUID" "$sentinel" \
+    || die "$sentinel has the wrong filesystem UUID"
+}
+
+start_ingest_promoter() {
+  if systemctl cat vault-ingest-promote.path >/dev/null 2>&1; then
+    systemctl start vault-ingest-promote.path
+  fi
+}
+
+actual_luks_uuid="$(cryptsetup luksUUID "$raw_device" 2>/dev/null || true)"
+[ "$actual_luks_uuid" = "$VAULT_LUKS_UUID" ] \
+  || die "$raw_device does not have the configured LUKS UUID"
+
+if mountpoint -q "$mountpoint_path"; then
+  validate_mounted_vault
+  start_ingest_promoter
+  echo "$mountpoint_path is already unlocked, mounted, and validated"
+  exit 0
+fi
+
+/usr/local/sbin/vault-mountpoint-guard
+
+if [ ! -e "$mapper" ]; then
+  cryptsetup open "$raw_device" vault
+fi
+
+actual_type="$(blkid -s TYPE -o value "$mapper" 2>/dev/null || true)"
+actual_fs_uuid="$(blkid -s UUID -o value "$mapper" 2>/dev/null || true)"
+if [ "$actual_type" != ext4 ] || [ "$actual_fs_uuid" != "$VAULT_FS_UUID" ]; then
+  cryptsetup close vault || true
+  die "$mapper does not have the configured ext4 filesystem identity"
+fi
+
+systemctl start mnt-vault.mount
+validate_mounted_vault
+start_ingest_promoter
+
+echo "$mountpoint_path is unlocked, mounted, and validated"

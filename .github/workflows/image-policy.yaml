@@ -24,6 +24,9 @@ jobs:
           runbooks/version-management/image_policy.py check
           runbooks/phase2/test-k3s-version.sh
           runbooks/phase2/test-k3s-upgrade.sh
+          runbooks/backups/test-mount-guard.sh
+          runbooks/backups/test-contracts.sh
+          runbooks/backups/test-config-scripts.sh
 
       - name: Check changed shell scripts
         env:

@@ -29,6 +29,12 @@ Committed now:
   and RomM application-aware exports are fresh and valid, and unless a validated
   online backup of the live k3s SQLite datastore is present. The k3s server token is
   not mounted or backed up.
+- Staged Phase 1 vault resources: a released `vault-v1` contract, fail-closed shared
+  backup-mount guard, suspended four-hour local vault backup, suspended monthly verifier,
+  restore/enrollment and exact-ID hold-resolution scripts, textfile metrics, and gated
+  alerts. These resources remain intentionally suspended and do not indicate that the
+  LUKS2 vault, credentials, ingestion identity, repository, or restore drill exists yet;
+  activation is attended through `runbooks/backups/`.
 
 The B2 repository initialization, manual backup, repository check, and local-volume-independent
 restore validation passed on 2026-07-18. The nightly local and first naturally scheduled

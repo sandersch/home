@@ -1,0 +1,12 @@
+[Unit]
+Description=Harden the uncovered backups mountpoint
+DefaultDependencies=no
+Before=local-fs-pre.target mnt-backups.automount mnt-backups.mount local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/backups-mountpoint-guard
+RemainAfterExit=yes
+
+[Install]
+WantedBy=local-fs-pre.target

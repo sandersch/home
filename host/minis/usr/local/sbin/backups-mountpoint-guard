@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+mountpoint_path="${MOUNTPOINT_PATH:-/mnt/backups}"
+
+if mountpoint -q "$mountpoint_path"; then
+  echo "$mountpoint_path is mounted; refusing to alter the covered mountpoint inode" >&2
+  exit 1
+fi
+
+[ -z "$(find "$mountpoint_path" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ] || {
+  echo "$mountpoint_path contains data while uncovered; refusing to hide it" >&2
+  exit 1
+}
+
+if [ -e "$mountpoint_path" ]; then
+  chattr -i "$mountpoint_path"
+fi
+mountpoint -q "$mountpoint_path" && {
+  echo "$mountpoint_path became mounted while removing its immutable flag" >&2
+  exit 1
+}
+install -d -o root -g root -m 0555 "$mountpoint_path"
+chown root:root "$mountpoint_path"
+chmod 0555 "$mountpoint_path"
+chattr +i "$mountpoint_path"
+
+attributes="$(lsattr -d "$mountpoint_path" | awk '{print $1}')"
+case "$attributes" in
+  *i*) ;;
+  *)
+    echo "$mountpoint_path is not immutable after guard application" >&2
+    exit 1
+    ;;
+esac

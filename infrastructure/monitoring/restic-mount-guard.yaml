@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: restic-mount-guard
+  namespace: monitoring
+data:
+  assert-backups-mount.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    die() {
+      printf 'backup mount guard: %s\n' "$*" >&2
+      exit 1
+    }
+
+    mount_path="${BACKUP_MOUNT_PATH:-/repo/nas}"
+    expected_source="${BACKUP_MOUNT_SOURCE:-/dev/mapper/hoardvg-backuplv}"
+    expected_uuid="${BACKUP_MOUNT_UUID:-cc1cedb8-ef22-44b5-b1d0-5ca020d72669}"
+    expected_sentinel_uid="${BACKUP_SENTINEL_UID:-0}"
+    expected_sentinel_gid="${BACKUP_SENTINEL_GID:-0}"
+    mountinfo_path="${MOUNTINFO_PATH:-/proc/self/mountinfo}"
+    sentinel="$mount_path/.backup-sentinel"
+
+    mount_record="$(awk -v target="$mount_path" '
+      $5 == target {
+        separator = 0
+        for (field = 7; field <= NF; field++) {
+          if ($field == "-") {
+            separator = field
+            break
+          }
+        }
+        if (separator > 0) {
+          print $(separator + 1) "\t" $(separator + 2) "\t" $6 "\t" $(separator + 3)
+        }
+      }
+    ' "$mountinfo_path" | tail -n 1)"
+    [ -n "$mount_record" ] || die "$mount_path has no mountinfo record"
+
+    IFS=$'\t' read -r filesystem source mount_options super_options <<<"$mount_record"
+    [ "$filesystem" = ext4 ] || die "$mount_path uses $filesystem, expected ext4"
+    [ "$source" = "$expected_source" ] \
+      || die "$mount_path comes from $source, expected $expected_source"
+    case ",$mount_options,$super_options," in
+      *,rw,*) ;;
+      *) die "$mount_path is not read-write" ;;
+    esac
+
+    [ -f "$sentinel" ] && [ ! -L "$sentinel" ] \
+      || die "$sentinel is not a regular non-symlink file"
+    sentinel_metadata="$(stat -c '%u:%g:%a' "$sentinel")"
+    expected_sentinel_metadata="$expected_sentinel_uid:$expected_sentinel_gid:444"
+    [ "$sentinel_metadata" = "$expected_sentinel_metadata" ] \
+      || die "$sentinel has $sentinel_metadata ownership/mode, expected $expected_sentinel_metadata"
+    sentinel_value="$(sed -n '1p' "$sentinel")"
+    [ "$sentinel_value" = "$expected_uuid" ] \
+      || die "$sentinel contains an unexpected filesystem UUID"
+
+    printf 'backup mount guard: %s is %s (ext4, UUID=%s, rw)\n' \
+      "$mount_path" "$expected_source" "$expected_uuid"

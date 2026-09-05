@@ -1,8 +1,13 @@
 # Backup policy
 
-> **Status: DRAFT — proposed design, not implemented.** Written 2026-08-30.
+> **Status: DRAFT — Phase 1 implementation staged, not deployed.** Written 2026-08-30.
 >
-> Nothing in this document is deployed. The **only** backup pipeline that actually runs
+> The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
+> mount guards, attended LUKS2 provisioning, a suspended local vault CronJob and monthly
+> verifier, a restricted `ryze` ingestion path, versioned contracts, alerts, and restore
+> runbooks. The generated vault UUID files, ingestion public key, credentials, storage,
+> enrollment, activation, and drills do not exist until the attended runbooks complete.
+> Everything after Phase 1 remains design only. The **only** backup pipeline that actually runs
 > today is the `appstate` pipeline described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
 > datastore, and validated hot dumps.
@@ -682,13 +687,19 @@ execution surface. Every four hours it:
    atomically renames it into place; and
 4. updates a separate success heartbeat even when the database content hash is unchanged.
 
-The host runs a dedicated ingestion-only `sshd` listener on the selected Tailnet/trusted
-address and a non-management port, with `AllowUsers vault-ingest-ryze vault-ingest-m5c`
-and only key-authenticated `internal-sftp` for those identities. Each has its own root-owned,
+Phase 1 selects `10.137.20.5:2222` on `minis`, reachable only through `lan0` from
+`ryze` at `10.137.30.6`. The dedicated ingestion-only `sshd` listener uses
+`AllowUsers vault-ingest-ryze` and key-authenticated `internal-sftp`. `UsePAM yes` is
+intentional: `useradd` leaves the no-password system identity locked, and OpenSSH rejects
+locked identities before public-key authentication when PAM is disabled. Password and
+keyboard-interactive authentication remain explicitly disabled, and the install runbook
+asserts the effective settings before starting the listener. The `m5c` identity,
+inbox, and firewall source are deliberately deferred to the workstation phase. Each
+eventual client has its own root-owned,
 non-writable `ChrootDirectory` below `/mnt/vault/inbox/<host>` and may write only its child
 `upload/` directory; shell, forwarding, tunnelling, agent forwarding, cross-host inbox
 access, and direct access to canonical vault directories are disabled. The host
-firewall/Tailnet policy admits each identity only from its selected trusted source. The
+host firewall policy admits each identity only from its selected trusted source. The
 ordinary management `sshd` configuration and reachability do not change, and there is no
 public listener. While the vault is locked,
 the chroot is absent and upload fails safely rather than writing to the root filesystem.
@@ -704,10 +715,13 @@ is mounted; `VaultLocked` owns the locked state. Both workstation
 backup contracts also include the exact `~/Dropbox/ccs.kdbx` path, so the daily workstation
 repositories remain an independent recovery route when vault ingestion is unavailable.
 
-Ordinary documents use the same transport but a separate `upload/documents/` subtree. Both
-workstations upload their existing `~/Documents` tree daily; no extra `VaultDrop` staging
-directory is required. This is archival ingestion, not a bidirectional document share:
-promotion validates names, types, ownership, and size and writes into separate canonical
+Ordinary documents use the same transport. Phase 1 makes one attended archival seed of
+`ryze`'s existing `~/Documents` tree; recurring document uploads and `m5c` are deferred to
+the workstation phase. No extra `VaultDrop` staging directory is required. This is archival
+ingestion, not a bidirectional document share:
+promotion first copies the client-writable archive and checksum into a root-only staging
+directory, then validates names, types, ownership, checksum, and the 50 GiB archive-size
+ceiling against those frozen copies before extraction. It writes into separate canonical
 paths, `/mnt/vault/documents/ryze/` and `/mnt/vault/documents/m5c/`. It never propagates a
 client deletion into the vault. Keeping host namespaces avoids same-name collisions and
 makes provenance explicit; cross-host duplicates are accepted until an attended cleanup
@@ -1718,8 +1732,8 @@ Gmail app-password copy.
 **New — elsewhere:** `apps/mail-archive/`,
 `containers/mail-archive/{Containerfile,VERSION}`,
 `.github/workflows/mail-archive-image.yaml`, `host/ryze/`, `host/m5c/`, and
-`runbooks/backups/` (00-preflight → 12, the separately callable attended
-`resolve-validation-hold.sh`, plus `lib.sh` and `README.md` per `runbooks/README.md`
+`runbooks/backups/` (the staged attended sequence plus
+`10-resolve-validation-hold.sh`, tests, `lib.sh`, and `README.md` per `runbooks/README.md`
 conventions), plus the released vault and per-workstation contracts under both
 `infrastructure/monitoring/contracts/` and
 `runbooks/disaster-recovery/contracts/`.
@@ -1739,8 +1753,8 @@ the existing `runbooks/phase5/` scripts this document cites.
 `infrastructure/monitoring/controllers/kube-prometheus-stack.yaml` (enable and mount the
 node-exporter textfile collector at `/var/lib/node-exporter/textfile`, on the root
 filesystem rather than the backup array — § The metric surface),
-`host/minis/etc/tmpfiles.d/node-exporter-textfile.conf` (new — creates
-`/var/lib/node-exporter/textfile` `root:root` `0755` before node-exporter's
+`host/minis/etc/tmpfiles.d/homelab-backup-metrics.conf` (new — creates
+`/var/lib/node-exporter/textfile` `root:nogroup` `0750` before node-exporter's
 `hostPath` needs it; the collector mounts it read-only and writers mount it read-write),
 `host/minis/etc/fstab` — the vault entry is `noauto,nofail` on `/dev/mapper/vault`,
 intentionally unlike its automounted siblings (§ 1b),
@@ -1749,7 +1763,7 @@ intentionally unlike its automounted siblings (§ 1b),
 `host/minis/usr/local/sbin/vault-unlock` (new),
 `host/minis/etc/ssh/sshd_config_vault_ingest` plus its dedicated systemd service/socket
 (new restricted SFTP listener),
-`host/minis/usr/local/sbin/vault-ingest` and its systemd service (new KDBX/document
+`host/minis/usr/local/sbin/vault-ingest-promote` and its systemd service (new KDBX/document
 promotion path),
 `host/minis/etc/systemd/system/vault-mountpoint-guard.service` (new — asserts `0555` and
 `chattr +i` on the unmounted mountpoint, ordered `Before=mnt-vault.mount`),

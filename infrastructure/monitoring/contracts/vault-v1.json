@@ -1,0 +1,24 @@
+{
+  "contract": "vault-v1",
+  "source_roots": [
+    "/data/vault"
+  ],
+  "sentinel": "/data/vault/.vault-sentinel",
+  "exclusion_sha256": "027124a77add3736bff7b7c7b0d9a33de013b2a1bfdda727e0f58c3a29eb1cd4",
+  "required_content": [
+    {
+      "path": "/data/vault/credentials/strongbox/ccs.kdbx",
+      "kind": "kdbx",
+      "minimum_files": 1,
+      "minimum_bytes": 102400
+    },
+    {
+      "path": "/data/vault/documents/ryze",
+      "kind": "directory",
+      "minimum_files": 400,
+      "minimum_bytes": 209715200
+    }
+  ],
+  "shrink_baseline_samples": 7,
+  "maximum_shrink_percent": 20
+}

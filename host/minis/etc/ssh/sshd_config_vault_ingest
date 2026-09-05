@@ -1,0 +1,23 @@
+Port 2222
+ListenAddress 10.137.20.5
+Protocol 2
+HostKey /etc/ssh/ssh_host_ed25519_key
+PidFile none
+UsePAM yes
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile /etc/ssh/vault-ingest-authorized-keys/%u
+AllowUsers vault-ingest-ryze
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+PermitTunnel no
+PermitTTY no
+Subsystem sftp internal-sftp
+
+Match User vault-ingest-ryze
+    ChrootDirectory /mnt/vault/inbox/ryze
+    ForceCommand internal-sftp -d /upload
+    DisableForwarding yes

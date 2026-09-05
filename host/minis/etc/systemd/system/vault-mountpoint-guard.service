@@ -1,0 +1,13 @@
+[Unit]
+Description=Harden the uncovered encrypted vault mountpoint
+DefaultDependencies=no
+Before=local-fs-pre.target mnt-vault.mount local-fs.target
+ConditionPathExists=/etc/homelab/vault.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vault-mountpoint-guard
+RemainAfterExit=yes
+
+[Install]
+WantedBy=local-fs-pre.target
