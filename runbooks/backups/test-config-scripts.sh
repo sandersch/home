@@ -82,7 +82,7 @@ awk '
   printing { print }
 ' "$repo_root/runbooks/backups/06-validate-vault-restore.sh" >"$restore_filter"
 [ -s "$restore_filter" ]
-yq_yaml '{spec: .spec.jobTemplate.spec}' \
+yq_yaml '{"spec": .spec.jobTemplate.spec}' \
   "$repo_root/infrastructure/monitoring/restic-vault-cronjob.yaml" \
   >"$tmpdir/restore-job.yaml"
 VAULT_SNAPSHOT=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
