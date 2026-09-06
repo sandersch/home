@@ -15,3 +15,5 @@ UUID=0a94d86c-76a0-44b5-bc52-930d97ab155f /mnt/media   ext4 defaults,nofail,x-sy
 UUID=b43f1bcc-0556-4ed5-b038-765134aba7d3 /mnt/games    ext4 defaults,nofail,x-systemd.automount,x-systemd.device-timeout=60s,x-systemd.mount-timeout=60s 0 2
 UUID=0b69665d-53ac-4380-815d-6969713940d6 /mnt/frigate  ext4 defaults,nofail,x-systemd.automount,x-systemd.device-timeout=60s,x-systemd.mount-timeout=60s 0 2
 UUID=cc1cedb8-ef22-44b5-b1d0-5ca020d72669 /mnt/backups  ext4 defaults,nofail,x-systemd.automount,x-systemd.device-timeout=60s,x-systemd.mount-timeout=60s 0 2
+
+/dev/mapper/vault /mnt/vault ext4 defaults,noauto,nofail 0 2
