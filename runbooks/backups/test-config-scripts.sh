@@ -42,15 +42,24 @@ grep -qx 'KbdInteractiveAuthentication no' "$ingest_sshd"
 # A file hostPath is already the mount source; subPath would resolve a child
 # beneath that file and fail before the container can execute any guard.
 for cronjob in restic-vault-cronjob.yaml restic-verify-cronjob.yaml; do
-  yq -e '
-    .spec.jobTemplate.spec.template.spec as $pod |
-    [$pod.volumes[] | select(.hostPath.type == "File" or .hostPath.type == "FileOrCreate") | .name] as $files |
-    all($pod.containers[].volumeMounts[];
-      . as $mount |
-      ($files | index($mount.name)) == null or
-      ((.subPath // "") == "" and (.subPathExpr // "") == ""))
-  ' "$repo_root/infrastructure/monitoring/$cronjob" >/dev/null \
-    || { echo "$cronjob mounts a child beneath a file hostPath" >&2; exit 1; }
+  manifest="$repo_root/infrastructure/monitoring/$cronjob"
+  file_volumes="$(yq -r '
+    .spec.jobTemplate.spec.template.spec.volumes[]
+    | select(.hostPath.type == "File" or .hostPath.type == "FileOrCreate")
+    | .name
+  ' "$manifest")"
+  while IFS=$'\t' read -r mount_name sub_path sub_path_expr; do
+    [ -n "$mount_name" ] || continue
+    if grep -Fxq -- "$mount_name" <<<"$file_volumes" \
+      && { [ -n "$sub_path" ] || [ -n "$sub_path_expr" ]; }; then
+      echo "$cronjob mounts a child beneath a file hostPath" >&2
+      exit 1
+    fi
+  done < <(yq -r '
+    .spec.jobTemplate.spec.template.spec.containers[].volumeMounts[]
+    | [.name, (.subPath // ""), (.subPathExpr // "")]
+    | @tsv
+  ' "$manifest")
 done
 
 # Exercise the actual attended Job transformation, including its ownership
