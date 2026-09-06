@@ -116,6 +116,10 @@ grep -qx 'ConditionPathIsMountPoint=/mnt/vault' "$promoter_unit" \
 ! grep -qx 'Requires=mnt-vault.mount' "$promoter_unit" \
   || { echo "vault promoter must not depend on a generated noauto mount unit" >&2; exit 1; }
 
+grep -q 'del(.metadata.ownerReferences)' \
+  "$repo_root/runbooks/backups/11-validate-locked-vault.sh" \
+  || { echo "locked-vault drill Jobs must survive CronJob history cleanup" >&2; exit 1; }
+
 exclusion_filter="$tmpdir/detect-vault-exclusions.jq"
 yq -r '.data."detect-vault-exclusions.jq"' \
   "$repo_root/infrastructure/monitoring/restic-vault-config.yaml" >"$exclusion_filter"

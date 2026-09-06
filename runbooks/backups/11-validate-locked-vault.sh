@@ -24,6 +24,18 @@ active_jobs="$(kubectl -n monitoring get jobs -o json | jq -r '
 ')"
 [ -z "$active_jobs" ] || die "active monitoring Jobs remain: $active_jobs"
 
+create_drill_job() {
+  local name="$1" source_cronjob="$2"
+  # These are durable validation records. Remove the CronJob owner reference so
+  # successfulJobsHistoryLimit cannot delete the earlier locked-vault record
+  # when the later post-unlock record completes.
+  kubectl -n monitoring create job "$name" \
+    --from="cronjob/$source_cronjob" \
+    --dry-run=client -o json \
+    | jq 'del(.metadata.ownerReferences)' \
+    | kubectl apply -f - >/dev/null
+}
+
 cat <<'EOF'
 This drill deliberately unmounts and closes /mnt/vault. The existing appstate backup
 will run while it is locked, and the vault job must skip cleanly without writing to
@@ -50,8 +62,7 @@ sudo lsattr -d /mnt/vault | awk '{print $1}' | grep -q i \
   || die "uncovered vault mountpoint contains data"
 
 step "Prove the vault backup skips without touching a credential or repository"
-kubectl -n monitoring create job restic-vault-locked-drill \
-  --from=cronjob/restic-vault-backup >/dev/null
+create_drill_job restic-vault-locked-drill restic-vault-backup
 kubectl -n monitoring wait --for=condition=complete \
   job/restic-vault-locked-drill --timeout=600s \
   || { kubectl -n monitoring logs job/restic-vault-locked-drill --all-containers=true || true; die "locked vault job failed"; }
@@ -76,8 +87,7 @@ confirm "Did the ryze upload fail while the vault was locked?" \
   || die "the rejected upload wrote below the bare mountpoint"
 
 step "Prove the production appstate pipeline remains independent"
-kubectl -n monitoring create job restic-appstate-vault-locked-drill \
-  --from=cronjob/restic-nas-backup >/dev/null
+create_drill_job restic-appstate-vault-locked-drill restic-nas-backup
 kubectl -n monitoring wait --for=condition=complete \
   job/restic-appstate-vault-locked-drill --timeout=7200s \
   || { kubectl -n monitoring logs job/restic-appstate-vault-locked-drill --all-containers=true || true; die "appstate backup failed while vault was locked"; }
@@ -85,8 +95,7 @@ kubectl -n monitoring logs job/restic-appstate-vault-locked-drill --all-containe
 
 step "Unlock and prove the next vault backup resumes normally"
 sudo /usr/local/sbin/vault-unlock
-kubectl -n monitoring create job restic-vault-post-lock-drill \
-  --from=cronjob/restic-vault-backup >/dev/null
+create_drill_job restic-vault-post-lock-drill restic-vault-backup
 kubectl -n monitoring wait --for=condition=complete \
   job/restic-vault-post-lock-drill --timeout=7200s \
   || { kubectl -n monitoring logs job/restic-vault-post-lock-drill --all-containers=true || true; die "post-unlock vault backup failed"; }
