@@ -6,9 +6,9 @@ metadata:
   labels:
     app.kubernetes.io/name: restic-vault-backup
 spec:
-  schedule: "15 2,6,10,14,18,22 * * *"
+  schedule: 15 2,6,10,14,18,22 * * *
   timeZone: America/Chicago
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   failedJobsHistoryLimit: 3
   successfulJobsHistoryLimit: 1
@@ -49,7 +49,7 @@ spec:
                   cpu: 250m
                   memory: 256Mi
                 limits:
-                  cpu: "1"
+                  cpu: '1'
                   memory: 1Gi
               securityContext:
                 allowPrivilegeEscalation: false
@@ -88,11 +88,11 @@ spec:
             - name: script
               configMap:
                 name: restic-vault-config
-                defaultMode: 0555
+                defaultMode: 365
             - name: guard
               configMap:
                 name: restic-mount-guard
-                defaultMode: 0555
+                defaultMode: 365
             - name: contract
               configMap:
                 name: restic-vault-contract
