@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+vault=/mnt/vault
+upload="$vault/inbox/ryze/upload"
+strongbox="$vault/credentials/strongbox"
+documents="$vault/documents/ryze"
+metrics=/var/lib/node-exporter/textfile/vault-ingestion.prom
+documents_archive_max_bytes=$((50 * 1024 * 1024 * 1024))
+document_stage=""
+
+die() { printf 'vault-ingest-promote: %s\n' "$*" >&2; exit 1; }
+
+cleanup() {
+  if [ -n "$document_stage" ]; then
+    rm -rf -- "$document_stage"
+  fi
+}
+trap cleanup EXIT
+
+mountpoint -q "$vault" || die "$vault is not mounted"
+# shellcheck disable=SC1091
+source /etc/homelab/vault.conf
+[ "$(findmnt -n -o SOURCE --target "$vault" | xargs readlink -f)" = "$(readlink -f /dev/mapper/vault)" ] \
+  || die "$vault is not mounted from /dev/mapper/vault"
+grep -qxF 'vault-contract-version=1' "$vault/.vault-sentinel" \
+  || die "vault sentinel contract mismatch"
+grep -qxF "filesystem-uuid=$VAULT_FS_UUID" "$vault/.vault-sentinel" \
+  || die "vault sentinel UUID mismatch"
+
+write_metrics() {
+  local strongbox_time="$1" documents_time="$2" tmp="${metrics}.tmp.$$"
+  umask 0027
+  {
+    printf 'homelab_vault_ingestion_timestamp_seconds{kind="strongbox",host="ryze",stage="promotion"} %s\n' "$strongbox_time"
+    printf 'homelab_vault_ingestion_timestamp_seconds{kind="documents",host="ryze",stage="promotion"} %s\n' "$documents_time"
+  } >"$tmp"
+  chown root:nogroup "$tmp"
+  chmod 0640 "$tmp"
+  mv -f "$tmp" "$metrics"
+}
+
+existing_strongbox=0
+existing_documents=0
+if [ -f "$metrics" ]; then
+  existing_strongbox="$(awk '/kind="strongbox"/ {print $NF}' "$metrics" | tail -n 1)"
+  existing_documents="$(awk '/kind="documents"/ {print $NF}' "$metrics" | tail -n 1)"
+fi
+
+shopt -s nullglob
+for ready in "$upload"/ccs.kdbx.*.ready; do
+  [ -f "$ready" ] && [ ! -L "$ready" ] || die "invalid KDBX upload $ready"
+  [ "$(stat -c '%u:%g' "$ready")" = 2100:2100 ] \
+    || die "unexpected KDBX upload ownership"
+  [ "$(stat -c '%s' "$ready")" -ge 102400 ] || die "KDBX upload is below its size floor"
+  signature="$(od -An -tx1 -N8 "$ready" | tr -d ' \n')"
+  [ "$signature" = 03d9a29a67fb4bb5 ] || die "KDBX upload signature is invalid"
+  before="$(sha256sum "$ready" | awk '{print $1}')"
+  target_tmp="$strongbox/ccs.kdbx.tmp.$$"
+  install -o root -g root -m 0600 "$ready" "$target_tmp"
+  after="$(sha256sum "$target_tmp" | awk '{print $1}')"
+  [ "$before" = "$after" ] || die "KDBX upload changed during promotion"
+  mv -f "$target_tmp" "$strongbox/ccs.kdbx"
+  rm -f "$ready"
+  existing_strongbox="$(date +%s)"
+done
+
+for checksum in "$upload"/documents.*.sha256.ready; do
+  base="${checksum%.sha256.ready}"
+  archive="$base.tar.ready"
+  document_stage="$vault/.restore-tests/documents-promote.$$"
+  [ ! -e "$document_stage" ] || die "document promotion stage already exists"
+  install -d -o root -g root -m 0700 "$document_stage"
+  claimed_archive="$document_stage/client-archive.tar"
+  claimed_checksum="$document_stage/client-archive.sha256"
+  mv -- "$archive" "$claimed_archive"
+  mv -- "$checksum" "$claimed_checksum"
+  [ -f "$claimed_archive" ] && [ ! -L "$claimed_archive" ] \
+    || die "claimed document archive is not a regular file"
+  [ -f "$claimed_checksum" ] && [ ! -L "$claimed_checksum" ] \
+    || die "claimed document checksum is not a regular file"
+  [ "$(stat -c '%u:%g' "$claimed_archive")" = 2100:2100 ] \
+    && [ "$(stat -c '%u:%g' "$claimed_checksum")" = 2100:2100 ] \
+    || die "unexpected claimed document upload ownership"
+
+  frozen_archive="$document_stage/archive.tar"
+  frozen_checksum="$document_stage/archive.sha256"
+  extracted="$document_stage/extracted"
+  install -o root -g root -m 0600 /dev/null "$frozen_archive"
+  head -c $((documents_archive_max_bytes + 1)) -- "$claimed_archive" >"$frozen_archive"
+  [ "$(stat -c '%s' "$frozen_archive")" -le "$documents_archive_max_bytes" ] \
+    || die "document archive exceeds the 50 GiB size ceiling"
+  install -o root -g root -m 0600 /dev/null "$frozen_checksum"
+  head -c 4097 -- "$claimed_checksum" >"$frozen_checksum"
+  [ "$(stat -c '%s' "$frozen_checksum")" -le 4096 ] \
+    || die "document checksum exceeds its size ceiling"
+  [ "$(wc -l <"$frozen_checksum")" -eq 1 ] \
+    || die "document checksum must contain exactly one record"
+  expected="$(awk 'NF == 2 && $2 == "archive" {print $1}' "$frozen_checksum")"
+  [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || die "document checksum is malformed"
+  [ "$(sha256sum "$frozen_archive" | awk '{print $1}')" = "$expected" ] \
+    || die "document archive checksum mismatch"
+  while IFS= read -r entry; do
+    case "$entry" in
+      /*|..|../*|*/../*|*/..) die "unsafe document archive path: $entry" ;;
+    esac
+  done < <(tar -tf "$frozen_archive")
+  tar -tvf "$frozen_archive" | awk '$1 !~ /^[d-]/ {exit 1}' \
+    || die "document archive contains a non-file entry"
+  install -d -o root -g root -m 0700 "$extracted"
+  tar -xf "$frozen_archive" -C "$extracted" --no-same-owner --no-same-permissions
+  while IFS= read -r -d '' directory; do
+    relative="${directory#"$extracted"/}"
+    [ "$directory" = "$extracted" ] && continue
+    install -d -o root -g root -m 0700 "$documents/$relative"
+  done < <(find "$extracted" -type d -print0)
+  while IFS= read -r -d '' file; do
+    relative="${file#"$extracted"/}"
+    target="$documents/$relative"
+    target_tmp="$target.tmp.$$"
+    install -D -o root -g root -m 0600 "$file" "$target_tmp"
+    touch -r "$file" "$target_tmp"
+    mv -f "$target_tmp" "$target"
+  done < <(find "$extracted" -type f -print0)
+  rm -rf -- "$document_stage"
+  document_stage=""
+  existing_documents="$(date +%s)"
+done
+
+write_metrics "$existing_strongbox" "$existing_documents"

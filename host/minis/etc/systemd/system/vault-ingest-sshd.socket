@@ -1,0 +1,13 @@
+[Unit]
+Description=Restricted vault-ingestion SFTP socket
+After=network-online.target
+Wants=network-online.target
+
+[Socket]
+ListenStream=10.137.20.5:2222
+Accept=yes
+NoDelay=true
+
+[Install]
+WantedBy=sockets.target
+

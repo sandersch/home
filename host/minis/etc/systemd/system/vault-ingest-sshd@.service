@@ -1,0 +1,8 @@
+[Unit]
+Description=Restricted vault-ingestion SFTP connection
+
+[Service]
+ExecStart=-/usr/sbin/sshd -i -f /etc/ssh/sshd_config_vault_ingest
+StandardInput=socket
+StandardOutput=inherit
+StandardError=journal

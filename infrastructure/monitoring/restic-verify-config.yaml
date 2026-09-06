@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: restic-verify-config
+  namespace: monitoring
+data:
+  verify.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+    failures=0
+    backups_available=0
+    subset="$(date +%-m)/12"
+
+    write_success() {
+      local dataset="$1" destination="$2"
+      local output="/metrics/restic-check-${dataset}-${destination}.prom"
+      local tmp="${output}.tmp.$$"
+      umask 0027
+      printf 'homelab_restic_repository_check_timestamp_seconds{dataset="%s",destination="%s"} %s\n' \
+        "$dataset" "$destination" "$(date +%s)" >"$tmp"
+      chmod 0640 "$tmp"
+      mv -f "$tmp" "$output"
+    }
+
+    check_repository() {
+      local dataset="$1" destination="$2"
+      rm -rf /work/restic-cache/*
+      export RESTIC_CACHE_DIR=/work/restic-cache
+      log "checking $dataset/$destination"
+      if restic check && restic check --read-data-subset="$subset"; then
+        write_success "$dataset" "$destination"
+      else
+        log "ERROR: $dataset/$destination verification failed"
+        failures=$((failures + 1))
+      fi
+    }
+
+    if /guards/assert-backups-mount.sh; then
+      backups_available=1
+      export RESTIC_REPOSITORY=/repo/nas/opt
+      export RESTIC_PASSWORD="$APPSTATE_NAS_PASSWORD"
+      check_repository appstate nas
+      unset RESTIC_REPOSITORY RESTIC_PASSWORD
+    else
+      log "ERROR: appstate/NAS mount validation failed"
+      failures=$((failures + 1))
+    fi
+
+    export RESTIC_REPOSITORY="$APPSTATE_B2_REPOSITORY"
+    export RESTIC_PASSWORD="$APPSTATE_B2_PASSWORD"
+    if check_repository appstate b2; then :; fi
+    unset RESTIC_REPOSITORY RESTIC_PASSWORD
+
+    vault_record="$(awk '
+      $5 == "/data/vault" {
+        separator = 0
+        for (field = 7; field <= NF; field++) {
+          if ($field == "-") { separator = field; break }
+        }
+        if (separator > 0) print $4 "\t" $(separator + 1) "\t" $(separator + 2)
+      }
+    ' /proc/self/mountinfo | tail -n 1)"
+    IFS=$'\t' read -r vault_root vault_filesystem vault_source <<<"$vault_record"
+    if [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vg0-root ] \
+      && [ "$vault_root" = /mnt/vault ]; then
+      log "vault is locked; leaving its last successful check unchanged"
+    elif [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
+      && [ "$backups_available" -eq 1 ]; then
+      # shellcheck disable=SC1091
+      source /host-config/vault.conf
+      if grep -qxF 'vault-contract-version=1' /data/vault/.vault-sentinel \
+        && grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel; then
+        export RESTIC_REPOSITORY=/repo/nas/vault
+        export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password
+        check_repository vault nas
+        unset RESTIC_REPOSITORY RESTIC_PASSWORD_FILE
+      else
+        log "ERROR: vault sentinel validation failed"
+        failures=$((failures + 1))
+      fi
+    elif [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ]; then
+      log "ERROR: vault/NAS verification skipped because the backup mount is invalid"
+      failures=$((failures + 1))
+    else
+      log "ERROR: vault has an unexpected mount identity"
+      failures=$((failures + 1))
+    fi
+
+    [ "$failures" -eq 0 ] || exit 1
+    log "repository verification complete"

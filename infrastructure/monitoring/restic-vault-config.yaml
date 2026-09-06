@@ -1,0 +1,691 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: restic-vault-config
+  namespace: monitoring
+data:
+  detect-vault-exclusions.jq: |
+    select(.message_type == "node")
+    | .path
+    | select(
+        . == "/data/vault/.backup-credentials" or
+        startswith("/data/vault/.backup-credentials/") or
+        . == "/data/vault/.mail-credentials" or
+        startswith("/data/vault/.mail-credentials/") or
+        . == "/data/vault/inbox" or
+        startswith("/data/vault/inbox/") or
+        . == "/data/vault/.restore-tests" or
+        startswith("/data/vault/.restore-tests/")
+      )
+  validate-vault-snapshot.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    # Shared by backup, enrollment restore, and attended shrink acceptance. Always
+    # measure the immutable snapshot, never the live tree or its claimed inventory.
+    snapshot="${1:?a full snapshot ID is required}"
+    [[ "$snapshot" =~ ^[0-9a-f]{64}$ ]] || exit 1
+    contract=/contracts/vault-v1.json
+    exclusions=/contracts/vault-v1.excludes
+    work="$(mktemp -d /work/validate-snapshot.XXXXXX)"
+    trap 'rm -rf -- "$work"' EXIT
+    trap 'printf "snapshot validation failed at line %s for %s\n" "$LINENO" "$snapshot" >&2' ERR
+    contract_hash="$(sha256sum "$contract" | awk '{print $1}')"
+    exclusion_hash="$(sha256sum "$exclusions" | awk '{print $1}')"
+    [ "$exclusion_hash" = "$(jq -er '.exclusion_sha256' "$contract")" ]
+
+    # Separate reads from predicates so a listing/dump error cannot mean "no leak".
+    restic snapshots "$snapshot" --json >"$work/metadata.json"
+    jq -e --arg snapshot "$snapshot" '
+      length == 1 and .[0].id == $snapshot and .[0].hostname == "minis-vault" and
+      (.[0].paths | sort) == ["/data/vault", "/work/backup-manifest.json"]
+    ' "$work/metadata.json" >/dev/null
+    restic ls --json "$snapshot" >"$work/listing.jsonl"
+    jq -f /scripts/detect-vault-exclusions.jq "$work/listing.jsonl" >"$work/excluded"
+    [ ! -s "$work/excluded" ]
+    restic dump "$snapshot" /work/backup-manifest.json >"$work/manifest.json"
+    jq -s --slurpfile released "$contract" '
+      [.[] | select(.message_type == "node")] as $nodes |
+      [$released[0].required_content[] |
+        . as $required |
+        [$nodes[] | select(.path == $required.path)] as $root |
+        if ($root | length) != 1 or
+           $root[0].type != (if .kind == "kdbx" then "file" else "dir" end)
+        then error("required snapshot path is missing or has the wrong type")
+        else
+          [$nodes[] | select(.type == "file") |
+            select(.path == $required.path or (.path | startswith($required.path + "/")))] as $files |
+          {path:.path, kind:.kind, files:($files | length), bytes:([$files[].size] | add // 0)}
+        end]
+    ' "$work/listing.jsonl" >"$work/measured.json"
+    jq -e --arg contract_hash "$contract_hash" --arg exclusion_hash "$exclusion_hash" \
+      --slurpfile released "$contract" --slurpfile measured "$work/measured.json" '
+      . as $manifest |
+      .contract == $released[0].contract and
+      .contract_sha256 == $contract_hash and .exclusion_sha256 == $exclusion_hash and
+      .measurements == $measured[0] and
+      .total_files == ([$measured[0][].files] | add) and
+      .total_bytes == ([$measured[0][].bytes] | add) and
+      all($released[0].required_content[];
+        . as $required |
+        any($manifest.measurements[];
+          .path == $required.path and .kind == $required.kind and
+          .files >= $required.minimum_files and .bytes >= $required.minimum_bytes))
+    ' "$work/manifest.json" >/dev/null
+    # jq parses our UTC format in both the Alpine runtime and host fixtures;
+    # BusyBox date -d does not accept the emitted ISO 8601 timestamp.
+    generated_epoch="$(jq -er '
+      .generated_at as $timestamp |
+      ($timestamp | fromdateiso8601) as $epoch |
+      if ($epoch | todateiso8601) == $timestamp then $epoch
+      else error("generated_at is not a valid canonical UTC timestamp") end
+    ' "$work/manifest.json")"
+    [ "$generated_epoch" -le $(( $(date +%s) + 300 )) ]
+    restic dump "$snapshot" /data/vault/.vault-sentinel >"$work/sentinel"
+    grep -qxF 'vault-contract-version=1' "$work/sentinel"
+    grep -qxF "filesystem-uuid=$(jq -er '.filesystem_uuid' "$work/manifest.json")" "$work/sentinel"
+    restic dump "$snapshot" /data/vault/credentials/strongbox/ccs.kdbx >"$work/ccs.kdbx"
+    [ "$(od -An -tx1 -N8 "$work/ccs.kdbx" | tr -d ' \n')" = 03d9a29a67fb4bb5 ]
+    [ "$(stat -c '%s' "$work/ccs.kdbx")" = "$(jq -er '.[0].bytes' "$work/measured.json")" ]
+    cat "$work/manifest.json"
+
+  backup-vault.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+    die() { log "ERROR: $*" >&2; exit 1; }
+
+    vault_path=/data/vault
+    host_config=/host-config/vault.conf
+    contract=/contracts/vault-v1.json
+    exclusions=/contracts/vault-v1.excludes
+    control=/repo/nas/.control/vault
+    metrics=/metrics/restic-vault.prom
+
+    expected_vault_source=/dev/mapper/vault
+    expected_root_source=/dev/mapper/vg0-root
+
+    [ -r "$host_config" ] || die "$host_config is missing"
+    # shellcheck disable=SC1090
+    source "$host_config"
+    : "${VAULT_FS_UUID:?VAULT_FS_UUID is required}"
+    : "${RESTIC_REPOSITORY:?RESTIC_REPOSITORY is required}"
+    : "${RESTIC_PASSWORD_FILE:?RESTIC_PASSWORD_FILE is required}"
+
+    write_metrics() {
+      local locked="$1" snapshot_time="${2:-0}" repo_kib="${3:-0}" hold_count="${4:-0}" repo_bytes
+      local tmp="${metrics}.tmp.$$" enrolled=0 restore_time=0 previous
+      repo_bytes=$((repo_kib * 1024))
+      if [ "$locked" -eq 1 ]; then
+        hold_count=0
+        if [ -d "$control/holds" ]; then
+          hold_count="$(find "$control/holds" -type f -name '*.json' | wc -l)"
+        fi
+      fi
+      [ -f "$control/baseline.json" ] && enrolled=1
+      if [ -f "$metrics" ]; then
+        if [ "$locked" -eq 1 ]; then
+          repo_bytes="$(awk '/^homelab_restic_repository_size_bytes/ {print $NF}' "$metrics" | tail -n 1)"
+          repo_bytes="${repo_bytes:-0}"
+        fi
+        previous="$(awk '/homelab_restic_destination_snapshot_timestamp_seconds/ {print $NF}' "$metrics" | tail -n 1)"
+        [ "$snapshot_time" -ne 0 ] || snapshot_time="${previous:-0}"
+        restore_time="$(awk '/homelab_restic_restore_drill_timestamp_seconds/ {print $NF}' "$metrics" | tail -n 1)"
+        restore_time="${restore_time:-0}"
+      fi
+      umask 0027
+      {
+        printf 'homelab_vault_backup_locked %s\n' "$locked"
+        printf 'homelab_backup_repository_enrolled{dataset="vault",destination="nas"} %s\n' "$enrolled"
+        printf 'homelab_restic_destination_snapshot_timestamp_seconds{dataset="vault",destination="nas"} %s\n' "$snapshot_time"
+        printf 'homelab_restic_repository_size_bytes{dataset="vault",destination="nas"} %s\n' "$repo_bytes"
+        printf 'homelab_restic_repository_ceiling_bytes{dataset="vault",destination="nas"} 268435456000\n'
+        printf 'homelab_restic_validation_hold{dataset="vault",destination="nas"} %s\n' "$hold_count"
+        printf 'homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="nas"} %s\n' "$restore_time"
+      } >"$tmp"
+      chmod 0640 "$tmp"
+      mv -f "$tmp" "$metrics"
+    }
+
+    mount_record="$(awk -v target="$vault_path" '
+      $5 == target {
+        separator = 0
+        for (field = 7; field <= NF; field++) {
+          if ($field == "-") {
+            separator = field
+            break
+          }
+        }
+        if (separator > 0) {
+          print $4 "\t" $(separator + 1) "\t" $(separator + 2) "\t" $6 "\t" $(separator + 3)
+        }
+      }
+    ' /proc/self/mountinfo | tail -n 1)"
+    [ -n "$mount_record" ] || die "$vault_path has no mountinfo record"
+    IFS=$'\t' read -r mount_root filesystem source mount_options super_options <<<"$mount_record"
+
+    if [ "$filesystem" = ext4 ] && [ "$source" = "$expected_root_source" ] \
+      && [ "$mount_root" = /mnt/vault ]; then
+      write_metrics 1
+      log "vault is locked; skipping without opening a repository or credential"
+      exit 0
+    fi
+    [ "$filesystem" = ext4 ] || die "$vault_path uses $filesystem, expected ext4"
+    [ "$source" = "$expected_vault_source" ] \
+      || die "$vault_path comes from $source, expected $expected_vault_source"
+    case ",$mount_options,$super_options," in
+      *,rw,*) ;;
+      *) die "$vault_path is not mounted read-write on the host" ;;
+    esac
+
+    sentinel="$vault_path/.vault-sentinel"
+    [ -f "$sentinel" ] && [ ! -L "$sentinel" ] || die "$sentinel is invalid"
+    [ "$(stat -c '%u:%g:%a' "$sentinel")" = 0:0:444 ] \
+      || die "$sentinel ownership or mode is invalid"
+    grep -qxF 'vault-contract-version=1' "$sentinel" \
+      || die "$sentinel has the wrong contract version"
+    grep -qxF "filesystem-uuid=$VAULT_FS_UUID" "$sentinel" \
+      || die "$sentinel has the wrong filesystem UUID"
+
+    credential_dir="$vault_path/.backup-credentials"
+    [ -d "$credential_dir" ] && [ ! -L "$credential_dir" ] \
+      || die "$credential_dir is invalid"
+    [ "$(stat -c '%u:%g:%a' "$credential_dir")" = 0:0:700 ] \
+      || die "$credential_dir ownership or mode is invalid"
+    [ -f "$RESTIC_PASSWORD_FILE" ] && [ ! -L "$RESTIC_PASSWORD_FILE" ] \
+      || die "$RESTIC_PASSWORD_FILE is invalid"
+    [ "$(stat -c '%u:%g:%a' "$RESTIC_PASSWORD_FILE")" = 0:0:600 ] \
+      || die "$RESTIC_PASSWORD_FILE ownership or mode is invalid"
+    [ -s "$RESTIC_PASSWORD_FILE" ] || die "$RESTIC_PASSWORD_FILE is empty"
+
+    contract_hash="$(sha256sum "$contract" | awk '{print $1}')"
+    exclusion_hash="$(sha256sum "$exclusions" | awk '{print $1}')"
+    expected_exclusion_hash="$(jq -er '.exclusion_sha256' "$contract")"
+    [ "$exclusion_hash" = "$expected_exclusion_hash" ] \
+      || die "vault exclusion hash does not match the released contract"
+    jq -e '
+      .contract == "vault-v1" and
+      .source_roots == ["/data/vault"] and
+      .sentinel == "/data/vault/.vault-sentinel" and
+      .shrink_baseline_samples == 7 and
+      .maximum_shrink_percent == 20
+    ' "$contract" >/dev/null || die "vault contract shape is invalid"
+
+    mapfile -t exclusion_rules <"$exclusions"
+    [ "${#exclusion_rules[@]}" -eq 4 ] \
+      || die "vault contract must contain exactly four exclusions"
+    [ "${exclusion_rules[0]}" = /data/vault/.backup-credentials ] \
+      && [ "${exclusion_rules[1]}" = /data/vault/.mail-credentials ] \
+      && [ "${exclusion_rules[2]}" = /data/vault/inbox ] \
+      && [ "${exclusion_rules[3]}" = /data/vault/.restore-tests ] \
+      || die "vault exclusions differ from the released contract"
+
+    measure_directory() {
+      local path="$1" files=0 bytes=0 file size
+      while IFS= read -r -d '' file; do
+        size="$(stat -c '%s' "$file")"
+        files=$((files + 1))
+        bytes=$((bytes + size))
+      done < <(find "$path" -xdev -type f -print0)
+      printf '%s\t%s\n' "$files" "$bytes"
+    }
+
+    measurements='[]'
+    total_files=0
+    total_bytes=0
+    while IFS=$'\t' read -r path kind minimum_files minimum_bytes; do
+      [ -n "$path" ] || continue
+      if [ "$kind" = kdbx ]; then
+        [ -f "$path" ] && [ ! -L "$path" ] || die "$path is not a regular KDBX file"
+        signature="$(od -An -tx1 -N8 "$path" | tr -d ' \n')"
+        [ "$signature" = 03d9a29a67fb4bb5 ] || die "$path has an invalid KDBX signature"
+        files=1
+        bytes="$(stat -c '%s' "$path")"
+      else
+        [ "$kind" = directory ] && [ -d "$path" ] && [ ! -L "$path" ] \
+          || die "$path is not a valid required directory"
+        IFS=$'\t' read -r files bytes < <(measure_directory "$path")
+      fi
+      [ "$files" -ge "$minimum_files" ] \
+        || die "$path has $files files, below floor $minimum_files"
+      [ "$bytes" -ge "$minimum_bytes" ] \
+        || die "$path has $bytes bytes, below floor $minimum_bytes"
+      measurements="$(jq -c \
+        --arg path "$path" \
+        --arg kind "$kind" \
+        --argjson files "$files" \
+        --argjson bytes "$bytes" \
+        '. + [{path:$path,kind:$kind,files:$files,bytes:$bytes}]' \
+        <<<"$measurements")"
+      total_files=$((total_files + files))
+      total_bytes=$((total_bytes + bytes))
+    done < <(jq -r '.required_content[] | [.path,.kind,.minimum_files,.minimum_bytes] | @tsv' "$contract")
+
+    mkdir -p /work/restic-cache "$control/holds" "$control/pending"
+    export RESTIC_CACHE_DIR=/work/restic-cache
+    generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    jq -n \
+      --arg contract vault-v1 \
+      --arg contract_sha256 "$contract_hash" \
+      --arg exclusion_sha256 "$exclusion_hash" \
+      --arg filesystem_uuid "$VAULT_FS_UUID" \
+      --arg generated_at "$generated_at" \
+      --argjson measurements "$measurements" \
+      --argjson total_files "$total_files" \
+      --argjson total_bytes "$total_bytes" \
+      '{contract:$contract,contract_sha256:$contract_sha256,exclusion_sha256:$exclusion_sha256,filesystem_uuid:$filesystem_uuid,generated_at:$generated_at,measurements:$measurements,total_files:$total_files,total_bytes:$total_bytes}' \
+      >/work/backup-manifest.json
+
+    if [ "${INITIALIZE_REPOSITORY:-0}" = 1 ]; then
+      if [ -f "$RESTIC_REPOSITORY/config" ]; then
+        restic snapshots >/dev/null
+        log "vault repository already initialized"
+      else
+        mkdir -p "$RESTIC_REPOSITORY"
+        [ -z "$(find "$RESTIC_REPOSITORY" -mindepth 1 -print -quit)" ] \
+          || die "$RESTIC_REPOSITORY is nonempty but has no Restic config"
+        restic init
+        restic snapshots >/dev/null
+        log "initialized vault repository"
+      fi
+      exit 0
+    fi
+
+    restic snapshots --host minis-vault >/dev/null
+    summary=/work/restic-backup.jsonl
+    restic backup --json \
+      --host minis-vault \
+      --tag vault \
+      --tag nas \
+      --exclude-file "$exclusions" \
+      "$vault_path" \
+      /work/backup-manifest.json | tee "$summary"
+    snapshot_id="$(jq -sr '[.[] | select(.message_type == "summary")] | last | .snapshot_id' "$summary")"
+    [[ "$snapshot_id" =~ ^[0-9a-f]{64}$ ]] || die "Restic did not return a full snapshot ID"
+    lineage="$(restic snapshots "$snapshot_id" --json | jq -er '.[0] | .original // .id')"
+
+    hold_candidate() {
+      local reason="$1" generation="${2:-0}" baseline_files="${3:-0}" baseline_bytes="${4:-0}"
+      local message="$5" hold_tmp repo_kib hold_count
+      if [ "$generation" -eq 0 ] && [ -f "$control/baseline.json" ]; then
+        generation="$(jq -er '.generation' "$control/baseline.json")"
+      fi
+      hold_tmp="$control/holds/$snapshot_id.json.tmp"
+      jq -n \
+        --arg snapshot_id "$snapshot_id" \
+        --arg lineage "$lineage" \
+        --arg reason "$reason" \
+        --arg contract vault-v1 \
+        --arg contract_sha256 "$contract_hash" \
+        --arg created_at "$generated_at" \
+        --argjson generation "$generation" \
+        --argjson files "$total_files" \
+        --argjson bytes "$total_bytes" \
+        --argjson baseline_files "$baseline_files" \
+        --argjson baseline_bytes "$baseline_bytes" \
+        --argjson measurements "$measurements" \
+        '{snapshot_id:$snapshot_id,lineage:$lineage,reason:$reason,contract:$contract,contract_sha256:$contract_sha256,created_at:$created_at,generation:$generation,files:$files,bytes:$bytes,baseline_files:$baseline_files,baseline_bytes:$baseline_bytes,measurements:$measurements}' \
+        >"$hold_tmp"
+      mv "$hold_tmp" "$control/holds/$snapshot_id.json"
+      hold_count="$(find "$control/holds" -type f -name '*.json' | wc -l)"
+      repo_kib="$(du -sk "$RESTIC_REPOSITORY" | awk '{print $1}')"
+      write_metrics 0 0 "$repo_kib" "$hold_count"
+      die "$message; snapshot $snapshot_id is held"
+    }
+
+    if ! restored_manifest="$(/scripts/validate-vault-snapshot.sh "$snapshot_id")"; then
+      hold_candidate validation 0 0 0 "snapshot failed captured-content validation"
+    fi
+    measurements="$(jq -c '.measurements' <<<"$restored_manifest")"
+    total_files="$(jq -er '.total_files' <<<"$restored_manifest")"
+    total_bytes="$(jq -er '.total_bytes' <<<"$restored_manifest")"
+
+    if [ ! -f "$control/baseline.json" ]; then
+      [ "${INITIAL_ENROLLMENT:-0}" = 1 ] \
+        || die "vault baseline is absent; use the attended initial-backup runbook"
+      jq -n \
+        --arg snapshot_id "$snapshot_id" \
+        --arg created_at "$generated_at" \
+        --argjson files "$total_files" \
+        --argjson bytes "$total_bytes" \
+        '{snapshot_id:$snapshot_id,created_at:$created_at,files:$files,bytes:$bytes}' \
+        >"$control/pending/$snapshot_id.json"
+      repo_kib="$(du -sk "$RESTIC_REPOSITORY" | awk '{print $1}')"
+      write_metrics 0 0 "$repo_kib" 0
+      log "created enrollment candidate $snapshot_id; restore validation must establish generation 1"
+      exit 0
+    fi
+
+    baseline_generation="$(jq -er '.generation' "$control/baseline.json")"
+    baseline_files="$(jq -er '[.samples[].files] | max' "$control/baseline.json")"
+    baseline_bytes="$(jq -er '[.samples[].bytes] | max' "$control/baseline.json")"
+    maximum_shrink_percent="$(jq -er '.maximum_shrink_percent' "$contract")"
+    if [ "$total_files" -lt $((baseline_files * (100 - maximum_shrink_percent) / 100)) ] \
+      || [ "$total_bytes" -lt $((baseline_bytes * (100 - maximum_shrink_percent) / 100)) ]; then
+      hold_candidate shrink "$baseline_generation" "$baseline_files" "$baseline_bytes" \
+        "snapshot shrank beyond the released tolerance"
+    fi
+
+    printf '%s\n' "$(jq -cn --arg lineage "$lineage" --arg snapshot_id "$snapshot_id" --arg validated_at "$generated_at" '{lineage:$lineage,snapshot_id:$snapshot_id,validated_at:$validated_at}')" \
+      >>"$control/validated.jsonl"
+    baseline_tmp="$control/baseline.json.tmp"
+    jq \
+      --arg snapshot_id "$snapshot_id" \
+      --arg created_at "$generated_at" \
+      --argjson files "$total_files" \
+      --argjson bytes "$total_bytes" \
+      '.samples += [{snapshot_id:$snapshot_id,created_at:$created_at,files:$files,bytes:$bytes}] | .samples = .samples[-7:]' \
+      "$control/baseline.json" >"$baseline_tmp"
+    mv "$baseline_tmp" "$control/baseline.json"
+
+    hold_count="$(find "$control/holds" -type f -name '*.json' | wc -l)"
+    repo_kib="$(du -sk "$RESTIC_REPOSITORY" | awk '{print $1}')"
+    write_metrics 0 "$(date +%s)" "$repo_kib" "$hold_count"
+    log "validated vault snapshot $snapshot_id"
+
+  validate-vault-restore.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+    die() { log "ERROR: $*" >&2; exit 1; }
+
+    : "${RESTORE_SNAPSHOT:?RESTORE_SNAPSHOT is required}"
+    : "${RESTIC_REPOSITORY:?RESTIC_REPOSITORY is required}"
+    : "${RESTIC_PASSWORD_FILE:?RESTIC_PASSWORD_FILE is required}"
+    [[ "$RESTORE_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] \
+      || die "RESTORE_SNAPSHOT must be a full 64-character lowercase ID"
+
+    control=/repo/nas/.control/vault
+    restore_root="/data/vault/.restore-tests/$RESTORE_SNAPSHOT"
+    pending="$control/pending/$RESTORE_SNAPSHOT.json"
+    metrics=/metrics/restic-vault.prom
+
+    [ -r /host-config/vault.conf ] || die "vault host identity is missing"
+    # shellcheck disable=SC1091
+    source /host-config/vault.conf
+    : "${VAULT_FS_UUID:?VAULT_FS_UUID is required}"
+    mount_record="$(awk '
+      $5 == "/data/vault" {
+        separator = 0
+        for (field = 7; field <= NF; field++) {
+          if ($field == "-") { separator = field; break }
+        }
+        if (separator > 0) print $(separator + 1) "\t" $(separator + 2)
+      }
+    ' /proc/self/mountinfo | tail -n 1)"
+    IFS=$'\t' read -r vault_filesystem vault_source <<<"$mount_record"
+    [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
+      || die "/data/vault is not the configured vault filesystem"
+    grep -qxF 'vault-contract-version=1' /data/vault/.vault-sentinel \
+      || die "vault sentinel contract mismatch"
+    grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel \
+      || die "vault sentinel UUID mismatch"
+
+    [ -f "$pending" ] || die "$RESTORE_SNAPSHOT is not the pending enrollment candidate"
+    [ ! -e "$restore_root" ] || die "$restore_root already exists"
+    mkdir -p /work/restic-cache "$restore_root"
+    export RESTIC_CACHE_DIR=/work/restic-cache
+
+    metadata="$(restic snapshots "$RESTORE_SNAPSHOT" --host minis-vault --json)"
+    [ "$(jq 'length' <<<"$metadata")" -eq 1 ] \
+      || die "snapshot selection was not exact"
+    lineage="$(jq -er '.[0] | .original // .id' <<<"$metadata")"
+
+    restic check --read-data
+    /scripts/validate-vault-snapshot.sh "$RESTORE_SNAPSHOT" >/work/validated-manifest.json
+
+    restic restore "$RESTORE_SNAPSHOT" --target "$restore_root"
+    restored_manifest="$restore_root/work/backup-manifest.json"
+    restored_vault="$restore_root/data/vault"
+    cmp -s /work/validated-manifest.json "$restored_manifest" \
+      || die "restored manifest differs from the validated snapshot"
+
+    cmp -s \
+      /data/vault/credentials/strongbox/ccs.kdbx \
+      "$restored_vault/credentials/strongbox/ccs.kdbx" \
+      || die "restored ccs.kdbx differs from the source"
+    signature="$(od -An -tx1 -N8 "$restored_vault/credentials/strongbox/ccs.kdbx" | tr -d ' \n')"
+    [ "$signature" = 03d9a29a67fb4bb5 ] || die "restored ccs.kdbx has an invalid signature"
+
+    source_manifest=/work/source-documents.sha256
+    restore_manifest=/work/restored-documents.sha256
+    (
+      cd /data/vault/documents/ryze
+      find . -type f -print0 | sort -z | xargs -0 sha256sum
+    ) >"$source_manifest"
+    (
+      cd "$restored_vault/documents/ryze"
+      find . -type f -print0 | sort -z | xargs -0 sha256sum
+    ) >"$restore_manifest"
+    cmp -s "$source_manifest" "$restore_manifest" \
+      || die "restored ryze documents differ from the source"
+
+    total_files="$(jq -er '.total_files' "$restored_manifest")"
+    total_bytes="$(jq -er '.total_bytes' "$restored_manifest")"
+    validated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    baseline_tmp="$control/baseline.json.tmp"
+    jq -n \
+      --arg snapshot_id "$RESTORE_SNAPSHOT" \
+      --arg created_at "$validated_at" \
+      --argjson files "$total_files" \
+      --argjson bytes "$total_bytes" \
+      '{generation:1,anchor_snapshot_id:$snapshot_id,created_at:$created_at,samples:[{snapshot_id:$snapshot_id,created_at:$created_at,files:$files,bytes:$bytes}]}' \
+      >"$baseline_tmp"
+    mv "$baseline_tmp" "$control/baseline.json"
+    printf '%s\n' "$(jq -cn --arg lineage "$lineage" --arg snapshot_id "$RESTORE_SNAPSHOT" --arg validated_at "$validated_at" '{lineage:$lineage,snapshot_id:$snapshot_id,validated_at:$validated_at}')" \
+      >>"$control/validated.jsonl"
+    rm -f "$pending"
+
+    repo_kib="$(du -sk "$RESTIC_REPOSITORY" | awk '{print $1}')"
+    metric_tmp="${metrics}.tmp.$$"
+    umask 0027
+    {
+      printf 'homelab_vault_backup_locked 0\n'
+      printf 'homelab_backup_repository_enrolled{dataset="vault",destination="nas"} 1\n'
+      printf 'homelab_restic_destination_snapshot_timestamp_seconds{dataset="vault",destination="nas"} %s\n' "$(date +%s)"
+      printf 'homelab_restic_repository_size_bytes{dataset="vault",destination="nas"} %s\n' "$((repo_kib * 1024))"
+      printf 'homelab_restic_repository_ceiling_bytes{dataset="vault",destination="nas"} 268435456000\n'
+      printf 'homelab_restic_validation_hold{dataset="vault",destination="nas"} 0\n'
+      printf 'homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="nas"} %s\n' "$(date +%s)"
+    } >"$metric_tmp"
+    chmod 0640 "$metric_tmp"
+    mv "$metric_tmp" "$metrics"
+    log "snapshot $RESTORE_SNAPSHOT passed full restore validation and established baseline generation 1"
+
+  resolve-validation-hold.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+    die() { log "ERROR: $*" >&2; exit 1; }
+
+    : "${HOLD_SNAPSHOT:?HOLD_SNAPSHOT is required}"
+    : "${HOLD_ACTION:?HOLD_ACTION is required}"
+    : "${HOLD_OPERATOR:?HOLD_OPERATOR is required}"
+    : "${RESTIC_REPOSITORY:?RESTIC_REPOSITORY is required}"
+    : "${RESTIC_PASSWORD_FILE:?RESTIC_PASSWORD_FILE is required}"
+    [[ "$HOLD_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] \
+      || die "HOLD_SNAPSHOT must be a full 64-character lowercase ID"
+    [ "$HOLD_ACTION" = reject ] || [ "$HOLD_ACTION" = accept ] \
+      || die "HOLD_ACTION must be reject or accept"
+    [ "$HOLD_ACTION" != accept ] || [ -n "${HOLD_REASON:-}" ] \
+      || die "accept requires a nonempty HOLD_REASON"
+
+    contract=/contracts/vault-v1.json
+    control=/repo/nas/.control/vault
+    hold="$control/holds/$HOLD_SNAPSHOT.json"
+    state="$control/resolutions/$HOLD_SNAPSHOT.json"
+    metrics=/metrics/restic-vault.prom
+    mkdir -p /work/restic-cache "$control/resolutions"
+    export RESTIC_CACHE_DIR=/work/restic-cache
+
+    [ -r /host-config/vault.conf ] || die "vault host identity is missing"
+    # shellcheck disable=SC1091
+    source /host-config/vault.conf
+    mount_record="$(awk '
+      $5 == "/data/vault" {
+        separator = 0
+        for (field = 7; field <= NF; field++) {
+          if ($field == "-") { separator = field; break }
+        }
+        if (separator > 0) print $(separator + 1) "\t" $(separator + 2)
+      }
+    ' /proc/self/mountinfo | tail -n 1)"
+    IFS=$'\t' read -r vault_filesystem vault_source <<<"$mount_record"
+    [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
+      || die "/data/vault is not the configured vault filesystem"
+    grep -qxF 'vault-contract-version=1' /data/vault/.vault-sentinel \
+      || die "vault sentinel contract mismatch"
+    grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel \
+      || die "vault sentinel UUID mismatch"
+    [ -f "$hold" ] && [ ! -L "$hold" ] || die "exact hold $hold is absent"
+
+    hold_snapshot="$(jq -er '.snapshot_id' "$hold")"
+    hold_lineage="$(jq -er '.lineage' "$hold")"
+    hold_reason="$(jq -er '.reason' "$hold")"
+    hold_generation="$(jq -er '.generation' "$hold")"
+    contract_hash="$(sha256sum "$contract" | awk '{print $1}')"
+    [ "$hold_snapshot" = "$HOLD_SNAPSHOT" ] || die "hold names a different snapshot"
+    [ "$(jq -er '.contract_sha256' "$hold")" = "$contract_hash" ] \
+      || die "hold contract hash differs from the released contract"
+
+    if [ -f "$state" ]; then
+      [ "$(jq -er '.snapshot_id' "$state")" = "$HOLD_SNAPSHOT" ] \
+        && [ "$(jq -er '.action' "$state")" = "$HOLD_ACTION" ] \
+        || die "an incompatible resolution state already exists"
+    else
+      state_tmp="$state.tmp"
+      jq -n \
+        --arg snapshot_id "$HOLD_SNAPSHOT" \
+        --arg action "$HOLD_ACTION" \
+        --arg operator "$HOLD_OPERATOR" \
+        --arg started_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{snapshot_id:$snapshot_id,action:$action,operator:$operator,started_at:$started_at,stage:"started"}' \
+        >"$state_tmp"
+      mv "$state_tmp" "$state"
+    fi
+
+    snapshot_metadata="$(restic snapshots --json | jq --arg id "$HOLD_SNAPSHOT" '[.[] | select(.id == $id)]')"
+    snapshot_present="$(jq 'length == 1' <<<"$snapshot_metadata")"
+    if [ "$snapshot_present" = true ]; then
+      lineage="$(jq -er '.[0] | .original // .id' <<<"$snapshot_metadata")"
+      [ "$lineage" = "$hold_lineage" ] || die "snapshot lineage differs from its hold"
+    else
+      lineage="$hold_lineage"
+    fi
+
+    update_state() {
+      local stage="$1" tmp="$state.tmp"
+      jq --arg stage "$stage" --arg updated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '.stage = $stage | .updated_at = $updated_at' "$state" >"$tmp"
+      mv "$tmp" "$state"
+    }
+
+    update_hold_metric() {
+      local hold_count tmp="${metrics}.tmp.$$"
+      hold_count="$(find "$control/holds" -type f -name '*.json' | wc -l)"
+      [ -f "$metrics" ] || die "$metrics is absent"
+      awk -v count="$hold_count" '
+        /^homelab_restic_validation_hold\{dataset="vault",destination="nas"\}/ {
+          print "homelab_restic_validation_hold{dataset=\"vault\",destination=\"nas\"} " count
+          replaced = 1
+          next
+        }
+        { print }
+        END { if (!replaced) exit 1 }
+      ' "$metrics" >"$tmp"
+      chmod 0640 "$tmp"
+      mv "$tmp" "$metrics"
+    }
+
+    validate_candidate() {
+      [ "$snapshot_present" = true ] || die "cannot accept a missing snapshot"
+      [ "$hold_reason" = shrink ] || die "only a shrink-only hold may be accepted"
+      restic check
+      candidate_manifest="$(/scripts/validate-vault-snapshot.sh "$HOLD_SNAPSHOT")" \
+        || die "held snapshot failed captured-content validation"
+    }
+
+    if [ "$HOLD_ACTION" = reject ]; then
+      stage="$(jq -er '.stage' "$state")"
+      if [ "$snapshot_present" = true ]; then
+        [ "$stage" = started ] || [ "$stage" = forgetting ] \
+          || die "snapshot still exists after a recorded forget step"
+        printf '%s\n' "$(jq -cn \
+          --arg snapshot_id "$HOLD_SNAPSHOT" \
+          --arg lineage "$lineage" \
+          --arg operator "$HOLD_OPERATOR" \
+          --arg rejected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          '{snapshot_id:$snapshot_id,lineage:$lineage,operator:$operator,rejected_at:$rejected_at}')" \
+          >>"$control/rejected.jsonl"
+        update_state forgetting
+        restic forget "$HOLD_SNAPSHOT"
+        update_state forgotten
+      elif [ "$stage" != forgetting ] && [ "$stage" != forgotten ] && [ "$stage" != pruned ]; then
+        die "snapshot is missing without a completed exact-ID forget record"
+      fi
+      after_metadata="$(restic snapshots --json | jq --arg id "$HOLD_SNAPSHOT" '[.[] | select(.id == $id)]')"
+      jq -e 'length == 0' <<<"$after_metadata" >/dev/null \
+        || die "rejected snapshot remains present"
+      if [ "$(jq -er '.stage' "$state")" != pruned ]; then
+        restic prune
+        update_state pruned
+      fi
+      rm -f "$hold"
+      update_hold_metric
+      log "rejected held snapshot $HOLD_SNAPSHOT and completed exact-ID cleanup"
+      exit 0
+    fi
+
+    validate_candidate
+    baseline="$control/baseline.json"
+    [ -f "$baseline" ] || die "vault baseline is absent"
+    current_generation="$(jq -er '.generation' "$baseline")"
+    next_generation=$((hold_generation + 1))
+    if [ "$current_generation" -eq "$next_generation" ]; then
+      [ "$(jq -er '.anchor_snapshot_id' "$baseline")" = "$HOLD_SNAPSHOT" ] \
+        || die "baseline advanced to an unrelated snapshot"
+      baseline_already_written=1
+    elif [ "$current_generation" -eq "$hold_generation" ]; then
+      baseline_already_written=0
+    else
+      die "baseline generation changed after the hold was created"
+    fi
+    accepted_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    if ! jq -e --arg snapshot_id "$HOLD_SNAPSHOT" \
+      'select(.snapshot_id == $snapshot_id)' "$control/validated.jsonl" >/dev/null 2>&1; then
+      printf '%s\n' "$(jq -cn \
+        --arg lineage "$lineage" \
+        --arg snapshot_id "$HOLD_SNAPSHOT" \
+        --arg validated_at "$accepted_at" \
+        --arg operator "$HOLD_OPERATOR" \
+        --arg reason "$HOLD_REASON" \
+        '{lineage:$lineage,snapshot_id:$snapshot_id,validated_at:$validated_at,operator:$operator,reason:$reason}')" \
+        >>"$control/validated.jsonl"
+    fi
+    total_files="$(jq -er '.total_files' <<<"$candidate_manifest")"
+    total_bytes="$(jq -er '.total_bytes' <<<"$candidate_manifest")"
+    if [ "$baseline_already_written" -eq 0 ]; then
+      baseline_tmp="$baseline.tmp"
+      jq -n \
+        --argjson generation "$next_generation" \
+        --arg snapshot_id "$HOLD_SNAPSHOT" \
+        --arg lineage "$lineage" \
+        --arg contract vault-v1 \
+        --arg contract_sha256 "$contract_hash" \
+        --arg accepted_at "$accepted_at" \
+        --arg operator "$HOLD_OPERATOR" \
+        --arg reason "$HOLD_REASON" \
+        --argjson prior_generation "$hold_generation" \
+        --argjson files "$total_files" \
+        --argjson bytes "$total_bytes" \
+        '{generation:$generation,anchor_snapshot_id:$snapshot_id,anchor_lineage:$lineage,contract:$contract,contract_sha256:$contract_sha256,created_at:$accepted_at,operator:$operator,reason:$reason,prior_generation:$prior_generation,samples:[{snapshot_id:$snapshot_id,created_at:$accepted_at,files:$files,bytes:$bytes}]}' \
+        >"$baseline_tmp"
+      mv "$baseline_tmp" "$baseline"
+    fi
+    update_state accepted
+    rm -f "$hold"
+    update_hold_metric
+    log "accepted legitimate shrink at $HOLD_SNAPSHOT as baseline generation $next_generation"

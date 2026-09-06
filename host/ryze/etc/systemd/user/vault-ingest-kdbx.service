@@ -1,0 +1,7 @@
+[Unit]
+Description=Offer the Strongbox KDBX archive to the encrypted vault
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/vault-ingest kdbx
+

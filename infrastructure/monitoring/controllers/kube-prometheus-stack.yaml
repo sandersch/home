@@ -192,6 +192,14 @@ spec:
               storageClassName: topolvm-scratch
 
     prometheus-node-exporter:
+      extraArgs:
+        - --collector.textfile.directory=/host/var/lib/node-exporter/textfile
+      extraHostVolumeMounts:
+        - name: backup-textfile
+          hostPath: /var/lib/node-exporter/textfile
+          type: Directory
+          mountPath: /host/var/lib/node-exporter/textfile
+          readOnly: true
       priorityClassName: homelab-standard
       resources:
         requests:

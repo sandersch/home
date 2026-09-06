@@ -1,0 +1,16 @@
+[Unit]
+Description=Validate and promote vault-ingestion uploads
+After=mnt-vault.mount
+Requires=mnt-vault.mount
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vault-ingest-promote
+User=root
+Group=root
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/mnt/vault /var/lib/node-exporter/textfile
+ProtectHome=yes
+

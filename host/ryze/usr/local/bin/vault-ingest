@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+mode="${1:-}"
+endpoint=10.137.20.5
+port=2222
+identity="$HOME/.config/vault-ingest/id_ed25519"
+known_hosts="$HOME/.config/vault-ingest/known_hosts"
+runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/vault-ingest"
+temporary=""
+archive=""
+checksum=""
+trap 'rm -f "$temporary" "$archive" "$checksum"' EXIT
+
+die() { printf 'vault-ingest: %s\n' "$*" >&2; exit 1; }
+[ "$mode" = kdbx ] || [ "$mode" = documents ] \
+  || die "usage: vault-ingest {kdbx|documents}"
+[ -f "$identity" ] && [ "$(stat -c '%a' "$identity")" = 600 ] \
+  || die "dedicated identity is missing or has the wrong mode"
+[ -s "$known_hosts" ] || die "dedicated known_hosts file is missing"
+install -d -m 0700 "$runtime"
+
+sftp_batch() {
+  sftp -q -b - -P "$port" \
+    -i "$identity" \
+    -o IdentitiesOnly=yes \
+    -o StrictHostKeyChecking=yes \
+    -o UserKnownHostsFile="$known_hosts" \
+    vault-ingest-ryze@"$endpoint"
+}
+
+token="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+if [ "$mode" = kdbx ]; then
+  source_file="$HOME/Dropbox/ccs.kdbx"
+  [ -f "$source_file" ] && [ ! -L "$source_file" ] \
+    || die "$source_file is not a local regular file"
+  signature="$(od -An -tx1 -N8 "$source_file" | tr -d ' \n')"
+  [ "$signature" = 03d9a29a67fb4bb5 ] || die "$source_file has an invalid KDBX signature"
+  [ "$(stat -c '%s' "$source_file")" -ge 102400 ] || die "$source_file is below its size floor"
+  before="$(stat -c '%s:%Y' "$source_file")"
+  temporary="$runtime/ccs.kdbx.$token"
+  cp -- "$source_file" "$temporary"
+  chmod 0600 "$temporary"
+  after="$(stat -c '%s:%Y' "$source_file")"
+  [ "$before" = "$after" ] || die "$source_file changed while being copied"
+  printf 'put %s /upload/ccs.kdbx.%s.tmp\nrename /upload/ccs.kdbx.%s.tmp /upload/ccs.kdbx.%s.ready\n' \
+    "$temporary" "$token" "$token" "$token" | sftp_batch
+  rm -f "$temporary"
+  exit 0
+fi
+
+source_directory="$HOME/Documents"
+[ -d "$source_directory" ] && [ ! -L "$source_directory" ] \
+  || die "$source_directory is not a local directory"
+required_bytes="$(du -sb "$source_directory" | awk '{print $1}')"
+available_bytes="$(df -B1 --output=avail "$runtime" | awk 'NR == 2 {print $1}')"
+[ "$available_bytes" -gt $((required_bytes + 67108864)) ] \
+  || die "$runtime lacks space for the one-time document archive"
+archive="$runtime/documents.$token.tar"
+checksum="$runtime/documents.$token.sha256"
+tar -cf "$archive" -C "$source_directory" .
+sha256sum "$archive" | awk '{print $1 "  archive"}' >"$checksum"
+chmod 0600 "$archive" "$checksum"
+printf 'put %s /upload/documents.%s.tar.tmp\nrename /upload/documents.%s.tar.tmp /upload/documents.%s.tar.ready\nput %s /upload/documents.%s.sha256.tmp\nrename /upload/documents.%s.sha256.tmp /upload/documents.%s.sha256.ready\n' \
+  "$archive" "$token" "$token" "$token" \
+  "$checksum" "$token" "$token" "$token" | sftp_batch
+rm -f "$archive" "$checksum"

@@ -1,0 +1,12 @@
+[Unit]
+Description=Offer the Strongbox KDBX archive every four hours
+
+[Timer]
+OnCalendar=*-*-* 00,04,08,12,16,20:05:00
+Persistent=true
+RandomizedDelaySec=10m
+Unit=vault-ingest-kdbx.service
+
+[Install]
+WantedBy=timers.target
+

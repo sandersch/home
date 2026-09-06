@@ -36,6 +36,17 @@ phase order. All paths are owned by `root`; set the perms noted per file.
 | `etc/systemd/system/mdcheck_start.service.d/override.conf` | same | `root:root` `644` | caps scheduled `md3` checks at `50000` KiB/s and restores the system default afterward |
 | `etc/systemd/system/mdcheck_continue.service.d/override.conf` | same | `root:root` `644` | applies the same cap to each continuation window; `sudo systemctl daemon-reload` after install |
 | `etc/fstab` | `/etc/fstab` | `root:root` `644` | reconcile the `/boot/efi` UUID with this disk (see Phase 0.4), create the four `/mnt/...` mountpoints, and verify every direct mount against its LVM device and ext4 UUID |
+| `usr/local/sbin/backups-mountpoint-guard` | same | `root:root` `755` | refuses a mounted path, then enforces `root:root 0555` plus `chattr +i` on the uncovered `/mnt/backups` directory |
+| `etc/systemd/system/backups-mountpoint-guard.service` | same | `root:root` `644` | `sudo systemctl daemon-reload && sudo systemctl enable backups-mountpoint-guard.service`; use `runbooks/backups/01-install-backup-guard.sh` for the attended first activation |
+| `etc/tmpfiles.d/homelab-backup-metrics.conf` | same | `root:root` `644` | `sudo systemd-tmpfiles --create`; creates the root-owned, node-exporter-readable textfile collector directory on `/var` |
+| `usr/local/sbin/vault-mountpoint-guard` | same | `root:root` `755` | refuses a mounted vault, then protects the uncovered `/mnt/vault` directory with `0555` plus `chattr +i` |
+| `usr/local/sbin/vault-unlock` | same | `root:root` `755` | verifies the configured LUKS/ext4 UUIDs, prompts through `cryptsetup`, mounts `/dev/mapper/vault`, and checks `.vault-sentinel` |
+| `etc/systemd/system/vault-mountpoint-guard.service` | same | `root:root` `644` | enabled only after `runbooks/backups/04-install-vault-host-config.sh` records the generated UUIDs |
+| `etc/ssh/sshd_config_vault_ingest` | same | `root:root` `600` | dedicated key-only `internal-sftp` policy for `vault-ingest-ryze`; `UsePAM yes` permits public-key authentication to the locked system identity while password and keyboard-interactive authentication remain disabled; installed by `runbooks/backups/08-install-vault-ingest-server.sh` |
+| `etc/ssh/vault-ingest-authorized-keys/vault-ingest-ryze` | `/etc/ssh/vault-ingest-authorized-keys/vault-ingest-ryze` | `root:root` `644` | readable by the ingestion identity; generated public half only; created by the attended ryze enrollment and never contains the private key |
+| `etc/systemd/system/vault-ingest-sshd.socket` + `vault-ingest-sshd@.service` | same | `root:root` `644` | socket-activated SFTP listener bound to `10.137.20.5:2222`; the firewall admits only `10.137.30.6` on `lan0` |
+| `etc/systemd/system/vault-ingest-promote.path` + `.service` | same | `root:root` `644` | watches only while the vault is unlocked and promotes validated KDBX/document uploads into canonical paths |
+| `usr/local/sbin/vault-ingest-promote` | same | `root:root` `755` | validates ownership, archive paths, KDBX signature, size, and hashes before atomic promotion |
 
 **SSH (key-only):** `sshd_config.d/10-homelab.conf` sets `PasswordAuthentication no` and
 `PermitRootLogin no`. On restore, **copy your public key up and confirm a key login works
