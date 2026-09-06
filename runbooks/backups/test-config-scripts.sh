@@ -73,6 +73,14 @@ for cronjob in restic-vault-cronjob.yaml restic-verify-cronjob.yaml; do
   ' "$manifest")
 done
 
+for cronjob in restic-vault-cronjob.yaml restic-verify-cronjob.yaml; do
+  yq -e '
+    .spec.jobTemplate.spec.template.spec.securityContext.runAsUser == 0 and
+    .spec.jobTemplate.spec.template.spec.securityContext.runAsGroup == 65534
+  ' "$repo_root/infrastructure/monitoring/$cronjob" >/dev/null \
+    || { echo "$cronjob must declare the Pod-level user paired with its group" >&2; exit 1; }
+done
+
 # Exercise the actual attended Job transformation, including its ownership
 # privilege, without creating anything in the cluster.
 restore_filter="$tmpdir/restore-job.jq"

@@ -27,6 +27,7 @@ spec:
           nodeSelector:
             kubernetes.io/hostname: minis
           securityContext:
+            runAsUser: 0
             runAsGroup: 65534
             seccompProfile:
               type: RuntimeDefault
