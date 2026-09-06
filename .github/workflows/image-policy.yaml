@@ -18,6 +18,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Install backup test tooling
+        run: |
+          python3 -m venv "$RUNNER_TEMP/backup-tools"
+          "$RUNNER_TEMP/backup-tools/bin/pip" install --quiet 'yq==3.4.3'
+          echo "$RUNNER_TEMP/backup-tools/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/backup-tools/bin/yq" --version
+
       - name: Validate immutable image inventory
         run: |
           runbooks/version-management/test-image-policy.sh
