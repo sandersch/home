@@ -47,9 +47,8 @@ for cronjob in restic-vault-cronjob.yaml restic-verify-cronjob.yaml; do
     [$pod.volumes[] | select(.hostPath.type == "File" or .hostPath.type == "FileOrCreate") | .name] as $files |
     all($pod.containers[].volumeMounts[];
       . as $mount |
-      if ($files | index($mount.name)) != null then
-        (.subPath // "") == "" and (.subPathExpr // "") == ""
-      else true end)
+      ($files | index($mount.name)) == null or
+      ((.subPath // "") == "" and (.subPathExpr // "") == ""))
   ' "$repo_root/infrastructure/monitoring/$cronjob" >/dev/null \
     || { echo "$cronjob mounts a child beneath a file hostPath" >&2; exit 1; }
 done
