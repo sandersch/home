@@ -5,6 +5,17 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
+# The attended runbooks require the Python jq-wrapper yq, while GitHub-hosted
+# runners provide Mike Farah's Go yq. Keep this test portable across both
+# command-line interfaces while exercising the same YAML transformation.
+if yq eval --help 2>&1 | grep -q 'prettyPrint'; then
+  yq_yaml() { yq eval -P "$@"; }
+  yq_edit() { yq eval -P -i "$@"; }
+else
+  yq_yaml() { yq -y "$@"; }
+  yq_edit() { yq -y -i "$@"; }
+fi
+
 files=(
   infrastructure/monitoring/restic-mount-guard.yaml
   infrastructure/monitoring/restic-vault-config.yaml
@@ -71,11 +82,11 @@ awk '
   printing { print }
 ' "$repo_root/runbooks/backups/06-validate-vault-restore.sh" >"$restore_filter"
 [ -s "$restore_filter" ]
-yq -y '{spec: .spec.jobTemplate.spec}' \
+yq_yaml '{spec: .spec.jobTemplate.spec}' \
   "$repo_root/infrastructure/monitoring/restic-vault-cronjob.yaml" \
   >"$tmpdir/restore-job.yaml"
 VAULT_SNAPSHOT=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-  yq -y -i -f "$restore_filter" "$tmpdir/restore-job.yaml"
+  yq_edit -f "$restore_filter" "$tmpdir/restore-job.yaml"
 yq -e '
   .spec.template.spec.containers[0] |
   (.securityContext.capabilities.drop == ["ALL"]) and
