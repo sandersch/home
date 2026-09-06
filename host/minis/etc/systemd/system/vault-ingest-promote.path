@@ -1,8 +1,7 @@
 [Unit]
 Description=Watch for completed vault-ingestion uploads
-After=mnt-vault.mount
+After=local-fs.target
 
 [Path]
 PathChanged=/mnt/vault/inbox/ryze/upload
 Unit=vault-ingest-promote.service
-

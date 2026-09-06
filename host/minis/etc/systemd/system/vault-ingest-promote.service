@@ -1,7 +1,7 @@
 [Unit]
 Description=Validate and promote vault-ingestion uploads
-After=mnt-vault.mount
-Requires=mnt-vault.mount
+After=local-fs.target
+ConditionPathIsMountPoint=/mnt/vault
 
 [Service]
 Type=oneshot
@@ -13,4 +13,3 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ReadWritePaths=/mnt/vault /var/lib/node-exporter/textfile
 ProtectHome=yes
-

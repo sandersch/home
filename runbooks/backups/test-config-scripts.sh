@@ -102,6 +102,12 @@ grep -q 'mv -- "$archive" "$claimed_archive"' "$promoter" \
   && grep -q 'tar -xf "$frozen_archive"' "$promoter" \
   || { echo "document promotion must validate and extract a root-only frozen archive" >&2; exit 1; }
 
+promoter_unit="$repo_root/host/minis/etc/systemd/system/vault-ingest-promote.service"
+grep -qx 'ConditionPathIsMountPoint=/mnt/vault' "$promoter_unit" \
+  || { echo "vault promoter must require the mounted vault path" >&2; exit 1; }
+! grep -qx 'Requires=mnt-vault.mount' "$promoter_unit" \
+  || { echo "vault promoter must not depend on a generated noauto mount unit" >&2; exit 1; }
+
 exclusion_filter="$tmpdir/detect-vault-exclusions.jq"
 yq -r '.data."detect-vault-exclusions.jq"' \
   "$repo_root/infrastructure/monitoring/restic-vault-config.yaml" >"$exclusion_filter"
