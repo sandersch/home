@@ -93,3 +93,10 @@ one photo without changing the NAS baseline. If a destination snapshot is presen
 ledger evidence, the copy job creates a destination hold; use
 `15-resolve-vault-b2-validation-hold.sh` with its exact B2 snapshot ID to revalidate it and
 record the ledger evidence.
+
+Phase 4 host enrollment stages credentials only in verified `/dev/shm` tmpfs and
+opens the source repository inside a privileged process. Secret values are read
+inside that process rather than passed through sudo arguments; host B2 commands
+also disable persistent Restic caches. `test-phase4-b2.sh` runs behavioral fixtures
+for timestamp offsets/fractions, enrollment permissions and failures, and the
+credential boundary without contacting B2 or the cluster.

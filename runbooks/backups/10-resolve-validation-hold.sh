@@ -45,11 +45,14 @@ if [ "$HOLD_ACTION" = reject ]; then
     : "${VAULT_B2_REPOSITORY:?VAULT_B2_REPOSITORY is required}"
     destination_listing="$(mktemp)"
     trap 'rm -f "$destination_listing"' EXIT
-    sudo env \
-      AWS_ACCESS_KEY_ID="$(sudo cat /mnt/vault/.backup-credentials/b2-key-id)" \
-      AWS_SECRET_ACCESS_KEY="$(sudo cat /mnt/vault/.backup-credentials/b2-application-key)" \
-      RESTIC_PASSWORD_FILE=/mnt/vault/.backup-credentials/b2-password \
-      restic -r "$VAULT_B2_REPOSITORY" snapshots --json \
+    sudo bash -c '
+      set -Eeuo pipefail
+      AWS_ACCESS_KEY_ID="$(cat /mnt/vault/.backup-credentials/b2-key-id)"
+      AWS_SECRET_ACCESS_KEY="$(cat /mnt/vault/.backup-credentials/b2-application-key)"
+      export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+      export RESTIC_PASSWORD_FILE=/mnt/vault/.backup-credentials/b2-password
+      exec restic --no-cache -r "$1" snapshots --json
+    ' vault-b2-list "$VAULT_B2_REPOSITORY" \
       | tee "$destination_listing" >/dev/null \
       || die "cannot prove destination absence; refusing rejection"
     if jq -e --arg lineage "$hold_lineage" 'any(.[]; (.original // .id) == $lineage)' "$destination_listing" >/dev/null; then

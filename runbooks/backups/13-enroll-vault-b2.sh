@@ -21,7 +21,9 @@ sudo grep -qxF 'vault-contract-version=2' /mnt/vault/.vault-sentinel \
 sudo test -f /mnt/backups/vault/config \
   || die "vault NAS repository is not initialized"
 
-tmpdir="$(mktemp -d)"
+# Keep staging off persistent storage even when the caller overrides TMPDIR.
+[ "$(stat -f -c %T /dev/shm)" = tmpfs ] || die "/dev/shm must be tmpfs"
+tmpdir="$(mktemp -d /dev/shm/vault-b2-enroll.XXXXXX)"
 trap 'rm -rf "$tmpdir"' EXIT
 umask 077
 printf 'Enter the new vault B2 repository password: '
@@ -29,7 +31,7 @@ read -r -s b2_password
 printf '\nConfirm the vault B2 repository password: '
 read -r -s b2_password_again
 printf '\n'
-[ "$b2_password" = "$b2_password_again" ] || die "repository passwords differ"
+[ -n "$b2_password" ] && [ "$b2_password" = "$b2_password_again" ] || die "repository passwords differ"
 printf 'B2 application key ID: '
 read -r b2_key_id
 printf 'B2 application key secret: '
@@ -38,29 +40,37 @@ printf '\n'
 [ -n "$b2_key_id" ] && [ -n "$b2_key" ] || die "B2 key fields may not be empty"
 
 printf '%s\n' "$b2_password" >"$tmpdir/password"
-if ! AWS_ACCESS_KEY_ID="$b2_key_id" AWS_SECRET_ACCESS_KEY="$b2_key" \
-  RESTIC_PASSWORD_FILE="$tmpdir/password" \
-  restic -r "$VAULT_B2_REPOSITORY" snapshots >/dev/null 2>&1; then
-  AWS_ACCESS_KEY_ID="$b2_key_id" AWS_SECRET_ACCESS_KEY="$b2_key" \
-    RESTIC_PASSWORD_FILE="$tmpdir/password" \
-    RESTIC_FROM_PASSWORD_FILE=/mnt/vault/.backup-credentials/nas-password \
-    restic -r "$VAULT_B2_REPOSITORY" init --from-repo /mnt/backups/vault --copy-chunker-params \
-    || die "B2 repository initialization failed; credential files were retained for retry"
-else
-  log "B2 repository already initialized; preserving its chunker parameters"
-fi
-AWS_ACCESS_KEY_ID="$b2_key_id" AWS_SECRET_ACCESS_KEY="$b2_key" \
-  RESTIC_PASSWORD_FILE="$tmpdir/password" \
-  restic -r "$VAULT_B2_REPOSITORY" snapshots --json >/dev/null \
-  || die "B2 repository cannot be opened after initialization"
+printf '%s\n' "$b2_key_id" >"$tmpdir/key-id"
+printf '%s\n' "$b2_key" >"$tmpdir/application-key"
+unset b2_password b2_password_again b2_key_id b2_key
 
-# Persist credentials only after the destination has proved that the new password
-# and application key work. A failed enrollment therefore leaves no half-valid
-# credential set inside the encrypted vault.
-printf '%s\n' "$b2_password" | sudo tee /mnt/vault/.backup-credentials/b2-password >/dev/null
-printf '%s\n' "$b2_key_id" | sudo tee /mnt/vault/.backup-credentials/b2-key-id >/dev/null
-printf '%s\n' "$b2_key" | sudo tee /mnt/vault/.backup-credentials/b2-application-key >/dev/null
-sudo chown root:root /mnt/vault/.backup-credentials/b2-password /mnt/vault/.backup-credentials/b2-key-id /mnt/vault/.backup-credentials/b2-application-key
-sudo chmod 0600 /mnt/vault/.backup-credentials/b2-password /mnt/vault/.backup-credentials/b2-key-id /mnt/vault/.backup-credentials/b2-application-key
+# Only paths and the repository URL cross sudo's argv/logging boundary. Read the
+# staged credentials inside the privileged process that can open the NAS password.
+sudo bash -s -- "$tmpdir" "$VAULT_B2_REPOSITORY" <<'ROOT'
+set -Eeuo pipefail
+staging="$1"
+repository="$2"
+export TMPDIR="$staging"
+AWS_ACCESS_KEY_ID="$(cat "$staging/key-id")"
+AWS_SECRET_ACCESS_KEY="$(cat "$staging/application-key")"
+export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+export RESTIC_PASSWORD_FILE="$staging/password"
+# Host commands must not leave vault metadata in a persistent Restic cache.
+restic() { command restic --no-cache "$@"; }
+if restic -r "$repository" snapshots >/dev/null 2>&1; then
+  printf 'B2 repository already initialized; preserving its chunker parameters\n'
+else
+  result="$?"
+  [ "$result" -eq 10 ] || { printf 'Cannot open B2 repository (exit %s)\n' "$result" >&2; exit "$result"; }
+  RESTIC_FROM_PASSWORD_FILE=/mnt/vault/.backup-credentials/nas-password \
+    restic -r "$repository" init --from-repo /mnt/backups/vault --copy-chunker-params
+fi
+restic -r "$repository" snapshots --json >/dev/null
+
+# Persist only after proving the destination password and application key work.
+install -o root -g root -m 0600 "$staging/password" /mnt/vault/.backup-credentials/b2-password
+install -o root -g root -m 0600 "$staging/key-id" /mnt/vault/.backup-credentials/b2-key-id
+install -o root -g root -m 0600 "$staging/application-key" /mnt/vault/.backup-credentials/b2-application-key
+ROOT
 
 ok "vault B2 repository initialized; leave restic-vault-copy suspended until the manual copy and restore gates pass"

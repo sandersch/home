@@ -133,3 +133,5 @@ assert 'destination="b2"' in alerts
 assert not (root / 'infrastructure/monitoring/restic-vault.sops.yaml').exists()
 print('Phase 4 B2 manifest and guard assertions passed')
 PY
+
+python3 "$repo_root/runbooks/backups/test-phase4-p1.py"
