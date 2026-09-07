@@ -56,8 +56,9 @@ data:
     # Record intent before contacting B2. If this process is interrupted after
     # contact, recovery must prove destination absence instead of treating the
     # host as never enrolled.
-    touch /etc/homelab/vault-b2.enrolled
-    chmod 0600 /etc/homelab/vault-b2.enrolled
+    marker_tmp="$(mktemp /etc/homelab/vault-b2.enrolled.XXXXXX)"
+    chmod 0600 "$marker_tmp"
+    mv -f "$marker_tmp" /etc/homelab/vault-b2.enrolled
     probe_log="$staging/repository-probe.log"
     if restic -r "$VAULT_B2_REPOSITORY" snapshots >"$probe_log" 2>&1; then
       log "B2 repository already initialized; preserving its chunker parameters"

@@ -36,6 +36,7 @@ kubectl -n monitoring create job "$job" --from=cronjob/restic-vault-copy \
 yq -y -i '
   .spec.backoffLimit = 0 |
   .spec.activeDeadlineSeconds = 3600 |
+  .spec.template.spec.securityContext.runAsGroup = 0 |
   .spec.template.spec.containers[0].command = ["/bin/bash", "-c", "sleep 3600"] |
   .spec.template.spec.containers[0].volumeMounts |= map(
     if .name == "vault" or .name == "host-config" then .readOnly = false else . end
