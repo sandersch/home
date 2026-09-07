@@ -21,6 +21,8 @@ restore_script = copy['data']['validate-vault-b2-restore.sh']
 destination_resolver = copy['data']['resolve-vault-b2-validation-hold.sh']
 resolver_wrapper = (root / 'runbooks/backups/10-resolve-validation-hold.sh').read_text()
 assert 'restic copy --from-repo "$source_repo" "$snapshot_id"' in copy_script
+assert 'restic stats --json --mode raw-data' in copy_script
+assert 'restic stats --json --mode restore-size' not in copy_script
 assert '/vault-scripts/validate-vault-snapshot.sh "$destination_id"' in copy_script
 assert '/vault-scripts/validate-vault-snapshot.sh "$snapshot_id"' in copy_script
 assert 'original // .id' in copy_script and 'validated.jsonl' in copy_script

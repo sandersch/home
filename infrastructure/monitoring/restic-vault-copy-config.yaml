@@ -185,7 +185,7 @@ data:
     done < <(jq -r '.[] | select(.hostname == "minis-vault") | [.id, (.original // .id), (.time // "1970-01-01T00:00:00Z")] | @tsv' "$source_listing")
 
     [ "$source_count" -gt 0 ] || die "vault NAS repository has no snapshots"
-    destination_size="$(restic stats --json --mode restore-size | jq -er '.total_size // 0')"
+    destination_size="$(restic stats --json --mode raw-data | jq -er '.total_size // 0')"
     write_metrics 0 "$newest" "$copied_count" "$missing_count" "$destination_size"
     if [ "$missing_count" -gt 0 ]; then
       log "$missing_count vault snapshot(s) were not eligible for replication; newer eligible lineages were processed"
