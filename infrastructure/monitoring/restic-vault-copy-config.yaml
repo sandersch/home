@@ -61,7 +61,7 @@ data:
         printf 'homelab_restic_replication_missing_snapshots{dataset="vault",destination="b2"} %s\n' "$missing"
         printf 'homelab_restic_validation_hold{dataset="vault",destination="b2"} %s\n' "$hold_count"
         printf 'homelab_restic_repository_size_bytes{dataset="vault",destination="b2"} %s\n' "$size"
-        printf 'homelab_restic_repository_ceiling_bytes{dataset="vault",destination="b2"} 107374182400\n'
+        printf 'homelab_restic_repository_ceiling_bytes{dataset="vault",destination="b2"} 100000000000\n'
       } >"$tmp"
       chmod 0640 "$tmp"
       mv -f "$tmp" "$metrics"

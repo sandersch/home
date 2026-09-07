@@ -280,7 +280,7 @@ spec:
           labels:
             severity: warning
           annotations:
-            description: The mounted vault repository has no recorded semantic restore drill in 100 days.
+            description: "{{ $labels.dataset }}/{{ $labels.destination }} has no recorded semantic restore drill in 100 days."
             summary: Vault restore drill is overdue
         - alert: StrongboxVaultIngestionStale
           expr: |
