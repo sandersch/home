@@ -163,6 +163,13 @@ print('PASS: restore selection handles large listings and rejects missing conten
 print('Phase 4 B2 manifest and guard assertions passed')
 PY
 
+seed="$repo_root/runbooks/backups/16-seed-vault-b2.sh"
+grep -q 'activeDeadlineSeconds = 86400' "$seed"
+grep -q 'RESTIC_LOCK_RETRY.*12h' "$seed"
+grep -q 'restic-vault-copy must remain suspended' "$seed"
+grep -q -- '--from=cronjob/restic-vault-copy' "$seed"
+grep -q 'job=restic-vault-b2-seed' "$seed"
+
 python3 "$repo_root/runbooks/backups/test-phase4-p1.py"
 
 python3 "$repo_root/runbooks/backups/test-b2-retention.py"

@@ -1764,6 +1764,7 @@ Gmail app-password copy.
 `.github/workflows/mail-archive-image.yaml`, `host/ryze/`, `host/m5c/`, and
 `runbooks/backups/` (the staged attended sequence plus
 `10-resolve-validation-hold.sh`, `13-enroll-vault-b2.sh`, `14-validate-vault-b2-restore.sh`,
+`16-seed-vault-b2.sh`,
 `15-resolve-vault-b2-validation-hold.sh`,
 tests, `lib.sh`, and `README.md` per `runbooks/README.md`
 conventions), plus the released vault and per-workstation contracts under both
@@ -1863,7 +1864,10 @@ Ordered so the highest-value, least-reversible data is protected first.
    `init --from-repo <NAS> --copy-chunker-params`. Wire the password-file-based copy job,
    drill a restore *from B2* (a passing NAS drill is not evidence about B2 — § 3), add
    alerts, then enable `restic-vault-copy` and `restic-vault-prune` through a reviewed
-   Git change. Use `13-enroll-vault-b2.sh` for the credential and repository setup.
+   Git change. Use `13-enroll-vault-b2.sh` for the credential and repository setup, then
+   `16-seed-vault-b2.sh` for the initial copy. Enrollment only initializes the destination;
+   it does not create a B2 snapshot. Run the representative restore against a snapshot
+   produced by the seed before enabling either recurring schedule.
 5. **Workstations** — **two** rest-server Deployments, each with `--append-only` and a
    per-client repo path, htpasswd credential, and repo password (§ 4). Do **not** pass
    `--private-repos`: one shared process would make `--max-size` a server-wide limit and

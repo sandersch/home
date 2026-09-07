@@ -83,9 +83,12 @@ fixtures cover source changes during backup, invalid manifests, repository read 
 interrupted rejection, and both automount shutdown outcomes without touching live storage.
 
 Phase 4 enrollment uses `13-enroll-vault-b2.sh` after creating the dedicated bucket and
-installing `/etc/homelab/vault-b2.conf`. The copy and prune CronJobs are committed
-suspended. Run the enrollment script, perform the manual copy and B2 restore gates, then
-enable both schedules in a reviewed Git change. A locked vault is an intentional successful
+installing `/etc/homelab/vault-b2.conf`. Enrollment initializes an empty B2 repository;
+it does not seed the vault. Keep both recurring CronJobs suspended, then run
+`16-seed-vault-b2.sh`. It creates a one-off Job with a 24-hour deadline and copies every
+validated NAS lineage. Select a destination snapshot from that completed seed and run
+`14-validate-vault-b2-restore.sh`; only after both gates pass should a reviewed Git change
+enable the recurring copy and prune schedules. A locked vault is an intentional successful
 skip; it must not cause the copy job to read credentials from the root filesystem.
 Use `14-validate-vault-b2-restore.sh` with a full destination snapshot ID for the attended
 representative restore; it validates the released contract, `ccs.kdbx`, one document, and
