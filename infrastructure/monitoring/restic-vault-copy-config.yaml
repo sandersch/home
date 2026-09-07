@@ -18,6 +18,7 @@ data:
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
     die() { log "ERROR: $*" >&2; exit 1; }
     restic_lock_retry=3h
+    export RESTIC_LOCK_RETRY="$restic_lock_retry"
     restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
     source_repo=/repo/nas/vault
     control=/repo/nas/.control/vault

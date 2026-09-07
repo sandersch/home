@@ -1157,9 +1157,10 @@ non-append-only Service whose only purpose would be to hold delete rights.
 Prune and a client push do **not** run concurrently: destructive `forget` and `prune`
 operations take exclusive repo locks, and restic's locking is enforced on the repo itself,
 so it applies equally whether a process arrived over REST or over the hostPath. Locking
-makes overlap safe, not free. The recurring vault backup, copy, prune, and shared
-snapshot-validation scripts use a bounded three-hour `--retry-lock`, so a legitimate overlap
-waits instead of paging. Workstation prune scheduling remains separate from this vault-job policy.
+makes overlap safe, not free. The recurring vault copy and prune jobs use a bounded three-hour
+`--retry-lock`; the two-hour vault backup Job uses a 90-minute bound, and passes that bound to
+shared snapshot validation. A legitimate overlap therefore waits without allowing a backup
+Job to outlive its deadline. Workstation prune scheduling remains separate from this policy.
 
 There is one non-obvious quota consequence. rest-server accounts repository size in memory;
 a direct hostPath prune bypasses that accounting, so the server continues to believe the

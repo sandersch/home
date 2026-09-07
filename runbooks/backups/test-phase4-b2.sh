@@ -23,7 +23,11 @@ retry_wrapper = 'restic() { command restic --retry-lock "$restic_lock_retry" "$@
 assert retry_wrapper in copy_script
 assert retry_wrapper in prune_script
 assert retry_wrapper in vault['data']['validate-vault-snapshot.sh']
-assert retry_wrapper in vault['data']['backup-vault.sh']
+assert 'restic_lock_retry="${RESTIC_LOCK_RETRY:-90m}"' in vault['data']['validate-vault-snapshot.sh']
+assert 'restic_lock_retry=90m' in vault['data']['backup-vault.sh']
+assert 'export RESTIC_LOCK_RETRY="$restic_lock_retry"' in copy_script
+assert 'restic_lock_retry=3h' in copy_script
+assert 'restic_lock_retry=3h' in prune_script
 restore_script = copy['data']['validate-vault-b2-restore.sh']
 destination_resolver = copy['data']['resolve-vault-b2-validation-hold.sh']
 resolver_wrapper = (root / 'runbooks/backups/10-resolve-validation-hold.sh').read_text()
