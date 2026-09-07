@@ -172,6 +172,11 @@ grep -q 'RESTIC_LOCK_RETRY.*12h' "$seed"
 grep -q 'restic-vault-copy must remain suspended' "$seed"
 grep -q -- '--from=cronjob/restic-vault-copy' "$seed"
 grep -q 'job=restic-vault-b2-seed' "$seed"
+for attended in 14-validate-vault-b2-restore.sh 15-resolve-vault-b2-validation-hold.sh 16-seed-vault-b2.sh; do
+  grep -q 'status.failed' "$repo_root/runbooks/backups/$attended"
+  grep -q 'status.succeeded' "$repo_root/runbooks/backups/$attended"
+  ! grep -q 'wait --for=condition=complete' "$repo_root/runbooks/backups/$attended"
+done
 
 python3 "$repo_root/runbooks/backups/test-phase4-p1.py"
 

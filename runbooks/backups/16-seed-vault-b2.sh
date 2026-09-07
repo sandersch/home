@@ -37,7 +37,16 @@ yq -y -i '
   )
 ' "$manifest"
 kubectl apply -f "$manifest" >/dev/null
-kubectl -n monitoring wait --for=condition=complete "job/$job" --timeout=90000s \
-  || { kubectl -n monitoring logs "job/$job" --all-containers=true || true; die "$job failed"; }
+deadline=$((SECONDS + 90000))
+while :; do
+  status="$(kubectl -n monitoring get job "$job" -o json)" || die "cannot inspect $job"
+  if jq -e '(.status.failed // 0) > 0' <<<"$status" >/dev/null; then
+    kubectl -n monitoring logs "job/$job" --all-containers=true || true
+    die "$job failed"
+  fi
+  if jq -e '(.status.succeeded // 0) > 0' <<<"$status" >/dev/null; then break; fi
+  [ "$SECONDS" -lt "$deadline" ] || die "$job did not reach a terminal state before the timeout"
+  sleep 10
+done
 kubectl -n monitoring logs "job/$job" --all-containers=true
 ok "B2 vault seed completed; validate a destination snapshot before activation"
