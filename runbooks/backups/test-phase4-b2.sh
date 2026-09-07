@@ -114,8 +114,8 @@ assert 'restic-vault-copy.prom' in resolver_wrapper
 assert 'vault B2 is enabled but /etc/homelab/vault-b2.conf is absent or unreadable' in resolver_wrapper
 assert 'cannot prove destination absence; refusing rejection' in resolver_wrapper
 assert '| tee "$destination_listing" >/dev/null' in resolver_wrapper
-assert copy_job['spec']['suspend'] is True
-assert prune_job['spec']['suspend'] is True
+assert copy_job['spec']['suspend'] is False
+assert prune_job['spec']['suspend'] is False
 copy_container = copy_job['spec']['jobTemplate']['spec']['template']['spec']['containers'][0]
 assert copy_container['resources']['limits']['memory'] == '4Gi'
 copy_tmp = next(v for v in copy_job['spec']['jobTemplate']['spec']['template']['spec']['volumes'] if v['name'] == 'tmp')
