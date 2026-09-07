@@ -38,6 +38,22 @@ data:
       chmod 0640 "$tmp"
       mv -f "$tmp" "$metrics"
     }
+    assert_no_destination_holds() {
+      local holds="$destination_control/holds" held
+      # Copy creates this directory lazily on its first hold. Absence is healthy;
+      # an unreadable/invalid path or any hold entry must block deletion.
+      if [ -e "$holds" ] || [ -L "$holds" ]; then
+        [ -d "$holds" ] && [ ! -L "$holds" ] \
+          || { write_metrics 1 0 destination-hold; log "B2 hold directory is invalid; skipping retention"; exit 0; }
+        if ! held="$(find "$holds" -name '*.json' -print -quit)"; then
+          write_metrics 1 0 destination-hold
+          log "cannot inspect B2 holds; skipping retention"
+          exit 0
+        fi
+        [ -z "$held" ] \
+          || { write_metrics 1 0 destination-hold; log "B2 has unresolved validation holds; skipping retention"; exit 0; }
+      fi
+    }
     collect_candidates() {
       local repo="$1" password_file="$2" output="$3" raw="${3}.json"
       if ! RESTIC_PASSWORD_FILE="$password_file" restic -r "$repo" forget --dry-run --json --group-by host \
@@ -156,6 +172,21 @@ data:
       || { write_metrics 1 0 stale-destination; log "latest B2 snapshot is older than the 36-hour copy tolerance; skipping retention"; exit 0; }
     jq -s -e --arg lineage "$latest_destination_lineage" 'any(.[]; .lineage == $lineage)' "$destination_control/validated.jsonl" >/dev/null \
       || { write_metrics 1 0 destination-ledger; log "latest B2 snapshot is absent from the validation ledger; skipping retention"; exit 0; }
+    # Validate B2 independently: a healthy newer NAS snapshot does not prove the
+    # destination's newest snapshot still satisfies this dataset's healthy baseline.
+    assert_no_destination_holds
+    export RESTIC_REPOSITORY="$VAULT_B2_REPOSITORY"
+    export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
+    destination_manifest=/work/latest-destination-manifest.json
+    /vault-scripts/validate-vault-snapshot.sh "$latest_destination_id" >"$destination_manifest" \
+      || { write_metrics 1 0 destination-validation; log "latest B2 snapshot failed independent content validation; skipping retention"; exit 0; }
+    jq -e '.contract == "vault-v2" and (.total_files | type == "number") and (.total_bytes | type == "number")' "$destination_manifest" >/dev/null \
+      || { write_metrics 1 0 destination-manifest; log "latest B2 snapshot manifest is invalid; skipping retention"; exit 0; }
+    destination_files="$(jq -er '.total_files' "$destination_manifest")"
+    destination_bytes="$(jq -er '.total_bytes' "$destination_manifest")"
+    [ "$destination_files" -ge $((baseline_files * minimum_retained_percent / 100)) ] \
+      && [ "$destination_bytes" -ge $((baseline_bytes * minimum_retained_percent / 100)) ] \
+      || { write_metrics 1 0 destination-baseline-tolerance; log "latest B2 snapshot is below the healthy baseline tolerance; skipping retention"; exit 0; }
     collect_candidates "$source_repo" /data/vault/.backup-credentials/nas-password /work/source-candidates
     mapfile -t source_candidates < /work/source-candidates
     unreplicated=0
@@ -199,6 +230,8 @@ data:
       log "$destination_unvalidated B2 removal candidate(s) lack validation evidence; skipping B2 retention"
       exit 0
     fi
+    # NAS pruning and candidate checks may take time; honor holds created meanwhile.
+    assert_no_destination_holds
     if [ "${#destination_candidates[@]}" -gt 0 ]; then
       restic -r "$VAULT_B2_REPOSITORY" snapshots "${destination_candidates[@]}" --json >/dev/null \
         || die "a verified B2 candidate disappeared before explicit forget"

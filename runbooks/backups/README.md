@@ -106,3 +106,9 @@ first-run failure, recovery, initial enrollment grace, repeated scheduling, and
 mounted/enabled gates. It also verifies that copy metrics preserve the enrollment
 timestamp across subsequent runs. CI uses an immutable Prometheus container;
 locally, put `promtool` on PATH or set `PROMTOOL` to its command.
+
+The vault prune job checks B2 holds and independently validates the newest B2
+snapshot against the vault's healthy baseline before selecting removal candidates.
+It checks destination holds again after NAS pruning, before B2 deletion.
+`test-phase4-b2.sh` includes disposable retention fixtures for these guards,
+file/byte shrink thresholds, and successful exact-ID deletion ordering.
