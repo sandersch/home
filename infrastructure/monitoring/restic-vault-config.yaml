@@ -42,7 +42,7 @@ data:
     exclusions=/contracts/vault-v2.excludes
     work="$(mktemp -d /work/validate-snapshot.XXXXXX)"
     trap 'rm -rf -- "$work"' EXIT
-    trap 'printf "snapshot validation failed at line %s for %s\n" "$LINENO" "$snapshot" >&2' ERR
+    trap 'printf "snapshot validation failed at line %s: %s for %s\n" "$LINENO" "$BASH_COMMAND" "$snapshot" >&2' ERR
     contract_hash="$(sha256sum "$contract" | awk '{print $1}')"
     exclusion_hash="$(sha256sum "$exclusions" | awk '{print $1}')"
     [ "$exclusion_hash" = "$(jq -er '.exclusion_sha256' "$contract")" ]
