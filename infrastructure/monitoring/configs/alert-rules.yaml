@@ -175,6 +175,7 @@ spec:
         - alert: ResticReplicationLag
           expr: |
             homelab_restic_unreplicated_candidates{dataset="vault",destination="nas"} > 0
+            unless on() (homelab_restic_replication_missing_snapshots{dataset="vault",destination="b2"} == 0)
             and on() (homelab_backup_repository_enrolled{dataset="vault",destination="b2"} == 1)
             and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)
           for: 15m
