@@ -115,3 +115,7 @@ snapshot against the vault's healthy baseline before selecting removal candidate
 It checks destination holds again after NAS pruning, before B2 deletion.
 `test-phase4-b2.sh` includes disposable retention fixtures for these guards,
 file/byte shrink thresholds, and successful exact-ID deletion ordering.
+
+The weekly prune runs Saturday at 23:30. Its B2 validation is network-bound and
+its NAS/B2 retention phases take exclusive repository locks, so this slot gives
+the job several hours before Sunday's 02:15 vault backup and 04:45 B2 copy.

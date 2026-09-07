@@ -6,7 +6,9 @@ metadata:
   labels:
     app.kubernetes.io/name: restic-vault-prune
 spec:
-  schedule: "30 1 * * 0"
+  # Run Saturday night so exclusive NAS/B2 retention has several hours before
+  # Sunday's 02:15 vault backup and 04:45 B2 copy windows.
+  schedule: "30 23 * * 6"
   timeZone: America/Chicago
   suspend: true
   concurrencyPolicy: Forbid

@@ -58,7 +58,7 @@ vault pipeline:
   destination snapshot that lacks ledger evidence is held under
   `/mnt/backups/.control/vault-b2/holds/` for attended revalidation with
   `runbooks/backups/15-resolve-vault-b2-validation-hold.sh`.
-- `restic-vault-prune` — weekly-capable CronJob, initially suspended; verifies B2 presence
+- `restic-vault-prune` — Saturday 23:30 weekly CronJob, initially suspended; verifies B2 presence
   before explicit NAS deletion and then applies the independent B2 retention policy
 - Sources: `/opt` (read-only, `.snapshots` excluded), `/var/lib/rancher/k3s/server/db`,
   plus hot dumps generated in-job

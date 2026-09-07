@@ -112,7 +112,7 @@ assert '| tee "$destination_listing" >/dev/null' in resolver_wrapper
 assert copy_job['spec']['suspend'] is True
 assert prune_job['spec']['suspend'] is True
 assert copy_job['spec']['schedule'] == '45 4 * * *'
-assert prune_job['spec']['schedule'] == '30 1 * * 0'
+assert prune_job['spec']['schedule'] == '30 23 * * 6'
 mounts = prune_job['spec']['jobTemplate']['spec']['template']['spec']['containers'][0]['volumeMounts']
 assert {m['name'] for m in mounts} >= {'vault-scripts', 'contract'}
 assert 'restic-vault-copy-config.yaml' in kustomization
