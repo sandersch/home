@@ -98,7 +98,7 @@ VAULT_SNAPSHOT=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 
 yq -e '
   .spec.template.spec.containers[0] |
   (.securityContext.capabilities.drop == ["ALL"]) and
-  (.securityContext.capabilities.add | sort == ["CHOWN", "DAC_OVERRIDE"]) and
+  (.securityContext.capabilities.add | sort == ["CHOWN", "DAC_OVERRIDE", "FOWNER"]) and
   (.command[-1] | endswith("exec /scripts/validate-vault-restore.sh")) and
   any(.volumeMounts[]; .name == "vault" and .readOnly == false)
 ' "$tmpdir/restore-job.yaml" >/dev/null
