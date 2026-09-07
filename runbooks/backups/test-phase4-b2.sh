@@ -75,6 +75,12 @@ assert 'restic-vault-copy-cronjob.yaml' in kustomization
 assert 'restic-vault-prune-config.yaml' in kustomization
 assert 'restic-vault-prune-cronjob.yaml' in kustomization
 assert 'ResticVaultCopyOverdue' in alerts
+assert 'ResticPruneFailed' in alerts
+assert 'restic-vault-prune-.*' in alerts
+assert 'kube_cronjob_spec_suspend{namespace="monitoring",cronjob="restic-vault-prune"}' in alerts
+assert 'kube_cronjob_status_last_schedule_time{namespace="monitoring",cronjob="restic-vault-prune"}' in alerts
+assert 'homelab_restic_unreplicated_candidates{dataset="vault",destination="nas"} > 0' in alerts
+assert 'ResticVaultCopySuspended' not in alerts
 assert 'destination="b2"' in alerts
 assert not (root / 'infrastructure/monitoring/restic-vault.sops.yaml').exists()
 print('Phase 4 B2 manifest and guard assertions passed')

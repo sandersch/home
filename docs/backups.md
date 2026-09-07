@@ -1476,6 +1476,7 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticVaultBackupOverdue` | newest validated NAS snapshot older than 8h while vault mounted (critical) |
 | `ResticVaultCopyOverdue` | newest validated B2 lineage older than 36h while vault mounted (critical) |
 | `ResticVaultPruneOverdue` | vault retention has no successful completion in 10d while enrolled and mounted (warning) |
+| `ResticPruneFailed` | a vault retention run failed after a prior success (warning) |
 | `ResticWorkstationCopyOverdue` | no workstation→B2 copy in 8d (warning) — per host |
 | `ResticWorkstationSnapshotTimeInvalid` | a held workstation snapshot has an implausible clock (warning) — § 4 |
 | `ResticSnapshotValidationHeld` | unresolved validation hold for 15m — critical for `vault`, warning per workstation repo |
@@ -1488,7 +1489,7 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticPruneOverdue` | no prune in 10d (warning) |
 | `ResticOfflineDriveStale` | newest successful offline rotation across either drive older than 120d (warning) |
 | `ResticOfflineDriveRotationOverdue` | last successful rotation of an individual drive older than 210d (warning) — per drive |
-| `ResticReplicationLag` | prune skipped a repo for unreplicated snapshots on two consecutive runs (warning) |
+| `ResticReplicationLag` | prune reports unreplicated or unvalidated NAS candidates awaiting B2 (warning) |
 | `ResticRepoNearCeiling` | repo size above 80% of its ceiling (warning) |
 | `ResticRepositoryCheckOverdue` | no successful monthly structural + rotating data check in 40d (warning) — per NAS/B2 repo; vault destinations arm only while mounted |
 | `ResticRestoreDrillOverdue` | quarterly program older than 100d, or a repo/destination without its required annual semantic drill in 400d (warning); vault destinations arm only while mounted |
