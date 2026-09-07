@@ -184,16 +184,6 @@ spec:
           annotations:
             description: Vault NAS retention has unreplicated or unvalidated candidates; B2 replication must catch up before source deletion.
             summary: Vault B2 replication is lagging
-        - alert: ResticVaultCopyNearCeiling
-          expr: |
-            homelab_restic_repository_size_bytes{dataset="vault",destination="b2"}
-            / homelab_restic_repository_ceiling_bytes{dataset="vault",destination="b2"} > 0.80
-          for: 30m
-          labels:
-            severity: warning
-          annotations:
-            description: The vault B2 repository is above 80 percent of its 100 GiB policy ceiling.
-            summary: Vault B2 repository is near its ceiling
         - alert: ResticVaultPruneOverdue
           expr: |
             (
@@ -222,14 +212,14 @@ spec:
             summary: Vault snapshot validation is held
         - alert: ResticRepoNearCeiling
           expr: |
-            homelab_restic_repository_size_bytes{dataset="vault",destination="nas"}
-            / homelab_restic_repository_ceiling_bytes{dataset="vault",destination="nas"} > 0.80
+            homelab_restic_repository_size_bytes
+            / homelab_restic_repository_ceiling_bytes > 0.80
           for: 30m
           labels:
             severity: warning
           annotations:
-            description: The local vault repository is above 80 percent of its 250 GiB policy ceiling.
-            summary: Vault repository is near its ceiling
+            description: The {{ $labels.dataset }} repository on {{ $labels.destination }} is above 80 percent of its policy ceiling.
+            summary: Restic repository is near its ceiling
         - alert: ResticRepositoryCheckOverdue
           expr: |
             (

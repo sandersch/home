@@ -118,6 +118,10 @@ assert 'kube_cronjob_status_last_schedule_time{namespace="monitoring",cronjob="r
 assert 'homelab_restic_unreplicated_candidates{dataset="vault",destination="nas"} > 0' in alerts
 assert 'unless on() (homelab_restic_replication_missing_snapshots{dataset="vault",destination="b2"} == 0)' in alerts
 assert 'ResticVaultCopySuspended' not in alerts
+assert 'ResticVaultCopyNearCeiling' not in alerts
+assert '        - alert: ResticRepoNearCeiling' in alerts
+assert 'homelab_restic_repository_size_bytes\n            / homelab_restic_repository_ceiling_bytes > 0.80' in alerts
+assert 'The {{ $labels.dataset }} repository on {{ $labels.destination }} is above 80 percent of its policy ceiling.' in alerts
 assert 'destination="b2"' in alerts
 assert not (root / 'infrastructure/monitoring/restic-vault.sops.yaml').exists()
 print('Phase 4 B2 manifest and guard assertions passed')
