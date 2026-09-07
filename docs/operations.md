@@ -13,6 +13,7 @@ Several categories of data have different protection needs:
 | GitOps repo (all manifests) | git | GitHub | every commit |
 | App state (`/opt`, incl. SQLite DBs) | independent Restic CronJobs | direct backup LV + Backblaze B2 | nightly + weekly |
 | k3s SQLite datastore | online SQLite backup inside the same Restic CronJobs | direct backup LV + Backblaze B2 | nightly + weekly |
+| Vault (documents, credentials, imported photos) | encrypted vault Restic CronJob, contract v2 | direct backup LV | every four hours |
 | Frigate recordings | — (not backed up) | direct bulk array | — |
 | Media library | — (not backed up) | direct bulk array | — |
 

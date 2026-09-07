@@ -58,16 +58,21 @@ cat "$FIXTURE/$name"
     sid = 'a' * 64
     kdbx = bytes.fromhex('03d9a29a67fb4bb5') + bytes(102400-8)
     (fixture / 'kdbx').write_bytes(kdbx)
-    (fixture / 'sentinel').write_text('vault-contract-version=1\nfilesystem-uuid=fixture\n')
+    (fixture / 'sentinel').write_text('vault-contract-version=2\nfilesystem-uuid=fixture\n')
     metadata = [{'id':sid,'hostname':'minis-vault','paths':['/data/vault','/work/backup-manifest.json']}]
-    contract = json.loads((contracts / 'vault-v1.json').read_text())
-    kpath, dpath = [x['path'] for x in contract['required_content']]
+    contract = json.loads((contracts / 'vault-v2.json').read_text())
+    required_paths = [x['path'] for x in contract['required_content']]
+    kpath, dpath = required_paths[:2]
     nodes = [{'message_type':'node','path':kpath,'type':'file','size':len(kdbx)},
              {'message_type':'node','path':dpath,'type':'dir'}]
     nodes += [{'message_type':'node','path':dpath+'/file'+str(i),'type':'file','size':524288} for i in range(400)]
+    ppath = '/data/vault/photos'
+    nodes += [{'message_type':'node','path':ppath,'type':'dir'}]
+    nodes += [{'message_type':'node','path':ppath+'/photo'+str(i),'type':'file','size':(1675223 if i < 12164 else 1677936)} for i in range(12165)]
     measured = [{'path':kpath,'kind':'kdbx','files':1,'bytes':102400},
-                {'path':dpath,'kind':'directory','files':400,'bytes':209715200}]
-    manifest = dict(contract='vault-v1',contract_sha256=hashlib.sha256((contracts/'vault-v1.json').read_bytes()).hexdigest(),exclusion_sha256=contract['exclusion_sha256'],filesystem_uuid='fixture',generated_at='2026-01-01T00:00:00Z',measurements=measured,total_files=401,total_bytes=209817600)
+                {'path':dpath,'kind':'directory','files':400,'bytes':209715200},
+                {'path':ppath,'kind':'directory','files':12165,'bytes':20379090508}]
+    manifest = dict(contract='vault-v2',contract_sha256=hashlib.sha256((contracts/'vault-v2.json').read_bytes()).hexdigest(),exclusion_sha256=contract['exclusion_sha256'],filesystem_uuid='fixture',generated_at='2026-01-01T00:00:00Z',measurements=measured,total_files=12566,total_bytes=20588908108)
     def run_case(name, valid=False, listing=None, claimed=None, meta=None, failure=''):
         (fixture/'listing').write_text(''.join(json.dumps(n)+'\n' for n in (nodes if listing is None else listing)))
         (fixture/'manifest').write_text(json.dumps(manifest if claimed is None else claimed))

@@ -29,12 +29,12 @@ Committed now:
   application-aware exports are fresh and valid, and unless a validated online backup
   of the live k3s SQLite datastore is present. Prowlarr is a best-effort discovered
   export with bounded retries. The k3s server token is not mounted or backed up.
-- Staged Phase 1 vault resources: a released `vault-v1` contract, fail-closed shared
-  backup-mount guard, suspended four-hour local vault backup, suspended monthly verifier,
-  restore/enrollment and exact-ID hold-resolution scripts, textfile metrics, and gated
-  alerts. These resources remain intentionally suspended and do not indicate that the
-  LUKS2 vault, credentials, ingestion identity, repository, or restore drill exists yet;
-  activation is attended through `runbooks/backups/`.
+- Vault resources: released `vault-v1` and `vault-v2` contracts (v2 requires imported
+  photos), fail-closed shared backup-mount guard, four-hour local vault backup, monthly
+  verifier,
+  restore/enrollment, full photo restore, and exact-ID hold-resolution scripts, textfile
+  metrics, and gated alerts. Activation and the attended photo restore are documented in
+  `runbooks/backups/`.
 
 The B2 repository initialization, manual backup, repository check, and local-volume-independent
 restore validation passed on 2026-07-18. The nightly local and first naturally scheduled

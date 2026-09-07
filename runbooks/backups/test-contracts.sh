@@ -5,15 +5,15 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 monitoring="$repo_root/infrastructure/monitoring/contracts"
 recovery="$repo_root/runbooks/disaster-recovery/contracts"
 
-cmp -s "$monitoring/vault-v1.json" "$recovery/vault-v1.json"
-cmp -s "$monitoring/vault-v1.excludes" "$recovery/vault-v1.excludes"
+cmp -s "$monitoring/vault-v2.json" "$recovery/vault-v2.json"
+cmp -s "$monitoring/vault-v2.excludes" "$recovery/vault-v2.excludes"
 
-expected_exclusion_hash="$(jq -er '.exclusion_sha256' "$monitoring/vault-v1.json")"
-actual_exclusion_hash="$(sha256sum "$monitoring/vault-v1.excludes" | awk '{print $1}')"
+expected_exclusion_hash="$(jq -er '.exclusion_sha256' "$monitoring/vault-v2.json")"
+actual_exclusion_hash="$(sha256sum "$monitoring/vault-v2.excludes" | awk '{print $1}')"
 [ "$actual_exclusion_hash" = "$expected_exclusion_hash" ]
 
 jq -e '
-  .contract == "vault-v1" and
+  .contract == "vault-v2" and
   .source_roots == ["/data/vault"] and
   .sentinel == "/data/vault/.vault-sentinel" and
   .shrink_baseline_samples == 7 and
@@ -30,28 +30,35 @@ jq -e '
       "kind": "directory",
       "minimum_files": 400,
       "minimum_bytes": 209715200
+    },
+    {
+      "path": "/data/vault/photos",
+      "kind": "directory",
+      "minimum_files": 12165,
+      "minimum_bytes": 20379090508
     }
   ]
-' "$monitoring/vault-v1.json" >/dev/null
+' "$monitoring/vault-v2.json" >/dev/null
 
-mapfile -t exclusions <"$monitoring/vault-v1.excludes"
+mapfile -t exclusions <"$monitoring/vault-v2.excludes"
 [ "${#exclusions[@]}" -eq 4 ]
 [ "${exclusions[0]}" = /data/vault/.backup-credentials ]
 [ "${exclusions[1]}" = /data/vault/.mail-credentials ]
 [ "${exclusions[2]}" = /data/vault/inbox ]
 [ "${exclusions[3]}" = /data/vault/.restore-tests ]
 
-contract_hash="$(sha256sum "$monitoring/vault-v1.json" | awk '{print $1}')"
+contract_hash="$(sha256sum "$monitoring/vault-v2.json" | awk '{print $1}')"
 manifest="$(jq -n \
   --arg contract_hash "$contract_hash" \
   --arg exclusion_hash "$actual_exclusion_hash" '
   {
-    contract:"vault-v1",
+    contract:"vault-v2",
     contract_sha256:$contract_hash,
     exclusion_sha256:$exclusion_hash,
     measurements:[
       {path:"/data/vault/credentials/strongbox/ccs.kdbx",kind:"kdbx",files:1,bytes:138055},
-      {path:"/data/vault/documents/ryze",kind:"directory",files:538,bytes:296757693}
+      {path:"/data/vault/documents/ryze",kind:"directory",files:538,bytes:296757693},
+      {path:"/data/vault/photos",kind:"directory",files:15206,bytes:25473863134}
     ]
   }
 ')"
@@ -72,12 +79,12 @@ manifest_filter='
 jq -e \
   --arg contract_hash "$contract_hash" \
   --arg exclusion_hash "$actual_exclusion_hash" \
-  --slurpfile released "$monitoring/vault-v1.json" \
+  --slurpfile released "$monitoring/vault-v2.json" \
   "$manifest_filter" <<<"$manifest" >/dev/null
 if jq -e \
   --arg contract_hash "$contract_hash" \
   --arg exclusion_hash "$actual_exclusion_hash" \
-  --slurpfile released "$monitoring/vault-v1.json" \
+  --slurpfile released "$monitoring/vault-v2.json" \
   "$manifest_filter" <<<"$(jq '.measurements[1].files = 1' <<<"$manifest")" >/dev/null; then
   echo "vault manifest floors accepted an invalid fixture" >&2
   exit 1

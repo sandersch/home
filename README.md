@@ -19,9 +19,9 @@ Managed with **k3s + Flux CD**; secrets encrypted in-repo with **SOPS + age**.
   Home Assistant, Mosquitto, Z-Wave JS UI, and Zigbee2MQTT
 - **Backups:** nightly direct-array Restic plus an independent weekly Backblaze B2 copy;
   required-export contract version 1 passed fresh local and B2 backup/restore drills
-  on 2026-08-16. **Cluster app state only** — bulk-array content (including personal
-  pictures) and the workstations are not backed up; see the draft policy in
-  [docs/backups.md](./docs/backups.md)
+  on 2026-08-16. The encrypted vault has a four-hour local Restic schedule; its v2
+  contract requires the imported photo collection and an attended full restore drill.
+  Off-site vault replication remains pending; see [docs/backups.md](./docs/backups.md)
 - **Next:** deploy and validate the approved UDM firewall policy, pin k3s, close the
   media resource-tuning gate, validate the mdcheck cap, then tune Frigate. Runtime
   images are already immutable and covered by the image-policy/Renovate workflow.

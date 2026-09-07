@@ -12,11 +12,10 @@
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
 > datastore, and validated hot dumps.
 >
-> Personal photos, documents, credentials, the `ryze` workstation, and
-> the `m5c` MacBook are **currently unprotected** — one copy, on one RAID6 array, in one
-> building. Every "not backed up" statement elsewhere in the repo remains accurate.
-> Do not read the tables below as a description of running infrastructure, and do not
-> describe the RAID array itself as a backup.
+> The encrypted vault now has a deployed local Restic pipeline. The v2 contract includes
+> the imported photos and requires an attended full photo restore before the pipeline is
+> considered validated. Vault off-site replication, workstation backup, and offline copies
+> remain unimplemented; do not describe the RAID array itself as a backup.
 >
 > The corresponding follow-up item stays open in
 > [operations.md → Follow-ups](./operations.md#follow-ups) until this is built and drilled.

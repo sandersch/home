@@ -23,7 +23,7 @@ mountpoint -q "$vault" || die "$vault is not mounted"
 source /etc/homelab/vault.conf
 [ "$(findmnt -n -o SOURCE --target "$vault" | xargs readlink -f)" = "$(readlink -f /dev/mapper/vault)" ] \
   || die "$vault is not mounted from /dev/mapper/vault"
-grep -qxF 'vault-contract-version=1' "$vault/.vault-sentinel" \
+grep -qxF 'vault-contract-version=2' "$vault/.vault-sentinel" \
   || die "vault sentinel contract mismatch"
 grep -qxF "filesystem-uuid=$VAULT_FS_UUID" "$vault/.vault-sentinel" \
   || die "vault sentinel UUID mismatch"

@@ -25,8 +25,8 @@ data:
     # measure the immutable snapshot, never the live tree or its claimed inventory.
     snapshot="${1:?a full snapshot ID is required}"
     [[ "$snapshot" =~ ^[0-9a-f]{64}$ ]] || exit 1
-    contract=/contracts/vault-v1.json
-    exclusions=/contracts/vault-v1.excludes
+    contract=/contracts/vault-v2.json
+    exclusions=/contracts/vault-v2.excludes
     work="$(mktemp -d /work/validate-snapshot.XXXXXX)"
     trap 'rm -rf -- "$work"' EXIT
     trap 'printf "snapshot validation failed at line %s for %s\n" "$LINENO" "$snapshot" >&2' ERR
@@ -58,6 +58,7 @@ data:
           {path:.path, kind:.kind, files:($files | length), bytes:([$files[].size] | add // 0)}
         end]
     ' "$work/listing.jsonl" >"$work/measured.json"
+    #
     jq -e --arg contract_hash "$contract_hash" --arg exclusion_hash "$exclusion_hash" \
       --slurpfile released "$contract" --slurpfile measured "$work/measured.json" '
       . as $manifest |
@@ -82,7 +83,7 @@ data:
     ' "$work/manifest.json")"
     [ "$generated_epoch" -le $(( $(date +%s) + 300 )) ]
     restic dump "$snapshot" /data/vault/.vault-sentinel >"$work/sentinel"
-    grep -qxF 'vault-contract-version=1' "$work/sentinel"
+    grep -qxF 'vault-contract-version=2' "$work/sentinel"
     grep -qxF "filesystem-uuid=$(jq -er '.filesystem_uuid' "$work/manifest.json")" "$work/sentinel"
     restic dump "$snapshot" /data/vault/credentials/strongbox/ccs.kdbx >"$work/ccs.kdbx"
     [ "$(od -An -tx1 -N8 "$work/ccs.kdbx" | tr -d ' \n')" = 03d9a29a67fb4bb5 ]
@@ -98,8 +99,8 @@ data:
 
     vault_path=/data/vault
     host_config=/host-config/vault.conf
-    contract=/contracts/vault-v1.json
-    exclusions=/contracts/vault-v1.excludes
+    contract=/contracts/vault-v2.json
+    exclusions=/contracts/vault-v2.excludes
     control=/repo/nas/.control/vault
     metrics=/metrics/restic-vault.prom
 
@@ -183,7 +184,7 @@ data:
     [ -f "$sentinel" ] && [ ! -L "$sentinel" ] || die "$sentinel is invalid"
     [ "$(stat -c '%u:%g:%a' "$sentinel")" = 0:0:444 ] \
       || die "$sentinel ownership or mode is invalid"
-    grep -qxF 'vault-contract-version=1' "$sentinel" \
+    grep -qxF 'vault-contract-version=2' "$sentinel" \
       || die "$sentinel has the wrong contract version"
     grep -qxF "filesystem-uuid=$VAULT_FS_UUID" "$sentinel" \
       || die "$sentinel has the wrong filesystem UUID"
@@ -205,7 +206,7 @@ data:
     [ "$exclusion_hash" = "$expected_exclusion_hash" ] \
       || die "vault exclusion hash does not match the released contract"
     jq -e '
-      .contract == "vault-v1" and
+      .contract == "vault-v2" and
       .source_roots == ["/data/vault"] and
       .sentinel == "/data/vault/.vault-sentinel" and
       .shrink_baseline_samples == 7 and
@@ -266,7 +267,7 @@ data:
     export RESTIC_CACHE_DIR=/work/restic-cache
     generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     jq -n \
-      --arg contract vault-v1 \
+      --arg contract vault-v2 \
       --arg contract_sha256 "$contract_hash" \
       --arg exclusion_sha256 "$exclusion_hash" \
       --arg filesystem_uuid "$VAULT_FS_UUID" \
@@ -316,7 +317,7 @@ data:
         --arg snapshot_id "$snapshot_id" \
         --arg lineage "$lineage" \
         --arg reason "$reason" \
-        --arg contract vault-v1 \
+        --arg contract vault-v2 \
         --arg contract_sha256 "$contract_hash" \
         --arg created_at "$generated_at" \
         --argjson generation "$generation" \
@@ -418,7 +419,7 @@ data:
     IFS=$'\t' read -r vault_filesystem vault_source <<<"$mount_record"
     [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
       || die "/data/vault is not the configured vault filesystem"
-    grep -qxF 'vault-contract-version=1' /data/vault/.vault-sentinel \
+    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
       || die "vault sentinel contract mismatch"
     grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel \
       || die "vault sentinel UUID mismatch"
@@ -494,6 +495,39 @@ data:
     mv "$metric_tmp" "$metrics"
     log "snapshot $RESTORE_SNAPSHOT passed full restore validation and established baseline generation 1"
 
+  validate-vault-photos.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+    die() { log "ERROR: $*" >&2; exit 1; }
+    : "${PHOTO_SNAPSHOT:?PHOTO_SNAPSHOT is required}"
+    [[ "$PHOTO_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] || die "PHOTO_SNAPSHOT must be a full ID"
+    restore_root="/data/vault/.restore-tests/photos-$PHOTO_SNAPSHOT"
+    [ ! -e "$restore_root" ] || die "$restore_root already exists"
+    mkdir -p /work/restic-cache "$restore_root"
+    export RESTIC_CACHE_DIR=/work/restic-cache
+    metadata="$(restic snapshots "$PHOTO_SNAPSHOT" --host minis-vault --json)"
+    [ "$(jq 'length' <<<"$metadata")" -eq 1 ] || die "snapshot selection was not exact"
+    /scripts/validate-vault-snapshot.sh "$PHOTO_SNAPSHOT" >/work/photo-validated-manifest.json
+    restic check --read-data
+    restic restore "$PHOTO_SNAPSHOT" --target "$restore_root"
+    source_root=/data/vault/photos
+    restored_root="$restore_root/data/vault/photos"
+    [ -d "$restored_root" ] || die "restored photo directory is missing"
+    inventory() {
+      local root="$1"
+      (cd "$root" && find . -xdev -type f -print0 | sort -z | while IFS= read -r -d '' file; do
+        sha256sum "$file"
+      done)
+    }
+    inventory "$source_root" >/work/source-photos.sha256
+    inventory "$restored_root" >/work/restored-photos.sha256
+    cmp -s /work/source-photos.sha256 /work/restored-photos.sha256 \
+      || die "restored photo inventory differs from the source"
+    source_count="$(wc -l </work/source-photos.sha256)"
+    [ "$source_count" -ge 12165 ] || die "source photo count is below the released floor"
+    log "photo snapshot $PHOTO_SNAPSHOT passed full restore and SHA-256 verification ($source_count files)"
+
   resolve-validation-hold.sh: |
     #!/usr/bin/env bash
     set -Eeuo pipefail
@@ -513,7 +547,7 @@ data:
     [ "$HOLD_ACTION" != accept ] || [ -n "${HOLD_REASON:-}" ] \
       || die "accept requires a nonempty HOLD_REASON"
 
-    contract=/contracts/vault-v1.json
+    contract=/contracts/vault-v2.json
     control=/repo/nas/.control/vault
     hold="$control/holds/$HOLD_SNAPSHOT.json"
     state="$control/resolutions/$HOLD_SNAPSHOT.json"
@@ -536,7 +570,7 @@ data:
     IFS=$'\t' read -r vault_filesystem vault_source <<<"$mount_record"
     [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
       || die "/data/vault is not the configured vault filesystem"
-    grep -qxF 'vault-contract-version=1' /data/vault/.vault-sentinel \
+    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
       || die "vault sentinel contract mismatch"
     grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel \
       || die "vault sentinel UUID mismatch"
@@ -673,7 +707,7 @@ data:
         --argjson generation "$next_generation" \
         --arg snapshot_id "$HOLD_SNAPSHOT" \
         --arg lineage "$lineage" \
-        --arg contract vault-v1 \
+      --arg contract vault-v2 \
         --arg contract_sha256 "$contract_hash" \
         --arg accepted_at "$accepted_at" \
         --arg operator "$HOLD_OPERATOR" \

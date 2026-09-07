@@ -10,7 +10,7 @@ require_tools python3 install sftp ssh-keygen ssh-keyscan systemctl timeout
 [ "$(id -u)" -eq 1000 ] || die "run this step as ryze's uid-1000 operator"
 
 step "Verify ryze source data against the released vault floors"
-python3 - "$REPO_ROOT/infrastructure/monitoring/contracts/vault-v1.json" <<'PYTHON'
+python3 - "$REPO_ROOT/infrastructure/monitoring/contracts/vault-v2.json" <<'PYTHON'
 import json
 import os
 from pathlib import Path

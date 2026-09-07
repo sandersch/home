@@ -107,7 +107,7 @@ step "Initialize the vault filesystem contract"
 sudo chown root:root "$vault_mount"
 sudo chmod 0711 "$vault_mount"
 sentinel_tmp="$(mktemp)"
-printf 'vault-contract-version=1\nfilesystem-uuid=%s\n' "$VAULT_FS_UUID" >"$sentinel_tmp"
+printf 'vault-contract-version=2\nfilesystem-uuid=%s\n' "$VAULT_FS_UUID" >"$sentinel_tmp"
 sudo install -o root -g root -m 0444 "$sentinel_tmp" "$vault_mount/.vault-sentinel"
 sudo install -d -o root -g root -m 0700 \
   "$vault_mount/.backup-credentials" \
