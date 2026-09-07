@@ -20,9 +20,9 @@ Several categories of data have different protection needs:
 The vault photo catch-up snapshot `878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe`
 was restored into an isolated tree and SHA-256 compared against all 15,206 source photos
 on 2026-09-06. The four-hour CronJob now uses 512 MiB temporary tmpfs and a 2 GiB memory
-limit. Initial vault B2 enrollment, seed, and attended on-host restore validation passed on
-2026-09-07; recurring B2 copy/prune remain suspended pending the independent off-host
-break-glass drill and final activation gates.
+limit. Initial vault B2 enrollment, seed, attended on-host restore validation, and an
+independent card-only restore from `ryze` passed on 2026-09-07; recurring B2 copy/prune
+remain suspended pending the remaining final activation gates.
 
 What is **already covered** and needs no backup job: cluster/GitOps config (it's in
 git — rebuild = reinstall k3s + re-bootstrap Flux), and recordings/media (regenerable
