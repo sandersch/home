@@ -1,9 +1,11 @@
 # Backup policy
 
 > **Status:** The local encrypted-vault photo pipeline is deployed and validated. Phase 4
-> B2 replication and guarded vault retention are implemented in git, with live bucket
-> enrollment, restore, and schedule activation still attended work. The broader
-> whole-estate policy remains draft. Updated 2026-09-06.
+> B2 replication and guarded vault retention are implemented in git; live B2 enrollment,
+> initial seed, and an attended on-host B2 restore have passed. The recurring schedules
+> remain suspended pending the separate off-host break-glass restore, application-key scope
+> check, enrolled-repository verification, and reviewed activation change. The broader
+> whole-estate policy remains draft. Updated 2026-09-07.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
@@ -17,8 +19,9 @@
 >
 > The encrypted vault now has a deployed local Restic pipeline. The v2 contract includes
 > the imported photos; its attended full photo restore passed on 2026-09-06. The Phase 4
-> implementation uses a dedicated B2 repository and exact-lineage validation; do not
-> describe the RAID array itself as a backup.
+> implementation uses a dedicated B2 repository and exact-lineage validation; its initial
+> B2 seed and attended on-host restore passed on 2026-09-07. Do not describe the RAID array
+> itself as a backup.
 >
 > The broader off-site and whole-estate follow-up remains open in
 > [operations.md → Follow-ups](./operations.md#follow-ups).
@@ -2181,6 +2184,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 |---|---|---|
 | `appstate` local + B2 restore | 2026-08-22 | passed (contract v2; local `731326fa`, B2 `fe10c1ff`) |
 | `vault` local restore | *not yet* | — |
+| `vault` B2 restore (attended on `minis`) | 2026-09-07 | passed — snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349`; full `check --read-data` read 8 snapshots / 1,135 packs with no errors, then the restored KDBX, document, and photo were manually verified. Artifacts were retained on encrypted vault scratch when this evidence was recorded. |
 | `vault` B2 restore, break-glass only | *not yet* | — |
 | Strongbox `ccs.kdbx` ingestion + four-source open | *not yet* | — |
 | `ryze` workstation local + B2 restore | *not yet* | — |
