@@ -81,6 +81,11 @@ assert 'maximum_shrink_percent="$(jq -er' in prune_script
 assert 'baseline_files * 80 / 100' not in prune_script and 'baseline_bytes * 80 / 100' not in prune_script
 assert 'latest NAS snapshot is below the healthy baseline tolerance' in prune_script
 assert 'latest NAS snapshot is absent from the validation ledger' in prune_script
+assert 'local skipped="$1" candidates="$2" reason="${3:-none}"' in prune_script
+assert 'reason="%s"} %s\\n' in prune_script
+for reason in ('hold', 'destination-ledger', 'stale-source', 'source-ledger', 'source-validation', 'source-manifest', 'baseline', 'contract', 'baseline-tolerance', 'empty-destination', 'stale-destination', 'unreplicated', 'destination-unvalidated'):
+    assert f'write_metrics 1' in prune_script
+    assert reason in prune_script
 assert '/vault-scripts/validate-vault-snapshot.sh "$latest_source_id"' in prune_script
 assert 'vault sentinel UUID mismatch' in prune_script
 assert 'vault backup credential directory ownership or mode is invalid' in prune_script

@@ -24,7 +24,7 @@ data:
     contract=/contracts/vault-v2.json
     metrics=/metrics/restic-prune-vault.prom
     write_metrics() {
-      local skipped="$1" candidates="$2" tmp="${metrics}.tmp.$$" success previous
+      local skipped="$1" candidates="$2" reason="${3:-none}" tmp="${metrics}.tmp.$$" success previous
       previous=0
       [ -f "$metrics" ] && previous="$(awk '/prune_success_timestamp_seconds/ {print $NF}' "$metrics" | tail -n1)"
       success="$previous"
@@ -32,7 +32,7 @@ data:
       umask 0027
       {
         printf 'homelab_restic_prune_success_timestamp_seconds{dataset="vault",destination="nas"} %s\n' "$success"
-        printf 'homelab_restic_prune_skipped{dataset="vault",destination="nas",reason="replication"} %s\n' "$skipped"
+        printf 'homelab_restic_prune_skipped{dataset="vault",destination="nas",reason="%s"} %s\n' "$reason" "$skipped"
         printf 'homelab_restic_unreplicated_candidates{dataset="vault",destination="nas"} %s\n' "$candidates"
       } >"$tmp"
       chmod 0640 "$tmp"
@@ -104,9 +104,9 @@ data:
     done
     [ -d "$source_control/holds" ] || die "source hold directory is absent"
     [ -z "$(find "$source_control/holds" -type f -name '*.json' -print -quit)" ] \
-      || { write_metrics 1 0; log "vault has unresolved validation holds; skipping retention"; exit 0; }
+      || { write_metrics 1 0 hold; log "vault has unresolved validation holds; skipping retention"; exit 0; }
     [ -f "$source_control/validated.jsonl" ] || die "source validation ledger is absent"
-    [ -f "$destination_control/validated.jsonl" ] || { write_metrics 1 0; log "B2 validation ledger is absent; skipping retention"; exit 0; }
+    [ -f "$destination_control/validated.jsonl" ] || { write_metrics 1 0 destination-ledger; log "B2 validation ledger is absent; skipping retention"; exit 0; }
     mkdir -p /work/restic-cache
     export RESTIC_CACHE_DIR=/work/restic-cache
     b2_key_id="$(cat /data/vault/.backup-credentials/b2-key-id)"
@@ -124,38 +124,38 @@ data:
     latest_source_lineage="$(jq -er --arg id "$latest_source_id" '.[] | select(.id == $id) | (.original // .id)' "$source_listing")"
     latest_source_time="$(jq -er --arg id "$latest_source_id" '.[] | select(.id == $id) | .time | fromdateiso8601' "$source_listing")"
     [ $((now - latest_source_time)) -le 28800 ] \
-      || { write_metrics 1 0; log "latest NAS snapshot is older than the eight-hour backup freshness tolerance; skipping retention"; exit 0; }
+      || { write_metrics 1 0 stale-source; log "latest NAS snapshot is older than the eight-hour backup freshness tolerance; skipping retention"; exit 0; }
     jq -s -e --arg lineage "$latest_source_lineage" 'any(.[]; .lineage == $lineage)' "$source_control/validated.jsonl" >/dev/null \
-      || { write_metrics 1 0; log "latest NAS snapshot is absent from the validation ledger; skipping retention"; exit 0; }
+      || { write_metrics 1 0 source-ledger; log "latest NAS snapshot is absent from the validation ledger; skipping retention"; exit 0; }
     export RESTIC_REPOSITORY="$source_repo"
     export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password
     latest_manifest=/work/latest-manifest.json
     /vault-scripts/validate-vault-snapshot.sh "$latest_source_id" >"$latest_manifest" \
-      || { write_metrics 1 0; log "latest NAS snapshot failed independent content validation; skipping retention"; exit 0; }
+      || { write_metrics 1 0 source-validation; log "latest NAS snapshot failed independent content validation; skipping retention"; exit 0; }
     jq -e '.contract == "vault-v2" and (.total_files | type == "number") and (.total_bytes | type == "number")' "$latest_manifest" >/dev/null \
-      || { write_metrics 1 0; log "latest NAS snapshot manifest is invalid; skipping retention"; exit 0; }
+      || { write_metrics 1 0 source-manifest; log "latest NAS snapshot manifest is invalid; skipping retention"; exit 0; }
     baseline="$source_control/baseline.json"
-    [ -f "$baseline" ] || { write_metrics 1 0; log "vault baseline is absent; skipping retention"; exit 0; }
+    [ -f "$baseline" ] || { write_metrics 1 0 baseline; log "vault baseline is absent; skipping retention"; exit 0; }
     baseline_files="$(jq -er '[.samples[].files] | max' "$baseline")"
     baseline_bytes="$(jq -er '[.samples[].bytes] | max' "$baseline")"
     latest_files="$(jq -er '.total_files' "$latest_manifest")"
     latest_bytes="$(jq -er '.total_bytes' "$latest_manifest")"
     maximum_shrink_percent="$(jq -er '.maximum_shrink_percent' "$contract")"
     [[ "$maximum_shrink_percent" =~ ^[0-9]+$ ]] && [ "$maximum_shrink_percent" -le 100 ] \
-      || { write_metrics 1 0; log "vault contract has an invalid maximum shrink percentage; skipping retention"; exit 0; }
+      || { write_metrics 1 0 contract; log "vault contract has an invalid maximum shrink percentage; skipping retention"; exit 0; }
     minimum_retained_percent=$((100 - maximum_shrink_percent))
     [ "$latest_files" -ge $((baseline_files * minimum_retained_percent / 100)) ] \
       && [ "$latest_bytes" -ge $((baseline_bytes * minimum_retained_percent / 100)) ] \
-      || { write_metrics 1 0; log "latest NAS snapshot is below the healthy baseline tolerance; skipping retention"; exit 0; }
+      || { write_metrics 1 0 baseline-tolerance; log "latest NAS snapshot is below the healthy baseline tolerance; skipping retention"; exit 0; }
     [ "$(jq 'length' "$destination_listing")" -gt 0 ] \
-      || { write_metrics 1 0; log "B2 repository has no snapshots; skipping retention"; exit 0; }
+      || { write_metrics 1 0 empty-destination; log "B2 repository has no snapshots; skipping retention"; exit 0; }
     latest_destination_id="$(jq -er 'max_by(.time | fromdateiso8601) | .id' "$destination_listing")"
     latest_destination_lineage="$(jq -er --arg id "$latest_destination_id" '.[] | select(.id == $id) | (.original // .id)' "$destination_listing")"
     latest_destination_time="$(jq -er --arg id "$latest_destination_id" '.[] | select(.id == $id) | .time | fromdateiso8601' "$destination_listing")"
     [ $((now - latest_destination_time)) -le 129600 ] \
-      || { write_metrics 1 0; log "latest B2 snapshot is older than the 36-hour copy tolerance; skipping retention"; exit 0; }
+      || { write_metrics 1 0 stale-destination; log "latest B2 snapshot is older than the 36-hour copy tolerance; skipping retention"; exit 0; }
     jq -s -e --arg lineage "$latest_destination_lineage" 'any(.[]; .lineage == $lineage)' "$destination_control/validated.jsonl" >/dev/null \
-      || { write_metrics 1 0; log "latest B2 snapshot is absent from the validation ledger; skipping retention"; exit 0; }
+      || { write_metrics 1 0 destination-ledger; log "latest B2 snapshot is absent from the validation ledger; skipping retention"; exit 0; }
     collect_candidates "$source_repo" /data/vault/.backup-credentials/nas-password /work/source-candidates
     mapfile -t source_candidates < /work/source-candidates
     unreplicated=0
@@ -170,7 +170,7 @@ data:
         || unreplicated=$((unreplicated + 1))
     done
     if [ "$unreplicated" -gt 0 ]; then
-      write_metrics 1 "$unreplicated"
+      write_metrics 1 "$unreplicated" unreplicated
       log "$unreplicated source removal candidate(s) are not validated in B2; skipping NAS retention"
       exit 0
     fi
@@ -195,7 +195,7 @@ data:
         || destination_unvalidated=$((destination_unvalidated + 1))
     done
     if [ "$destination_unvalidated" -gt 0 ]; then
-      write_metrics 1 "$destination_unvalidated"
+      write_metrics 1 "$destination_unvalidated" destination-unvalidated
       log "$destination_unvalidated B2 removal candidate(s) lack validation evidence; skipping B2 retention"
       exit 0
     fi
