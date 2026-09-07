@@ -54,7 +54,10 @@ vault pipeline:
 - `restic-vault-backup` — every four hours, local repository `/repo/nas/vault` on `/mnt/backups`;
   contract v2 requires the imported photos
 - `restic-vault-copy` — daily CronJob at `04:45`, initially suspended; copies validated NAS
-  lineages to the dedicated B2 repository and validates each destination snapshot
+  lineages to the dedicated B2 repository and validates each destination snapshot. A
+  destination snapshot that lacks ledger evidence is held under
+  `/mnt/backups/.control/vault-b2/holds/` for attended revalidation with
+  `runbooks/backups/15-resolve-vault-b2-validation-hold.sh`.
 - `restic-vault-prune` — weekly-capable CronJob, initially suspended; verifies B2 presence
   before explicit NAS deletion and then applies the independent B2 retention policy
 - Sources: `/opt` (read-only, `.snapshots` excluded), `/var/lib/rancher/k3s/server/db`,
@@ -1754,6 +1757,7 @@ Gmail app-password copy.
 `.github/workflows/mail-archive-image.yaml`, `host/ryze/`, `host/m5c/`, and
 `runbooks/backups/` (the staged attended sequence plus
 `10-resolve-validation-hold.sh`, `13-enroll-vault-b2.sh`, `14-validate-vault-b2-restore.sh`,
+`15-resolve-vault-b2-validation-hold.sh`,
 tests, `lib.sh`, and `README.md` per `runbooks/README.md`
 conventions), plus the released vault and per-workstation contracts under both
 `infrastructure/monitoring/contracts/` and

@@ -25,12 +25,13 @@ data:
 
     write_metrics() {
       local locked="$1" newest="${2:-0}" copied="${3:-0}" missing="${4:-0}" size="${5:-0}"
-      local tmp="${metrics}.tmp.$$" previous_success previous_newest previous_size previous_missing previous_skips success skips
+      local tmp="${metrics}.tmp.$$" previous_success previous_newest previous_size previous_missing previous_skips success skips hold_count
       previous_success=0
       previous_newest=0
       previous_size=0
       previous_missing=0
       previous_skips=0
+      hold_count=0
       if [ -f "$metrics" ]; then
         previous_success="$(awk '/homelab_restic_replication_success_timestamp_seconds/ {print $NF}' "$metrics" | tail -n1)"
         previous_newest="$(awk '/homelab_restic_destination_snapshot_timestamp_seconds/ {print $NF}' "$metrics" | tail -n1)"
@@ -41,6 +42,9 @@ data:
       [ "$newest" -gt 0 ] || newest="$previous_newest"
       [ "$size" -gt 0 ] || size="$previous_size"
       [ "$locked" -eq 1 ] && missing="$previous_missing"
+      if [ -d "$destination_control/holds" ]; then
+        hold_count="$(find "$destination_control/holds" -type f -name '*.json' | wc -l)"
+      fi
       success="$previous_success"
       [ "$copied" -gt 0 ] && success="$(date +%s)"
       skips=0
@@ -55,6 +59,7 @@ data:
         printf 'homelab_restic_replication_success_timestamp_seconds{dataset="vault",destination="b2"} %s\n' "$success"
         printf 'homelab_restic_replication_missing_snapshots{dataset="vault",destination="b2"} %s\n' "$missing"
         printf 'homelab_restic_replication_skipped_consecutive{dataset="vault",destination="b2"} %s\n' "$skips"
+        printf 'homelab_restic_validation_hold{dataset="vault",destination="b2"} %s\n' "$hold_count"
         printf 'homelab_restic_repository_size_bytes{dataset="vault",destination="b2"} %s\n' "$size"
         printf 'homelab_restic_repository_ceiling_bytes{dataset="vault",destination="b2"} 107374182400\n'
       } >"$tmp"
@@ -66,6 +71,28 @@ data:
       local ledger="$1" lineage="$2"
       [ -f "$ledger" ] && jq -e --arg lineage "$lineage" \
         -s 'any(.[]; .lineage == $lineage)' "$ledger" >/dev/null 2>&1
+    }
+
+    hold_destination() {
+      local snapshot_id="$1" lineage="$2" hold_dir="$destination_control/holds"
+      local hold_file hold_tmp
+      hold_file="$hold_dir/$snapshot_id.json"
+      hold_tmp="$hold_file.tmp.$$"
+      mkdir -p "$hold_dir"
+      if [ -e "$hold_file" ] || [ -L "$hold_file" ]; then
+        [ -f "$hold_file" ] && [ ! -L "$hold_file" ] \
+          || die "destination hold path is invalid: $hold_file"
+        return 0
+      fi
+      jq -n \
+        --arg snapshot_id "$snapshot_id" \
+        --arg lineage "$lineage" \
+        --arg reason destination-ledger-missing \
+        --arg created_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        '{snapshot_id:$snapshot_id,lineage:$lineage,reason:$reason,created_at:$created_at}' \
+        >"$hold_tmp"
+      chmod 0600 "$hold_tmp"
+      mv "$hold_tmp" "$hold_file"
     }
 
     # The encrypted vault is deliberately the credential boundary. A locked vault is
@@ -125,6 +152,7 @@ data:
       if [ -n "$destination_id" ]; then
         if ! ledger_has "$destination_control/validated.jsonl" "$lineage"; then
           log "destination snapshot $destination_id lacks validation evidence; holding replication"
+          hold_destination "$destination_id" "$lineage"
           missing_count=$((missing_count + 1))
           continue
         fi
@@ -164,6 +192,92 @@ data:
       exit 0
     fi
     log "vault B2 replication complete; copied $copied_count snapshot(s)"
+  resolve-vault-b2-validation-hold.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+    die() { log "ERROR: $*" >&2; exit 1; }
+
+    : "${B2_HOLD_SNAPSHOT:?B2_HOLD_SNAPSHOT is required}"
+    : "${HOLD_OPERATOR:?HOLD_OPERATOR is required}"
+    [[ "$B2_HOLD_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] \
+      || die "B2_HOLD_SNAPSHOT must be a full 64-character lowercase ID"
+
+    [ -r /etc/homelab/vault-b2.conf ] || die "B2 repository configuration is absent"
+    # shellcheck disable=SC1091
+    source /etc/homelab/vault-b2.conf
+    : "${VAULT_B2_REPOSITORY:?VAULT_B2_REPOSITORY is required}"
+    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+      || die "vault sentinel contract mismatch"
+    for credential in b2-password b2-key-id b2-application-key; do
+      path="/data/vault/.backup-credentials/$credential"
+      [ -f "$path" ] && [ ! -L "$path" ] && [ -s "$path" ] \
+        || die "$path is absent, empty, or a symlink"
+    done
+
+    destination_control=/repo/nas/.control/vault-b2
+    hold="$destination_control/holds/$B2_HOLD_SNAPSHOT.json"
+    [ -f "$hold" ] && [ ! -L "$hold" ] || die "the exact B2 hold is absent"
+    hold_snapshot="$(jq -er '.snapshot_id' "$hold")"
+    hold_lineage="$(jq -er '.lineage' "$hold")"
+    [ "$hold_snapshot" = "$B2_HOLD_SNAPSHOT" ] \
+      || die "B2 hold names a different snapshot"
+
+    b2_key_id="$(cat /data/vault/.backup-credentials/b2-key-id)"
+    b2_application_key="$(cat /data/vault/.backup-credentials/b2-application-key)"
+    export AWS_ACCESS_KEY_ID="$b2_key_id"
+    export AWS_SECRET_ACCESS_KEY="$b2_application_key"
+    export RESTIC_REPOSITORY="$VAULT_B2_REPOSITORY"
+    export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
+    mkdir -p /work/restic-cache
+    export RESTIC_CACHE_DIR=/work/restic-cache
+
+    metadata="$(restic snapshots "$B2_HOLD_SNAPSHOT" --host minis-vault --json)"
+    [ "$(jq 'length' <<<"$metadata")" -eq 1 ] \
+      || die "the held B2 snapshot is not present exactly once"
+    actual_lineage="$(jq -er '.[0] | .original // .id' <<<"$metadata")"
+    [ "$actual_lineage" = "$hold_lineage" ] \
+      || die "held B2 snapshot lineage differs from its hold"
+
+    /vault-scripts/validate-vault-snapshot.sh "$B2_HOLD_SNAPSHOT" \
+      >/work/b2-held-manifest.json \
+      || die "held B2 snapshot failed attended content validation"
+
+    ledger="$destination_control/validated.jsonl"
+    [ -f "$ledger" ] || : >"$ledger"
+    jq -s -e 'all(.[]; type == "object" and (.lineage | type == "string") and (.snapshot_id | type == "string"))' \
+      "$ledger" >/dev/null \
+      || die "B2 validation ledger is malformed"
+    if ! jq -s -e --arg lineage "$hold_lineage" 'any(.[]; .lineage == $lineage)' "$ledger" >/dev/null; then
+      printf '%s\n' "$(jq -cn \
+        --arg lineage "$hold_lineage" \
+        --arg snapshot_id "$B2_HOLD_SNAPSHOT" \
+        --arg validated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg operator "$HOLD_OPERATOR" \
+        '{lineage:$lineage,snapshot_id:$snapshot_id,validated_at:$validated_at,operator:$operator}')" \
+        >>"$ledger"
+    fi
+
+    rm -f -- "$hold"
+    hold_count="$(find "$destination_control/holds" -type f -name '*.json' | wc -l)"
+    metric=/metrics/restic-vault-copy.prom
+    [ -f "$metric" ] || die "B2 replication metric is absent"
+    metric_tmp="${metric}.tmp.$$"
+    awk -v count="$hold_count" '
+      /^homelab_restic_validation_hold\{dataset="vault",destination="b2"\}/ {
+        print "homelab_restic_validation_hold{dataset=\"vault\",destination=\"b2\"} " count
+        replaced = 1
+        next
+      }
+      { print }
+      END {
+        if (!replaced) print "homelab_restic_validation_hold{dataset=\"vault\",destination=\"b2\"} " count
+      }
+    ' "$metric" >"$metric_tmp"
+    chmod 0640 "$metric_tmp"
+    mv -f "$metric_tmp" "$metric"
+    log "revalidated B2 snapshot $B2_HOLD_SNAPSHOT for lineage $hold_lineage; $hold_count destination hold(s) remain"
   validate-vault-b2-restore.sh: |
     #!/usr/bin/env bash
     set -Eeuo pipefail

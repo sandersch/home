@@ -189,12 +189,12 @@ spec:
             description: The enrolled vault retention job has not completed successfully in ten days.
             summary: Vault retention is overdue
         - alert: ResticSnapshotValidationHeld
-          expr: homelab_restic_validation_hold{dataset="vault",destination="nas"} > 0
+          expr: homelab_restic_validation_hold{dataset="vault"} > 0
           for: 15m
           labels:
             severity: critical
           annotations:
-            description: A vault snapshot failed validation and is held outside the replication and retention ledgers.
+            description: A vault snapshot failed validation and is held outside the validation ledger; the destination label identifies the affected repository.
             summary: Vault snapshot validation is held
         - alert: ResticRepoNearCeiling
           expr: |

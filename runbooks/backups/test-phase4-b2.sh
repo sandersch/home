@@ -18,6 +18,7 @@ kustomization = (root / 'infrastructure/monitoring/kustomization.yaml').read_tex
 copy_script = copy['data']['copy-vault.sh']
 prune_script = prune['data']['prune-vault.sh']
 restore_script = copy['data']['validate-vault-b2-restore.sh']
+destination_resolver = copy['data']['resolve-vault-b2-validation-hold.sh']
 resolver_wrapper = (root / 'runbooks/backups/10-resolve-validation-hold.sh').read_text()
 assert 'restic copy --from-repo "$source_repo" "$snapshot_id"' in copy_script
 assert '/vault-scripts/validate-vault-snapshot.sh "$destination_id"' in copy_script
@@ -48,6 +49,14 @@ assert '/vault-scripts/validate-vault-snapshot.sh "$latest_source_id"' in prune_
 assert 'vault sentinel UUID mismatch' in prune_script
 assert 'vault backup credential directory ownership or mode is invalid' in prune_script
 assert '/vault-scripts/validate-vault-snapshot.sh "$RESTORE_SNAPSHOT"' in restore_script
+assert 'hold_destination "$destination_id" "$lineage"' in copy_script
+assert 'homelab_restic_validation_hold{dataset="vault",destination="b2"}' in copy_script
+assert 'the exact B2 hold is absent' in destination_resolver
+assert '/vault-scripts/validate-vault-snapshot.sh "$B2_HOLD_SNAPSHOT"' in destination_resolver
+assert 'destination_control/validated.jsonl' in destination_resolver
+assert 'runbooks/backups/15-resolve-vault-b2-validation-hold.sh' in (root / 'docs/backups.md').read_text()
+assert '15-resolve-vault-b2-validation-hold.sh' in (root / 'runbooks/backups/README.md').read_text()
+assert 'homelab_restic_validation_hold{dataset="vault"} > 0' in alerts
 assert 'copy_cronjob="$(kubectl -n monitoring get cronjob restic-vault-copy' in resolver_wrapper
 assert '--ignore-not-found -o name' in resolver_wrapper
 assert 'b2_required=1' in resolver_wrapper

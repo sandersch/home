@@ -89,4 +89,7 @@ enable both schedules in a reviewed Git change. A locked vault is an intentional
 skip; it must not cause the copy job to read credentials from the root filesystem.
 Use `14-validate-vault-b2-restore.sh` with a full destination snapshot ID for the attended
 representative restore; it validates the released contract, `ccs.kdbx`, one document, and
-one photo without changing the NAS baseline.
+one photo without changing the NAS baseline. If a destination snapshot is present without
+ledger evidence, the copy job creates a destination hold; use
+`15-resolve-vault-b2-validation-hold.sh` with its exact B2 snapshot ID to revalidate it and
+record the ledger evidence.
