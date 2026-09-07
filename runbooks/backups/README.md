@@ -83,7 +83,11 @@ fixtures cover source changes during backup, invalid manifests, repository read 
 interrupted rejection, and both automount shutdown outcomes without touching live storage.
 
 Phase 4 enrollment uses `13-enroll-vault-b2.sh` after creating the dedicated bucket and
-installing `/etc/homelab/vault-b2.conf`. Enrollment initializes an empty B2 repository;
+installing `/etc/homelab/vault-b2.conf`. The wrapper creates a one-shot attended Job from
+the suspended copy CronJob and runs enrollment inside the pinned Restic image; no Restic
+binary is installed on the host. Credentials are entered through `kubectl exec -it`, staged
+only in the container's `/dev/shm`, and written to the encrypted vault only after the B2
+repository has been opened successfully. Enrollment initializes an empty B2 repository;
 it does not seed the vault. Keep both recurring CronJobs suspended, then run
 `16-seed-vault-b2.sh`. It creates a one-off Job with a 24-hour deadline and copies every
 validated NAS lineage. Select a destination snapshot from that completed seed and run

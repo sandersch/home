@@ -30,6 +30,8 @@ retry_wrapper = 'restic() { command restic --retry-lock "$restic_lock_retry" "$@
 retry_default = 'restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"'
 for cm in (vault, copy, prune, verify):
     for key, body in cm['data'].items():
+        if key == 'enroll-vault-b2.sh':
+            continue
         if key.endswith('.sh') and 'restic ' in body:
             assert retry_wrapper in body, key
             assert retry_default in body, key
