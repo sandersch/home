@@ -102,15 +102,15 @@ migration of the SLZB-MRW10U from its current
 Trusted/VLAN 30 placement to IoT/VLAN 60, a possible second node, Tailscale Funnel
 for Plex, and Immich.
 
-**Backups beyond cluster app state are not implemented.** [docs/backups.md](./docs/backups.md)
-is a **draft** policy covering personal photos, documents, credentials, the workstations, and
+**The local encrypted-vault backup is implemented and photo-restore validated.** [docs/backups.md](./docs/backups.md)
+is still a **draft** policy for vault off-site replication, personal workstation backups, and
 the mail archive. The decisions it records — the `vault`/`appstate`/`workstations` dataset
 split, `restic copy` for NAS→B2 replication, an append-only `--private-repos` REST server
 with a per-client repo and credential for workstation pushes, and excluding Frigate
 recordings — are **provisional pending implementation** and are *not* part of the settled
-decision log above. Until it is built and drilled, only `/opt`, the
-k3s datastore, and the required hot dumps are backed up; everything on the bulk array has a
-single copy.
+decision log above. Until those tiers are built and drilled, only the vault’s local copy,
+`/opt`, the k3s datastore, and the required hot dumps are backed up; everything else on the
+bulk array has a single copy.
 
 ## Repository structure
 

@@ -1,24 +1,24 @@
 # Backup policy
 
-> **Status: DRAFT — Phase 1 implementation staged, not deployed.** Written 2026-08-30.
+> **Status:** The local encrypted-vault photo pipeline is deployed and validated. The
+> broader whole-estate policy remains draft. Updated 2026-09-06.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
-> mount guards, attended LUKS2 provisioning, a suspended local vault CronJob and monthly
+> mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
 > verifier, a restricted `ryze` ingestion path, versioned contracts, alerts, and restore
-> runbooks. The generated vault UUID files, ingestion public key, credentials, storage,
-> enrollment, activation, and drills do not exist until the attended runbooks complete.
-> Everything after Phase 1 remains design only. The **only** backup pipeline that actually runs
-> today is the `appstate` pipeline described under [What exists today](#what-exists-today):
+> runbooks. The local vault and `appstate` pipelines run today; vault off-site replication,
+> workstation backup, and offline copies remain design work. The `appstate` pipeline is
+> described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
 > datastore, and validated hot dumps.
 >
 > The encrypted vault now has a deployed local Restic pipeline. The v2 contract includes
-> the imported photos and requires an attended full photo restore before the pipeline is
-> considered validated. Vault off-site replication, workstation backup, and offline copies
+> the imported photos; its attended full photo restore passed on 2026-09-06. Vault off-site
+> replication, workstation backup, and offline copies
 > remain unimplemented; do not describe the RAID array itself as a backup.
 >
-> The corresponding follow-up item stays open in
-> [operations.md → Follow-ups](./operations.md#follow-ups) until this is built and drilled.
+> The broader off-site and whole-estate follow-up remains open in
+> [operations.md → Follow-ups](./operations.md#follow-ups).
 >
 > **Revised 2026-08-30:** `/mnt/vault` is now specified as a LUKS2 volume unlocked manually
 > by an operator after each boot (§ 1b). Manual unlock must not delay the host, k3s, camera
