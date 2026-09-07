@@ -33,6 +33,7 @@ with tempfile.TemporaryDirectory() as temporary:
     # Keep the fixture executable in the production image, which has no Python.
     mock.write_text('''#!/bin/bash
 set -euo pipefail
+while [ "${1:-}" = --retry-lock ]; do shift 2; done
 [ "${FAIL_COMMAND:-}" != "$1" ] || exit 1
 case "$1" in
   snapshots) name=metadata ;;
