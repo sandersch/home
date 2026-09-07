@@ -17,6 +17,11 @@ Several categories of data have different protection needs:
 | Frigate recordings | — (not backed up) | direct bulk array | — |
 | Media library | — (not backed up) | direct bulk array | — |
 
+The vault photo catch-up snapshot `878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe`
+was restored into an isolated tree and SHA-256 compared against all 15,206 source photos
+on 2026-09-06. The four-hour CronJob now uses 512 MiB temporary tmpfs and a 2 GiB memory
+limit. Off-site vault replication remains pending.
+
 What is **already covered** and needs no backup job: cluster/GitOps config (it's in
 git — rebuild = reinstall k3s + re-bootstrap Flux), and recordings/media (regenerable
 or the bulk array is already the system of record). The job below exists for **app state on
