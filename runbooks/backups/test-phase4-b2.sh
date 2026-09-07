@@ -25,15 +25,11 @@ prune_script = prune['data']['prune-vault.sh']
 assert vault['data']['detect-vault-exclusions.jq'] == copy['data']['detect-vault-exclusions.jq'] == prune['data']['detect-vault-exclusions.jq']
 retry_wrapper = 'restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }'
 retry_default = 'restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"'
-for script in (
-    vault['data']['validate-vault-snapshot.sh'],
-    vault['data']['backup-vault.sh'],
-    copy_script,
-    prune_script,
-    verify['data']['verify.sh'],
-):
-    assert retry_wrapper in script
-    assert retry_default in script
+for cm in (vault, copy, prune, verify):
+    for key, body in cm['data'].items():
+        if key.endswith('.sh') and 'restic ' in body:
+            assert retry_wrapper in body, key
+            assert retry_default in body, key
 
 def env_of(job, name):
     for container in job['spec']['jobTemplate']['spec']['template']['spec']['containers']:

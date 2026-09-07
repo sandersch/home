@@ -389,6 +389,8 @@ data:
 
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
     die() { log "ERROR: $*" >&2; exit 1; }
+    restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
+    restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
 
     : "${RESTORE_SNAPSHOT:?RESTORE_SNAPSHOT is required}"
     : "${RESTIC_REPOSITORY:?RESTIC_REPOSITORY is required}"
@@ -498,6 +500,8 @@ data:
     set -Eeuo pipefail
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
     die() { log "ERROR: $*" >&2; exit 1; }
+    restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
+    restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
     : "${PHOTO_SNAPSHOT:?PHOTO_SNAPSHOT is required}"
     [[ "$PHOTO_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] || die "PHOTO_SNAPSHOT must be a full ID"
     restore_root="/data/vault/.restore-tests/photos-$PHOTO_SNAPSHOT"
@@ -532,6 +536,8 @@ data:
 
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
     die() { log "ERROR: $*" >&2; exit 1; }
+    restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
+    restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
 
     : "${HOLD_SNAPSHOT:?HOLD_SNAPSHOT is required}"
     : "${HOLD_ACTION:?HOLD_ACTION is required}"

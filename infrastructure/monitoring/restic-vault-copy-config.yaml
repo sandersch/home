@@ -200,6 +200,8 @@ data:
 
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
     die() { log "ERROR: $*" >&2; exit 1; }
+    restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
+    restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
 
     : "${B2_HOLD_SNAPSHOT:?B2_HOLD_SNAPSHOT is required}"
     : "${HOLD_OPERATOR:?HOLD_OPERATOR is required}"
@@ -285,6 +287,8 @@ data:
     set -Eeuo pipefail
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
     die() { log "ERROR: $*" >&2; exit 1; }
+    restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
+    restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
     : "${RESTORE_SNAPSHOT:?RESTORE_SNAPSHOT is required}"
     [[ "$RESTORE_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] || die "RESTORE_SNAPSHOT must be a full snapshot ID"
     [ -r /etc/homelab/vault-b2.conf ] || die "B2 repository configuration is absent"
