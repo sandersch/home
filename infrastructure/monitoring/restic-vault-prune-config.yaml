@@ -120,8 +120,8 @@ data:
     latest_source_id="$(jq -er 'max_by(.time | fromdateiso8601) | .id' "$source_listing")"
     latest_source_lineage="$(jq -er --arg id "$latest_source_id" '.[] | select(.id == $id) | (.original // .id)' "$source_listing")"
     latest_source_time="$(jq -er --arg id "$latest_source_id" '.[] | select(.id == $id) | .time | fromdateiso8601' "$source_listing")"
-    [ $((now - latest_source_time)) -le 14400 ] \
-      || { write_metrics 1 0; log "latest NAS snapshot is older than the four-hour backup interval; skipping retention"; exit 0; }
+    [ $((now - latest_source_time)) -le 28800 ] \
+      || { write_metrics 1 0; log "latest NAS snapshot is older than the eight-hour backup freshness tolerance; skipping retention"; exit 0; }
     jq -s -e --arg lineage "$latest_source_lineage" 'any(.[]; .lineage == $lineage)' "$source_control/validated.jsonl" >/dev/null \
       || { write_metrics 1 0; log "latest NAS snapshot is absent from the validation ledger; skipping retention"; exit 0; }
     export RESTIC_REPOSITORY="$source_repo"

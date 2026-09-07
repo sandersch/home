@@ -42,7 +42,8 @@ assert 'mapfile -t destination_candidates < /work/destination-candidates' in pru
 assert 'mapfile -t source_candidates < <(restic' not in prune_script
 assert 'message_type == "forget"' in prune_script
 assert 'unreplicated source removal candidate' in prune_script
-assert 'latest NAS snapshot is older than the four-hour backup interval' in prune_script
+assert '[ $((now - latest_source_time)) -le 28800 ]' in prune_script
+assert 'latest NAS snapshot is older than the eight-hour backup freshness tolerance' in prune_script
 assert 'latest NAS snapshot is below the healthy baseline tolerance' in prune_script
 assert 'latest NAS snapshot is absent from the validation ledger' in prune_script
 assert '/vault-scripts/validate-vault-snapshot.sh "$latest_source_id"' in prune_script
