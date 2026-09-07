@@ -81,3 +81,12 @@ an interrupted run can verify absence and finish pruning on retry.
 Run `test-review-regressions.sh` locally alongside the other backup tests. Its disposable
 fixtures cover source changes during backup, invalid manifests, repository read failures,
 interrupted rejection, and both automount shutdown outcomes without touching live storage.
+
+Phase 4 enrollment uses `13-enroll-vault-b2.sh` after creating the dedicated bucket and
+installing `/etc/homelab/vault-b2.conf`. The copy and prune CronJobs are committed
+suspended. Run the enrollment script, perform the manual copy and B2 restore gates, then
+enable both schedules in a reviewed Git change. A locked vault is an intentional successful
+skip; it must not cause the copy job to read credentials from the root filesystem.
+Use `14-validate-vault-b2-restore.sh` with a full destination snapshot ID for the attended
+representative restore; it validates the released contract, `ccs.kdbx`, one document, and
+one photo without changing the NAS baseline.

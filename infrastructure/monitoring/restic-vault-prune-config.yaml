@@ -1,0 +1,202 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: restic-vault-prune-config
+  namespace: monitoring
+data:
+  detect-vault-exclusions.jq: |
+    select(.message_type == "node") | .path | select(
+      . == "/data/vault/.backup-credentials" or startswith("/data/vault/.backup-credentials/") or
+      . == "/data/vault/.mail-credentials" or startswith("/data/vault/.mail-credentials/") or
+      . == "/data/vault/inbox" or startswith("/data/vault/inbox/") or
+      . == "/data/vault/.restore-tests" or startswith("/data/vault/.restore-tests/")
+    )
+  prune-vault.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+    die() { log "ERROR: $*" >&2; exit 1; }
+    source_repo=/repo/nas/vault
+    source_control=/repo/nas/.control/vault
+    destination_control=/repo/nas/.control/vault-b2
+    metrics=/metrics/restic-prune-vault.prom
+    write_metrics() {
+      local skipped="$1" candidates="$2" tmp="${metrics}.tmp.$$" success previous
+      previous=0
+      [ -f "$metrics" ] && previous="$(awk '/prune_success_timestamp_seconds/ {print $NF}' "$metrics" | tail -n1)"
+      success="$previous"
+      [ "$skipped" -eq 0 ] && success="$(date +%s)"
+      umask 0027
+      {
+        printf 'homelab_restic_prune_success_timestamp_seconds{dataset="vault",destination="nas"} %s\n' "$success"
+        printf 'homelab_restic_prune_skipped{dataset="vault",destination="nas",reason="replication"} %s\n' "$skipped"
+        printf 'homelab_restic_unreplicated_candidates{dataset="vault",destination="nas"} %s\n' "$candidates"
+      } >"$tmp"
+      chmod 0640 "$tmp"
+      mv -f "$tmp" "$metrics"
+    }
+    collect_candidates() {
+      local repo="$1" password_file="$2" output="$3" raw="${3}.json"
+      if ! RESTIC_PASSWORD_FILE="$password_file" restic -r "$repo" forget --dry-run --json --group-by host \
+        --keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 12w --keep-within-monthly 24m \
+        >"$raw"; then
+        die "restic forget dry-run failed for $repo"
+      fi
+      if ! jq -s -r '
+        if length == 0 then
+          empty
+        elif ((length == 1) and (.[0] | type == "array")) then
+          .[0][]
+          | if (type == "object" and has("remove")) then
+              .remove[]?.id
+            else
+              error("unexpected restic forget group shape")
+            end
+        elif (length > 0 and all(.[]; type == "object")) then
+          .[]
+          | if (.message_type == "forget" and has("remove")) then
+              .remove[]?.id
+            else
+              error("unexpected restic forget message shape")
+            end
+        else
+          error("unexpected restic forget JSON shape")
+        end
+      ' "$raw" >"$output"; then
+        die "could not parse restic forget JSON for $repo"
+      fi
+    }
+    mount_record="$(awk '$5 == "/data/vault" { separator=0; for (field=7; field<=NF; field++) if ($field == "-") { separator=field; break }; if (separator>0) print $(separator+1) "\t" $(separator+2) }' /proc/self/mountinfo | tail -n1)"
+    IFS=$'\t' read -r vault_fs vault_source <<<"$mount_record"
+    if [ "$vault_fs" = ext4 ] && [ "$vault_source" = /dev/mapper/vg0-root ]; then
+      log "vault is locked; skipping vault retention"
+      exit 0
+    fi
+    [ "$vault_fs" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
+      || die "/data/vault is not the configured vault filesystem"
+    [ -r /etc/homelab/vault.conf ] || die "vault host identity is absent"
+    # shellcheck disable=SC1091
+    source /etc/homelab/vault.conf
+    : "${VAULT_FS_UUID:?VAULT_FS_UUID is required}"
+    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+      || die "vault sentinel contract mismatch"
+    grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel \
+      || die "vault sentinel UUID mismatch"
+    sentinel_metadata="$(stat -c '%u:%g:%a' /data/vault/.vault-sentinel)"
+    [ "$sentinel_metadata" = 0:0:444 ] || die "vault sentinel ownership or mode is invalid"
+    [ -r /etc/homelab/vault-b2.conf ] || die "B2 repository configuration is absent"
+    # shellcheck disable=SC1091
+    source /etc/homelab/vault-b2.conf
+    : "${VAULT_B2_REPOSITORY:?VAULT_B2_REPOSITORY is required}"
+    credential_dir=/data/vault/.backup-credentials
+    [ -d "$credential_dir" ] && [ ! -L "$credential_dir" ] \
+      || die "vault backup credential directory is invalid"
+    [ "$(stat -c '%u:%g:%a' "$credential_dir")" = 0:0:700 ] \
+      || die "vault backup credential directory ownership or mode is invalid"
+    for credential in nas-password b2-password b2-key-id b2-application-key; do
+      path="$credential_dir/$credential"
+      [ -f "$path" ] && [ ! -L "$path" ] || die "$path is invalid"
+      [ "$(stat -c '%u:%g:%a' "$path")" = 0:0:600 ] || die "$path ownership or mode is invalid"
+      [ -s "$path" ] || die "$path is empty"
+    done
+    [ -d "$source_control/holds" ] || die "source hold directory is absent"
+    [ -z "$(find "$source_control/holds" -type f -name '*.json' -print -quit)" ] \
+      || { write_metrics 1 0; log "vault has unresolved validation holds; skipping retention"; exit 0; }
+    [ -f "$source_control/validated.jsonl" ] || die "source validation ledger is absent"
+    [ -f "$destination_control/validated.jsonl" ] || { write_metrics 1 0; log "B2 validation ledger is absent; skipping retention"; exit 0; }
+    mkdir -p /work/restic-cache
+    export RESTIC_CACHE_DIR=/work/restic-cache
+    b2_key_id="$(cat /data/vault/.backup-credentials/b2-key-id)"
+    b2_application_key="$(cat /data/vault/.backup-credentials/b2-application-key)"
+    export AWS_ACCESS_KEY_ID="$b2_key_id"
+    export AWS_SECRET_ACCESS_KEY="$b2_application_key"
+    export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
+    source_listing=/work/source.json
+    destination_listing=/work/destination.json
+    RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+    restic -r "$source_repo" snapshots --host minis-vault --json >"$source_listing"
+    restic -r "$VAULT_B2_REPOSITORY" snapshots --host minis-vault --json >"$destination_listing"
+    now="$(date +%s)"
+    latest_source_id="$(jq -er 'max_by(.time | fromdateiso8601) | .id' "$source_listing")"
+    latest_source_lineage="$(jq -er --arg id "$latest_source_id" '.[] | select(.id == $id) | (.original // .id)' "$source_listing")"
+    latest_source_time="$(jq -er --arg id "$latest_source_id" '.[] | select(.id == $id) | .time | fromdateiso8601' "$source_listing")"
+    [ $((now - latest_source_time)) -le 14400 ] \
+      || { write_metrics 1 0; log "latest NAS snapshot is older than the four-hour backup interval; skipping retention"; exit 0; }
+    jq -s -e --arg lineage "$latest_source_lineage" 'any(.[]; .lineage == $lineage)' "$source_control/validated.jsonl" >/dev/null \
+      || { write_metrics 1 0; log "latest NAS snapshot is absent from the validation ledger; skipping retention"; exit 0; }
+    export RESTIC_REPOSITORY="$source_repo"
+    export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password
+    latest_manifest=/work/latest-manifest.json
+    /vault-scripts/validate-vault-snapshot.sh "$latest_source_id" >"$latest_manifest" \
+      || { write_metrics 1 0; log "latest NAS snapshot failed independent content validation; skipping retention"; exit 0; }
+    jq -e '.contract == "vault-v2" and (.total_files | type == "number") and (.total_bytes | type == "number")' "$latest_manifest" >/dev/null \
+      || { write_metrics 1 0; log "latest NAS snapshot manifest is invalid; skipping retention"; exit 0; }
+    baseline="$source_control/baseline.json"
+    [ -f "$baseline" ] || { write_metrics 1 0; log "vault baseline is absent; skipping retention"; exit 0; }
+    baseline_files="$(jq -er '[.samples[].files] | max' "$baseline")"
+    baseline_bytes="$(jq -er '[.samples[].bytes] | max' "$baseline")"
+    latest_files="$(jq -er '.total_files' "$latest_manifest")"
+    latest_bytes="$(jq -er '.total_bytes' "$latest_manifest")"
+    [ "$latest_files" -ge $((baseline_files * 80 / 100)) ] \
+      && [ "$latest_bytes" -ge $((baseline_bytes * 80 / 100)) ] \
+      || { write_metrics 1 0; log "latest NAS snapshot is below the healthy baseline tolerance; skipping retention"; exit 0; }
+    [ "$(jq 'length' "$destination_listing")" -gt 0 ] \
+      || { write_metrics 1 0; log "B2 repository has no snapshots; skipping retention"; exit 0; }
+    latest_destination_id="$(jq -er 'max_by(.time | fromdateiso8601) | .id' "$destination_listing")"
+    latest_destination_lineage="$(jq -er --arg id "$latest_destination_id" '.[] | select(.id == $id) | (.original // .id)' "$destination_listing")"
+    latest_destination_time="$(jq -er --arg id "$latest_destination_id" '.[] | select(.id == $id) | .time | fromdateiso8601' "$destination_listing")"
+    [ $((now - latest_destination_time)) -le 129600 ] \
+      || { write_metrics 1 0; log "latest B2 snapshot is older than the 36-hour copy tolerance; skipping retention"; exit 0; }
+    jq -s -e --arg lineage "$latest_destination_lineage" 'any(.[]; .lineage == $lineage)' "$destination_control/validated.jsonl" >/dev/null \
+      || { write_metrics 1 0; log "latest B2 snapshot is absent from the validation ledger; skipping retention"; exit 0; }
+    collect_candidates "$source_repo" /data/vault/.backup-credentials/nas-password /work/source-candidates
+    mapfile -t source_candidates < /work/source-candidates
+    unreplicated=0
+    for snapshot_id in "${source_candidates[@]}"; do
+      [ -n "$snapshot_id" ] || continue
+      lineage="$(jq -er --arg id "$snapshot_id" '.[] | select(.id == $id) | (.original // .id)' "$source_listing")"
+      jq -s -e --arg lineage "$lineage" 'any(.[]; .lineage == $lineage)' "$source_control/validated.jsonl" >/dev/null \
+        || { unreplicated=$((unreplicated + 1)); continue; }
+      destination_id="$(jq -r --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)] | first | .id // empty' "$destination_listing")"
+      [ -n "$destination_id" ] \
+        && jq -s -e --arg lineage "$lineage" 'any(.[]; .lineage == $lineage)' "$destination_control/validated.jsonl" >/dev/null \
+        || unreplicated=$((unreplicated + 1))
+    done
+    if [ "$unreplicated" -gt 0 ]; then
+      write_metrics 1 "$unreplicated"
+      log "$unreplicated source removal candidate(s) are not validated in B2; skipping NAS retention"
+      exit 0
+    fi
+    if [ "${#source_candidates[@]}" -gt 0 ]; then
+      RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+        restic -r "$source_repo" snapshots "${source_candidates[@]}" --json >/dev/null \
+        || die "a verified source candidate disappeared before explicit forget"
+      RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+        restic -r "$source_repo" forget --group-by host "${source_candidates[@]}"
+      RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+        restic -r "$source_repo" prune
+    fi
+    export RESTIC_REPOSITORY="$VAULT_B2_REPOSITORY"
+    export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
+    collect_candidates "$VAULT_B2_REPOSITORY" /data/vault/.backup-credentials/b2-password /work/destination-candidates
+    mapfile -t destination_candidates < /work/destination-candidates
+    destination_unvalidated=0
+    for snapshot_id in "${destination_candidates[@]}"; do
+      [ -n "$snapshot_id" ] || continue
+      lineage="$(jq -er --arg id "$snapshot_id" '.[] | select(.id == $id) | (.original // .id)' "$destination_listing")"
+      jq -s -e --arg lineage "$lineage" 'any(.[]; .lineage == $lineage)' "$destination_control/validated.jsonl" >/dev/null \
+        || destination_unvalidated=$((destination_unvalidated + 1))
+    done
+    if [ "$destination_unvalidated" -gt 0 ]; then
+      write_metrics 1 "$destination_unvalidated"
+      log "$destination_unvalidated B2 removal candidate(s) lack validation evidence; skipping B2 retention"
+      exit 0
+    fi
+    if [ "${#destination_candidates[@]}" -gt 0 ]; then
+      restic -r "$VAULT_B2_REPOSITORY" snapshots "${destination_candidates[@]}" --json >/dev/null \
+        || die "a verified B2 candidate disappeared before explicit forget"
+      restic -r "$VAULT_B2_REPOSITORY" forget --group-by host "${destination_candidates[@]}"
+      restic -r "$VAULT_B2_REPOSITORY" prune
+    fi
+    write_metrics 0 0
+    log "vault NAS and B2 retention complete"

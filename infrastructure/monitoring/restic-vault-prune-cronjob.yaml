@@ -1,0 +1,80 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restic-vault-prune
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: restic-vault-prune
+spec:
+  schedule: "30 1 * * 0"
+  timeZone: America/Chicago
+  suspend: true
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 3
+  successfulJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 21600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: restic-vault-prune
+        spec:
+          restartPolicy: Never
+          priorityClassName: homelab-low
+          automountServiceAccountToken: false
+          nodeSelector:
+            kubernetes.io/hostname: minis
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              image: ghcr.io/sandersch/restic-backup:0.19.1-1@sha256:58cddae970e91cb4f8f18db69d9d7d526d1e1d803193a65afb2f7f3a43aa9097
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/prune-vault.sh"]
+              resources:
+                requests: {cpu: 250m, memory: 512Mi}
+                limits: {cpu: "1", memory: 2Gi}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsUser: 0
+                capabilities:
+                  drop: [ALL]
+                  add: [DAC_OVERRIDE]
+              volumeMounts:
+                - {name: script, mountPath: /scripts, readOnly: true}
+                - {name: vault-scripts, mountPath: /vault-scripts, readOnly: true}
+                - {name: contract, mountPath: /contracts, readOnly: true}
+                - {name: guard, mountPath: /guards, readOnly: true}
+                - {name: vault, mountPath: /data/vault, readOnly: true}
+                - {name: backups, mountPath: /repo/nas}
+                - {name: host-config, mountPath: /etc/homelab, readOnly: true}
+                - {name: metrics, mountPath: /metrics}
+                - {name: work, mountPath: /work}
+                - {name: tmp, mountPath: /tmp}
+          volumes:
+            - name: script
+              configMap: {name: restic-vault-prune-config, defaultMode: 0555}
+            - name: vault-scripts
+              configMap: {name: restic-vault-config, defaultMode: 0555}
+            - name: contract
+              configMap: {name: restic-vault-contract}
+            - name: guard
+              configMap: {name: restic-mount-guard, defaultMode: 0555}
+            - name: vault
+              hostPath: {path: /mnt/vault, type: Directory}
+            - name: backups
+              hostPath: {path: /mnt/backups, type: Directory}
+            - name: host-config
+              hostPath: {path: /etc/homelab, type: Directory}
+            - name: metrics
+              hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
+            - name: work
+              emptyDir: {medium: Memory, sizeLimit: 512Mi}
+            - name: tmp
+              emptyDir: {medium: Memory, sizeLimit: 64Mi}

@@ -69,13 +69,31 @@ data:
     elif [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
       && [ "$backups_available" -eq 1 ]; then
       # shellcheck disable=SC1091
-      source /host-config/vault.conf
+      source /etc/homelab/vault.conf
       if grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
         && grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel; then
         export RESTIC_REPOSITORY=/repo/nas/vault
         export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password
         check_repository vault nas
         unset RESTIC_REPOSITORY RESTIC_PASSWORD_FILE
+        if [ -r /etc/homelab/vault-b2.conf ] \
+          && [ -s /data/vault/.backup-credentials/b2-password ] \
+          && [ -s /data/vault/.backup-credentials/b2-key-id ] \
+          && [ -s /data/vault/.backup-credentials/b2-application-key ]; then
+          # shellcheck disable=SC1091
+          source /etc/homelab/vault-b2.conf
+          : "${VAULT_B2_REPOSITORY:?VAULT_B2_REPOSITORY is required}"
+          b2_key_id="$(cat /data/vault/.backup-credentials/b2-key-id)"
+          b2_application_key="$(cat /data/vault/.backup-credentials/b2-application-key)"
+          export AWS_ACCESS_KEY_ID="$b2_key_id"
+          export AWS_SECRET_ACCESS_KEY="$b2_application_key"
+          export RESTIC_REPOSITORY="$VAULT_B2_REPOSITORY"
+          export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
+          check_repository vault b2
+          unset RESTIC_REPOSITORY RESTIC_PASSWORD_FILE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+        else
+          log "vault B2 enrollment is absent; leaving its check timestamp unchanged"
+        fi
       else
         log "ERROR: vault sentinel validation failed"
         failures=$((failures + 1))

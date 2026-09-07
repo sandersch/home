@@ -1,25 +1,25 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: restic-verify
+  name: restic-vault-copy
   namespace: monitoring
   labels:
-    app.kubernetes.io/name: restic-verify
+    app.kubernetes.io/name: restic-vault-copy
 spec:
-  schedule: 30 0 15 * *
+  schedule: "45 4 * * *"
   timeZone: America/Chicago
-  suspend: false
+  suspend: true
   concurrencyPolicy: Forbid
   failedJobsHistoryLimit: 3
   successfulJobsHistoryLimit: 1
   jobTemplate:
     spec:
       backoffLimit: 0
-      activeDeadlineSeconds: 43200
+      activeDeadlineSeconds: 21600
       template:
         metadata:
           labels:
-            app.kubernetes.io/name: restic-verify
+            app.kubernetes.io/name: restic-vault-copy
         spec:
           restartPolicy: Never
           priorityClassName: homelab-low
@@ -35,65 +35,44 @@ spec:
             - name: restic
               image: ghcr.io/sandersch/restic-backup:0.19.1-1@sha256:58cddae970e91cb4f8f18db69d9d7d526d1e1d803193a65afb2f7f3a43aa9097
               imagePullPolicy: IfNotPresent
-              command:
-                - /scripts/verify.sh
-              env:
-                - name: APPSTATE_NAS_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: restic-nas
-                      key: RESTIC_PASSWORD
-                - name: APPSTATE_B2_REPOSITORY
-                  valueFrom:
-                    secretKeyRef:
-                      name: restic-b2
-                      key: RESTIC_REPOSITORY
-                - name: APPSTATE_B2_PASSWORD
-                  valueFrom:
-                    secretKeyRef:
-                      name: restic-b2
-                      key: RESTIC_PASSWORD
-                - name: AWS_ACCESS_KEY_ID
-                  valueFrom:
-                    secretKeyRef:
-                      name: restic-b2
-                      key: AWS_ACCESS_KEY_ID
-                - name: AWS_SECRET_ACCESS_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: restic-b2
-                      key: AWS_SECRET_ACCESS_KEY
+              command: ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/copy-vault.sh"]
               resources:
                 requests:
                   cpu: 250m
-                  memory: 256Mi
+                  memory: 512Mi
                 limits:
-                  cpu: '1'
-                  memory: 1Gi
+                  cpu: "1"
+                  memory: 2Gi
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
                 runAsUser: 0
                 capabilities:
-                  drop:
-                    - ALL
-                  add:
-                    - DAC_OVERRIDE
+                  drop: [ALL]
+                  add: [DAC_OVERRIDE]
               volumeMounts:
                 - name: script
                   mountPath: /scripts
                   readOnly: true
+                - name: vault-scripts
+                  mountPath: /vault-scripts
+                  readOnly: true
+                - name: contract
+                  mountPath: /contracts
+                  readOnly: true
                 - name: guard
                   mountPath: /guards
-                  readOnly: true
-                - name: host-config
-                  mountPath: /etc/homelab
                   readOnly: true
                 - name: vault
                   mountPath: /data/vault
                   readOnly: true
                 - name: backups
                   mountPath: /repo/nas
+                - name: b2
+                  mountPath: /repo/b2
+                - name: host-config
+                  mountPath: /etc/homelab
+                  readOnly: true
                 - name: metrics
                   mountPath: /metrics
                 - name: work
@@ -103,16 +82,19 @@ spec:
           volumes:
             - name: script
               configMap:
-                name: restic-verify-config
-                defaultMode: 365
+                name: restic-vault-copy-config
+                defaultMode: 0555
+            - name: vault-scripts
+              configMap:
+                name: restic-vault-config
+                defaultMode: 0555
+            - name: contract
+              configMap:
+                name: restic-vault-contract
             - name: guard
               configMap:
                 name: restic-mount-guard
-                defaultMode: 365
-            - name: host-config
-              hostPath:
-                path: /etc/homelab
-                type: Directory
+                defaultMode: 0555
             - name: vault
               hostPath:
                 path: /mnt/vault
@@ -120,6 +102,12 @@ spec:
             - name: backups
               hostPath:
                 path: /mnt/backups
+                type: Directory
+            - name: b2
+              emptyDir: {}
+            - name: host-config
+              hostPath:
+                path: /etc/homelab
                 type: Directory
             - name: metrics
               hostPath:

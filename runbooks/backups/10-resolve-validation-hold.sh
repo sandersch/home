@@ -5,7 +5,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root
 require_sudo
-require_tools jq kubectl yq
+require_tools jq kubectl yq restic
 require_backup_yq
 [ "$(hostname -s)" = minis ] || die "run this step on minis"
 : "${HOLD_SNAPSHOT:?set HOLD_SNAPSHOT to the full held Restic ID}"
@@ -19,8 +19,44 @@ sudo /usr/local/sbin/vault-unlock
 assert_direct_mount_layout "$BACKUPS_MOUNT" "$BACKUPS_SOURCE" "$BACKUPS_UUID"
 
 if [ "$HOLD_ACTION" = reject ]; then
-  if kubectl -n monitoring get cronjob restic-vault-copy >/dev/null 2>&1; then
-    die "vault B2 replication exists; this Phase 1 resolver cannot prove destination absence"
+  hold_file="/mnt/backups/.control/vault/holds/$HOLD_SNAPSHOT.json"
+  [ -f "$hold_file" ] || die "the exact hold is absent"
+  hold_lineage="$(sudo jq -er '.lineage' "$hold_file")"
+  b2_required=0
+  copy_cronjob="$(kubectl -n monitoring get cronjob restic-vault-copy \
+    --ignore-not-found -o name)" \
+    || die "cannot determine whether the vault B2 copy CronJob exists"
+  [ -n "$copy_cronjob" ] && b2_required=1
+  if sudo grep -qx 'homelab_backup_repository_enrolled{dataset="vault",destination="b2"} 1' \
+    /var/lib/node-exporter/textfile/restic-vault-copy.prom 2>/dev/null; then
+    b2_required=1
+  fi
+  if [ "$b2_required" -eq 1 ]; then
+    [ -r /etc/homelab/vault-b2.conf ] \
+      || die "vault B2 is enabled but /etc/homelab/vault-b2.conf is absent or unreadable"
+    for credential in b2-password b2-key-id b2-application-key; do
+      sudo test -s "/mnt/vault/.backup-credentials/$credential" \
+        || die "vault B2 is enabled but $credential is absent or unreadable"
+    done
+    # Prove the held lineage is absent from the destination before allowing the
+    # exact source snapshot to be rejected. The in-cluster resolver repeats all
+    # source checks; this destination check closes the Phase 4 race explicitly.
+    source /etc/homelab/vault-b2.conf
+    : "${VAULT_B2_REPOSITORY:?VAULT_B2_REPOSITORY is required}"
+    destination_listing="$(mktemp)"
+    trap 'rm -f "$destination_listing"' EXIT
+    sudo env \
+      AWS_ACCESS_KEY_ID="$(sudo cat /mnt/vault/.backup-credentials/b2-key-id)" \
+      AWS_SECRET_ACCESS_KEY="$(sudo cat /mnt/vault/.backup-credentials/b2-application-key)" \
+      RESTIC_PASSWORD_FILE=/mnt/vault/.backup-credentials/b2-password \
+      restic -r "$VAULT_B2_REPOSITORY" snapshots --json \
+      | tee "$destination_listing" >/dev/null \
+      || die "cannot prove destination absence; refusing rejection"
+    if jq -e --arg lineage "$hold_lineage" 'any(.[]; (.original // .id) == $lineage)' "$destination_listing" >/dev/null; then
+      die "held lineage exists in B2; refusing rejection"
+    else
+      [ "$?" -eq 1 ] || die "B2 snapshot listing could not be evaluated"
+    fi
   fi
   resolution_reason="rejected"
 else

@@ -1,0 +1,4 @@
+# Installed as /etc/homelab/vault-b2.conf by the attended Phase 4 enrollment.
+# This file contains no credential; the application key and repository password
+# remain under /mnt/vault/.backup-credentials while the vault is mounted.
+VAULT_B2_REPOSITORY='s3:https://s3.<region>.backblazeb2.com/<private-vault-bucket>'

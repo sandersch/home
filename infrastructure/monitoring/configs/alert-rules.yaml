@@ -63,16 +63,16 @@ spec:
           expr: |
             max by (namespace, owner_name) (
               (
-                kube_job_created{namespace="monitoring",job_name=~"restic-(nas-backup|b2-backup|vault-backup)-.*"}
+                kube_job_created{namespace="monitoring",job_name=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)-.*"}
                 * on (namespace, job_name) group_left(owner_name)
-                  kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name=~"restic-(nas-backup|b2-backup|vault-backup)"}
+                  kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)"}
               )
               and on (namespace, job_name)
-                (kube_job_status_failed{namespace="monitoring",job_name=~"restic-(nas-backup|b2-backup|vault-backup)-.*"} > 0)
+                (kube_job_status_failed{namespace="monitoring",job_name=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)-.*"} > 0)
             )
             > on (namespace, owner_name)
             label_replace(
-              kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob=~"restic-(nas-backup|b2-backup|vault-backup)"},
+              kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)"},
               "owner_name", "$1", "cronjob", "(.*)"
             )
           for: 5m
@@ -108,6 +108,10 @@ spec:
               kube_cronjob_spec_suspend{namespace="monitoring",cronjob=~"restic-(vault-backup|verify)"} == 1
               and on() (homelab_backup_repository_enrolled{dataset="vault",destination="nas"} == 1)
             )
+            or (
+              kube_cronjob_spec_suspend{namespace="monitoring",cronjob="restic-vault-copy"} == 1
+              and on() (homelab_backup_repository_enrolled{dataset="vault",destination="b2"} == 1)
+            )
           for: 15m
           labels:
             severity: warning
@@ -128,6 +132,62 @@ spec:
           annotations:
             description: The mounted encrypted vault has no validated local snapshot newer than eight hours.
             summary: Vault backup is overdue
+        - alert: ResticVaultCopyOverdue
+          expr: |
+            (
+              (time() - homelab_restic_destination_snapshot_timestamp_seconds{dataset="vault",destination="b2"} > 36 * 60 * 60)
+              or absent(homelab_restic_destination_snapshot_timestamp_seconds{dataset="vault",destination="b2"})
+            )
+            and on() (homelab_backup_repository_enrolled{dataset="vault",destination="b2"} == 1)
+            and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            description: The mounted encrypted vault has no validated B2 lineage newer than 36 hours.
+            summary: Vault B2 replication is overdue
+        - alert: ResticVaultCopySuspended
+          expr: |
+            kube_cronjob_spec_suspend{namespace="monitoring",cronjob="restic-vault-copy"} == 1
+            and on() (homelab_backup_repository_enrolled{dataset="vault",destination="b2"} == 1)
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            description: The enrolled vault-to-B2 replication schedule is suspended.
+            summary: Vault B2 replication is suspended
+        - alert: ResticReplicationLag
+          expr: homelab_restic_replication_skipped_consecutive{dataset="vault",destination="b2"} >= 2
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            description: Vault B2 replication has been gated by unvalidated or missing lineages for two consecutive runs.
+            summary: Vault B2 replication is lagging
+        - alert: ResticVaultCopyNearCeiling
+          expr: |
+            homelab_restic_repository_size_bytes{dataset="vault",destination="b2"}
+            / homelab_restic_repository_ceiling_bytes{dataset="vault",destination="b2"} > 0.80
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            description: The vault B2 repository is above 80 percent of its 100 GiB policy ceiling.
+            summary: Vault B2 repository is near its ceiling
+        - alert: ResticVaultPruneOverdue
+          expr: |
+            (
+              (time() - homelab_restic_prune_success_timestamp_seconds{dataset="vault",destination="nas"} > 10 * 24 * 60 * 60)
+              or absent(homelab_restic_prune_success_timestamp_seconds{dataset="vault",destination="nas"})
+            )
+            and on() (homelab_backup_repository_enrolled{dataset="vault",destination="b2"} == 1)
+            and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            description: The enrolled vault retention job has not completed successfully in ten days.
+            summary: Vault retention is overdue
         - alert: ResticSnapshotValidationHeld
           expr: homelab_restic_validation_hold{dataset="vault",destination="nas"} > 0
           for: 15m
@@ -161,6 +221,14 @@ spec:
               and on() (homelab_backup_repository_enrolled{dataset="vault",destination="nas"} == 1)
               and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)
             )
+            or (
+              (
+                (time() - homelab_restic_repository_check_timestamp_seconds{dataset="vault",destination="b2"} > 40 * 24 * 60 * 60)
+                or absent(homelab_restic_repository_check_timestamp_seconds{dataset="vault",destination="b2"})
+              )
+              and on() (homelab_backup_repository_enrolled{dataset="vault",destination="b2"} == 1)
+              and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)
+            )
           for: 30m
           labels:
             severity: warning
@@ -175,6 +243,14 @@ spec:
             )
             and on() (homelab_backup_repository_enrolled{dataset="vault",destination="nas"} == 1)
             and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)
+            or (
+              (
+                (time() - homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="b2"} > 100 * 24 * 60 * 60)
+                or absent(homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="b2"})
+              )
+              and on() (homelab_backup_repository_enrolled{dataset="vault",destination="b2"} == 1)
+              and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)
+            )
           for: 30m
           labels:
             severity: warning

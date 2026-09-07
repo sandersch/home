@@ -1,0 +1,208 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: restic-vault-copy-config
+  namespace: monitoring
+data:
+  detect-vault-exclusions.jq: |
+    select(.message_type == "node") | .path | select(
+      . == "/data/vault/.backup-credentials" or startswith("/data/vault/.backup-credentials/") or
+      . == "/data/vault/.mail-credentials" or startswith("/data/vault/.mail-credentials/") or
+      . == "/data/vault/inbox" or startswith("/data/vault/inbox/") or
+      . == "/data/vault/.restore-tests" or startswith("/data/vault/.restore-tests/")
+    )
+  copy-vault.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+    die() { log "ERROR: $*" >&2; exit 1; }
+    source_repo=/repo/nas/vault
+    control=/repo/nas/.control/vault
+    destination_control=/repo/nas/.control/vault-b2
+    metrics=/metrics/restic-vault-copy.prom
+    work=/work
+
+    write_metrics() {
+      local locked="$1" newest="${2:-0}" copied="${3:-0}" missing="${4:-0}" size="${5:-0}"
+      local tmp="${metrics}.tmp.$$" previous_success previous_newest previous_size previous_missing previous_skips success skips
+      previous_success=0
+      previous_newest=0
+      previous_size=0
+      previous_missing=0
+      previous_skips=0
+      if [ -f "$metrics" ]; then
+        previous_success="$(awk '/homelab_restic_replication_success_timestamp_seconds/ {print $NF}' "$metrics" | tail -n1)"
+        previous_newest="$(awk '/homelab_restic_destination_snapshot_timestamp_seconds/ {print $NF}' "$metrics" | tail -n1)"
+        previous_size="$(awk '/homelab_restic_repository_size_bytes/ {print $NF}' "$metrics" | tail -n1)"
+        previous_skips="$(awk '/homelab_restic_replication_skipped_consecutive/ {print $NF}' "$metrics" | tail -n1)"
+        previous_missing="$(awk '/homelab_restic_replication_missing_snapshots/ {print $NF}' "$metrics" | tail -n1)"
+      fi
+      [ "$newest" -gt 0 ] || newest="$previous_newest"
+      [ "$size" -gt 0 ] || size="$previous_size"
+      [ "$locked" -eq 1 ] && missing="$previous_missing"
+      success="$previous_success"
+      [ "$copied" -gt 0 ] && success="$(date +%s)"
+      skips=0
+      skips="$previous_skips"
+      [ "$locked" -eq 0 ] && [ "$missing" -gt 0 ] && skips=$((previous_skips + 1))
+      [ "$locked" -eq 0 ] && [ "$missing" -eq 0 ] && skips=0
+      umask 0027
+      {
+        printf 'homelab_backup_repository_enrolled{dataset="vault",destination="b2"} 1\n'
+        printf 'homelab_restic_replication_locked{dataset="vault",destination="b2"} %s\n' "$locked"
+        printf 'homelab_restic_destination_snapshot_timestamp_seconds{dataset="vault",destination="b2"} %s\n' "$newest"
+        printf 'homelab_restic_replication_success_timestamp_seconds{dataset="vault",destination="b2"} %s\n' "$success"
+        printf 'homelab_restic_replication_missing_snapshots{dataset="vault",destination="b2"} %s\n' "$missing"
+        printf 'homelab_restic_replication_skipped_consecutive{dataset="vault",destination="b2"} %s\n' "$skips"
+        printf 'homelab_restic_repository_size_bytes{dataset="vault",destination="b2"} %s\n' "$size"
+        printf 'homelab_restic_repository_ceiling_bytes{dataset="vault",destination="b2"} 107374182400\n'
+      } >"$tmp"
+      chmod 0640 "$tmp"
+      mv -f "$tmp" "$metrics"
+    }
+
+    ledger_has() {
+      local ledger="$1" lineage="$2"
+      [ -f "$ledger" ] && jq -e --arg lineage "$lineage" \
+        -s 'any(.[]; .lineage == $lineage)' "$ledger" >/dev/null 2>&1
+    }
+
+    # The encrypted vault is deliberately the credential boundary. A locked vault is
+    # a successful degraded run and must not contact B2 or advance freshness.
+    mount_record="$(awk '$5 == "/data/vault" { separator=0; for (field=7; field<=NF; field++) if ($field == "-") { separator=field; break }; if (separator>0) print $(separator+1) "\t" $(separator+2) }' /proc/self/mountinfo | tail -n1)"
+    IFS=$'\t' read -r vault_fs vault_source <<<"$mount_record"
+    if [ "$vault_fs" = ext4 ] && [ "$vault_source" = /dev/mapper/vg0-root ]; then
+      write_metrics 1 0 0 0
+      log "vault is locked; skipping B2 replication without opening credentials"
+      exit 0
+    fi
+    [ "$vault_fs" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
+      || die "/data/vault is not the configured vault filesystem"
+    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+      || die "vault sentinel contract mismatch"
+    [ -r /etc/homelab/vault-b2.conf ] || die "B2 repository configuration is absent"
+    # shellcheck disable=SC1091
+    source /etc/homelab/vault-b2.conf
+    : "${VAULT_B2_REPOSITORY:?VAULT_B2_REPOSITORY is required}"
+    [ -f /data/vault/.backup-credentials/nas-password ] \
+      || die "vault NAS password is absent"
+    [ -f /data/vault/.backup-credentials/b2-password ] \
+      || die "vault B2 password is absent"
+    [ -f /data/vault/.backup-credentials/b2-key-id ] \
+      || die "vault B2 key ID is absent"
+    [ -f /data/vault/.backup-credentials/b2-application-key ] \
+      || die "vault B2 application key is absent"
+    [ -f "$source_repo/config" ] || die "vault NAS repository is not initialized"
+
+    mkdir -p "$destination_control" "$work/restic-cache"
+    export RESTIC_CACHE_DIR="$work/restic-cache"
+    b2_key_id="$(cat /data/vault/.backup-credentials/b2-key-id)"
+    b2_application_key="$(cat /data/vault/.backup-credentials/b2-application-key)"
+    export AWS_ACCESS_KEY_ID="$b2_key_id"
+    export AWS_SECRET_ACCESS_KEY="$b2_application_key"
+    export RESTIC_REPOSITORY="$VAULT_B2_REPOSITORY"
+    export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
+    export RESTIC_FROM_REPOSITORY="$source_repo"
+    export RESTIC_FROM_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password
+
+    [ -f "$destination_control/validated.jsonl" ] || : >"$destination_control/validated.jsonl"
+    source_listing="$work/source.json"
+    destination_listing="$work/destination.json"
+    RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+      restic -r "$source_repo" snapshots --host minis-vault --json >"$source_listing"
+    restic snapshots --host minis-vault --json >"$destination_listing"
+    source_count=0
+    copied_count=0
+    missing_count=0
+    newest=0
+    while IFS=$'\t' read -r snapshot_id lineage _snapshot_time; do
+      [ -n "$snapshot_id" ] || continue
+      source_count=$((source_count + 1))
+      ledger_has "$control/validated.jsonl" "$lineage" \
+        || { missing_count=$((missing_count + 1)); continue; }
+      destination_id="$(jq -r --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)] | first | .id // empty' "$destination_listing")"
+      if [ -n "$destination_id" ]; then
+        if ! ledger_has "$destination_control/validated.jsonl" "$lineage"; then
+          log "destination snapshot $destination_id lacks validation evidence; holding replication"
+          missing_count=$((missing_count + 1))
+          continue
+        fi
+        current_time="$(jq -er --arg id "$destination_id" '.[] | select(.id == $id) | .time | fromdateiso8601' "$destination_listing" | head -n1)"
+        [ "$current_time" -gt "$newest" ] && newest="$current_time"
+        continue
+      else
+        log "copying source snapshot $snapshot_id (lineage $lineage)"
+        export RESTIC_REPOSITORY="$source_repo"
+        export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password
+        /vault-scripts/validate-vault-snapshot.sh "$snapshot_id" >/dev/null \
+          || die "source snapshot $snapshot_id failed revalidation"
+        export RESTIC_REPOSITORY="$VAULT_B2_REPOSITORY"
+        export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
+        RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password \
+          RESTIC_FROM_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+          restic copy --from-repo "$source_repo" "$snapshot_id" >/dev/null
+        copied_count=$((copied_count + 1))
+        restic snapshots --host minis-vault --json >"$destination_listing"
+        destination_id="$(jq -r --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)] | first | .id // empty' "$destination_listing")"
+        [ -n "$destination_id" ] || die "copy returned no destination snapshot for $lineage"
+      fi
+
+      export RESTIC_REPOSITORY="$VAULT_B2_REPOSITORY"
+      /vault-scripts/validate-vault-snapshot.sh "$destination_id" >/dev/null
+      printf '%s\n' "$(jq -cn --arg lineage "$lineage" --arg snapshot_id "$destination_id" --arg validated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{lineage:$lineage,snapshot_id:$snapshot_id,validated_at:$validated_at}')" \
+        >>"$destination_control/validated.jsonl"
+      current_time="$(jq -er --arg id "$destination_id" '.[] | select(.id == $id) | .time | fromdateiso8601' "$destination_listing" | head -n1)"
+      [ "$current_time" -gt "$newest" ] && newest="$current_time"
+    done < <(jq -r '.[] | select(.hostname == "minis-vault") | [.id, (.original // .id), (.time // "1970-01-01T00:00:00Z")] | @tsv' "$source_listing")
+
+    [ "$source_count" -gt 0 ] || die "vault NAS repository has no snapshots"
+    destination_size="$(restic stats --json --mode restore-size | jq -er '.total_size // 0')"
+    write_metrics 0 "$newest" "$copied_count" "$missing_count" "$destination_size"
+    if [ "$missing_count" -gt 0 ]; then
+      log "$missing_count vault snapshot(s) were not eligible for replication; newer eligible lineages were processed"
+      exit 0
+    fi
+    log "vault B2 replication complete; copied $copied_count snapshot(s)"
+  validate-vault-b2-restore.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+    die() { log "ERROR: $*" >&2; exit 1; }
+    : "${RESTORE_SNAPSHOT:?RESTORE_SNAPSHOT is required}"
+    [[ "$RESTORE_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] || die "RESTORE_SNAPSHOT must be a full snapshot ID"
+    [ -r /etc/homelab/vault-b2.conf ] || die "B2 repository configuration is absent"
+    # shellcheck disable=SC1091
+    source /etc/homelab/vault-b2.conf
+    : "${VAULT_B2_REPOSITORY:?VAULT_B2_REPOSITORY is required}"
+    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+      || die "vault sentinel contract mismatch"
+    export RESTIC_REPOSITORY="$VAULT_B2_REPOSITORY"
+    export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
+    b2_key_id="$(cat /data/vault/.backup-credentials/b2-key-id)"
+    b2_application_key="$(cat /data/vault/.backup-credentials/b2-application-key)"
+    export AWS_ACCESS_KEY_ID="$b2_key_id"
+    export AWS_SECRET_ACCESS_KEY="$b2_application_key"
+    mkdir -p /work/restic-cache
+    export RESTIC_CACHE_DIR=/work/restic-cache
+    /vault-scripts/validate-vault-snapshot.sh "$RESTORE_SNAPSHOT" >/work/validated-manifest.json
+    listing=/work/listing.jsonl
+    restic ls --json "$RESTORE_SNAPSHOT" >"$listing"
+    kdbx=/work/ccs.kdbx
+    restic dump "$RESTORE_SNAPSHOT" /data/vault/credentials/strongbox/ccs.kdbx >"$kdbx"
+    [ "$(od -An -tx1 -N8 "$kdbx" | tr -d ' \n')" = 03d9a29a67fb4bb5 ] \
+      || die "B2 restore returned an invalid KDBX"
+    document="$(jq -r 'select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/documents/"))) | .path' "$listing" | head -n1)"
+    photo="$(jq -r 'select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/photos/"))) | .path' "$listing" | head -n1)"
+    [ -n "$document" ] && [ -n "$photo" ] || die "B2 snapshot has no representative document or photo"
+    restic dump "$RESTORE_SNAPSHOT" "$document" >/work/restored-document
+    restic dump "$RESTORE_SNAPSHOT" "$photo" >/work/restored-photo
+    [ -s /work/restored-document ] && [ -s /work/restored-photo ] \
+      || die "B2 representative restore produced an empty file"
+    metric=/metrics/restic-vault-b2-restore.prom
+    metric_tmp="${metric}.tmp.$$"
+    umask 0027
+    printf 'homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="b2"} %s\n' "$(date +%s)" >"$metric_tmp"
+    chmod 0640 "$metric_tmp"
+    mv -f "$metric_tmp" "$metric"
+    log "B2 restore passed contract, KDBX, document, and photo validation for $RESTORE_SNAPSHOT"
