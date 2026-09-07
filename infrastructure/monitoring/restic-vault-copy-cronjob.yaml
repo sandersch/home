@@ -71,8 +71,6 @@ spec:
                   readOnly: true
                 - name: backups
                   mountPath: /repo/nas
-                - name: b2
-                  mountPath: /repo/b2
                 - name: host-config
                   mountPath: /etc/homelab
                   readOnly: true
@@ -106,8 +104,6 @@ spec:
               hostPath:
                 path: /mnt/backups
                 type: Directory
-            - name: b2
-              emptyDir: {}
             - name: host-config
               hostPath:
                 path: /etc/homelab
