@@ -58,22 +58,26 @@ data:
     # host as never enrolled.
     touch /etc/homelab/vault-b2.enrolled
     chmod 0600 /etc/homelab/vault-b2.enrolled
-    if restic -r "$VAULT_B2_REPOSITORY" snapshots >/dev/null 2>&1; then
+    probe_log="$staging/repository-probe.log"
+    if restic -r "$VAULT_B2_REPOSITORY" snapshots >"$probe_log" 2>&1; then
       log "B2 repository already initialized; preserving its chunker parameters"
     else
       result="$?"
-      [ "$result" -eq 10 ] || die "cannot open B2 repository (exit $result)"
+      if [ "$result" -ne 10 ]; then
+        cat "$probe_log" >&2
+        die "cannot open B2 repository (exit $result)"
+      fi
       RESTIC_FROM_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
         restic -r "$VAULT_B2_REPOSITORY" init --from-repo /repo/nas/vault \
           --copy-chunker-params
     fi
     restic -r "$VAULT_B2_REPOSITORY" snapshots --json >/dev/null
 
-    install -o root -g root -m 0600 "$staging/password" \
+    install -m 0600 "$staging/password" \
       /data/vault/.backup-credentials/b2-password
-    install -o root -g root -m 0600 "$staging/key-id" \
+    install -m 0600 "$staging/key-id" \
       /data/vault/.backup-credentials/b2-key-id
-    install -o root -g root -m 0600 "$staging/application-key" \
+    install -m 0600 "$staging/application-key" \
       /data/vault/.backup-credentials/b2-application-key
     log "vault B2 repository initialized; credentials stored inside the encrypted vault"
   detect-vault-exclusions.jq: |

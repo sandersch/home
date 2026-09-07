@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert 'source /etc/homelab/vault-b2.conf' not in wrapper
     assert 'restic --no-cache' in enrollment
     assert 'mktemp -d /dev/shm/vault-b2-enroll.' in enrollment
-    assert 'install -o root -g root -m 0600' in enrollment
+    assert 'install -m 0600' in enrollment
     assert 'AWS_ACCESS_KEY_ID' in enrollment and 'AWS_SECRET_ACCESS_KEY' in enrollment
     assert 'sudo' not in enrollment
     assert 'vault B2 repository initialized; credentials stored inside the encrypted vault' in enrollment
