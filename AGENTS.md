@@ -102,15 +102,13 @@ migration of the SLZB-MRW10U from its current
 Trusted/VLAN 30 placement to IoT/VLAN 60, a possible second node, Tailscale Funnel
 for Plex, and Immich.
 
-**The local encrypted-vault backup is implemented and photo-restore validated.** [docs/backups.md](./docs/backups.md)
-is still a **draft** policy for vault off-site replication, personal workstation backups, and
-the mail archive. The decisions it records — the `vault`/`appstate`/`workstations` dataset
-split, `restic copy` for NAS→B2 replication, an append-only `--private-repos` REST server
-with a per-client repo and credential for workstation pushes, and excluding Frigate
-recordings — are **provisional pending implementation** and are *not* part of the settled
-decision log above. Until those tiers are built and drilled, only the vault’s local copy,
-`/opt`, the k3s datastore, and the required hot dumps are backed up; everything else on the
-bulk array has a single copy.
+**The encrypted-vault backup and its B2 off-site copy are implemented and validated.**
+[docs/backups.md](./docs/backups.md) records the 2026-09-07 activation: Flux applied
+`eb02a61`, the vault B2 copy and prune CronJobs are live with `SUSPEND=false`, and the
+first copy run completed successfully. Workstation backups, offline copies, and mail
+archival remain draft. Until those tiers are built and drilled, only the vault and
+`appstate` pipelines, `/opt`, the k3s datastore, and required hot dumps are backed up;
+everything else on the bulk array has a single copy.
 
 ## Repository structure
 
@@ -126,7 +124,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   ├── network.md
 │   ├── migration-runbook.md
 │   ├── direct-attached-storage-migration.md
-│   ├── backups.md             #   Local vault live; broader off-site policy remains draft
+│   ├── backups.md             #   Vault local + B2 live; workstation/offline tiers remain draft
 │   └── operations.md
 ├── runbooks/                  # Phases 0–5 plus attended bastion/DR/migration/NFS workflows
 ├── host/                      # canonical bare-metal host and switch config
@@ -216,5 +214,5 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 5. [docs/architecture.md](./docs/architecture.md) — the design and its rationale.
 6. [docs/migration-runbook.md](./docs/migration-runbook.md) — historical Plex + *arr migration path.
 7. [docs/operations.md](./docs/operations.md) — backups, monitoring, tuning, follow-ups.
-8. [docs/backups.md](./docs/backups.md) — local vault backup status and the remaining
-   draft off-site/workstation policy.
+8. [docs/backups.md](./docs/backups.md) — vault/appstate backup status and the remaining
+   draft workstation, offline-drive, and mail tiers.

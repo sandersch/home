@@ -4,16 +4,18 @@
 > B2 replication and guarded vault retention are implemented in git; live B2 enrollment,
 > initial seed, attended on-host B2 restore, separate off-host break-glass restore, and
 > appstate-key denial from the vault bucket, and enrolled repository verification have
-> passed. The reviewed activation commit enables the copy and prune CronJobs in Git; Flux
-> reconciliation and live `SUSPEND false` confirmation remain to be recorded. The broader
-> whole-estate policy remains draft. Updated 2026-09-07.
+> passed. Flux reconciled activation commit `eb02a61` on 2026-09-07, and the live
+> `restic-vault-copy` and `restic-vault-prune` CronJobs are present with `SUSPEND=false`.
+> The first copy run completed successfully; the first prune run is pending its scheduled
+> Saturday window. Workstation backups, offline copies, and mail archival remain draft.
+> Updated 2026-09-07.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
 > verifier, a restricted `ryze` ingestion path, versioned contracts, alerts, and restore
-> runbooks. The local vault and `appstate` pipelines run today; vault B2 copy/prune are
-> enabled by the reviewed activation commit, pending live reconciliation confirmation.
-> Workstation backup and offline copies remain design work. The `appstate` pipeline is
+> runbooks. The local vault, `appstate`, and vault B2 copy pipelines run today; vault B2
+> prune is enabled and awaiting its first scheduled run. Workstation backup and offline
+> copies remain design work. The `appstate` pipeline is
 > described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
 > datastore, and validated hot dumps.
@@ -1857,14 +1859,15 @@ for non-vault secrets, the `homelab-low` priority class, and the `assert_fresh_f
 contract-version pattern. Vault Job manifests change `/work` and `/tmp` to
 `emptyDir.medium: Memory` and point `RESTIC_CACHE_DIR` there (§ 1b).
 
-## Phasing (vault B2 attended gates complete; activation reconciliation pending)
+## Phasing (vault B2 activation live; workstation tier remains)
 
 The vault foundation, restricted ingestion path, local Restic enrollment, photo migration,
 and the Phase 4 repository copy/prune implementation (steps 1–4) are complete in the
 repository. Live B2 enrollment, seed, restores, authorization separation, and repository
-verification passed on 2026-09-07. The reviewed activation commit enables copy/prune in Git;
-record Flux reconciliation and live CronJob status before treating the schedules as active.
-Retain the remaining ordering when implementation resumes.
+verification passed on 2026-09-07. Flux applied activation commit `eb02a61`; both vault B2
+CronJobs are live with `SUSPEND=false`, and the first copy Job completed successfully.
+The first prune run remains pending its scheduled Saturday window. Retain the remaining
+ordering when implementation resumes.
 
 Ordered so the highest-value, least-reversible data is protected first.
 

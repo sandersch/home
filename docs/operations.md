@@ -22,9 +22,10 @@ was restored into an isolated tree and SHA-256 compared against all 15,206 sourc
 on 2026-09-06. The four-hour CronJob now uses 512 MiB temporary tmpfs and a 2 GiB memory
 limit. Initial vault B2 enrollment, seed, attended on-host restore validation, an
 independent card-only restore from `ryze`, appstate-key denial from the vault bucket, and
-the enrolled repository verifier passed on 2026-09-07. The reviewed activation commit
-enables recurring B2 copy/prune in Git; record Flux reconciliation and live CronJob status
-before treating that activation as complete.
+the enrolled repository verifier passed on 2026-09-07. Flux applied activation commit
+`eb02a61`; the recurring B2 copy and prune CronJobs are live with `SUSPEND=false`, and
+the first copy run completed successfully. The first prune run remains pending its
+scheduled Saturday window.
 
 What is **already covered** and needs no backup job: cluster/GitOps config (it's in
 git — rebuild = reinstall k3s + re-bootstrap Flux), and recordings/media (regenerable
@@ -719,7 +720,7 @@ exception remain absent.
 
 | Item | When to do it |
 |---|---|
-| **Whole-estate/off-site backup plan** | **Partially complete.** Vault B2 enrollment, seed, on-host and card-only off-host restores, authorization separation, and repository verification passed on 2026-09-07; the reviewed activation commit awaits live Flux/CronJob confirmation. Workstation backups, offline copies, and mail archival remain draft. Do not describe the RAID array itself as a backup. |
+| **Whole-estate/off-site backup plan** | **Partially complete.** Vault B2 enrollment, seed, on-host and card-only off-host restores, authorization separation, and repository verification passed on 2026-09-07. Flux applied activation commit `eb02a61`; copy/prune CronJobs are live with `SUSPEND=false`, and the first copy run completed successfully. Workstation backups, offline copies, and mail archival remain draft. Do not describe the RAID array itself as a backup. |
 | **Move SLZB-MRW10U to IoT VLAN 60** | The dual-radio coordinator currently resides on Trusted/VLAN 30. Follow the ordered migration checklist in [network.md](./network.md#network-step-1-unifi-dream-machine-configuration): record its current IP/MAC, assign a stable VLAN 60 address, stage the narrow `minis` TCP `6638`/`7638` allow, preserve `slzb-mrw10u.iot.matrix`, and rerun the Z-Wave, Zigbee, and monitoring validators. mDNS reflection is neither enabled nor required for this fixed DNS/TCP path. |
 | **Second node** | Only on a *measured* need: HA must survive main-node maintenance, or Frigate outgrows the Coral/CPU budget. Repo layout already supports it via `nodeSelector`/affinity. |
 | **Tailscale Funnel for Plex** | Evaluate only if sharing with non-Tailnet users or casting to uncontrolled clients becomes a real need. Funnel is still beta and subject to Tailscale's non-configurable bandwidth limits, so validate sustained Plex throughput and target-client compatibility before choosing it over another narrowly scoped remote-access design. |
