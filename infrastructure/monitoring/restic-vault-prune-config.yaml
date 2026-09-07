@@ -19,6 +19,7 @@ data:
     source_repo=/repo/nas/vault
     source_control=/repo/nas/.control/vault
     destination_control=/repo/nas/.control/vault-b2
+    contract=/contracts/vault-v2.json
     metrics=/metrics/restic-prune-vault.prom
     write_metrics() {
       local skipped="$1" candidates="$2" tmp="${metrics}.tmp.$$" success previous
@@ -137,8 +138,12 @@ data:
     baseline_bytes="$(jq -er '[.samples[].bytes] | max' "$baseline")"
     latest_files="$(jq -er '.total_files' "$latest_manifest")"
     latest_bytes="$(jq -er '.total_bytes' "$latest_manifest")"
-    [ "$latest_files" -ge $((baseline_files * 80 / 100)) ] \
-      && [ "$latest_bytes" -ge $((baseline_bytes * 80 / 100)) ] \
+    maximum_shrink_percent="$(jq -er '.maximum_shrink_percent' "$contract")"
+    [[ "$maximum_shrink_percent" =~ ^[0-9]+$ ]] && [ "$maximum_shrink_percent" -le 100 ] \
+      || { write_metrics 1 0; log "vault contract has an invalid maximum shrink percentage; skipping retention"; exit 0; }
+    minimum_retained_percent=$((100 - maximum_shrink_percent))
+    [ "$latest_files" -ge $((baseline_files * minimum_retained_percent / 100)) ] \
+      && [ "$latest_bytes" -ge $((baseline_bytes * minimum_retained_percent / 100)) ] \
       || { write_metrics 1 0; log "latest NAS snapshot is below the healthy baseline tolerance; skipping retention"; exit 0; }
     [ "$(jq 'length' "$destination_listing")" -gt 0 ] \
       || { write_metrics 1 0; log "B2 repository has no snapshots; skipping retention"; exit 0; }
