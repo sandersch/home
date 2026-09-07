@@ -65,6 +65,7 @@ case "$1" in
   snapshots) echo '[]' ;;
   forget)
     if [[ " $* " == *" --dry-run "* ]]; then
+      if [[ "$MODE" = empty-candidates || "$MODE" = cleanup-failure ]]; then echo '[{"remove":[]}]'; exit 0; fi
       candidate="$OLD_NAS"
       [ "$repository" != fixture-b2 ] || candidate="$OLD_B2"
       printf '[{"remove":[{"id":"%s"}]}]\n' "$candidate"
@@ -73,6 +74,7 @@ case "$1" in
     fi ;;
   prune)
     printf 'prune %s\n' "$repository" >>"$FIXTURE/operations"
+    [ "$MODE" != cleanup-failure ] || exit 1
     if [ "$MODE" = late-hold ] && [ "$repository" != fixture-b2 ]; then
       mkdir -p "$FIXTURE/destination-control/holds"
       echo '{}' >"$FIXTURE/destination-control/holds/late.json"
@@ -102,6 +104,11 @@ minimum_retained_percent=80
                    LATEST_B2=copied_latest, OLD_NAS=old, OLD_B2=copied_old,
                    PATH=f'{work / "bin"}:{os.environ["PATH"]}')
         result = subprocess.run(['bash', '-c', executable], env=env, text=True, capture_output=True)
+        if mode == 'cleanup-failure':
+            assert result.returncode != 0, result
+            assert not (work / 'metrics.prom').exists(), 'failed cleanup advanced success'
+            print(f'PASS: {name}')
+            return
         assert result.returncode == 0, (name, result.stderr)
         operations = (work / 'operations').read_text() if (work / 'operations').exists() else ''
         metrics = (work / 'metrics.prom').read_text()
@@ -110,6 +117,9 @@ minimum_retained_percent=80
             assert 'forget fixture-b2' not in operations and 'prune fixture-b2' not in operations, (name, operations)
             if mode != 'late-hold':
                 assert 'forget ' not in operations, (name, operations)
+        elif mode == 'empty-candidates':
+            assert 'forget ' not in operations, operations
+            assert f'prune {work / "nas"}' in operations and 'prune fixture-b2' in operations, operations
         else:
             assert f'forget fixture-b2 {copied_old}' in operations, operations
             assert operations.index('validate ') < operations.index('forget ')
@@ -126,3 +136,7 @@ run_case('destination byte-count shrink blocks retention', size=7999, expected='
 run_case('baseline boundary permits retention', files=800, size=8000)
 run_case('hold arriving during NAS prune blocks B2 deletion', mode='late-hold', expected='destination-hold')
 run_case('invalid destination hold path blocks retention', mode='invalid-hold-directory', expected='destination-hold')
+
+run_case("retry completes cleanup after candidates were already forgotten", mode="empty-candidates")
+
+run_case("failed cleanup without candidates cannot advance success", mode="cleanup-failure")

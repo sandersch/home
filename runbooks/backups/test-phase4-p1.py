@@ -82,6 +82,7 @@ require_tools() { :; }
 die() { echo "$*" >&2; exit 1; }
 ok() { :; }
 ''').replace('/mnt/vault', str(vault)).replace('/mnt/backups/vault', str(backups))
+    script = script.replace('/etc/homelab/vault-b2.enrolled', str(work / 'b2.enrolled'))
     script = script.replace('/etc/homelab/vault-b2.conf', str(config)).replace('/dev/shm', str(staging))
     script_path = work / 'enroll.sh'
     script_path.write_text(script)

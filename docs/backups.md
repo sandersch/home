@@ -163,7 +163,9 @@ policy makes that same lineage eligible: in particular, vault B2 repeats NAS's
 `--keep-within-hourly 48h` tier even though copies run only daily. This ordering lets the
 NAS-side gate prove that every source removal candidate is still physically present in B2;
 only after the source forget succeeds may B2 independently remove lineages selected by its
-own policy.
+own policy. Once safety gates pass, run prune even without new removal candidates so an
+interrupted forget/prune sequence can finish cleanup on retry. Only successful cleanup
+advances the retention timestamp.
 
 The `appstate` rows are not a proposal — they record what
 `restic-nas-config.yaml` and `restic-b2-cronjob.yaml` already set, so the table describes
@@ -1047,7 +1049,9 @@ is a further reason it lives in its own job (§ 2) rather than tailing a backup.
 
 Replication is an allow-list operation, not a mirror command. The job enumerates only
 canonical lineage IDs both present in a fresh NAS `snapshots --json` listing and recorded in
-the NAS validation ledger, then revalidates each source snapshot. It copies explicit source
+the NAS validation ledger, then revalidates each source snapshot. Unresolved source or
+destination holds override ledger evidence; incomplete source acceptance records also
+block eligibility even if a hold was removed manually. It copies explicit source
 snapshot IDs whose lineage is absent from a fresh destination `snapshots --json` listing;
 a historical destination-ledger row alone never suppresses a copy. After `restic copy`, it
 locates the destination snapshot by canonical lineage, validates that exact destination,
@@ -1890,7 +1894,14 @@ Ordered so the highest-value, least-reversible data is protected first.
    Git change. Use `13-enroll-vault-b2.sh` for the credential and repository setup, then
    `16-seed-vault-b2.sh` for the initial copy. Enrollment only initializes the destination;
    it does not create a B2 snapshot. Run the representative restore against a snapshot
-   produced by the seed before enabling either recurring schedule.
+   produced by the seed before enabling either recurring schedule. The restore runbook
+   performs a full B2 `check --read-data` and retains representative files in a new encrypted
+   scratch directory. Its semantic-drill timestamp advances only after the operator opens
+   the KDBX, inspects the document, views/decodes the photo, and confirms the full snapshot
+   ID. Record the separate off-host, break-glass-only restore and run the enrolled B2
+   repository verifier before activation. Enrollment records durable non-secret intent in
+   `/etc/homelab/vault-b2.enrolled`; this keeps rejection fail-closed after credential loss
+   while permitting local rejection during suspended, never-enrolled staging.
 5. **Workstations** — **two** rest-server Deployments, each with `--append-only` and a
    per-client repo path, htpasswd credential, and repo password (§ 4). Do **not** pass
    `--private-repos`: one shared process would make `--max-size` a server-wide limit and

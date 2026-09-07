@@ -20,13 +20,24 @@ assert_direct_mount_layout "$BACKUPS_MOUNT" "$BACKUPS_SOURCE" "$BACKUPS_UUID"
 
 if [ "$HOLD_ACTION" = reject ]; then
   hold_file="/mnt/backups/.control/vault/holds/$HOLD_SNAPSHOT.json"
-  [ -f "$hold_file" ] || die "the exact hold is absent"
+  sudo test -f "$hold_file" || die "the exact hold is absent"
   hold_lineage="$(sudo jq -er '.lineage' "$hold_file")"
   b2_required=0
   copy_cronjob="$(kubectl -n monitoring get cronjob restic-vault-copy \
-    --ignore-not-found -o name)" \
+    --ignore-not-found -o json)" \
     || die "cannot determine whether the vault B2 copy CronJob exists"
-  [ -n "$copy_cronjob" ] && b2_required=1
+  if [ -n "$copy_cronjob" ] && ! jq -e '.spec.suspend == true' <<<"$copy_cronjob" >/dev/null; then
+    b2_required=1
+  fi
+  # Suspended manifests alone do not enroll B2. Durable intent and any prior
+  # credential/control evidence still require B2 even if credentials disappeared.
+  for evidence in /etc/homelab/vault-b2.enrolled \
+    /mnt/vault/.backup-credentials/b2-password \
+    /mnt/vault/.backup-credentials/b2-key-id \
+    /mnt/vault/.backup-credentials/b2-application-key \
+    /mnt/backups/.control/vault-b2; do
+    if sudo test -e "$evidence"; then b2_required=1; fi
+  done
   if sudo grep -qx 'homelab_backup_repository_enrolled{dataset="vault",destination="b2"} 1' \
     /var/lib/node-exporter/textfile/restic-vault-copy.prom 2>/dev/null; then
     b2_required=1

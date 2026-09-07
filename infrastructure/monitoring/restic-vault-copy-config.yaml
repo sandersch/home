@@ -73,6 +73,22 @@ data:
         -s 'any(.[]; .lineage == $lineage)' "$ledger" >/dev/null 2>&1
     }
 
+    lineage_held() {
+      local directory="$1" lineage="$2" entry entries held_lineage
+      if [ -e "$directory" ] || [ -L "$directory" ]; then
+        [ -d "$directory" ] && [ ! -L "$directory" ] || die "invalid hold directory: $directory"
+        entries="$(find "$directory" -name '*.json' -print)" || die "cannot inspect holds"
+        while IFS= read -r entry; do
+          [ -n "$entry" ] || continue
+          [ -f "$entry" ] && [ ! -L "$entry" ] || die "invalid hold: $entry"
+          held_lineage="$(jq -er '.lineage | strings | select(test("^[0-9a-f]{64}$"))' "$entry")" \
+            || die "malformed hold: $entry"
+          [ "$held_lineage" != "$lineage" ] || return 0
+        done <<<"$entries"
+      fi
+      return 1
+    }
+
     hold_destination() {
       local snapshot_id="$1" lineage="$2" hold_dir="$destination_control/holds"
       local hold_file hold_tmp
@@ -152,6 +168,19 @@ data:
       source_count=$((source_count + 1))
       ledger_has "$control/validated.jsonl" "$lineage" \
         || { missing_count=$((missing_count + 1)); continue; }
+      if lineage_held "$control/holds" "$lineage" \
+        || lineage_held "$destination_control/holds" "$lineage"; then
+        missing_count=$((missing_count + 1))
+        continue
+      fi
+      resolution="$control/resolutions/$snapshot_id.json"
+      if [ -e "$resolution" ] || [ -L "$resolution" ]; then
+        [ -f "$resolution" ] && [ ! -L "$resolution" ] || die "invalid resolution state"
+        if ! jq -e --arg id "$snapshot_id" '.snapshot_id == $id and .action == "accept" and .stage == "accepted"' "$resolution" >/dev/null; then
+          missing_count=$((missing_count + 1))
+          continue
+        fi
+      fi
       destination_id="$(jq -r --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)] | first | .id // empty' "$destination_listing")"
       if [ -n "$destination_id" ]; then
         if ! ledger_has "$destination_control/validated.jsonl" "$lineage"; then
@@ -293,6 +322,11 @@ data:
     restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
     : "${RESTORE_SNAPSHOT:?RESTORE_SNAPSHOT is required}"
     [[ "$RESTORE_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] || die "RESTORE_SNAPSHOT must be a full snapshot ID"
+    mount_record="$(awk '$5 == "/data/vault" {for (i=7;i<=NF;i++) if ($i == "-") print $(i+1) " " $(i+2)}' /proc/self/mountinfo)"
+    [ "$mount_record" = 'ext4 /dev/mapper/vault' ] || die "vault is not mounted"
+    # shellcheck disable=SC1091
+    source /etc/homelab/vault.conf
+    grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel || die "vault UUID mismatch"
     [ -r /etc/homelab/vault-b2.conf ] || die "B2 repository configuration is absent"
     # shellcheck disable=SC1091
     source /etc/homelab/vault-b2.conf
@@ -307,24 +341,24 @@ data:
     export AWS_SECRET_ACCESS_KEY="$b2_application_key"
     mkdir -p /work/restic-cache
     export RESTIC_CACHE_DIR=/work/restic-cache
+    umask 0077
+    [ ! -L /data/vault/.restore-tests ] || die "restore directory is a symlink"
+    mkdir -p /data/vault/.restore-tests
+    restore_root="$(mktemp -d "/data/vault/.restore-tests/b2-$RESTORE_SNAPSHOT.XXXXXX")"
+    restic check --read-data
     /vault-scripts/validate-vault-snapshot.sh "$RESTORE_SNAPSHOT" >/work/validated-manifest.json
     listing=/work/listing.jsonl
     restic ls --json "$RESTORE_SNAPSHOT" >"$listing"
-    kdbx=/work/ccs.kdbx
+    kdbx="$restore_root/ccs.kdbx"
     restic dump "$RESTORE_SNAPSHOT" /data/vault/credentials/strongbox/ccs.kdbx >"$kdbx"
     [ "$(od -An -tx1 -N8 "$kdbx" | tr -d ' \n')" = 03d9a29a67fb4bb5 ] \
       || die "B2 restore returned an invalid KDBX"
-    document="$(jq -nr 'first(inputs | select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/documents/"))) | .path)' "$listing")"
-    photo="$(jq -nr 'first(inputs | select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/photos/"))) | .path)' "$listing")"
+    document="$(jq -nr --arg requested "${RESTORE_DOCUMENT_PATH:-}" 'first(inputs | select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/documents/")) and ($requested == "" or .path == $requested)) | .path)' "$listing")"
+    photo="$(jq -nr --arg requested "${RESTORE_PHOTO_PATH:-}" 'first(inputs | select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/photos/")) and ($requested == "" or .path == $requested)) | .path)' "$listing")"
     [ -n "$document" ] && [ -n "$photo" ] || die "B2 snapshot has no representative document or photo"
-    restic dump "$RESTORE_SNAPSHOT" "$document" >/work/restored-document
-    restic dump "$RESTORE_SNAPSHOT" "$photo" >/work/restored-photo
-    [ -s /work/restored-document ] && [ -s /work/restored-photo ] \
+    restic dump "$RESTORE_SNAPSHOT" "$document" >"$restore_root/document-$(basename "$document")"
+    restic dump "$RESTORE_SNAPSHOT" "$photo" >"$restore_root/photo-$(basename "$photo")"
+    [ -s "$restore_root/document-$(basename "$document")" ] && [ -s "$restore_root/photo-$(basename "$photo")" ] \
       || die "B2 representative restore produced an empty file"
-    metric=/metrics/restic-vault-b2-restore.prom
-    metric_tmp="${metric}.tmp.$$"
-    umask 0027
-    printf 'homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="b2"} %s\n' "$(date +%s)" >"$metric_tmp"
-    chmod 0640 "$metric_tmp"
-    mv -f "$metric_tmp" "$metric"
-    log "B2 restore passed contract, KDBX, document, and photo validation for $RESTORE_SNAPSHOT"
+    printf '%s\n' "$RESTORE_SNAPSHOT" "$document" "$photo" >"$restore_root/restore-evidence.txt"
+    log "B2 data check and representative extraction passed; inspect host ${restore_root/\/data\/vault/\/mnt\/vault} before recording semantic success"

@@ -213,9 +213,10 @@ data:
         || die "a verified source candidate disappeared before explicit forget"
       RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
         restic -r "$source_repo" forget --group-by host "${source_candidates[@]}"
-      RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
-        restic -r "$source_repo" prune
     fi
+    # A previous run may have forgotten snapshots before cleanup was interrupted.
+    RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+      restic -r "$source_repo" prune
     export RESTIC_REPOSITORY="$VAULT_B2_REPOSITORY"
     export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
     collect_candidates "$VAULT_B2_REPOSITORY" /data/vault/.backup-credentials/b2-password /work/destination-candidates
@@ -238,7 +239,7 @@ data:
       restic -r "$VAULT_B2_REPOSITORY" snapshots "${destination_candidates[@]}" --json >/dev/null \
         || die "a verified B2 candidate disappeared before explicit forget"
       restic -r "$VAULT_B2_REPOSITORY" forget --group-by host "${destination_candidates[@]}"
-      restic -r "$VAULT_B2_REPOSITORY" prune
     fi
+    restic -r "$VAULT_B2_REPOSITORY" prune
     write_metrics 0 0
     log "vault NAS and B2 retention complete"

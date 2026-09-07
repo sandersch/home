@@ -88,11 +88,22 @@ it does not seed the vault. Keep both recurring CronJobs suspended, then run
 `16-seed-vault-b2.sh`. It creates a one-off Job with a 24-hour deadline and copies every
 validated NAS lineage. Select a destination snapshot from that completed seed and run
 `14-validate-vault-b2-restore.sh`; only after both gates pass should a reviewed Git change
-enable the recurring copy and prune schedules. A locked vault is an intentional successful
+enable the recurring copy and prune schedules. Before activation, also complete and record
+an off-host B2 restore using only the break-glass card, verify the existing appstate key
+cannot access the vault bucket, and run the enrolled B2 repository verification.
+A locked vault is an intentional successful
 skip; it must not cause the copy job to read credentials from the root filesystem.
 Use `14-validate-vault-b2-restore.sh` with a full destination snapshot ID for the attended
-representative restore; it validates the released contract, `ccs.kdbx`, one document, and
-one photo without changing the NAS baseline. If a destination snapshot is present without
+representative restore. It runs `check --read-data`, validates the released contract, and
+extracts `ccs.kdbx`, one document, and one photo to a new root-only directory under the
+encrypted `/mnt/vault/.restore-tests/`. The attended Job has a 24-hour deadline and survives
+CronJob history cleanup. Open the restored KDBX in Strongbox, inspect the document, and
+view/decode the photo before typing the full snapshot ID to record semantic success.
+The artifacts remain for inspection; remove only that scratch directory deliberately after
+recording evidence. Optional `RESTORE_DOCUMENT_PATH` and `RESTORE_PHOTO_PATH` select exact
+snapshot paths for representative files (for example, a photo rather than its JSON sidecar).
+Neither extraction nor a failed/unconfirmed inspection advances the drill timestamp or
+changes the NAS baseline. If a destination snapshot is present without
 ledger evidence, the copy job creates a destination hold; use
 `15-resolve-vault-b2-validation-hold.sh` with its exact B2 snapshot ID to revalidate it and
 record the ledger evidence.
@@ -122,3 +133,22 @@ file/byte shrink thresholds, and successful exact-ID deletion ordering.
 The weekly prune runs Saturday at 23:30. Its B2 validation is network-bound and
 its NAS/B2 retention phases take exclusive repository locks, so this slot gives
 the job several hours before Sunday's 02:15 vault backup and 04:45 B2 copy.
+
+Phase 4 interruption safeguards:
+
+- Copy excludes source and destination holds even when a ledger row exists, and refuses
+  an incomplete source resolution record. A completed acceptance becomes eligible only
+  after its hold is removed; unrelated healthy lineages can continue copying.
+- Guarded NAS and B2 pruning runs even without new removal candidates, so retries finish
+  cleanup after an interrupted forget/prune sequence. Cleanup failure never advances success.
+- A suspended, never-enrolled copy manifest does not disable local hold rejection.
+  `13-enroll-vault-b2.sh` writes the non-secret, root-only
+  `/etc/homelab/vault-b2.enrolled` intent marker before contacting B2. Preserve it in recovery:
+  its presence, any B2 credential/control evidence, enrollment metrics, or an enabled copy
+  schedule requires proving destination absence. Missing credentials then fail closed.
+  A failed enrollment can leave intent recorded; finish enrollment rather than deleting
+  that evidence to bypass the destination check.
+
+`test-phase4-interruptions.py` exercises these copy and rollout gates, full-read failure,
+retained restore artifacts, and attended metric publication with disposable command fixtures.
+The retention fixtures also cover cleanup with no new candidates and cleanup failure.

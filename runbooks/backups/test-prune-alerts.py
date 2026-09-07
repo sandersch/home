@@ -17,13 +17,17 @@ nas = '{dataset="vault",destination="nas"}'
 b2 = '{dataset="vault",destination="b2"}'
 mounted = 'node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"}'
 
-def case(name, series, alert, labels=None, evaluations=('31m',)):
+def case(name, series, alert, labels=None, evaluations=('31m',), annotations=None):
+    expected_annotations = rules[alert]['annotations'] if annotations is None else annotations
+    if labels is not None:
+        assert all('{{' not in value for value in expected_annotations.values()), (
+            f'{name}: provide explicitly rendered expected annotations for {alert}')
     return {'name': name, 'interval': '1m',
             'input_series': [{'series': k, 'values': f'{v}x40'} for k, v in series.items()],
             'alert_rule_test': [{'eval_time': t, 'alertname': alert,
                                  'exp_alerts': [] if labels is None else [
                                      {'exp_labels': dict(labels, severity=rules[alert]['labels']['severity']),
-                                      'exp_annotations': rules[alert]['annotations']}]} for t in evaluations]}
+                                      'exp_annotations': expected_annotations}]} for t in evaluations]}
 
 failed = {
     'kube_job_created{namespace="monitoring",job_name="restic-vault-prune-1"}': 20,
@@ -32,10 +36,10 @@ failed = {
     'kube_cronjob_created' + cron: 1,
 }
 failed_labels = {'namespace': 'monitoring', 'owner_name': 'restic-vault-prune'}
-tests = [case('first prune failure', failed, names[1], failed_labels),
-         case('prune failure waits 15 minutes', failed, names[1], evaluations=('14m',)),
-         case('prune failure after prior success', dict(failed, **{'kube_cronjob_status_last_successful_time' + cron: 10}), names[1], failed_labels),
-         case('later prune success clears failure', dict(failed, **{'kube_cronjob_status_last_successful_time' + cron: 30}), names[1])]
+tests = [case('first prune failure', failed, 'ResticPruneFailed', failed_labels),
+         case('prune failure waits 15 minutes', failed, 'ResticPruneFailed', evaluations=('14m',)),
+         case('prune failure after prior success', dict(failed, **{'kube_cronjob_status_last_successful_time' + cron: 10}), 'ResticPruneFailed', failed_labels),
+         case('later prune success clears failure', dict(failed, **{'kube_cronjob_status_last_successful_time' + cron: 30}), 'ResticPruneFailed')]
 backup_cron = '{namespace="monitoring",cronjob="restic-vault-copy"}'
 backup_job = {
     'kube_job_created{namespace="monitoring",job_name="restic-vault-copy-1"}': 20,
@@ -44,9 +48,13 @@ backup_job = {
     'kube_cronjob_created' + backup_cron: 1,
 }
 backup_labels = {'namespace': 'monitoring', 'owner_name': 'restic-vault-copy'}
-tests += [case('first backup failure', backup_job, names[0], backup_labels),
-          case('backup failure after prior success', dict(backup_job, **{'kube_cronjob_status_last_successful_time' + backup_cron: 10}), names[0], backup_labels),
-          case('later backup success clears failure', dict(backup_job, **{'kube_cronjob_status_last_successful_time' + backup_cron: 30}), names[0])]
+backup_annotations = {
+    'description': 'restic-vault-copy has a failed run newer than its last successful run.',
+    'summary': 'Restic backup job failed',
+}
+tests += [case('first backup failure', backup_job, 'ResticBackupFailed', backup_labels, annotations=backup_annotations),
+          case('backup failure after prior success', dict(backup_job, **{'kube_cronjob_status_last_successful_time' + backup_cron: 10}), 'ResticBackupFailed', backup_labels, annotations=backup_annotations),
+          case('later backup success clears failure', dict(backup_job, **{'kube_cronjob_status_last_successful_time' + backup_cron: 30}), 'ResticBackupFailed')]
 base = {'kube_cronjob_spec_suspend' + cron: 0,
         'homelab_backup_repository_enrolled' + b2: 1,
         'homelab_backup_repository_enrollment_timestamp_seconds' + b2: 1,
@@ -60,20 +68,20 @@ for success in (None, 0):
     series = dict(base)
     if success is not None:
         series['homelab_restic_prune_success_timestamp_seconds' + nas] = success
-    tests.append(case(f'never succeeded, metric {success}', series, names[1], {'dataset': 'vault', 'destination': 'nas'}))
+    tests.append(case(f'never succeeded, metric {success}', series, 'ResticVaultPruneOverdue', {'dataset': 'vault', 'destination': 'nas'}))
 for name, changes in [
     ('initial grace period', {'homelab_backup_repository_enrollment_timestamp_seconds' + b2: 1}),
     ('suspended', {'kube_cronjob_spec_suspend' + cron: 1}),
     ('not enrolled', {'homelab_backup_repository_enrolled' + b2: 0}),
     ('recent success', {'homelab_restic_prune_success_timestamp_seconds' + nas: 10}),
 ]:
-    tests.append(case(name, dict(base, **changes), names[1]))
+    tests.append(case(name, dict(base, **changes), 'ResticVaultPruneOverdue'))
 locked = dict(base)
 del locked[mounted]
-tests.append(case('vault locked', locked, names[1]))
+tests.append(case('vault locked', locked, 'ResticVaultPruneOverdue'))
 # For established success, use an evaluation more than ten days after a positive
 # timestamp. Keep samples fresh between evaluations throughout the interval.
-stale = case('established success overdue', dict(base, **{'homelab_restic_prune_success_timestamp_seconds' + nas: 1}), names[1], {'dataset': 'vault', 'destination': 'nas'}, ('265h',))
+stale = case('established success overdue', dict(base, **{'homelab_restic_prune_success_timestamp_seconds' + nas: 1}), 'ResticVaultPruneOverdue', {'dataset': 'vault', 'destination': 'nas'}, ('265h',))
 stale['interval'] = '1m'
 for series in stale['input_series']:
     series['values'] = series['values'].replace('x40', 'x15900')

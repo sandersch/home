@@ -103,7 +103,7 @@ assert 'runbooks/backups/15-resolve-vault-b2-validation-hold.sh' in (root / 'doc
 assert '15-resolve-vault-b2-validation-hold.sh' in (root / 'runbooks/backups/README.md').read_text()
 assert 'homelab_restic_validation_hold{dataset="vault"} > 0' in alerts
 assert 'copy_cronjob="$(kubectl -n monitoring get cronjob restic-vault-copy' in resolver_wrapper
-assert '--ignore-not-found -o name' in resolver_wrapper
+assert '--ignore-not-found -o json' in resolver_wrapper
 assert 'b2_required=1' in resolver_wrapper
 assert 'restic-vault-copy.prom' in resolver_wrapper
 assert 'vault B2 is enabled but /etc/homelab/vault-b2.conf is absent or unreadable' in resolver_wrapper
@@ -178,3 +178,5 @@ python3 "$repo_root/runbooks/backups/test-phase4-p1.py"
 python3 "$repo_root/runbooks/backups/test-b2-retention.py"
 
 python3 "$repo_root/runbooks/backups/test-review-followups.py"
+
+python3 "$repo_root/runbooks/backups/test-phase4-interruptions.py"

@@ -57,6 +57,10 @@ export AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 export RESTIC_PASSWORD_FILE="$staging/password"
 # Host commands must not leave vault metadata in a persistent Restic cache.
 restic() { command restic --no-cache "$@"; }
+# Durable, non-secret intent survives lost credentials and partial enrollment.
+# Once contact is possible, local rejection must prove destination absence.
+touch /etc/homelab/vault-b2.enrolled
+chmod 0600 /etc/homelab/vault-b2.enrolled
 if restic -r "$repository" snapshots >/dev/null 2>&1; then
   printf 'B2 repository already initialized; preserving its chunker parameters\n'
 else
