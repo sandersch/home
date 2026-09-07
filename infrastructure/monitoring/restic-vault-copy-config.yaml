@@ -305,8 +305,8 @@ data:
     restic dump "$RESTORE_SNAPSHOT" /data/vault/credentials/strongbox/ccs.kdbx >"$kdbx"
     [ "$(od -An -tx1 -N8 "$kdbx" | tr -d ' \n')" = 03d9a29a67fb4bb5 ] \
       || die "B2 restore returned an invalid KDBX"
-    document="$(jq -r 'select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/documents/"))) | .path' "$listing" | head -n1)"
-    photo="$(jq -r 'select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/photos/"))) | .path' "$listing" | head -n1)"
+    document="$(jq -nr 'first(inputs | select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/documents/"))) | .path)' "$listing")"
+    photo="$(jq -nr 'first(inputs | select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/photos/"))) | .path)' "$listing")"
     [ -n "$document" ] && [ -n "$photo" ] || die "B2 snapshot has no representative document or photo"
     restic dump "$RESTORE_SNAPSHOT" "$document" >/work/restored-document
     restic dump "$RESTORE_SNAPSHOT" "$photo" >/work/restored-photo

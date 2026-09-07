@@ -3,7 +3,10 @@ set -Eeuo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python3 - "$repo_root" <<'PY'
+import json
 import pathlib
+import subprocess
+import tempfile
 import re
 import sys
 import yaml
@@ -131,6 +134,30 @@ assert 'homelab_restic_repository_size_bytes\n            / homelab_restic_repos
 assert 'The {{ $labels.dataset }} repository on {{ $labels.destination }} is above 80 percent of its policy ceiling.' in alerts
 assert 'destination="b2"' in alerts
 assert not (root / 'infrastructure/monitoring/restic-vault.sops.yaml').exists()
+# Execute the deployed selection assignments under the same shell error policy.
+# Large listings used to SIGPIPE jq when head closed the pipe after its first line.
+selection = '\n'.join(line for line in restore_script.splitlines()
+                      if line.startswith(('document=', 'photo=', '[ -n "$document" ]')))
+assert len(selection.splitlines()) == 3
+with tempfile.TemporaryDirectory() as directory:
+    listing = pathlib.Path(directory) / 'listing.jsonl'
+    nodes = [{'message_type': 'node', 'type': 'file',
+              'path': f'/data/vault/{category}/file {number:05d}.dat'}
+             for category in ('documents', 'photos') for number in range(10000)]
+    def select_files(records):
+        listing.write_text(''.join(json.dumps(record) + '\n' for record in records))
+        return subprocess.run(
+            ['bash', '-c', 'set -Eeuo pipefail\ndie() { exit 1; }\nlisting="$1"\n' +
+             selection + '\nprintf "%s\\n" "$document" "$photo"', 'restore-selection', str(listing)],
+            text=True, capture_output=True)
+    result = select_files(nodes)
+    assert result.returncode == 0, (result.returncode, result.stderr)
+    assert result.stdout.splitlines() == ['/data/vault/documents/file 00000.dat',
+                                          '/data/vault/photos/file 00000.dat']
+    assert select_files(nodes[:10000]).returncode != 0, 'missing photo was accepted'
+    assert select_files(nodes[10000:]).returncode != 0, 'missing document was accepted'
+    assert select_files([]).returncode != 0, 'empty listing was accepted'
+print('PASS: restore selection handles large listings and rejects missing content')
 print('Phase 4 B2 manifest and guard assertions passed')
 PY
 
