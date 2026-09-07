@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory() as temporary:
     bindir = root / 'bin'
     bindir.mkdir()
     contracts = repo / 'infrastructure/monitoring/contracts'
-    script = data['validate-vault-snapshot.sh'].replace('/contracts/', str(contracts) + '/').replace('/scripts/', str(scripts) + '/').replace('/work/validate-', str(work) + '/validate-')
+    script = data['validate-vault-snapshot.sh'].replace('contracts_dir=/contracts', f'contracts_dir={contracts}').replace('/contracts/', str(contracts) + '/').replace('/scripts/', str(scripts) + '/').replace('/work/validate-', str(work) + '/validate-')
     (scripts / 'validate.sh').write_text(script)
     (scripts / 'detect-vault-exclusions.jq').write_text(data['detect-vault-exclusions.jq'])
     mock = bindir / 'restic'

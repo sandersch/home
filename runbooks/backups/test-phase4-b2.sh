@@ -100,6 +100,9 @@ assert 'hold_destination "$destination_id" "$lineage"' in copy_script
 assert 'homelab_restic_validation_hold{dataset="vault",destination="b2"}' in copy_script
 assert 'the exact B2 hold is absent' in destination_resolver
 assert '/vault-scripts/validate-vault-snapshot.sh "$B2_HOLD_SNAPSHOT"' in destination_resolver
+assert 'contract_name="$(jq -er' in vault['data']['validate-vault-snapshot.sh']
+assert 'vault-v1.json=contracts/vault-v1.json' in kustomization
+assert 'vault-v1.excludes=contracts/vault-v1.excludes' in kustomization
 assert 'destination_control/validated.jsonl' in destination_resolver
 assert 'runbooks/backups/15-resolve-vault-b2-validation-hold.sh' in (root / 'docs/backups.md').read_text()
 assert '15-resolve-vault-b2-validation-hold.sh' in (root / 'runbooks/backups/README.md').read_text()

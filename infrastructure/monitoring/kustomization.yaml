@@ -19,6 +19,8 @@ configMapGenerator:
 - name: restic-vault-contract
   namespace: monitoring
   files:
+  - vault-v1.json=contracts/vault-v1.json
+  - vault-v1.excludes=contracts/vault-v1.excludes
   - vault-v2.json=contracts/vault-v2.json
   - vault-v2.excludes=contracts/vault-v2.excludes
 generatorOptions:

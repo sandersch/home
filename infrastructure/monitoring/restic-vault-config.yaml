@@ -32,31 +32,36 @@ data:
     #!/usr/bin/env bash
     set -Eeuo pipefail
 
+    die() { printf '[%s] ERROR: %s\n' "$(date -Iseconds)" "$*" >&2; exit 1; }
     # Shared by backup, enrollment restore, and attended shrink acceptance. Always
     # measure the immutable snapshot, never the live tree or its claimed inventory.
     snapshot="${1:?a full snapshot ID is required}"
     [[ "$snapshot" =~ ^[0-9a-f]{64}$ ]] || exit 1
     restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
     restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
-    contract=/contracts/vault-v2.json
-    exclusions=/contracts/vault-v2.excludes
+    contracts_dir=/contracts
     work="$(mktemp -d /work/validate-snapshot.XXXXXX)"
     trap 'rm -rf -- "$work"' EXIT
     trap 'printf "snapshot validation failed at line %s: %s for %s\n" "$LINENO" "$BASH_COMMAND" "$snapshot" >&2' ERR
-    contract_hash="$(sha256sum "$contract" | awk '{print $1}')"
-    exclusion_hash="$(sha256sum "$exclusions" | awk '{print $1}')"
-    [ "$exclusion_hash" = "$(jq -er '.exclusion_sha256' "$contract")" ]
-
     # Separate reads from predicates so a listing/dump error cannot mean "no leak".
     restic snapshots "$snapshot" --json >"$work/metadata.json"
     jq -e --arg snapshot "$snapshot" '
       length == 1 and .[0].id == $snapshot and .[0].hostname == "minis-vault" and
       (.[0].paths | sort) == ["/data/vault", "/work/backup-manifest.json"]
     ' "$work/metadata.json" >/dev/null
+    restic dump "$snapshot" /work/backup-manifest.json >"$work/manifest.json"
+    contract_name="$(jq -er '.contract | strings | select(test("^vault-v[0-9]+$"))' "$work/manifest.json")"
+    contract="$contracts_dir/$contract_name.json"
+    exclusions="$contracts_dir/$contract_name.excludes"
+    [ -r "$contract" ] && [ -r "$exclusions" ] \
+      || die "snapshot references unavailable vault contract $contract_name"
+    contract_hash="$(sha256sum "$contract" | awk '{print $1}')"
+    exclusion_hash="$(sha256sum "$exclusions" | awk '{print $1}')"
+    [ "$exclusion_hash" = "$(jq -er '.exclusion_sha256' "$contract")" ]
+
     restic ls --json "$snapshot" >"$work/listing.jsonl"
     jq -f /scripts/detect-vault-exclusions.jq "$work/listing.jsonl" >"$work/excluded"
     [ ! -s "$work/excluded" ]
-    restic dump "$snapshot" /work/backup-manifest.json >"$work/manifest.json"
     jq -s --slurpfile released "$contract" '
       [.[] | select(.message_type == "node")] as $nodes |
       [$released[0].required_content[] |
