@@ -121,6 +121,8 @@ assert 'restic-vault-prune-config.yaml' in kustomization
 assert 'restic-vault-prune-cronjob.yaml' in kustomization
 assert 'ResticVaultCopyOverdue' in alerts
 assert 'ResticPruneFailed' in alerts
+assert 'ResticBackupFailed' in alerts
+assert '0 * kube_cronjob_created{namespace="monitoring",cronjob=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)"}' in alerts
 assert 'restic-vault-prune-.*' in alerts
 assert 'kube_cronjob_spec_suspend{namespace="monitoring",cronjob="restic-vault-prune"}' in alerts
 assert 'homelab_backup_repository_enrollment_timestamp_seconds{dataset="vault",destination="b2"}' in alerts

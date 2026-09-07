@@ -1576,7 +1576,11 @@ expr: |
   )
   > on (namespace, owner_name)
   label_replace(
-    kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)"},
+    (
+      kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)"}
+      or on (namespace, cronjob)
+        (0 * kube_cronjob_created{namespace="monitoring",cronjob=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)"})
+    ),
     "owner_name", "$1", "cronjob", "(.*)"
   )
 ```
@@ -1612,10 +1616,9 @@ expr: |
 for: 15m   severity: warning
 ```
 
-Note that the `> on (...)` comparison silently *disarms* this alert until the CronJob has
-had one successful run. That is deliberate in `ResticBackupFailed` — a job that has never
-succeeded is a deployment problem the deployer is still watching — and it is right here too,
-but it means `MailArchiveFailed` cannot catch a mail job that fails on its very first run.
+The backup comparison includes a zero-valued `kube_cronjob_created` fallback, so a failed
+backup fires even before its first successful run. The mail comparison remains intentionally
+last-success-only: `MailArchiveFailed` cannot catch a mail job that fails on its first run.
 `MailArchiveStale` (36h, § 6) is the backstop for that window, and it is why both exist.
 
 **`ResticWorkstationCopyOverdue` keys off destination state per host, not one shared
