@@ -116,6 +116,10 @@ assert 'cannot prove destination absence; refusing rejection' in resolver_wrappe
 assert '| tee "$destination_listing" >/dev/null' in resolver_wrapper
 assert copy_job['spec']['suspend'] is True
 assert prune_job['spec']['suspend'] is True
+copy_container = copy_job['spec']['jobTemplate']['spec']['template']['spec']['containers'][0]
+assert copy_container['resources']['limits']['memory'] == '4Gi'
+copy_tmp = next(v for v in copy_job['spec']['jobTemplate']['spec']['template']['spec']['volumes'] if v['name'] == 'tmp')
+assert copy_tmp['emptyDir']['sizeLimit'] == '1Gi'
 assert copy_job['spec']['schedule'] == '45 4 * * *'
 assert prune_job['spec']['schedule'] == '30 23 * * 6'
 mounts = prune_job['spec']['jobTemplate']['spec']['template']['spec']['containers'][0]['volumeMounts']
