@@ -53,6 +53,7 @@ data:
     contract_name="$(jq -er '.contract | strings | select(test("^vault-v[0-9]+$"))' "$work/manifest.json")"
     contract="$contracts_dir/$contract_name.json"
     exclusions="$contracts_dir/$contract_name.excludes"
+    contract_version="${contract_name#vault-v}"
     [ -r "$contract" ] && [ -r "$exclusions" ] \
       || die "snapshot references unavailable vault contract $contract_name"
     contract_hash="$(sha256sum "$contract" | awk '{print $1}')"
@@ -107,7 +108,7 @@ data:
     ' "$work/manifest.json")"
     [ "$generated_epoch" -le $(( $(date +%s) + 300 )) ]
     restic dump "$snapshot" /data/vault/.vault-sentinel >"$work/sentinel"
-    grep -qxF 'vault-contract-version=2' "$work/sentinel"
+    grep -qxF "vault-contract-version=$contract_version" "$work/sentinel"
     grep -qxF "filesystem-uuid=$(jq -er '.filesystem_uuid' "$work/manifest.json")" "$work/sentinel"
     restic dump "$snapshot" /data/vault/credentials/strongbox/ccs.kdbx >"$work/ccs.kdbx"
     [ "$(od -An -tx1 -N8 "$work/ccs.kdbx" | tr -d ' \n')" = 03d9a29a67fb4bb5 ]
