@@ -14,8 +14,6 @@ require_backup_yq
 [ "$(hostname -s)" = minis ] || die "run this step on minis"
 sudo test -f /etc/homelab/vault-b2.conf \
   || die "install /etc/homelab/vault-b2.conf with VAULT_B2_REPOSITORY first"
-source /etc/homelab/vault-b2.conf
-: "${VAULT_B2_REPOSITORY:?VAULT_B2_REPOSITORY is required}"
 sudo test -f /mnt/vault/.vault-sentinel \
   || die "unlock and mount /mnt/vault before enrollment"
 sudo grep -qxF 'vault-contract-version=2' /mnt/vault/.vault-sentinel \

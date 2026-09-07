@@ -43,6 +43,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert 'require_tools jq kubectl yq' in wrapper
     assert 'kubectl -n monitoring exec -it' in wrapper
     assert 'require_tools restic' not in wrapper
+    assert 'source /etc/homelab/vault-b2.conf' not in wrapper
     assert 'restic --no-cache' in enrollment
     assert 'mktemp -d /dev/shm/vault-b2-enroll.' in enrollment
     assert 'install -o root -g root -m 0600' in enrollment
