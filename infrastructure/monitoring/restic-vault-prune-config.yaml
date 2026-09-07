@@ -27,7 +27,7 @@ data:
       local skipped="$1" candidates="$2" reason="${3:-none}" tmp="${metrics}.tmp.$$" success previous
       previous=0
       [ -f "$metrics" ] && previous="$(awk '/prune_success_timestamp_seconds/ {print $NF}' "$metrics" | tail -n1)"
-      success="$previous"
+      success="${previous:-0}"
       [ "$skipped" -eq 0 ] && success="$(date +%s)"
       umask 0027
       {
@@ -136,6 +136,8 @@ data:
     restic -r "$source_repo" snapshots --host minis-vault --json >"$source_listing"
     restic -r "$VAULT_B2_REPOSITORY" snapshots --host minis-vault --json >"$destination_listing"
     now="$(date +%s)"
+    [ "$(jq 'length' "$source_listing")" -gt 0 ] \
+      || { write_metrics 1 0 empty-source; log "NAS repository has no snapshots; skipping retention"; exit 0; }
     latest_source_id="$(jq -L /vault-scripts -er 'include "snapshot-time"; max_by(.time | snapshot_epoch) | .id' "$source_listing")"
     latest_source_lineage="$(jq -er --arg id "$latest_source_id" '.[] | select(.id == $id) | (.original // .id)' "$source_listing")"
     latest_source_time="$(jq -L /vault-scripts -er --arg id "$latest_source_id" 'include "snapshot-time"; .[] | select(.id == $id) | .time | snapshot_epoch' "$source_listing")"

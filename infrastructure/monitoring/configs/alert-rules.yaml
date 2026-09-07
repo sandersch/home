@@ -369,6 +369,14 @@ spec:
 
     - name: homelab.node-and-apps
       rules:
+        - alert: NodeTextfileScrapeError
+          expr: node_textfile_scrape_error == 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: Node textfile metrics could not be collected
+            description: "{{ $labels.instance }} has a textfile collector error. Inspect node-exporter logs for the affected file or directory; backup freshness and host guard metrics may be missing."
         - alert: OptFilesystemFillingUp
           expr: node_filesystem_avail_bytes{mountpoint="/opt"} / node_filesystem_size_bytes{mountpoint="/opt"} < 0.20
           for: 30m

@@ -68,16 +68,20 @@ data:
     if [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vg0-root ] \
       && [ "$vault_root" = /mnt/vault ]; then
       log "vault is locked; leaving its last successful check unchanged"
-    elif [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
-      && [ "$backups_available" -eq 1 ]; then
+    elif [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ]; then
       # shellcheck disable=SC1091
       source /etc/homelab/vault.conf
       if grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
         && grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel; then
-        export RESTIC_REPOSITORY=/repo/nas/vault
-        export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password
-        check_repository vault nas
-        unset RESTIC_REPOSITORY RESTIC_PASSWORD_FILE
+        if [ "$backups_available" -eq 1 ]; then
+          export RESTIC_REPOSITORY=/repo/nas/vault
+          export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password
+          check_repository vault nas
+          unset RESTIC_REPOSITORY RESTIC_PASSWORD_FILE
+        else
+          log "ERROR: vault/NAS verification skipped because the backup mount is invalid"
+          failures=$((failures + 1))
+        fi
         if [ -r /etc/homelab/vault-b2.conf ] \
           && [ -s /data/vault/.backup-credentials/b2-password ] \
           && [ -s /data/vault/.backup-credentials/b2-key-id ] \
@@ -100,9 +104,6 @@ data:
         log "ERROR: vault sentinel validation failed"
         failures=$((failures + 1))
       fi
-    elif [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ]; then
-      log "ERROR: vault/NAS verification skipped because the backup mount is invalid"
-      failures=$((failures + 1))
     else
       log "ERROR: vault has an unexpected mount identity"
       failures=$((failures + 1))

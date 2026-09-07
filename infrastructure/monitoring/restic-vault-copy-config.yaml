@@ -43,13 +43,13 @@ data:
       fi
       # Enrollment age survives daily copies, locked skips, and Pod replacement.
       [ "${enrolled_at:-0}" -gt 0 ] || enrolled_at="$(date +%s)"
-      [ "$newest" -gt 0 ] || newest="$previous_newest"
-      [ "$size" -gt 0 ] || size="$previous_size"
-      [ "$locked" -eq 1 ] && missing="$previous_missing"
+      [ "$newest" -gt 0 ] || newest="${previous_newest:-0}"
+      [ "$size" -gt 0 ] || size="${previous_size:-0}"
+      [ "$locked" -eq 1 ] && missing="${previous_missing:-0}"
       if [ -d "$destination_control/holds" ]; then
         hold_count="$(find "$destination_control/holds" -type f -name '*.json' | wc -l)"
       fi
-      success="$previous_success"
+      success="${previous_success:-0}"
       [ "$copied" -gt 0 ] && success="$(date +%s)"
       umask 0027
       {
@@ -78,7 +78,8 @@ data:
       local hold_file hold_tmp
       hold_file="$hold_dir/$snapshot_id.json"
       hold_tmp="$hold_file.tmp.$$"
-      mkdir -p "$hold_dir"
+      (umask 0077; mkdir -p "$hold_dir")
+      chmod 0700 "$hold_dir"
       if [ -e "$hold_file" ] || [ -L "$hold_file" ]; then
         [ -f "$hold_file" ] && [ ! -L "$hold_file" ] \
           || die "destination hold path is invalid: $hold_file"
@@ -122,7 +123,9 @@ data:
       || die "vault B2 application key is absent"
     [ -f "$source_repo/config" ] || die "vault NAS repository is not initialized"
 
-    mkdir -p "$destination_control" "$work/restic-cache"
+    (umask 0077; mkdir -p "$destination_control")
+    chmod 0700 "$destination_control"
+    mkdir -p "$work/restic-cache"
     export RESTIC_CACHE_DIR="$work/restic-cache"
     b2_key_id="$(cat /data/vault/.backup-credentials/b2-key-id)"
     b2_application_key="$(cat /data/vault/.backup-credentials/b2-application-key)"
@@ -133,7 +136,8 @@ data:
     export RESTIC_FROM_REPOSITORY="$source_repo"
     export RESTIC_FROM_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password
 
-    [ -f "$destination_control/validated.jsonl" ] || : >"$destination_control/validated.jsonl"
+    (umask 0077; touch "$destination_control/validated.jsonl")
+    chmod 0600 "$destination_control/validated.jsonl"
     source_listing="$work/source.json"
     destination_listing="$work/destination.json"
     RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \

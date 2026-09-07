@@ -104,6 +104,9 @@ also disable persistent Restic caches. `test-phase4-b2.sh` runs behavioral fixtu
 for timestamp offsets/fractions, enrollment permissions and failures, and the
 credential boundary without contacting B2 or the cluster.
 
+`test-review-followups.py` (included in `test-phase4-b2.sh`) exercises missing
+metric fields, empty-source retention, and B2 checks with an unavailable NAS mount,
+a locked vault, or an invalid sentinel using disposable fixtures.
 `test-prune-alerts.py` runs the deployed prune rules through `promtool`, covering
 first-run failure, recovery, initial enrollment grace, repeated scheduling, and
 mounted/enabled gates. It also verifies that copy metrics preserve the enrollment

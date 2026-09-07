@@ -544,6 +544,23 @@ command-line secret, or root-filesystem credential cache exists. `/work`, `/tmp`
 interrupted Job does not leave decrypted metadata or credential spill under
 `/var/lib/kubelet`.
 
+The copy Job starts with an empty 512 MiB `/work` on every Pod creation.
+Restic caches repository metadata across commands within that run; shared trees across
+snapshots can reuse that cache, so six new snapshots do not imply six independent full
+tree downloads. A fresh run must fetch the remote metadata it needs again.
+The same volume also holds source/destination listings and validation scratch output.
+Keep this memory-backed policy pending measurement: during the seed and first three daily
+copies, record peak `df -h /work /tmp`, cache/listing sizes, container memory usage,
+runtime, and any ENOSPC or OOMKilled failures. Repeat after substantial photo growth.
+Require headroom below the 512 MiB work volume, 64 MiB temporary volume, 2 GiB container
+limit, and six-hour daily deadline before closing the activation gate (the seed has its
+own longer deadline). Increase measured limits together if necessary; do not move
+plaintext validation output to the root filesystem.
+Memory-backed volume usage counts toward container memory
+([Kubernetes emptyDir documentation](https://kubernetes.io/docs/concepts/storage/volumes/#emptydir));
+Restic's [cache format](https://github.com/restic/restic/blob/v0.19.1/doc/cache.rst)
+stores repository objects as read, while our validation listings are decrypted.
+
 Both `.backup-credentials` and `.mail-credentials` are excluded by exact,
 contract-versioned rules and may not appear in a snapshot. The backup job verifies both
 exclusions before writing and rejects its own new snapshot if `restic ls` finds either
@@ -1445,6 +1462,12 @@ data. Conversely, the existing `appstate` B2 credential and future workstation B
 credentials cannot access the vault's private bucket. A leaked cluster secret therefore
 grants neither decryption nor deletion authority over a vault copy.
 
+This is B2 authorization scope and credential storage separation, not process isolation.
+The shared `restic-verify` Pod receives the appstate credentials from Kubernetes Secrets
+and, while the vault is unlocked, can read the vault credentials as root with
+`DAC_OVERRIDE`. Compromise of that verifier can expose both; a leaked appstate key alone
+cannot. Separate checker processes would not establish a host-root security boundary.
+
 The repository credential files inside `vaultlv` are operational copies, not backups of
 themselves. They are deliberately excluded from every Restic snapshot (§ 2); the two cards
 are their independent recovery source. Each repository-credential rotation updates both
@@ -1856,8 +1879,8 @@ Ordered so the highest-value, least-reversible data is protected first.
    § 1a — announce it before the move, not after), then Takeout bootstrap, de-dup against
    the local pre-2018 archive, verify counts, fold into vault.
 4. **Off-site** — **implemented in the repository; activate only after the attended gates**:
-   create a dedicated private B2 bucket whose application key is inaccessible
-   to the root-resident `appstate` key or the proposed workstation keys, verify the existing
+   create a dedicated private B2 bucket outside the authorization scope
+   of the root-resident `appstate` key or the proposed workstation keys, verify the existing
    `appstate` key is not authorized for the new bucket, impose the same restriction when the
    workstation keys are created, write the vault key files and a distinct B2 repo password
    under `.backup-credentials`, then init the B2 vault repo with
@@ -1995,6 +2018,19 @@ Backups are only worth what a restore proves, so every phase ends with one.
   list `/data/vault`, read `/data/vault/.backup-credentials`, read another vault dataset,
   write `.vault-sentinel`, or create a top-level vault entry. Finally, verify `stat` still
   reports the exact § 1b ownership and modes; the Pod must not repair drift by changing them.
+- **Independent off-site verification.** With disposable mount-guard fixtures, make
+  `/mnt/backups` unavailable while keeping the vault unlocked and its sentinel valid.
+  Both B2 checks must still run and advance only their own successful timestamps; NAS
+  checks must skip and the overall Job must fail. A locked vault must still prevent
+  vault credential reads and B2 contact. This covers script-level independence; an absent
+  hostPath that prevents the Pod starting remains a separate scheduling/mount failure.
+- **Textfile collector errors.** Confirm `NodeTextfileScrapeError` fires after five
+  minutes for a malformed disposable `.prom` file and resolves after its removal.
+  Use an isolated collector fixture, not malformed production backup metrics.
+  [node-exporter source](https://github.com/prometheus/node_exporter/blob/master/collector/textfile.go)
+  rejects a file on parse error, logs the error, and sets `node_textfile_scrape_error`;
+  the alert identifies the instance, and the logs identify the file. Missing metric
+  families remain covered by the existing freshness/absence rules.
 - **Locked-vault behaviour, end to end.** Reboot `minis` without unlocking and confirm the
   whole degraded path is the intended one: the host and k3s come up, camera recording keeps
   running, Frigate exports still land on `/mnt/frigate`, the `appstate` and workstation

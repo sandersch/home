@@ -176,3 +176,5 @@ grep -q 'job=restic-vault-b2-seed' "$seed"
 python3 "$repo_root/runbooks/backups/test-phase4-p1.py"
 
 python3 "$repo_root/runbooks/backups/test-b2-retention.py"
+
+python3 "$repo_root/runbooks/backups/test-review-followups.py"
