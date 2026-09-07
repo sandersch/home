@@ -27,18 +27,16 @@ data:
 
     write_metrics() {
       local locked="$1" newest="${2:-0}" copied="${3:-0}" missing="${4:-0}" size="${5:-0}"
-      local tmp="${metrics}.tmp.$$" previous_success previous_newest previous_size previous_missing previous_skips success skips hold_count
+      local tmp="${metrics}.tmp.$$" previous_success previous_newest previous_size previous_missing success hold_count
       previous_success=0
       previous_newest=0
       previous_size=0
       previous_missing=0
-      previous_skips=0
       hold_count=0
       if [ -f "$metrics" ]; then
         previous_success="$(awk '/homelab_restic_replication_success_timestamp_seconds/ {print $NF}' "$metrics" | tail -n1)"
         previous_newest="$(awk '/homelab_restic_destination_snapshot_timestamp_seconds/ {print $NF}' "$metrics" | tail -n1)"
         previous_size="$(awk '/homelab_restic_repository_size_bytes/ {print $NF}' "$metrics" | tail -n1)"
-        previous_skips="$(awk '/homelab_restic_replication_skipped_consecutive/ {print $NF}' "$metrics" | tail -n1)"
         previous_missing="$(awk '/homelab_restic_replication_missing_snapshots/ {print $NF}' "$metrics" | tail -n1)"
       fi
       [ "$newest" -gt 0 ] || newest="$previous_newest"
@@ -49,10 +47,6 @@ data:
       fi
       success="$previous_success"
       [ "$copied" -gt 0 ] && success="$(date +%s)"
-      skips=0
-      skips="$previous_skips"
-      [ "$locked" -eq 0 ] && [ "$missing" -gt 0 ] && skips=$((previous_skips + 1))
-      [ "$locked" -eq 0 ] && [ "$missing" -eq 0 ] && skips=0
       umask 0027
       {
         printf 'homelab_backup_repository_enrolled{dataset="vault",destination="b2"} 1\n'
@@ -60,7 +54,6 @@ data:
         printf 'homelab_restic_destination_snapshot_timestamp_seconds{dataset="vault",destination="b2"} %s\n' "$newest"
         printf 'homelab_restic_replication_success_timestamp_seconds{dataset="vault",destination="b2"} %s\n' "$success"
         printf 'homelab_restic_replication_missing_snapshots{dataset="vault",destination="b2"} %s\n' "$missing"
-        printf 'homelab_restic_replication_skipped_consecutive{dataset="vault",destination="b2"} %s\n' "$skips"
         printf 'homelab_restic_validation_hold{dataset="vault",destination="b2"} %s\n' "$hold_count"
         printf 'homelab_restic_repository_size_bytes{dataset="vault",destination="b2"} %s\n' "$size"
         printf 'homelab_restic_repository_ceiling_bytes{dataset="vault",destination="b2"} 107374182400\n'

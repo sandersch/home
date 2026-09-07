@@ -54,6 +54,7 @@ resolver_wrapper = (root / 'runbooks/backups/10-resolve-validation-hold.sh').rea
 assert 'restic copy --from-repo "$source_repo" "$snapshot_id"' in copy_script
 assert 'restic stats --json --mode raw-data' in copy_script
 assert 'restic stats --json --mode restore-size' not in copy_script
+assert 'homelab_restic_replication_skipped_consecutive' not in copy_script
 assert '/vault-scripts/validate-vault-snapshot.sh "$destination_id"' in copy_script
 assert '/vault-scripts/validate-vault-snapshot.sh "$snapshot_id"' in copy_script
 assert 'original // .id' in copy_script and 'validated.jsonl' in copy_script
