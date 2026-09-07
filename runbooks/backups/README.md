@@ -97,9 +97,10 @@ an off-host B2 restore using only the break-glass card, verify the existing apps
 cannot access the vault bucket, and run the enrolled B2 repository verification.
 A locked vault is an intentional successful
 skip; it must not cause the copy job to read credentials from the root filesystem.
-While the copy and prune CronJobs remain suspended, the enrolled repository intentionally
-fires two `ResticBackupSuspended` warning alerts (one per schedule). They are expected
-during this attended seed and restore window; the activation commit clears them.
+Before the reviewed activation change, the suspended copy and prune CronJobs intentionally
+fire two `ResticBackupSuspended` warning alerts (one per schedule). They are expected during
+the attended seed and restore window; Flux reconciliation of the activation commit clears
+them.
 Use `14-validate-vault-b2-restore.sh` with a full destination snapshot ID for the attended
 representative restore. It runs `check --read-data`, validates the released contract, and
 extracts `ccs.kdbx`, one document, and one photo to a new root-only directory under the

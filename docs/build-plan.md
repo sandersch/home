@@ -18,8 +18,10 @@ manifests.
 The local encrypted-vault backup is now deployed and validated separately from the
 appstate pipeline. Contract v2 requires the imported photos; snapshot
 `878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe` passed a full restore
-and SHA-256 comparison for all 15,206 photos on 2026-09-06. Vault B2 replication,
-workstation backups, and offline copies remain future work.
+and SHA-256 comparison for all 15,206 photos on 2026-09-06. Vault B2 enrollment, seed,
+on-host and card-only off-host restores, authorization separation, and repository
+verification passed on 2026-09-07; its reviewed CronJob activation commit awaits live
+Flux/CronJob confirmation. Workstation backups and offline copies remain future work.
 
 | Phase | Repo status | Remaining work |
 |---|---|---|

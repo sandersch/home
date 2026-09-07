@@ -4,14 +4,15 @@
 > B2 replication and guarded vault retention are implemented in git; live B2 enrollment,
 > initial seed, attended on-host B2 restore, separate off-host break-glass restore, and
 > appstate-key denial from the vault bucket, and enrolled repository verification have
-> passed. The recurring schedules remain suspended pending the reviewed activation change.
-> The broader whole-estate policy remains draft. Updated 2026-09-07.
+> passed. The reviewed activation commit enables the copy and prune CronJobs in Git; Flux
+> reconciliation and live `SUSPEND false` confirmation remain to be recorded. The broader
+> whole-estate policy remains draft. Updated 2026-09-07.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
 > verifier, a restricted `ryze` ingestion path, versioned contracts, alerts, and restore
-> runbooks. The local vault and `appstate` pipelines run today; the vault copy/prune
-> manifests are staged but remain suspended until B2 enrollment and restore gates pass.
+> runbooks. The local vault and `appstate` pipelines run today; vault B2 copy/prune are
+> enabled by the reviewed activation commit, pending live reconciliation confirmation.
 > Workstation backup and offline copies remain design work. The `appstate` pipeline is
 > described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
@@ -56,13 +57,14 @@ vault pipeline:
 - `restic-b2-backup` — weekly `30 4 * * 0`, independent read, Backblaze B2 via the S3 backend
 - `restic-vault-backup` — every four hours, local repository `/repo/nas/vault` on `/mnt/backups`;
   contract v2 requires the imported photos
-- `restic-vault-copy` — daily CronJob at `04:45`, initially suspended; copies validated NAS
-  lineages to the dedicated B2 repository and validates each destination snapshot. A
+- `restic-vault-copy` — daily CronJob at `04:45`, enabled by the reviewed activation commit;
+  copies validated NAS lineages to the dedicated B2 repository and validates each destination snapshot. A
   destination snapshot that lacks ledger evidence is held under
   `/mnt/backups/.control/vault-b2/holds/` for attended revalidation with
   `runbooks/backups/15-resolve-vault-b2-validation-hold.sh`.
-- `restic-vault-prune` — Saturday 23:30 weekly CronJob, initially suspended; verifies B2 presence
-  before explicit NAS deletion and then applies the independent B2 retention policy
+- `restic-vault-prune` — Saturday 23:30 weekly CronJob, enabled by the reviewed activation
+  commit; verifies B2 presence before explicit NAS deletion and then applies the independent
+  B2 retention policy
 - Sources: `/opt` (read-only, `.snapshots` excluded), `/var/lib/rancher/k3s/server/db`,
   plus hot dumps generated in-job
 - **Backup contract version 3** — the run hard-fails before `restic backup` unless every
@@ -75,8 +77,8 @@ vault pipeline:
   contract version or inventory differs
 
 That anti-false-success contract is the most valuable pattern in the repo and everything
-proposed below reuses it. The remaining gap is off-site vault replication and the proposed
-workstation/offline tiers.
+proposed below reuses it. Vault B2 replication has passed its attended gates; the remaining
+gaps are the proposed workstation and offline tiers, plus mail archival.
 
 ## The data policy (proposed)
 
@@ -89,9 +91,10 @@ One table is the contract. Every proposed manifest points back to it.
 | `workstations` | `ryze` home (curated), `m5c` home (curated) | **~70 GB** (`ryze` 50, `m5c` 20) | daily push | weekly (copy) | — |
 | *(none)* | disk images, Frigate **recordings**, `/mnt/media`, `/mnt/games` | 18 TiB+ | local only, GC'd | — | — |
 
-The migrated photos currently have their source on the encrypted vault filesystem and a
-validated local Restic copy on `/mnt/backups`. Backblaze and offline-disk copies are the
-remaining 3-2-1 targets; they are not deployed yet.
+The migrated photos currently have their source on the encrypted vault filesystem, a
+validated local Restic copy on `/mnt/backups`, and a seeded/validated B2 copy. The offline
+drive remains the undeployed 3-2-1 target; workstation and mail destinations are also not
+deployed yet.
 
 The vault cadence starts only after data reaches `/mnt/vault`; it is not an ingestion
 guarantee. The Strongbox database has its own source-to-vault contract (§ 1c):
@@ -343,13 +346,13 @@ the real mount, an unmounted fixture, a wrong sentinel, a read-only mount, and a
 filesystem with the wrong UUID; never unmount the production backup LV merely to manufacture
 a failure case.
 
-## Architecture (local vault implemented; extensions proposed)
+## Architecture (vault B2 implemented; extensions proposed)
 
-The local vault foundation and the migrated photo archive described in §§ 1–3 are
-implemented and validated. The sections below retain the design rationale and the
-remaining proposed extensions; imperative language in the completed phases is historical
-rebuild guidance. Vault B2 replication, workstation repositories, offline copies, and the
-mail archive remain unimplemented.
+The local vault foundation, migrated photo archive, and vault B2 replication described in
+§§ 1–3 are implemented and validated. The sections below retain the design rationale and
+the remaining proposed extensions; imperative language in the completed phases is historical
+rebuild guidance. Workstation repositories, offline copies, and the mail archive remain
+unimplemented.
 
 ### 1. A dedicated home for irreplaceable data: `/mnt/vault`
 
@@ -1494,9 +1497,9 @@ actually unlocking with it at each refresh.
 
 | Break-glass card | Status |
 |---|---|
-| Last refreshed | *not yet produced* |
-| Copy 1 location | Secure home safe, away from `minis` and every backup drive |
-| Copy 2 location | Off-site bank safe-deposit box |
+| Last refreshed and tested | 2026-09-07 — card-only B2 restore from `ryze` passed |
+| Copy 1 location | Secure home safe, away from `minis` and every backup drive (placement not yet separately recorded) |
+| Copy 2 location | Off-site bank safe-deposit box (placement not yet separately recorded) |
 
 ### 9. Alerting
 
@@ -1854,12 +1857,14 @@ for non-vault secrets, the `homelab-low` priority class, and the `assert_fresh_f
 contract-version pattern. Vault Job manifests change `/work` and `/tmp` to
 `emptyDir.medium: Memory` and point `RESTIC_CACHE_DIR` there (§ 1b).
 
-## Phasing (local foundation complete; Phase 4 implementation staged)
+## Phasing (vault B2 attended gates complete; activation reconciliation pending)
 
 The vault foundation, restricted ingestion path, local Restic enrollment, photo migration,
 and the Phase 4 repository copy/prune implementation (steps 1–4) are complete in the
-repository. Live B2 enrollment and attended validation remain before schedules can be
-activated. Retain the remaining ordering when implementation resumes.
+repository. Live B2 enrollment, seed, restores, authorization separation, and repository
+verification passed on 2026-09-07. The reviewed activation commit enables copy/prune in Git;
+record Flux reconciliation and live CronJob status before treating the schedules as active.
+Retain the remaining ordering when implementation resumes.
 
 Ordered so the highest-value, least-reversible data is protected first.
 
@@ -2183,7 +2188,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | Drill | Last run | Result |
 |---|---|---|
 | `appstate` local + B2 restore | 2026-08-22 | passed (contract v2; local `731326fa`, B2 `fe10c1ff`) |
-| `vault` local restore | *not yet* | — |
+| `vault` local restore | 2026-09-06 | passed — snapshot `878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe` restored into an isolated tree; SHA-256 matched all 15,206 imported photos. |
 | `vault` B2 restore (attended on `minis`) | 2026-09-07 | passed — snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349`; full `check --read-data` read 8 snapshots / 1,135 packs with no errors, then the restored KDBX, document, and photo were manually verified. Artifacts were retained on encrypted vault scratch when this evidence was recorded. |
 | `vault` B2 restore, break-glass only | 2026-09-07 | passed — restored from `ryze` using only the sealed break-glass card; no access to `minis`, its mounted vault, credential files, or decrypted repository secrets. Snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349` was readable and representative restored content was successfully validated. |
 | `vault` B2 authorization separation | 2026-09-07 | passed — the existing appstate B2 application key was denied access to the dedicated vault bucket. No credential material was recorded. |
