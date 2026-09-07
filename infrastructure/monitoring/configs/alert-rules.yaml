@@ -208,7 +208,7 @@ spec:
           labels:
             severity: critical
           annotations:
-            description: A vault snapshot failed validation and is held outside the validation ledger; the destination label identifies the affected repository.
+            description: A vault snapshot failed validation and is held outside the {{ $labels.destination }} validation ledger.
             summary: Vault snapshot validation is held
         - alert: ResticRepoNearCeiling
           expr: |

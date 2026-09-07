@@ -125,6 +125,7 @@ assert 'homelab_restic_unreplicated_candidates{dataset="vault",destination="nas"
 assert 'unless on() (homelab_restic_replication_missing_snapshots{dataset="vault",destination="b2"} == 0)' in alerts
 assert 'ResticVaultCopySuspended' not in alerts
 assert 'ResticVaultCopyNearCeiling' not in alerts
+assert 'A vault snapshot failed validation and is held outside the {{ $labels.destination }} validation ledger.' in alerts
 assert '        - alert: ResticRepoNearCeiling' in alerts
 assert 'homelab_restic_repository_size_bytes\n            / homelab_restic_repository_ceiling_bytes > 0.80' in alerts
 assert 'The {{ $labels.dataset }} repository on {{ $labels.destination }} is above 80 percent of its policy ceiling.' in alerts
