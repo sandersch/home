@@ -928,7 +928,10 @@ data:
   and a prune days later are not connected by anything in-process. **The prune job therefore
   re-derives the precondition itself, per repo, before touching that repo:**
 
-  - the newest snapshot is younger than that repo's expected backup interval;
+  - the newest snapshot is younger than that repo's freshness alerting tolerance
+    (8h for `vault`, matching `ResticVaultBackupOverdue`) rather than its nominal
+    backup interval, so the guard and the alert cannot disagree about whether the
+    pipeline is healthy;
   - its size and file count are within tolerance of the healthy baseline (the same
     comparison the backup-side guard makes, computed independently);
   - the newest snapshot and every removal candidate are present in the root-controlled
