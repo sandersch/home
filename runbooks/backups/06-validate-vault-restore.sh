@@ -27,7 +27,7 @@ yq -y -i '
     ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/validate-vault-restore.sh"] |
   .spec.template.spec.containers[0].env +=
     [{"name": "RESTORE_SNAPSHOT", "value": env.VAULT_SNAPSHOT}] |
-  .spec.template.spec.containers[0].securityContext.capabilities.add += ["CHOWN"] |
+  .spec.template.spec.containers[0].securityContext.capabilities.add += ["CHOWN", "FOWNER"] |
   (.spec.template.spec.containers[0].volumeMounts[] | select(.name == "vault")).readOnly = false
 ' "$manifest"
 kubectl apply -f "$manifest" >/dev/null
