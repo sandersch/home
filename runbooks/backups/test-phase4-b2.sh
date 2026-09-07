@@ -10,6 +10,7 @@ import yaml
 root = pathlib.Path(sys.argv[1])
 copy = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-copy-config.yaml').read_text())
 prune = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-prune-config.yaml').read_text())
+vault = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-config.yaml').read_text())
 copy_job = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-copy-cronjob.yaml').read_text())
 prune_job = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-prune-cronjob.yaml').read_text())
 alerts = (root / 'infrastructure/monitoring/configs/alert-rules.yaml').read_text()
@@ -17,6 +18,7 @@ kustomization = (root / 'infrastructure/monitoring/kustomization.yaml').read_tex
 
 copy_script = copy['data']['copy-vault.sh']
 prune_script = prune['data']['prune-vault.sh']
+assert vault['data']['detect-vault-exclusions.jq'] == copy['data']['detect-vault-exclusions.jq'] == prune['data']['detect-vault-exclusions.jq']
 restore_script = copy['data']['validate-vault-b2-restore.sh']
 destination_resolver = copy['data']['resolve-vault-b2-validation-hold.sh']
 resolver_wrapper = (root / 'runbooks/backups/10-resolve-validation-hold.sh').read_text()

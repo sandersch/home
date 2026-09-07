@@ -5,18 +5,12 @@ metadata:
   namespace: monitoring
 data:
   detect-vault-exclusions.jq: |
-    select(.message_type == "node")
-    | .path
-    | select(
-        . == "/data/vault/.backup-credentials" or
-        startswith("/data/vault/.backup-credentials/") or
-        . == "/data/vault/.mail-credentials" or
-        startswith("/data/vault/.mail-credentials/") or
-        . == "/data/vault/inbox" or
-        startswith("/data/vault/inbox/") or
-        . == "/data/vault/.restore-tests" or
-        startswith("/data/vault/.restore-tests/")
-      )
+    select(.message_type == "node") | .path | select(
+      . == "/data/vault/.backup-credentials" or startswith("/data/vault/.backup-credentials/") or
+      . == "/data/vault/.mail-credentials" or startswith("/data/vault/.mail-credentials/") or
+      . == "/data/vault/inbox" or startswith("/data/vault/inbox/") or
+      . == "/data/vault/.restore-tests" or startswith("/data/vault/.restore-tests/")
+    )
   validate-vault-snapshot.sh: |
     #!/usr/bin/env bash
     set -Eeuo pipefail
