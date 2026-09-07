@@ -1478,8 +1478,8 @@ except for the deliberately mount-gated filesystem rule described below:
 |---|---|
 | `ResticVaultBackupOverdue` | newest validated NAS snapshot older than 8h while vault mounted (critical) |
 | `ResticVaultCopyOverdue` | newest validated B2 lineage older than 36h while vault mounted (critical) |
-| `ResticVaultPruneOverdue` | vault retention has no successful completion in 10d while enrolled and mounted (warning) |
-| `ResticPruneFailed` | a vault retention run failed after a prior success (warning) |
+| `ResticVaultPruneOverdue` | vault retention has no successful completion in 10d while enrolled, enabled, and mounted; before the first success, age starts when copy first records B2 enrollment (warning) |
+| `ResticPruneFailed` | a vault retention run failed with no later successful run, including the first run (warning) |
 | `ResticWorkstationCopyOverdue` | no workstation→B2 copy in 8d (warning) — per host |
 | `ResticWorkstationSnapshotTimeInvalid` | a held workstation snapshot has an implausible clock (warning) — § 4 |
 | `ResticSnapshotValidationHeld` | unresolved validation hold for 15m — critical for `vault`, warning per workstation repo |

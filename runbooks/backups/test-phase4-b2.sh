@@ -123,7 +123,7 @@ assert 'ResticVaultCopyOverdue' in alerts
 assert 'ResticPruneFailed' in alerts
 assert 'restic-vault-prune-.*' in alerts
 assert 'kube_cronjob_spec_suspend{namespace="monitoring",cronjob="restic-vault-prune"}' in alerts
-assert 'kube_cronjob_status_last_schedule_time{namespace="monitoring",cronjob="restic-vault-prune"}' in alerts
+assert 'homelab_backup_repository_enrollment_timestamp_seconds{dataset="vault",destination="b2"}' in alerts
 assert 'homelab_restic_unreplicated_candidates{dataset="vault",destination="nas"} > 0' in alerts
 assert 'unless on() (homelab_restic_replication_missing_snapshots{dataset="vault",destination="b2"} == 0)' in alerts
 assert 'ResticVaultCopySuspended' not in alerts

@@ -100,3 +100,9 @@ inside that process rather than passed through sudo arguments; host B2 commands
 also disable persistent Restic caches. `test-phase4-b2.sh` runs behavioral fixtures
 for timestamp offsets/fractions, enrollment permissions and failures, and the
 credential boundary without contacting B2 or the cluster.
+
+`test-prune-alerts.py` runs the deployed prune rules through `promtool`, covering
+first-run failure, recovery, initial enrollment grace, repeated scheduling, and
+mounted/enabled gates. It also verifies that copy metrics preserve the enrollment
+timestamp across subsequent runs. CI uses an immutable Prometheus container;
+locally, put `promtool` on PATH or set `PROMTOOL` to its command.
