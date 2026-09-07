@@ -415,8 +415,8 @@ At idle, `sync_speed_max` displays the current system value followed by `(system
 during a scheduled check it must display `50000`. The first direct-array check on
 2026-08-10/11 completed with `mismatch_cnt=0` but saturated the active members and
 blocked Frigate filesystem tasks for 122–245 seconds. The cap was installed on
-2026-08-13; its attended workload-impact validation is intentionally deferred to the
-next check window.
+2026-08-13; the attended 2026-09-07 check confirmed that the cap held at `50000` KiB/s
+for the check window. Frigate workload-impact tuning remains a separate follow-up.
 
 The upstream `NodeRAIDDegraded` and `NodeRAIDDiskFailure` rules cover array/device
 failure. Repo-owned `BulkStorageMountSetIncomplete` and

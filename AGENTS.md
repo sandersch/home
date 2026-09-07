@@ -52,8 +52,9 @@ it is no longer required for normal network operation. Fresh local and B2 backup
 representative restores passed on 2026-08-10, and more than 48 hours of post-check
 observation closed the migration gates on 2026-08-13. The first direct-array
 consistency check completed cleanly but caused Frigate I/O stalls; deterministic
-timers and a check-only `50000` KiB/s cap are installed, with attended cap validation
-deferred to the next check window. Most of the approved numbered UDM firewall policy
+timers and a check-only `50000` KiB/s cap are installed, and the attended 2026-09-07
+check confirmed the cap held for the check window. Frigate workload-impact tuning and
+most of the approved numbered UDM firewall policy
 remains pending deployment and validation; Rule 940 is deployed and validated, while
 the rest of the matrix remains intended end state rather than current enforcement.
 Standard-tier media resource tuning passed its seven-day gate on
