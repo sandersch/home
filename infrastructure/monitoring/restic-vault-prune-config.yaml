@@ -16,7 +16,7 @@ data:
     set -Eeuo pipefail
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
     die() { log "ERROR: $*" >&2; exit 1; }
-    restic_lock_retry=3h
+    restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
     restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
     source_repo=/repo/nas/vault
     source_control=/repo/nas/.control/vault

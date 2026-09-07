@@ -19,7 +19,7 @@ data:
     # measure the immutable snapshot, never the live tree or its claimed inventory.
     snapshot="${1:?a full snapshot ID is required}"
     [[ "$snapshot" =~ ^[0-9a-f]{64}$ ]] || exit 1
-    restic_lock_retry="${RESTIC_LOCK_RETRY:-90m}"
+    restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
     restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
     contract=/contracts/vault-v2.json
     exclusions=/contracts/vault-v2.excludes
@@ -92,8 +92,7 @@ data:
 
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
     die() { log "ERROR: $*" >&2; exit 1; }
-    restic_lock_retry=90m
-    export RESTIC_LOCK_RETRY="$restic_lock_retry"
+    restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
     restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
 
     vault_path=/data/vault

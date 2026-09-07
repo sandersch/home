@@ -38,6 +38,8 @@ spec:
               command:
                 - /scripts/verify.sh
               env:
+                - name: RESTIC_LOCK_RETRY
+                  value: 3h
                 - name: APPSTATE_NAS_PASSWORD
                   valueFrom:
                     secretKeyRef:

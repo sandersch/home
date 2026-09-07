@@ -4,6 +4,7 @@ set -Eeuo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python3 - "$repo_root" <<'PY'
 import pathlib
+import re
 import sys
 import yaml
 
@@ -11,8 +12,11 @@ root = pathlib.Path(sys.argv[1])
 copy = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-copy-config.yaml').read_text())
 prune = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-prune-config.yaml').read_text())
 vault = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-config.yaml').read_text())
+verify = yaml.safe_load((root / 'infrastructure/monitoring/restic-verify-config.yaml').read_text())
+backup_job = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-cronjob.yaml').read_text())
 copy_job = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-copy-cronjob.yaml').read_text())
 prune_job = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-prune-cronjob.yaml').read_text())
+verify_job = yaml.safe_load((root / 'infrastructure/monitoring/restic-verify-cronjob.yaml').read_text())
 alerts = (root / 'infrastructure/monitoring/configs/alert-rules.yaml').read_text()
 kustomization = (root / 'infrastructure/monitoring/kustomization.yaml').read_text()
 
@@ -20,14 +24,34 @@ copy_script = copy['data']['copy-vault.sh']
 prune_script = prune['data']['prune-vault.sh']
 assert vault['data']['detect-vault-exclusions.jq'] == copy['data']['detect-vault-exclusions.jq'] == prune['data']['detect-vault-exclusions.jq']
 retry_wrapper = 'restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }'
-assert retry_wrapper in copy_script
-assert retry_wrapper in prune_script
-assert retry_wrapper in vault['data']['validate-vault-snapshot.sh']
-assert 'restic_lock_retry="${RESTIC_LOCK_RETRY:-90m}"' in vault['data']['validate-vault-snapshot.sh']
-assert 'restic_lock_retry=90m' in vault['data']['backup-vault.sh']
-assert 'export RESTIC_LOCK_RETRY="$restic_lock_retry"' in copy_script
-assert 'restic_lock_retry=3h' in copy_script
-assert 'restic_lock_retry=3h' in prune_script
+retry_default = 'restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"'
+for script in (
+    vault['data']['validate-vault-snapshot.sh'],
+    vault['data']['backup-vault.sh'],
+    copy_script,
+    prune_script,
+    verify['data']['verify.sh'],
+):
+    assert retry_wrapper in script
+    assert retry_default in script
+
+def env_of(job, name):
+    for container in job['spec']['jobTemplate']['spec']['template']['spec']['containers']:
+        for env in container.get('env', []):
+            if env['name'] == name:
+                return env['value']
+    raise AssertionError(f'{job["metadata"]["name"]} has no {name} environment variable')
+
+def parse_duration(value):
+    match = re.fullmatch(r'(\d+)([smhd])', value)
+    assert match, value
+    amount, unit = match.groups()
+    return int(amount) * {'s': 1, 'm': 60, 'h': 3600, 'd': 86400}[unit]
+
+for job in (backup_job, copy_job, prune_job, verify_job):
+    spec = job['spec']['jobTemplate']['spec']
+    retry = parse_duration(env_of(job, 'RESTIC_LOCK_RETRY'))
+    assert retry < spec['activeDeadlineSeconds'], job['metadata']['name']
 restore_script = copy['data']['validate-vault-b2-restore.sh']
 destination_resolver = copy['data']['resolve-vault-b2-validation-hold.sh']
 resolver_wrapper = (root / 'runbooks/backups/10-resolve-validation-hold.sh').read_text()

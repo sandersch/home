@@ -36,6 +36,9 @@ spec:
               image: ghcr.io/sandersch/restic-backup:0.19.1-1@sha256:58cddae970e91cb4f8f18db69d9d7d526d1e1d803193a65afb2f7f3a43aa9097
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/prune-vault.sh"]
+              env:
+                - name: RESTIC_LOCK_RETRY
+                  value: 3h
               resources:
                 requests: {cpu: 250m, memory: 512Mi}
                 limits: {cpu: "1", memory: 2Gi}

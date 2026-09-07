@@ -9,6 +9,8 @@ data:
     set -Eeuo pipefail
 
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
+    restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
+    restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
     failures=0
     backups_available=0
     subset="$(date +%-m)/12"
