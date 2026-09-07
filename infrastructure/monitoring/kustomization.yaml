@@ -9,6 +9,10 @@ resources:
 - restic-b2.sops.yaml
 - restic-vault-config.yaml
 - restic-vault-cronjob.yaml
+- restic-vault-copy-config.yaml
+- restic-vault-copy-cronjob.yaml
+- restic-vault-prune-config.yaml
+- restic-vault-prune-cronjob.yaml
 - restic-verify-config.yaml
 - restic-verify-cronjob.yaml
 configMapGenerator:

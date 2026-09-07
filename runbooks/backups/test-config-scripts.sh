@@ -19,6 +19,8 @@ fi
 files=(
   infrastructure/monitoring/restic-mount-guard.yaml
   infrastructure/monitoring/restic-vault-config.yaml
+  infrastructure/monitoring/restic-vault-copy-config.yaml
+  infrastructure/monitoring/restic-vault-prune-config.yaml
   infrastructure/monitoring/restic-verify-config.yaml
 )
 

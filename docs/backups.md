@@ -1,21 +1,24 @@
 # Backup policy
 
-> **Status:** The local encrypted-vault photo pipeline is deployed and validated. The
-> broader whole-estate policy remains draft. Updated 2026-09-06.
+> **Status:** The local encrypted-vault photo pipeline is deployed and validated. Phase 4
+> B2 replication and guarded vault retention are implemented in git, with live bucket
+> enrollment, restore, and schedule activation still attended work. The broader
+> whole-estate policy remains draft. Updated 2026-09-06.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
 > verifier, a restricted `ryze` ingestion path, versioned contracts, alerts, and restore
-> runbooks. The local vault and `appstate` pipelines run today; vault off-site replication,
-> workstation backup, and offline copies remain design work. The `appstate` pipeline is
+> runbooks. The local vault and `appstate` pipelines run today; the vault copy/prune
+> manifests are staged but remain suspended until B2 enrollment and restore gates pass.
+> Workstation backup and offline copies remain design work. The `appstate` pipeline is
 > described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
 > datastore, and validated hot dumps.
 >
 > The encrypted vault now has a deployed local Restic pipeline. The v2 contract includes
-> the imported photos; its attended full photo restore passed on 2026-09-06. Vault off-site
-> replication, workstation backup, and offline copies
-> remain unimplemented; do not describe the RAID array itself as a backup.
+> the imported photos; its attended full photo restore passed on 2026-09-06. The Phase 4
+> implementation uses a dedicated B2 repository and exact-lineage validation; do not
+> describe the RAID array itself as a backup.
 >
 > The broader off-site and whole-estate follow-up remains open in
 > [operations.md → Follow-ups](./operations.md#follow-ups).
@@ -50,6 +53,13 @@ vault pipeline:
 - `restic-b2-backup` — weekly `30 4 * * 0`, independent read, Backblaze B2 via the S3 backend
 - `restic-vault-backup` — every four hours, local repository `/repo/nas/vault` on `/mnt/backups`;
   contract v2 requires the imported photos
+- `restic-vault-copy` — daily CronJob at `04:45`, initially suspended; copies validated NAS
+  lineages to the dedicated B2 repository and validates each destination snapshot. A
+  destination snapshot that lacks ledger evidence is held under
+  `/mnt/backups/.control/vault-b2/holds/` for attended revalidation with
+  `runbooks/backups/15-resolve-vault-b2-validation-hold.sh`.
+- `restic-vault-prune` — weekly-capable CronJob, initially suspended; verifies B2 presence
+  before explicit NAS deletion and then applies the independent B2 retention policy
 - Sources: `/opt` (read-only, `.snapshots` excluded), `/var/lib/rancher/k3s/server/db`,
   plus hot dumps generated in-job
 - **Backup contract version 3** — the run hard-fails before `restic backup` unless every
@@ -918,7 +928,10 @@ data:
   and a prune days later are not connected by anything in-process. **The prune job therefore
   re-derives the precondition itself, per repo, before touching that repo:**
 
-  - the newest snapshot is younger than that repo's expected backup interval;
+  - the newest snapshot is younger than that repo's freshness alerting tolerance
+    (8h for `vault`, matching `ResticVaultBackupOverdue`) rather than its nominal
+    backup interval, so the guard and the alert cannot disagree about whether the
+    pipeline is healthy;
   - its size and file count are within tolerance of the healthy baseline (the same
     comparison the backup-side guard makes, computed independently);
   - the newest snapshot and every removal candidate are present in the root-controlled
@@ -1000,7 +1013,7 @@ exception to `DAC_OVERRIDE`: it runs as `2000:2000` and can write only the vault
 
 ### 3. Replication by `restic copy`, not re-reading the source
 
-Off-site copies come from a `restic-copy-cronjob.yaml` that replicates NAS → B2, rather than
+Off-site copies come from `restic-vault-copy-cronjob.yaml`, which replicates NAS → B2, rather than
 a second independent read of the source. What this buys is **one traversal of the source
 tree**: the backup job reads host `/mnt/vault` through its `/data/vault` mount and writes to
 `/mnt/backups`; the copy job then reads `/mnt/backups`. (The array is not read once —
@@ -1147,10 +1160,10 @@ non-append-only Service whose only purpose would be to hold delete rights.
 Prune and a client push do **not** run concurrently: destructive `forget` and `prune`
 operations take exclusive repo locks, and restic's locking is enforced on the repo itself,
 so it applies equally whether a process arrived over REST or over the hostPath. Locking
-makes overlap safe, not free — the loser of a race fails rather than corrupting anything.
-Give the workstation wrappers
-`--retry-lock` (a few minutes is plenty for these repo sizes) and schedule the weekly prune
-away from the workstation timers, so a legitimate overlap waits instead of paging.
+makes overlap safe, not free. The recurring vault copy and prune jobs use a bounded three-hour
+`--retry-lock`; the two-hour vault backup Job uses a 90-minute bound, and passes that bound to
+shared snapshot validation. A legitimate overlap therefore waits without allowing a backup
+Job to outlive its deadline. Workstation prune scheduling remains separate from this policy.
 
 There is one non-obvious quota consequence. rest-server accounts repository size in memory;
 a direct hostPath prune bypasses that accounting, so the server continues to believe the
@@ -1465,6 +1478,8 @@ except for the deliberately mount-gated filesystem rule described below:
 |---|---|
 | `ResticVaultBackupOverdue` | newest validated NAS snapshot older than 8h while vault mounted (critical) |
 | `ResticVaultCopyOverdue` | newest validated B2 lineage older than 36h while vault mounted (critical) |
+| `ResticVaultPruneOverdue` | vault retention has no successful completion in 10d while enrolled, enabled, and mounted; before the first success, age starts when copy first records B2 enrollment (warning) |
+| `ResticPruneFailed` | a vault retention run failed with no later successful run, including the first run (warning) |
 | `ResticWorkstationCopyOverdue` | no workstation→B2 copy in 8d (warning) — per host |
 | `ResticWorkstationSnapshotTimeInvalid` | a held workstation snapshot has an implausible clock (warning) — § 4 |
 | `ResticSnapshotValidationHeld` | unresolved validation hold for 15m — critical for `vault`, warning per workstation repo |
@@ -1477,7 +1492,7 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticPruneOverdue` | no prune in 10d (warning) |
 | `ResticOfflineDriveStale` | newest successful offline rotation across either drive older than 120d (warning) |
 | `ResticOfflineDriveRotationOverdue` | last successful rotation of an individual drive older than 210d (warning) — per drive |
-| `ResticReplicationLag` | prune skipped a repo for unreplicated snapshots on two consecutive runs (warning) |
+| `ResticReplicationLag` | prune reports unreplicated or unvalidated NAS candidates awaiting B2 (warning) |
 | `ResticRepoNearCeiling` | repo size above 80% of its ceiling (warning) |
 | `ResticRepositoryCheckOverdue` | no successful monthly structural + rotating data check in 40d (warning) — per NAS/B2 repo; vault destinations arm only while mounted |
 | `ResticRestoreDrillOverdue` | quarterly program older than 100d, or a repo/destination without its required annual semantic drill in 400d (warning); vault destinations arm only while mounted |
@@ -1720,11 +1735,12 @@ that destination.
 
 Dead Man's Snitch continues to cover the "monitoring itself is down" case.
 
-## Files (proposed)
+## Files (implemented or proposed)
 
 **New — `infrastructure/monitoring/`** (add each to `kustomization.yaml`):
-`restic-vault-config.yaml`, `restic-vault-cronjob.yaml`, `restic-copy-config.yaml`,
-`restic-vault-copy-cronjob.yaml`,
+`restic-vault-config.yaml`, `restic-vault-cronjob.yaml`, `restic-vault-copy-config.yaml`,
+`restic-vault-copy-cronjob.yaml`, `restic-vault-prune-config.yaml`,
+`restic-vault-prune-cronjob.yaml`,
 `restic-workstations-copy-cronjob.yaml`, `restic-prune-cronjob.yaml`,
 `restic-verify-cronjob.yaml`,
 `rest-server-deployment.yaml`, `rest-server-service.yaml`, `rest-server-storage.yaml`,
@@ -1744,7 +1760,9 @@ Gmail app-password copy.
 `containers/mail-archive/{Containerfile,VERSION}`,
 `.github/workflows/mail-archive-image.yaml`, `host/ryze/`, `host/m5c/`, and
 `runbooks/backups/` (the staged attended sequence plus
-`10-resolve-validation-hold.sh`, tests, `lib.sh`, and `README.md` per `runbooks/README.md`
+`10-resolve-validation-hold.sh`, `13-enroll-vault-b2.sh`, `14-validate-vault-b2-restore.sh`,
+`15-resolve-vault-b2-validation-hold.sh`,
+tests, `lib.sh`, and `README.md` per `runbooks/README.md`
 conventions), plus the released vault and per-workstation contracts under both
 `infrastructure/monitoring/contracts/` and
 `runbooks/disaster-recovery/contracts/`.
@@ -1802,12 +1820,12 @@ for non-vault secrets, the `homelab-low` priority class, and the `assert_fresh_f
 contract-version pattern. Vault Job manifests change `/work` and `/tmp` to
 `emptyDir.medium: Memory` and point `RESTIC_CACHE_DIR` there (§ 1b).
 
-## Phasing (local foundation complete; extensions proposed)
+## Phasing (local foundation complete; Phase 4 implementation staged)
 
-The vault foundation, restricted ingestion path, local Restic enrollment, and photo
-migration (steps 1–3) are complete. The remaining steps are the proposed off-site,
-workstation, housekeeping, and mail work; retain their ordering when implementation
-resumes.
+The vault foundation, restricted ingestion path, local Restic enrollment, photo migration,
+and the Phase 4 repository copy/prune implementation (steps 1–4) are complete in the
+repository. Live B2 enrollment and attended validation remain before schedules can be
+activated. Retain the remaining ordering when implementation resumes.
 
 Ordered so the highest-value, least-reversible data is protected first.
 
@@ -1833,14 +1851,16 @@ Ordered so the highest-value, least-reversible data is protected first.
 3. **Photos** — move `/mnt/media/Pictures` into the vault (NFS photo access ends here,
    § 1a — announce it before the move, not after), then Takeout bootstrap, de-dup against
    the local pre-2018 archive, verify counts, fold into vault.
-4. **Off-site** — create a dedicated private B2 bucket whose application key is inaccessible
+4. **Off-site** — **implemented in the repository; activate only after the attended gates**:
+   create a dedicated private B2 bucket whose application key is inaccessible
    to the root-resident `appstate` key or the proposed workstation keys, verify the existing
    `appstate` key is not authorized for the new bucket, impose the same restriction when the
    workstation keys are created, write the vault key files and a distinct B2 repo password
    under `.backup-credentials`, then init the B2 vault repo with
    `init --from-repo <NAS> --copy-chunker-params`. Wire the password-file-based copy job,
    drill a restore *from B2* (a passing NAS drill is not evidence about B2 — § 3), add
-   alerts.
+   alerts, then enable `restic-vault-copy` and `restic-vault-prune` through a reviewed
+   Git change. Use `13-enroll-vault-b2.sh` for the credential and repository setup.
 5. **Workstations** — **two** rest-server Deployments, each with `--append-only` and a
    per-client repo path, htpasswd credential, and repo password (§ 4). Do **not** pass
    `--private-repos`: one shared process would make `--max-size` a server-wide limit and

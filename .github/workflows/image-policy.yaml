@@ -34,7 +34,16 @@ jobs:
           runbooks/backups/test-mount-guard.sh
           runbooks/backups/test-contracts.sh
           runbooks/backups/test-config-scripts.sh
+          runbooks/backups/test-phase4-b2.sh
           runbooks/backups/test-review-regressions.sh
+
+      - name: Test vault prune alerts
+        env:
+          PROMTOOL: >-
+            docker run --rm --network none -v /tmp:/tmp:ro
+            --tmpfs /work -e TMPDIR=/work --entrypoint /bin/promtool
+            quay.io/prometheus/prometheus:v3.13.1-distroless@sha256:214f8427c8fba80c327bb94a75feb802ae12f2d6ca30812aa6e7d22f09bbea80
+        run: python3 runbooks/backups/test-prune-alerts.py
 
       - name: Check changed shell scripts
         env:

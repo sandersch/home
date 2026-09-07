@@ -81,3 +81,34 @@ an interrupted run can verify absence and finish pruning on retry.
 Run `test-review-regressions.sh` locally alongside the other backup tests. Its disposable
 fixtures cover source changes during backup, invalid manifests, repository read failures,
 interrupted rejection, and both automount shutdown outcomes without touching live storage.
+
+Phase 4 enrollment uses `13-enroll-vault-b2.sh` after creating the dedicated bucket and
+installing `/etc/homelab/vault-b2.conf`. The copy and prune CronJobs are committed
+suspended. Run the enrollment script, perform the manual copy and B2 restore gates, then
+enable both schedules in a reviewed Git change. A locked vault is an intentional successful
+skip; it must not cause the copy job to read credentials from the root filesystem.
+Use `14-validate-vault-b2-restore.sh` with a full destination snapshot ID for the attended
+representative restore; it validates the released contract, `ccs.kdbx`, one document, and
+one photo without changing the NAS baseline. If a destination snapshot is present without
+ledger evidence, the copy job creates a destination hold; use
+`15-resolve-vault-b2-validation-hold.sh` with its exact B2 snapshot ID to revalidate it and
+record the ledger evidence.
+
+Phase 4 host enrollment stages credentials only in verified `/dev/shm` tmpfs and
+opens the source repository inside a privileged process. Secret values are read
+inside that process rather than passed through sudo arguments; host B2 commands
+also disable persistent Restic caches. `test-phase4-b2.sh` runs behavioral fixtures
+for timestamp offsets/fractions, enrollment permissions and failures, and the
+credential boundary without contacting B2 or the cluster.
+
+`test-prune-alerts.py` runs the deployed prune rules through `promtool`, covering
+first-run failure, recovery, initial enrollment grace, repeated scheduling, and
+mounted/enabled gates. It also verifies that copy metrics preserve the enrollment
+timestamp across subsequent runs. CI uses an immutable Prometheus container;
+locally, put `promtool` on PATH or set `PROMTOOL` to its command.
+
+The vault prune job checks B2 holds and independently validates the newest B2
+snapshot against the vault's healthy baseline before selecting removal candidates.
+It checks destination holds again after NAS pruning, before B2 deletion.
+`test-phase4-b2.sh` includes disposable retention fixtures for these guards,
+file/byte shrink thresholds, and successful exact-ID deletion ordering.

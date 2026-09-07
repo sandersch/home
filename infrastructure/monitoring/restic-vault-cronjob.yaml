@@ -40,6 +40,8 @@ spec:
                 - -c
                 - /guards/assert-backups-mount.sh && exec /scripts/backup-vault.sh
               env:
+                - name: RESTIC_LOCK_RETRY
+                  value: 90m
                 - name: RESTIC_REPOSITORY
                   value: /repo/nas/vault
                 - name: RESTIC_PASSWORD_FILE
