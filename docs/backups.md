@@ -3,9 +3,9 @@
 > **Status:** The local encrypted-vault photo pipeline is deployed and validated. Phase 4
 > B2 replication and guarded vault retention are implemented in git; live B2 enrollment,
 > initial seed, attended on-host B2 restore, separate off-host break-glass restore, and
-> appstate-key denial from the vault bucket have passed. The recurring schedules remain
-> suspended pending enrolled-repository verification and reviewed activation change. The broader
-> whole-estate policy remains draft. Updated 2026-09-07.
+> appstate-key denial from the vault bucket, and enrolled repository verification have
+> passed. The recurring schedules remain suspended pending the reviewed activation change.
+> The broader whole-estate policy remains draft. Updated 2026-09-07.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
@@ -2195,7 +2195,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | Offline drive rotation (drive A) | *not yet* | — |
 | Offline drive rotation (drive B) | *not yet* | — |
 | Annual offline data check + representative restore | *not yet* | — |
-| Recurring online repository checks (all NAS + B2 repos) | *not yet* | — |
+| Recurring online repository checks (all NAS + B2 repos) | 2026-09-07 | passed — structural checks plus September's rotating `9/12` read-data subset completed without errors for appstate NAS/B2 and vault NAS/B2. Vault B2 checked 8 snapshots and read 93 of 1,135 packs. |
 | Quarterly online restore program | *not yet* | — |
 | Locked-vault degraded boot (§ 1b) | *not yet* | — |
 
