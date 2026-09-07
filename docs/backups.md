@@ -2,9 +2,9 @@
 
 > **Status:** The local encrypted-vault photo pipeline is deployed and validated. Phase 4
 > B2 replication and guarded vault retention are implemented in git; live B2 enrollment,
-> initial seed, attended on-host B2 restore, and separate off-host break-glass restore have
-> passed. The recurring schedules remain suspended pending the application-key scope check,
-> enrolled-repository verification, and reviewed activation change. The broader
+> initial seed, attended on-host B2 restore, separate off-host break-glass restore, and
+> appstate-key denial from the vault bucket have passed. The recurring schedules remain
+> suspended pending enrolled-repository verification and reviewed activation change. The broader
 > whole-estate policy remains draft. Updated 2026-09-07.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
@@ -2186,6 +2186,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | `vault` local restore | *not yet* | — |
 | `vault` B2 restore (attended on `minis`) | 2026-09-07 | passed — snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349`; full `check --read-data` read 8 snapshots / 1,135 packs with no errors, then the restored KDBX, document, and photo were manually verified. Artifacts were retained on encrypted vault scratch when this evidence was recorded. |
 | `vault` B2 restore, break-glass only | 2026-09-07 | passed — restored from `ryze` using only the sealed break-glass card; no access to `minis`, its mounted vault, credential files, or decrypted repository secrets. Snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349` was readable and representative restored content was successfully validated. |
+| `vault` B2 authorization separation | 2026-09-07 | passed — the existing appstate B2 application key was denied access to the dedicated vault bucket. No credential material was recorded. |
 | Strongbox `ccs.kdbx` ingestion + four-source open | *not yet* | — |
 | `ryze` workstation local + B2 restore | *not yet* | — |
 | `m5c` workstation local + B2 restore | *not yet* | — |
