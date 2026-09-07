@@ -45,8 +45,12 @@ Treat these identifiers, rather than `/dev/sdX` names, as authoritative:
 | md membership | 13 active members and 2 hot spares; healthy state is `[13/13] [UUUUUUUUUUUUU]` |
 | LVM PV | UUID `ZH6Abs-MP7f-ACXX-wqrK-lGXW-chYe-oBYvng` on md3 |
 | LVM VG | `hoardvg` |
-| Active LVs | `medialv`, `games`, `frigate`, `backuplv` |
+| Active LVs at the bulk-storage migration gate | `medialv`, `games`, `frigate`, `backuplv` |
 | Legacy LV | `maverick-vdisk0-rootlv`; leave unmounted and otherwise unchanged |
+
+The encrypted `vaultlv` was provisioned afterward by the attended backup workflow. It is
+not part of this bulk-storage migration's four-filesystem stop, check, or cutover gates;
+see [`runbooks/backups/`](../runbooks/backups/) and [backups.md](./backups.md).
 
 One current member, serial `WD-WCC4E7KFCARZ`, has accumulated 24 md errors. Its
 SMART health and error trend are a specific cutover gate, not a reason to renumber

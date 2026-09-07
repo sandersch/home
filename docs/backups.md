@@ -43,13 +43,16 @@
 
 ## What exists today
 
-`infrastructure/monitoring/` holds a single, well-built pipeline covering cluster app state:
+`infrastructure/monitoring/` holds the production appstate pipeline and the local encrypted
+vault pipeline:
 
 - `restic-nas-backup` — nightly `15 3 * * *`, repo `/repo/nas/opt` on `/mnt/backups`
 - `restic-b2-backup` — weekly `30 4 * * 0`, independent read, Backblaze B2 via the S3 backend
+- `restic-vault-backup` — every four hours, local repository `/repo/nas/vault` on `/mnt/backups`;
+  contract v2 requires the imported photos
 - Sources: `/opt` (read-only, `.snapshots` excluded), `/var/lib/rancher/k3s/server/db`,
   plus hot dumps generated in-job
-- **Backup contract version 2** — the run hard-fails before `restic backup` unless every
+- **Backup contract version 3** — the run hard-fails before `restic backup` unless every
   required artifact was freshly produced *this attempt*: 8 required SQLite exports, a k3s
   `state.db` backup passing `PRAGMA integrity_check` with `kine` rows present, a validated
   Home Assistant archive, and a `mariadb-check` + `--single-transaction` dump of RomM
@@ -59,7 +62,8 @@
   contract version or inventory differs
 
 That anti-false-success contract is the most valuable pattern in the repo and everything
-proposed below reuses it. The gap is not quality — it is coverage.
+proposed below reuses it. The remaining gap is off-site vault replication and the proposed
+workstation/offline tiers.
 
 ## The data policy (proposed)
 
@@ -72,9 +76,9 @@ One table is the contract. Every proposed manifest points back to it.
 | `workstations` | `ryze` home (curated), `m5c` home (curated) | **~70 GB** (`ryze` 50, `m5c` 20) | daily push | weekly (copy) | — |
 | *(none)* | disk images, Frigate **recordings**, `/mnt/media`, `/mnt/games` | 18 TiB+ | local only, GC'd | — | — |
 
-Photos and documents land in all three columns — RAID6, Backblaze, and an offline disk.
-That is the 3-2-1 target, and the offline disk is the only copy the cluster has no
-authority to delete.
+The migrated photos currently have their source on the encrypted vault filesystem and a
+validated local Restic copy on `/mnt/backups`. Backblaze and offline-disk copies are the
+remaining 3-2-1 targets; they are not deployed yet.
 
 The vault cadence starts only after data reaches `/mnt/vault`; it is not an ingestion
 guarantee. The Strongbox database has its own source-to-vault contract (§ 1c):
@@ -82,9 +86,10 @@ guarantee. The Strongbox database has its own source-to-vault contract (§ 1c):
 and the next vault run protects an accepted file within another four hours. Ordinary
 documents are offered daily from each workstation's `~/Documents` tree, with a seven-day
 staleness alert, and remain independently protected by the daily workstation repositories.
-Post-bootstrap phone photos remain Google-only until the deferred photo-ingestion project
-is built. These distinctions prevent a four-hour repository schedule from being misread as
-a four-hour RPO for data that has not arrived.
+New post-bootstrap phone photos remain Google-only until the deferred photo-ingestion
+project is built; that is separate from the migrated archive now under `/mnt/vault/photos`.
+These distinctions prevent a four-hour repository schedule from being misread as a
+four-hour RPO for data that has not arrived.
 
 **The workstation figure is deliberately pessimistic.** `ryze` is budgeted at **50 GB**
 against the ~5 GB an aggressive exclude list is expected to yield from the 69 GB currently
@@ -323,15 +328,21 @@ the real mount, an unmounted fixture, a wrong sentinel, a read-only mount, and a
 filesystem with the wrong UUID; never unmount the production backup LV merely to manufacture
 a failure case.
 
-## Architecture (proposed)
+## Architecture (local vault implemented; extensions proposed)
+
+The local vault foundation and the migrated photo archive described in §§ 1–3 are
+implemented and validated. The sections below retain the design rationale and the
+remaining proposed extensions; imperative language in the completed phases is historical
+rebuild guidance. Vault B2 replication, workstation repositories, offline copies, and the
+mail archive remain unimplemented.
 
 ### 1. A dedicated home for irreplaceable data: `/mnt/vault`
 
-Tier-0 data is currently scattered (`/mnt/media/Pictures`, ad hoc locations, Google's
-servers). Create a `vaultlv` LV on `hoardvg`, **LUKS2-encrypted** (§ 1b), mounted at
-`/mnt/vault`, 200 GiB. Unlike its siblings in `host/minis/etc/fstab` it is **`noauto,nofail`
-with no `x-systemd.automount`** — a deliberate divergence from the surrounding pattern, for
-the reasons in § 1b. Do not "fix" it back to match its neighbours:
+The encrypted `vaultlv` on `hoardvg` is mounted at `/mnt/vault` (200 GiB provisioned;
+approximately 196 GiB visible in the filesystem). Unlike its siblings in
+`host/minis/etc/fstab` it is **`noauto,nofail` with no `x-systemd.automount`** — a deliberate
+divergence from the surrounding pattern, for the reasons in § 1b. Do not "fix" it back to
+match its neighbours:
 
 ```
 /mnt/vault/{credentials,documents,photos,mail,firmware,frigate-exports}
@@ -339,8 +350,8 @@ the reasons in § 1b. Do not "fix" it back to match its neighbours:
 
 This gives the backup job one source root, one sentinel file, one retention policy, and —
 most importantly — a clear boundary between the 18 TiB of re-acquirable media and the
-~35 GB that cannot be replaced. Move `/mnt/media/Pictures` here;
-**verify Plex has no photo library pointed at it before the move.**
+~35 GB that cannot be replaced. The migration of `/mnt/media/Pictures` into
+`/mnt/vault/photos` is complete, and Plex was verified not to reference the photo archive.
 
 Not exported over NFS. `host/minis/etc/exports` continues to export only `/mnt/media` and
 `/mnt/games`.
@@ -387,7 +398,8 @@ place tier-0 material (the Strongbox database archive, documents, mail, photos) 
 plaintext. Nothing else on `minis` is encrypted today; this is the first place it is worth
 the complexity, because it is the largest concentration of secrets on the estate.
 
-**Create it encrypted in phase 1, not later.** Retrofitting means `cryptsetup reencrypt` or
+**Historical implementation requirement:** create it encrypted in phase 1, not later.
+Retrofitting means `cryptsetup reencrypt` or
 a copy-and-swap, and in both cases the original plaintext extents survive on the `hoardvg`
 array until something happens to overwrite them. 35 GB is cheap to seed once; it is not
 cheap to un-write.
@@ -1790,7 +1802,12 @@ for non-vault secrets, the `homelab-low` priority class, and the `assert_fresh_f
 contract-version pattern. Vault Job manifests change `/work` and `/tmp` to
 `emptyDir.medium: Memory` and point `RESTIC_CACHE_DIR` there (§ 1b).
 
-## Phasing (proposed)
+## Phasing (local foundation complete; extensions proposed)
+
+The vault foundation, restricted ingestion path, local Restic enrollment, and photo
+migration (steps 1–3) are complete. The remaining steps are the proposed off-site,
+workstation, housekeeping, and mail work; retain their ordering when implementation
+resumes.
 
 Ordered so the highest-value, least-reversible data is protected first.
 

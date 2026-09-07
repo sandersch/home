@@ -13,7 +13,13 @@ Legend: 🔧 manual one-time · ⚙️ scripted · 📦 GitOps (git commit). ⚑
 
 This plan now describes both the target build and the implementation already committed
 to this repo. Most of Phases 0-4 are represented as executable runbooks and/or Flux
-manifests:
+manifests.
+
+The local encrypted-vault backup is now deployed and validated separately from the
+appstate pipeline. Contract v2 requires the imported photos; snapshot
+`878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe` passed a full restore
+and SHA-256 comparison for all 15,206 photos on 2026-09-06. Vault B2 replication,
+workstation backups, and offline copies remain future work.
 
 | Phase | Repo status | Remaining work |
 |---|---|---|

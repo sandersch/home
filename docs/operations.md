@@ -45,8 +45,9 @@ application-aware hot dumps remain covered.
 
 Validation status: initialization, manual backups, repository checks, and representative
 restore drills passed for both repositories. The nightly local and first naturally
-scheduled weekly B2 backups both completed successfully on 2026-07-19. Contract
-version 2 passed fresh attended local and B2 backup/restore drills on 2026-08-22.
+scheduled weekly B2 backups both completed successfully on 2026-07-19. The earlier
+contract version 2 passed fresh attended local and B2 backup/restore drills on 2026-08-22;
+the current shared contract is version 3 (see [SQLite hot backups](#sqlite-hot-backups-pre-hook)).
 Local snapshot
 `731326fa530f2c54686210a360ee4dc30833a418d145e95b39de591ead8cdca0`
 validated 2,445 k3s `kine` rows; local-volume-independent B2 snapshot

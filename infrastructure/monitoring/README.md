@@ -36,6 +36,11 @@ Committed now:
   metrics, and gated alerts. Activation and the attended photo restore are documented in
   `runbooks/backups/`.
 
+The imported photo snapshot `878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe`
+completed on 2026-09-06. A full restore and SHA-256 comparison passed for all 15,206 photos;
+the vault CronJob uses the v2 contract, a 512 MiB temporary tmpfs, and a 2 GiB memory limit.
+Vault B2 replication remains outside the deployed scope.
+
 The B2 repository initialization, manual backup, repository check, and local-volume-independent
 restore validation passed on 2026-07-18. The nightly local and first naturally scheduled
 weekly B2 backups both completed successfully on 2026-07-19. Backup-contract version

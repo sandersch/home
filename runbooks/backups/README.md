@@ -1,15 +1,15 @@
 # Backup-system rollout
 
-This attended workflow implements the staged design in `docs/backups.md`. It runs on
-`minis`, uses canonical host files under `host/minis/`, and treats the existing
-`appstate` pipeline as production.
+This attended workflow implemented the vault foundation in `docs/backups.md`. It runs on
+`minis`, uses canonical host files under `host/minis/`, and treats the appstate and local
+vault pipelines as production. The rollout is complete; the numbered installation steps
+below are retained for recovery or a future rebuild, not routine operation.
 
 Phase 1 begins with the backup-volume safety guard:
 
-1. Push the implementation branch if `minis` needs to fetch it, but do **not** merge or
-   otherwise publish this change to Flux's watched `main` branch yet. Check out that branch
-   on `minis` and run `00-preflight.sh` from it. This also checks the bare-root
-   mount identity against the backup and verifier's locked-vault pin.
+1. For a future rebuild, start from the reviewed `main` branch and run `00-preflight.sh`.
+   Do not follow the historical branch-only workflow from earlier revisions. This also
+   checks the bare-root mount identity against the backup and verifier's locked-vault pin.
 2. Suspend the `monitoring`, `monitoring-controllers`, and `monitoring-configs` Flux
    Kustomizations, then suspend both production Restic CronJobs and wait for every active
    Restic Job to finish. Suspending `monitoring` first prevents Flux from reverting the
@@ -48,12 +48,14 @@ The encrypted-vault storage gate follows:
 11. Pass that full ID to `06-validate-vault-restore.sh`; it runs `check --read-data`,
     restores into the encrypted `.restore-tests` directory, validates content, and creates
     baseline generation 1.
+    For an ordinary post-enrollment photo snapshot, use `12-validate-vault-photos.sh`; it
+    restores the exact ID and SHA-256 compares all photos without changing enrollment.
 12. Use `10-resolve-validation-hold.sh` only if the shrink guard creates an exact-ID hold;
     acceptance is limited to a revalidated shrink-only candidate, while rejection forgets
     and prunes only the typed local snapshot ID.
 13. `11-validate-locked-vault.sh` proves the locked skip, rejected SFTP upload, existing
     appstate independence, and successful post-unlock vault backup.
-14. `09-activate-vault.sh` requires the ingestion heartbeat and both break-glass records,
+14. `09-activate-vault.sh` required the ingestion heartbeat and both break-glass records,
     runs all three enrolled repository checks, and flips the two recurring schedules in
     the working tree for the final reviewed activation commit.
 

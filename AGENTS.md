@@ -20,11 +20,11 @@ controllers/configs are committed, and manifests exist for the media stack, Frig
 Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
 integration have passed live validation. Z-Wave controller connectivity, device
 inclusion, and the Home Assistant integration passed live validation on 2026-08-16.
-Restic backup-contract version 2 passed fresh local and B2 backup/restore drills on
-2026-08-22. It requires all eight application SQLite exports, a readable Home
-Assistant archive, a successful RomM import/check, and a transactionally consistent
-k3s SQLite datastore artifact; both validated snapshots contained the expected k3s
-schema and data and no server-token artifact. The initial observability stack (Prometheus, Grafana,
+Restic backup-contract version 3 is current and passed fresh local and B2 backup/restore
+drills on 2026-08-22. It requires the current application-aware SQLite exports, a readable
+Home Assistant archive, a successful RomM import/check, and a transactionally consistent
+k3s SQLite datastore artifact; both validated snapshots contained the expected k3s schema
+and data and no server-token artifact. The initial observability stack (Prometheus, Grafana,
 Alertmanager, blackbox probes, Flux metrics, rules, and external dead-man routing)
 passed live validation on 2026-07-20, including a healthy Dead Man's Snitch check.
 Hosted Pushover routing also passed live validation on 2026-07-20 with synthetic
@@ -126,7 +126,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   ├── network.md
 │   ├── migration-runbook.md
 │   ├── direct-attached-storage-migration.md
-│   ├── backups.md             #   DRAFT backup policy — proposed, not implemented
+│   ├── backups.md             #   Local vault live; broader off-site policy remains draft
 │   └── operations.md
 ├── runbooks/                  # Phases 0–5 plus attended bastion/DR/migration/NFS workflows
 ├── host/                      # canonical bare-metal host and switch config
@@ -216,5 +216,5 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 5. [docs/architecture.md](./docs/architecture.md) — the design and its rationale.
 6. [docs/migration-runbook.md](./docs/migration-runbook.md) — historical Plex + *arr migration path.
 7. [docs/operations.md](./docs/operations.md) — backups, monitoring, tuning, follow-ups.
-8. [docs/backups.md](./docs/backups.md) — **draft** whole-estate backup policy. Proposed
-   design only; nothing in it is deployed.
+8. [docs/backups.md](./docs/backups.md) — local vault backup status and the remaining
+   draft off-site/workstation policy.
