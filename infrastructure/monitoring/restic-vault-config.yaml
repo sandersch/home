@@ -72,20 +72,26 @@ data:
         end]
     ' "$work/listing.jsonl" >"$work/measured.json"
     #
-    jq -e --arg contract_hash "$contract_hash" --arg exclusion_hash "$exclusion_hash" \
-      --slurpfile released "$contract" --slurpfile measured "$work/measured.json" '
-      . as $manifest |
-      .contract == $released[0].contract and
-      .contract_sha256 == $contract_hash and .exclusion_sha256 == $exclusion_hash and
-      .measurements == $measured[0] and
-      .total_files == ([$measured[0][].files] | add) and
-      .total_bytes == ([$measured[0][].bytes] | add) and
-      all($released[0].required_content[];
-        . as $required |
-        any($manifest.measurements[];
-          .path == $required.path and .kind == $required.kind and
-          .files >= $required.minimum_files and .bytes >= $required.minimum_bytes))
-    ' "$work/manifest.json" >/dev/null
+    if ! jq -e --arg contract_hash "$contract_hash" --arg exclusion_hash "$exclusion_hash" \
+        --slurpfile released "$contract" --slurpfile measured "$work/measured.json" '
+        . as $manifest |
+        .contract == $released[0].contract and
+        .contract_sha256 == $contract_hash and .exclusion_sha256 == $exclusion_hash and
+        .measurements == $measured[0] and
+        .total_files == ([$measured[0][].files] | add) and
+        .total_bytes == ([$measured[0][].bytes] | add) and
+        all($released[0].required_content[];
+          . as $required |
+          any($manifest.measurements[];
+            .path == $required.path and .kind == $required.kind and
+            .files >= $required.minimum_files and .bytes >= $required.minimum_bytes))
+      ' "$work/manifest.json" >/dev/null; then
+      printf 'snapshot manifest:\n' >&2
+      jq . "$work/manifest.json" >&2
+      printf 'measured snapshot content:\n' >&2
+      jq . "$work/measured.json" >&2
+      exit 1
+    fi
     # jq parses our UTC format in both the Alpine runtime and host fixtures;
     # BusyBox date -d does not accept the emitted ISO 8601 timestamp.
     generated_epoch="$(jq -er '
