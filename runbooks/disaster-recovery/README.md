@@ -1,5 +1,10 @@
 # Full-state disaster recovery
 
+Curated workstation recovery has a separate
+[NAS/B2 restore procedure](../backups/workstations.md#recovery-and-activation-evidence)
+and [verification helper](../backups/workstation-restore.py). Workstation contracts
+are added here only after measured enrollment; both native restore gates are pending.
+
 This is the executable half of
 [`docs/build-plan.md` → Fresh rebuild and disaster recovery](../../docs/build-plan.md#fresh-rebuild-and-disaster-recovery).
 It restores a fresh, empty `/opt` from one exact Restic snapshot and enforces the

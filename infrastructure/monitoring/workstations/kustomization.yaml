@@ -1,0 +1,27 @@
+# Staged package: enrollment replaces pending contracts and adds SOPS resources.
+# Add this directory to ../kustomization.yaml only at the attended deployment gate.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- rbac.yaml
+- ryze-server.yaml
+- m5c-server.yaml
+- ryze-jobs.yaml
+- m5c-jobs.yaml
+- alerts.yaml
+configMapGenerator:
+- name: restic-workstation-scripts
+  namespace: monitoring
+  files:
+  - maintenance.py
+  - server.py
+  - workstation.py
+- name: restic-workstation-contracts
+  namespace: monitoring
+  files:
+  - workstation-ryze-v1.json=contracts/ryze.pending.json
+  - workstation-m5c-v1.json=contracts/m5c.pending.json
+  - ryze.excludes=contracts/ryze.excludes
+  - m5c.excludes=contracts/m5c.excludes
+generatorOptions:
+  disableNameSuffixHash: true

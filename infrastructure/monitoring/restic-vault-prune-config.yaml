@@ -21,7 +21,7 @@ data:
     source_repo=/repo/nas/vault
     source_control=/repo/nas/.control/vault
     destination_control=/repo/nas/.control/vault-b2
-    contract=/contracts/vault-v2.json
+    contract=/contracts/vault-v${VAULT_CONTRACT_VERSION:-2}.json
     metrics=/metrics/restic-prune-vault.prom
     write_metrics() {
       local skipped="$1" candidates="$2" reason="${3:-none}" tmp="${metrics}.tmp.$$" success previous
@@ -57,7 +57,7 @@ data:
     collect_candidates() {
       local repo="$1" password_file="$2" output="$3" raw="${3}.json"
       if ! RESTIC_PASSWORD_FILE="$password_file" restic -r "$repo" forget --dry-run --json --group-by host \
-        --keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 12w --keep-within-monthly 24m \
+        --keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 24m \
         >"$raw"; then
         die "restic forget dry-run failed for $repo"
       fi
@@ -97,7 +97,7 @@ data:
     # shellcheck disable=SC1091
     source /etc/homelab/vault.conf
     : "${VAULT_FS_UUID:?VAULT_FS_UUID is required}"
-    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+    grep -qxF "vault-contract-version=${VAULT_CONTRACT_VERSION:-2}" /data/vault/.vault-sentinel \
       || die "vault sentinel contract mismatch"
     grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel \
       || die "vault sentinel UUID mismatch"
@@ -150,7 +150,7 @@ data:
     latest_manifest=/work/latest-manifest.json
     /vault-scripts/validate-vault-snapshot.sh "$latest_source_id" >"$latest_manifest" \
       || { write_metrics 1 0 source-validation; log "latest NAS snapshot failed independent content validation; skipping retention"; exit 0; }
-    jq -e '.contract == "vault-v2" and (.total_files | type == "number") and (.total_bytes | type == "number")' "$latest_manifest" >/dev/null \
+    jq -e '.contract == ("vault-v" + (env.VAULT_CONTRACT_VERSION // "2")) and (.total_files | type == "number") and (.total_bytes | type == "number")' "$latest_manifest" >/dev/null \
       || { write_metrics 1 0 source-manifest; log "latest NAS snapshot manifest is invalid; skipping retention"; exit 0; }
     baseline="$source_control/baseline.json"
     [ -f "$baseline" ] || { write_metrics 1 0 baseline; log "vault baseline is absent; skipping retention"; exit 0; }
@@ -182,7 +182,7 @@ data:
     destination_manifest=/work/latest-destination-manifest.json
     /vault-scripts/validate-vault-snapshot.sh "$latest_destination_id" >"$destination_manifest" \
       || { write_metrics 1 0 destination-validation; log "latest B2 snapshot failed independent content validation; skipping retention"; exit 0; }
-    jq -e '.contract == "vault-v2" and (.total_files | type == "number") and (.total_bytes | type == "number")' "$destination_manifest" >/dev/null \
+    jq -e '.contract == ("vault-v" + (env.VAULT_CONTRACT_VERSION // "2")) and (.total_files | type == "number") and (.total_bytes | type == "number")' "$destination_manifest" >/dev/null \
       || { write_metrics 1 0 destination-manifest; log "latest B2 snapshot manifest is invalid; skipping retention"; exit 0; }
     destination_files="$(jq -er '.total_files' "$destination_manifest")"
     destination_bytes="$(jq -er '.total_bytes' "$destination_manifest")"

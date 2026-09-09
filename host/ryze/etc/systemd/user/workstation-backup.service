@@ -1,0 +1,9 @@
+[Unit]
+Description=Retry due workstation backup and document upload independently
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/workstation-backup/workstation.py daily
+UMask=0077
+Nice=10
+IOSchedulingClass=idle

@@ -17,7 +17,7 @@ data:
     [ "$(id -u)" -eq 0 ] || die "enrollment container must run as root"
     [ "$(stat -f -c '%T' /dev/shm)" = tmpfs ] || die "/dev/shm must be tmpfs"
     [ -f /data/vault/.vault-sentinel ] || die "vault sentinel is absent"
-    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+    grep -qxF "vault-contract-version=${VAULT_CONTRACT_VERSION:-2}" /data/vault/.vault-sentinel \
       || die "vault sentinel contract mismatch"
     [ -f /repo/nas/vault/config ] || die "vault NAS repository is not initialized"
     [ -f /data/vault/.backup-credentials/nas-password ] \
@@ -200,7 +200,7 @@ data:
     fi
     [ "$vault_fs" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
       || die "/data/vault is not the configured vault filesystem"
-    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+    grep -qxF "vault-contract-version=${VAULT_CONTRACT_VERSION:-2}" /data/vault/.vault-sentinel \
       || die "vault sentinel contract mismatch"
     [ -r /etc/homelab/vault-b2.conf ] || die "B2 repository configuration is absent"
     # shellcheck disable=SC1091
@@ -320,7 +320,7 @@ data:
     # shellcheck disable=SC1091
     source /etc/homelab/vault-b2.conf
     : "${VAULT_B2_REPOSITORY:?VAULT_B2_REPOSITORY is required}"
-    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+    grep -qxF "vault-contract-version=${VAULT_CONTRACT_VERSION:-2}" /data/vault/.vault-sentinel \
       || die "vault sentinel contract mismatch"
     for credential in b2-password b2-key-id b2-application-key; do
       path="/data/vault/.backup-credentials/$credential"
@@ -408,7 +408,7 @@ data:
     # shellcheck disable=SC1091
     source /etc/homelab/vault-b2.conf
     : "${VAULT_B2_REPOSITORY:?VAULT_B2_REPOSITORY is required}"
-    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+    grep -qxF "vault-contract-version=${VAULT_CONTRACT_VERSION:-2}" /data/vault/.vault-sentinel \
       || die "vault sentinel contract mismatch"
     export RESTIC_REPOSITORY="$VAULT_B2_REPOSITORY"
     export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password

@@ -1,0 +1,34 @@
+# Preserve Library/Application Support, projects and hidden application state.
+.cache
+.local/state/workstation-backup
+.config/workstation-backup
+.config/vault-ingest
+Library/Caches
+Library/Logs
+Library/Mail
+Library/Containers/com.apple.mail
+Library/Developer/Xcode/DerivedData
+Library/Developer/CoreSimulator
+Library/Containers/com.docker.docker
+Library/Application Support/Steam
+Pictures/Photos Library.photoslibrary
+.Trash
+Downloads
+node_modules
+.venv
+venv
+__pycache__
+.tox
+.gradle
+target
+build
+dist
+.next
+.npm
+.cargo/registry
+.rustup/toolchains
+restore-scratch
+.restore-tests
+*.dmg
+*.pkg
+*.iso

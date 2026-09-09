@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+[ "${1:-}" = documents ] || { echo 'm5c may upload documents only' >&2; exit 1; }
+exec /opt/homebrew/bin/python3 /usr/local/lib/workstation-backup/documents.py --host m5c

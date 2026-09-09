@@ -55,6 +55,8 @@ authorized="$REPO_ROOT/host/minis/etc/ssh/vault-ingest-authorized-keys/vault-ing
 install -d -m 0700 "$client_config" "$HOME/.config/systemd/user"
 sudo install -D -o root -g root -m 0755 \
   "$client_root/usr/local/bin/vault-ingest" /usr/local/bin/vault-ingest
+sudo install -D -o root -g root -m 0755 \
+  "$REPO_ROOT/host/workstations/documents.py" /usr/local/lib/workstation-backup/documents.py
 install -m 0644 \
   "$client_root/etc/systemd/user/vault-ingest-kdbx.service" \
   "$HOME/.config/systemd/user/vault-ingest-kdbx.service"

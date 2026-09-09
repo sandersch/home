@@ -9,7 +9,7 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 PubkeyAuthentication yes
 AuthorizedKeysFile /etc/ssh/vault-ingest-authorized-keys/%u
-AllowUsers vault-ingest-ryze
+AllowUsers vault-ingest-ryze vault-ingest-m5c
 X11Forwarding no
 AllowAgentForwarding no
 AllowTcpForwarding no
@@ -19,5 +19,10 @@ Subsystem sftp internal-sftp
 
 Match User vault-ingest-ryze
     ChrootDirectory /mnt/vault/inbox/ryze
+    ForceCommand internal-sftp -d /upload
+    DisableForwarding yes
+
+Match User vault-ingest-m5c
+    ChrootDirectory /mnt/vault/inbox/m5c
     ForceCommand internal-sftp -d /upload
     DisableForwarding yes

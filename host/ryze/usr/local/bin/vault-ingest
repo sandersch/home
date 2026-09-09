@@ -2,6 +2,9 @@
 set -Eeuo pipefail
 
 mode="${1:-}"
+if [ "$mode" = documents ]; then
+  exec /usr/bin/python3 /usr/local/lib/workstation-backup/documents.py --host ryze
+fi
 endpoint=10.137.20.5
 port=2222
 identity="$HOME/.config/vault-ingest/id_ed25519"

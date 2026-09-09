@@ -436,7 +436,7 @@ Use this table when creating DHCP reservations, static host records, ISP records
 | `bastion` tagged Trusted interface | 30 | `10.137.30.9` | `c0:25:a5:5e:4b:bf` | Static; sole SSH listener and default route |
 | SLZB-MRW10U dual-radio coordinator | 30 currently; target 60 | Current `10.137.30.11`; target `10.137.60.11` TBD | `ea:f6:0a:d0:9c:58` | Current UDM fixed-IP reservation; create a stable VLAN 60 reservation before migration |
 | RATGDO `ratgdo0` | 60 | `10.137.60.12` | `28:05:a5:4f:f0:58` | UDM fixed-IP reservation; offline at inventory |
-| `m5c` Wi-Fi | 30 | DHCP `10.137.30.x` | `aa:9a:b7:f2:ea:2d` | DHCP; private MAC disabled |
+| `m5c` Wi-Fi | 30 | Current DHCP `10.137.30.x`; proposed reservation `10.137.30.7` | `aa:9a:b7:f2:ea:2d` | Reservation pending attended conflict/MAC check; private MAC disabled |
 | `st-ccs` | 30 | `10.137.30.50` | `64:4b:f0:18:cf:5d` | UDM fixed-IP reservation |
 | APC AP7800 `rack-pdu-01` | 30 | `10.137.30.78` | `00:c0:b7:c6:c1:ac` | UDM fixed-IP reservation; currently on Trusted despite `.mgmt.matrix` name |
 | NanoKVM | 30 | `10.137.30.200` | `48:da:35:6f:25:34` | UDM fixed-IP reservation |

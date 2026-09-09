@@ -30,7 +30,7 @@ validate_mounted_vault() {
   sentinel="$mountpoint_path/.vault-sentinel"
   [ -f "$sentinel" ] && [ ! -L "$sentinel" ] \
     || die "$sentinel is missing or invalid"
-  grep -qxF 'vault-contract-version=2' "$sentinel" \
+  grep -qxF "vault-contract-version=${VAULT_CONTRACT_VERSION:-2}" "$sentinel" \
     || die "$sentinel has the wrong contract version"
   grep -qxF "filesystem-uuid=$VAULT_FS_UUID" "$sentinel" \
     || die "$sentinel has the wrong filesystem UUID"

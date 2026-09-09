@@ -106,8 +106,10 @@ for Plex, and Immich.
 **The encrypted-vault backup and its B2 off-site copy are implemented and validated.**
 [docs/backups.md](./docs/backups.md) records the 2026-09-07 activation: Flux applied
 `eb02a61`, the vault B2 copy and prune CronJobs are live with `SUSPEND=false`, and the
-first copy run completed successfully. Workstation backups, offline copies, and mail
-archival remain draft. Until those tiers are built and drilled, only the vault and
+first copy run completed successfully. Workstation clients and suspended server/maintenance
+manifests are staged with [attended enrollment and recovery](./runbooks/backups/workstations.md);
+contracts, credential enrollment, native restores and activation remain pending.
+Offline copies and mail archival remain draft. Until those tiers are built and drilled, only the vault and
 `appstate` pipelines, `/opt`, the k3s datastore, and required hot dumps are backed up;
 everything else on the bulk array has a single copy.
 

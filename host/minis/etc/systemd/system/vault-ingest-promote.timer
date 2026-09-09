@@ -1,0 +1,10 @@
+[Unit]
+Description=Retry completed document uploads after interruptions or vault unlock
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=vault-ingest-promote.service
+
+[Install]
+WantedBy=timers.target
