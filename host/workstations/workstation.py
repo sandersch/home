@@ -56,7 +56,11 @@ def patterns(path):
 
 def excluded(relative, rules):
     # A slash anchors a rule to home; a bare glob matches any path component.
-    return any((relative == rule or relative.startswith(rule + '/')) if '/' in rule
+    # Match anchored globs component by component so '*' cannot cross '/'.
+    parts = relative.split('/')
+    return any((len(parts) >= len(rule.split('/')) and
+                all(fnmatch.fnmatchcase(part, pattern)
+                    for part, pattern in zip(parts, rule.split('/')))) if '/' in rule
                else any(fnmatch.fnmatchcase(p, rule) for p in relative.split('/'))
                for rule in rules)
 

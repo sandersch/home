@@ -278,6 +278,11 @@ class ScopeTests(unittest.TestCase):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
         tombstone = 'Library/Application Support/FileProvider/54FCDE27-7E3C-4C5D-8D61-FF6DD8DF79F8/wharf/tombstone/'
         self.assertTrue(client.excluded(tombstone + 'a', mac))
+        second = tombstone.replace('54FCDE27-7E3C-4C5D-8D61-FF6DD8DF79F8', '91648096-DD36-4235-A042-266128DB70C5')
+        self.assertTrue(client.excluded(second + 'a', mac))
+        self.assertFalse(client.excluded(second + 'b', mac))
+        self.assertFalse(client.excluded(second.replace('/wharf/', '/extra/wharf/') + 'a', mac))
+        self.assertFalse(client.excluded(second.replace('91648096-DD36-4235-A042-266128DB70C5', 'user-data') + 'a', mac))
         self.assertFalse(client.excluded(tombstone + 'other', mac))
         self.assertFalse(client.excluded('Library/CloudStorage/Dropbox/ccs.kdbx', mac))
         self.assertTrue(client.excluded('project/node_modules/package/file', mac))

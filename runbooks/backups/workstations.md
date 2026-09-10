@@ -21,7 +21,8 @@ Restic exit 3, permission failures, and manifest mismatch do not advance backup 
 
 The exclusion files under `host/<host>/etc/workstation-backup/` are the reviewed
 source policy. A bare glob matches any path component; a rule containing `/` is an
-exact home-relative subtree. The client resolves exclusions to escaped absolute
+anchored home-relative subtree pattern, with each component matched separately
+(wildcards cannot cross `/`). The client resolves exclusions to escaped absolute
 Restic exclusions, skips cache-tagged directories and mounted filesystems, and
 checks the resulting snapshot listing against the measured manifest. Symlink
 targets are read from authenticated tree blobs because `restic ls --json` omits them.
