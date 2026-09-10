@@ -224,6 +224,16 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_mac_google_drive_is_delegated_to_ryze(self):
+        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
+        linux = client.patterns(ROOT / 'host/ryze/etc/workstation-backup/excludes')
+        root = 'Library/CloudStorage/GoogleDrive-sanderscharlie@gmail.com'
+        for path in (root, root + '/.Encrypted', root + '/Documents/report'):
+            self.assertTrue(client.excluded(path, mac))
+            self.assertFalse(client.excluded(path, linux))
+        self.assertFalse(client.excluded('Library/CloudStorage/GoogleDrive-other@example.com/file', mac))
+        self.assertFalse(client.excluded('Documents/report', mac))
+
     def test_mac_dropbox_only_keeps_database(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
         linux = client.patterns(ROOT / 'host/ryze/etc/workstation-backup/excludes')

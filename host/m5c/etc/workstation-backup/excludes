@@ -1,4 +1,6 @@
 # Preserve Library/Application Support, projects and hidden application state.
+# Attended confirmation: this Google Drive tree is fully present and backed up on ryze.
+Library/CloudStorage/GoogleDrive-sanderscharlie@gmail.com
 # Shared Dropbox is backed up in full by ryze; Mac retains only the required KDBX.
 only-file:Library/CloudStorage/Dropbox/ccs.kdbx
 only-file:Dropbox/ccs.kdbx

@@ -1,5 +1,10 @@
 # m5c workstation backup client
 
+The Google Drive account tree at `Library/CloudStorage/GoogleDrive-sanderscharlie@gmail.com`
+is excluded on m5c: the operator confirmed it is fully present on ryze and intended
+to be backed up there. Verify its actual ryze path and included, locally readable
+contents during enrollment; this scope decision is not evidence of a completed backup.
+
 Shared Dropbox content is backed up in full by ryze. On m5c, only
 `Dropbox/ccs.kdbx` (at its real File Provider location) is included; other Dropbox
 content is omitted before reading or materializing it. Non-Dropbox home scope is

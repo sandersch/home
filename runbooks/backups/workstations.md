@@ -19,6 +19,13 @@ Restic exit 3, permission failures, and manifest mismatch do not advance backup 
 
 ## Scope and preflight
 
+The operator also confirmed that m5c's
+`Library/CloudStorage/GoogleDrive-sanderscharlie@gmail.com` tree is fully present on
+ryze and intended for backup there. Exclude that exact account tree on m5c, leaving
+other accounts unaffected. Before releasing ryze's contract, verify its actual Google
+Drive source location is inside the curated scope and locally readable; do not infer
+coverage from cloud synchronization alone.
+
 The identical shared Dropbox tree is protected in full by ryze. The Mac includes
 only its required `ccs.kdbx`, preserving the Dropbox alias and real parent directories;
 other Dropbox contents are omitted without reading cloud placeholders. Non-Dropbox
