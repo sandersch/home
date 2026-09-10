@@ -1,5 +1,8 @@
 # m5c workstation backup client
 
+Approved omission: `Library/Mobile Documents/com~apple~TextInput/Dictionaries/.baseline`
+and its contents are outside the recovery scope. Other TextInput data remains in scope.
+
 Approved omission: the iCloud Safari shared-history tree
 `Library/Mobile Documents/com~apple~SafariShared~History` is outside the recovery
 scope. Other Safari data, including local bookmarks and preferences, remains in scope.

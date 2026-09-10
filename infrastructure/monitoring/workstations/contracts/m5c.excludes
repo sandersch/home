@@ -1,4 +1,6 @@
 # Preserve Library/Application Support, projects and hidden application state.
+# Approved omission: iCloud TextInput dictionary baseline only.
+Library/Mobile Documents/com~apple~TextInput/Dictionaries/.baseline
 # Approved omission: iCloud Safari shared-history tree, not other Safari data.
 Library/Mobile Documents/com~apple~SafariShared~History
 # Approved omission: this exact hidden, zero-byte, dataless iCloud placeholder.
