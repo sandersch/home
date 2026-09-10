@@ -224,6 +224,45 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_directory_eintr_retries_open_and_iteration(self):
+        from contextlib import contextmanager
+        @contextmanager
+        def interrupted_listing():
+            def entries():
+                yield SimpleNamespace(name='partial')
+                raise InterruptedError(4, 'interrupted')
+            yield entries()
+        @contextmanager
+        def good_listing():
+            yield [SimpleNamespace(name='complete')]
+        with patch.object(client.os, 'scandir', side_effect=[
+                InterruptedError(4, 'interrupted'), interrupted_listing(), good_listing()]) as scan, \
+                patch.object(client.time, 'sleep') as sleep:
+            with client.directory_entries('/fixture') as entries:
+                self.assertEqual([entry.name for entry in entries], ['complete'])
+            self.assertEqual(scan.call_count, 3)
+            self.assertEqual(sleep.call_count, 2)
+
+    def test_directory_retry_exhaustion_and_other_errors_fail_closed(self):
+        for error, attempts in ((InterruptedError(4, 'interrupted'), 3),
+                                (PermissionError(13, 'denied'), 1),
+                                (OSError(11, 'deadlock'), 1)):
+            with self.subTest(error=error), tempfile.TemporaryDirectory() as directory:
+                home = Path(directory)
+                excludes = home / 'excludes'
+                excludes.write_text('')
+                output = home / 'measurement.json'
+                with patch.object(client.os, 'scandir', side_effect=error) as scan, \
+                        patch.object(client.time, 'sleep'):
+                    with self.assertRaises(OSError) as caught:
+                        client.enroll(SimpleNamespace(home=home, excludes=excludes,
+                                                      output=output, host='m5c'))
+                self.assertEqual(scan.call_count, attempts)
+                self.assertEqual(caught.exception.errno, error.errno)
+                if attempts == 3:
+                    self.assertEqual(caught.exception.filename, str(home))
+                self.assertFalse(output.exists())
+
     def test_mac_excludes_only_approved_control_center_preferences(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
         root = 'Library/Group Containers/group.com.apple.secure-control-center-preferences/Library/Preferences/'

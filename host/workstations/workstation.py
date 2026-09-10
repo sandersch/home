@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Curated workstation scope, enrollment and daily client (Python 3.11+)."""
 import argparse
+from contextlib import contextmanager
 import datetime as dt
+import errno
 import fcntl
 import fnmatch
 import hashlib
@@ -76,6 +78,25 @@ def excluded(relative, rules):
                for rule in rules)
 
 
+@contextmanager
+def directory_entries(directory):
+    """Finish enumeration before yielding; never retry processing child files."""
+    for attempt in range(3):
+        try:
+            with os.scandir(directory) as entries:
+                listing = sorted(entries, key=lambda entry: entry.name)
+            break
+        except OSError as error:
+            if error.errno != errno.EINTR:
+                raise
+            if attempt == 2:
+                raise InterruptedError(errno.EINTR,
+                                       'directory enumeration interrupted after 3 attempts',
+                                       str(directory)) from error
+            time.sleep(0.25 * (attempt + 1))
+    yield listing
+
+
 def inventory(home, rules):
     home = Path(home)
     if home.is_symlink() or not home.is_dir():
@@ -84,8 +105,8 @@ def inventory(home, rules):
     records, omissions = {}, []
 
     def walk(directory):
-        with os.scandir(directory) as entries:
-            for entry in sorted(entries, key=lambda e: e.name):
+        with directory_entries(directory) as entries:
+            for entry in entries:
                 path = Path(entry.path)
                 relative = path.relative_to(home).as_posix()
                 if relative == MANIFEST:
