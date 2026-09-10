@@ -1,5 +1,9 @@
 # m5c workstation backup client
 
+Approved omission: the iCloud Safari shared-history tree
+`Library/Mobile Documents/com~apple~SafariShared~History` is outside the recovery
+scope. Other Safari data, including local bookmarks and preferences, remains in scope.
+
 Approved recovery limitation: the root-owned, mode-0600 file
 `Library/Group Containers/group.com.apple.secure-control-center-preferences/Library/Preferences/group.com.apple.secure-control-center-preferences.av.plist`
 is excluded. Settings stored in this file are outside the recovery promise; other

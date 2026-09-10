@@ -224,6 +224,15 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_mac_excludes_only_approved_safari_cloud_history(self):
+        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
+        root = 'Library/Mobile Documents/com~apple~SafariShared~History'
+        self.assertTrue(client.excluded(root, mac))
+        self.assertTrue(client.excluded(root + '/Documents/history', mac))
+        self.assertFalse(client.excluded('Library/Safari/Bookmarks.plist', mac))
+        self.assertFalse(client.excluded('Library/Preferences/com.apple.Safari.plist', mac))
+        self.assertFalse(client.excluded(root + 'Other/Documents', mac))
+
     def test_mac_excludes_only_approved_keynote_placeholder(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
         root = 'Library/Mobile Documents/com~apple~Keynote/'
