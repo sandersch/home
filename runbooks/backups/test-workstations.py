@@ -276,6 +276,10 @@ class ScopeTests(unittest.TestCase):
 
     def test_exclusions_preserve_application_state(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
+        tombstone = 'Library/Application Support/FileProvider/54FCDE27-7E3C-4C5D-8D61-FF6DD8DF79F8/wharf/tombstone/'
+        self.assertTrue(client.excluded(tombstone + 'a', mac))
+        self.assertFalse(client.excluded(tombstone + 'other', mac))
+        self.assertFalse(client.excluded('Library/CloudStorage/Dropbox/ccs.kdbx', mac))
         self.assertTrue(client.excluded('project/node_modules/package/file', mac))
         self.assertTrue(client.excluded('Library/Caches/cache', mac))
         self.assertTrue(client.excluded('.config/workstation-backup/credentials.json', mac))

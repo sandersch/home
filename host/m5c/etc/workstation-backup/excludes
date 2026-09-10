@@ -1,4 +1,6 @@
 # Preserve Library/Application Support, projects and hidden application state.
+# Attended inventory: this exact FileProvider tombstone is zero bytes, mode 000.
+Library/Application Support/FileProvider/54FCDE27-7E3C-4C5D-8D61-FF6DD8DF79F8/wharf/tombstone/a
 .cache
 .local/state/workstation-backup
 .config/workstation-backup
