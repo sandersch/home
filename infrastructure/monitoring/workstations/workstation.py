@@ -109,7 +109,7 @@ def inventory(home, rules):
                     raise ValueError(f'unsupported source type: {path}')
     walk(home)
     documents = home / 'Documents'
-    database = home / 'Dropbox/ccs.kdbx'
+    database = home / database_path(records, home)
     if documents.is_symlink() or not documents.is_dir() or os.path.ismount(documents):
         raise ValueError('Documents must be a local directory')
     if database.is_symlink() or not database.is_file():
@@ -117,11 +117,28 @@ def inventory(home, rules):
     with database.open('rb') as stream:
         if stream.read(8) != KDBX:
             raise ValueError('KDBX signature mismatch')
-    if records.get('Dropbox/ccs.kdbx', {}).get('size', 0) < 102400:
-        raise ValueError('KDBX missing from scope or below 100 KiB')
     if not any(p.startswith('Documents/') and r['type'] == 'file' for p, r in records.items()):
         raise ValueError('Documents must contain at least one included regular file')
     return records, omissions
+
+
+def database_path(records, home):
+    """Resolve only Dropbox's known in-home File Provider alias, never traverse it."""
+    path = 'Dropbox/ccs.kdbx'
+    dropbox = records.get('Dropbox', {})
+    if dropbox.get('type') == 'symlink':
+        target = 'Library/CloudStorage/Dropbox'
+        if dropbox.get('linktarget') not in (target, str(Path(home) / target)):
+            raise ValueError('Dropbox alias must target its in-home CloudStorage directory')
+        path = target + '/ccs.kdbx'
+    parts = path.split('/')
+    for index in range(1, len(parts)):
+        if records.get('/'.join(parts[:index]), {}).get('type') != 'dir':
+            raise ValueError('KDBX ancestors must be included local directories')
+    database = records.get(path, {})
+    if database.get('type') != 'file' or database.get('size', 0) < 102400:
+        raise ValueError('KDBX missing from scope or below 100 KiB')
+    return path
 
 
 def totals(records, prefix=''):
@@ -130,6 +147,9 @@ def totals(records, prefix=''):
 
 
 def check_floors(records, contract):
+    path = database_path(records, contract['source_roots'][0])
+    if path != contract.get('kdbx_path', 'Dropbox/ccs.kdbx'):
+        raise ValueError('KDBX path differs from released contract')
     for prefix, floor in contract['floors'].items():
         measured = totals(records, prefix)
         if any(measured[k] < floor[k] for k in ('files', 'bytes')):
@@ -150,6 +170,7 @@ def enroll(args):
              'exclusion_sha256': digest(Path(args.excludes).read_bytes()),
              'manifest': str(Path(args.home).absolute() / MANIFEST),
              'required_content': ['Documents', 'Dropbox/ccs.kdbx'],
+             'kdbx_path': database_path(records, args.home),
              'measured': measured,
              'floors': {p: {k: math.ceil(n * .8) for k, n in m.items()} for p, m in measured.items()},
              'kdbx_minimum_bytes': 102400, 'shrink_baseline_samples': 7,

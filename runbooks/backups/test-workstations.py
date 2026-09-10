@@ -89,6 +89,22 @@ class RepositoryTests(unittest.TestCase):
         return next(json.loads(line)['snapshot_id'] for line in output.splitlines()
                     if json.loads(line).get('message_type') == 'summary')
 
+    def test_file_provider_dropbox_is_validated_and_copied(self):
+        target = self.home / 'Library/CloudStorage/Dropbox'
+        target.parent.mkdir(parents=True)
+        (self.home / 'Dropbox').rename(target)
+        (self.home / 'Dropbox').symlink_to(target)
+        self.contract['kdbx_path'] = 'Library/CloudStorage/Dropbox/ccs.kdbx'
+        sid = self.snapshot()
+        self.manager.copy()
+        self.assertIn(sid, self.manager.state['copies'])
+        self.contract['kdbx_path'] = 'Dropbox/ccs.kdbx'
+        with self.assertRaisesRegex(ValueError, 'path differs'):
+            records, _ = client.inventory(self.home, [])
+            client.check_floors(records, self.contract)
+        with self.assertRaisesRegex(ValueError, 'missing from scope'):
+            client.inventory(self.home, ['Library/CloudStorage/Dropbox/ccs.kdbx'])
+
     def test_round_trip_copy_exact_ids(self):
         attribute = 'user.workstation-test' if sys.platform != 'darwin' else 'com.worm.workstation-test'
         os.setxattr(self.home / '.hidden', attribute, b'metadata fixture')
@@ -208,6 +224,15 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_dropbox_alias_cannot_escape_or_use_symlink_ancestors(self):
+        records = {'Dropbox': {'type': 'symlink', 'linktarget': '/outside/Dropbox'}}
+        with self.assertRaisesRegex(ValueError, 'in-home'):
+            client.database_path(records, '/Users/test')
+        records['Dropbox']['linktarget'] = '/Users/test/Library/CloudStorage/Dropbox'
+        records['Library'] = {'type': 'symlink', 'linktarget': '/outside'}
+        with self.assertRaisesRegex(ValueError, 'ancestors'):
+            client.database_path(records, '/Users/test')
+
     def test_released_contracts_are_immutable_and_mirrored(self):
         base = os.environ.get('PR_BASE_SHA') or 'HEAD^'
         if subprocess.run(['git', 'rev-parse', '--verify', base], cwd=ROOT, capture_output=True).returncode == 0:

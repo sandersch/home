@@ -137,12 +137,13 @@ class Manager:
         if not any(n.get('path') == home + '/Documents' and n.get('type') == 'dir' for n in nodes):
             raise ValueError('Documents directory is absent')
         check_floors(records, contract)
-        database = records.get('Dropbox/ccs.kdbx', {})
+        database_path = contract.get('kdbx_path', 'Dropbox/ccs.kdbx')
+        database = records.get(database_path, {})
         if database.get('type') != 'file' or database.get('size', 0) < contract['kdbx_minimum_bytes']:
             raise ValueError('required KDBX absent or undersized')
         if database['size'] > 100 * 1024 * 1024:
             raise ValueError('KDBX exceeds validation bound')
-        if not self.run(destination, 'dump', sid, home + '/Dropbox/ccs.kdbx', raw=True).startswith(KDBX):
+        if not self.run(destination, 'dump', sid, home + '/' + database_path, raw=True).startswith(KDBX):
             raise ValueError('KDBX signature mismatch')
         return {prefix: totals(records, prefix) for prefix in contract['floors']}
 
