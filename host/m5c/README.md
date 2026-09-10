@@ -1,18 +1,11 @@
 # m5c workstation backup client
 
-Approved omission: the separate `Library/Mobile Documents/com~apple~mobilemail`
-tree is also outside the Mail recovery scope.
-
-Approved omission: `Library/Mobile Documents/com~apple~mail` and its contents,
-including synced Mail signatures, are outside the recovery scope, alongside the
-existing local Mail exclusions. The operator confirmed Mail contains no unique data.
-
-Approved omission: `Library/Mobile Documents/com~apple~TextInput/Dictionaries`
-and its contents are outside the recovery scope. Other TextInput data remains in scope.
-
-Approved omission: the iCloud Safari shared-history tree
-`Library/Mobile Documents/com~apple~SafariShared~History` is outside the recovery
-scope. Other Safari data, including local bookmarks and preferences, remains in scope.
+Approved omission: all of `Library/Mobile Documents` is outside recovery scope,
+including iCloud app documents, Notes, Mail, dictionaries and synced history. The
+operator confirmed this tree is unused. This supersedes the individual iCloud
+exclusions. The required home `Documents` directory must remain local and readable;
+if it redirects into this excluded tree, enrollment must stop rather than waive it.
+Local Safari bookmarks and preferences remain in scope.
 
 Approved recovery limitation: the root-owned, mode-0600 file
 `Library/Group Containers/group.com.apple.secure-control-center-preferences/Library/Preferences/group.com.apple.secure-control-center-preferences.av.plist`

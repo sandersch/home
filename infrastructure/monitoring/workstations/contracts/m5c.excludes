@@ -1,14 +1,6 @@
 # Preserve Library/Application Support, projects and hidden application state.
-# Approved omission: iCloud Mail tree, including synced signatures.
-Library/Mobile Documents/com~apple~mail
-# Approved omission: separate iCloud mobilemail tree.
-Library/Mobile Documents/com~apple~mobilemail
-# Approved omission: entire iCloud TextInput Dictionaries tree.
-Library/Mobile Documents/com~apple~TextInput/Dictionaries
-# Approved omission: iCloud Safari shared-history tree, not other Safari data.
-Library/Mobile Documents/com~apple~SafariShared~History
-# Approved omission: this exact hidden, zero-byte, dataless iCloud placeholder.
-Library/Mobile Documents/com~apple~Keynote/.ginger
+# Approved omission: entire unused iCloud Mobile Documents tree.
+Library/Mobile Documents
 # Approved omission: root-owned mode-0600 Control Center preferences; not recoverable.
 Library/Group Containers/group.com.apple.secure-control-center-preferences/Library/Preferences/group.com.apple.secure-control-center-preferences.av.plist
 # Generated CoreSpeech compilation cache; preserve other group-container state.

@@ -224,49 +224,18 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
-    def test_mac_excludes_only_approved_icloud_mobilemail_tree(self):
+    def test_mac_excludes_mobile_documents_but_preserves_required_scope(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
-        root = 'Library/Mobile Documents/com~apple~mobilemail'
-        self.assertTrue(client.excluded(root, mac))
-        self.assertTrue(client.excluded(root + '/Documents/message', mac))
-        self.assertFalse(client.excluded(root + '-other/Documents', mac))
-        self.assertFalse(client.excluded('Library/Mobile Documents/com~apple~Keynote/presentation.key', mac))
-
-    def test_mac_excludes_only_approved_icloud_mail_tree(self):
-        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
-        root = 'Library/Mobile Documents/com~apple~mail'
-        self.assertTrue(client.excluded(root, mac))
-        self.assertTrue(client.excluded(root + '/Data/MailData/Signatures/ubiquitous_AllSignatures.plist', mac))
-        self.assertFalse(client.excluded(root + '-other/data', mac))
-        self.assertFalse(client.excluded('Library/Mobile Documents/com~apple~Keynote/presentation.key', mac))
-
-    def test_mac_excludes_only_approved_textinput_dictionaries(self):
-        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
-        root = 'Library/Mobile Documents/com~apple~TextInput/Dictionaries/'
-        self.assertTrue(client.excluded(root.rstrip('/'), mac))
-        self.assertTrue(client.excluded(root + '.baseline', mac))
-        self.assertTrue(client.excluded(root + '.baseline/UserDictionary/id/baseline.zip', mac))
-        self.assertTrue(client.excluded(root + 'UserDictionary/data', mac))
-        self.assertTrue(client.excluded(root + 'charlie/id/receipt.0.cdt', mac))
-        self.assertFalse(client.excluded('Library/Mobile Documents/com~apple~TextInput/other/data', mac))
-        self.assertFalse(client.excluded('Library/Mobile Documents/com~apple~TextInput/Dictionaries-other/data', mac))
-
-    def test_mac_excludes_only_approved_safari_cloud_history(self):
-        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
-        root = 'Library/Mobile Documents/com~apple~SafariShared~History'
-        self.assertTrue(client.excluded(root, mac))
-        self.assertTrue(client.excluded(root + '/Documents/history', mac))
-        self.assertFalse(client.excluded('Library/Safari/Bookmarks.plist', mac))
-        self.assertFalse(client.excluded('Library/Preferences/com.apple.Safari.plist', mac))
-        self.assertFalse(client.excluded(root + 'Other/Documents', mac))
-
-    def test_mac_excludes_only_approved_keynote_placeholder(self):
-        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
-        root = 'Library/Mobile Documents/com~apple~Keynote/'
-        self.assertTrue(client.excluded(root + '.ginger', mac))
-        self.assertFalse(client.excluded(root + 'presentation.key', mac))
-        self.assertFalse(client.excluded(root + 'nested/.ginger', mac))
-        self.assertFalse(client.excluded('Library/Mobile Documents/other/.ginger', mac))
+        root = 'Library/Mobile Documents'
+        for path in (root, root + '/com~apple~notes/Documents',
+                     root + '/com~apple~Keynote/presentation.key',
+                     root + '/com~apple~mail/Data/signatures'):
+            self.assertTrue(client.excluded(path, mac))
+        for path in ('Documents/report', 'Library/CloudStorage/Dropbox/ccs.kdbx',
+                     'Library/Safari/Bookmarks.plist',
+                     'Library/Preferences/com.apple.Safari.plist',
+                     'Library/Mobile Documents-other/data'):
+            self.assertFalse(client.excluded(path, mac))
 
     def test_directory_eintr_retries_open_and_iteration(self):
         from contextlib import contextmanager
