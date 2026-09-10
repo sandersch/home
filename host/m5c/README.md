@@ -1,5 +1,10 @@
 # m5c workstation backup client
 
+Shared Dropbox content is backed up in full by ryze. On m5c, only
+`Dropbox/ccs.kdbx` (at its real File Provider location) is included; other Dropbox
+content is omitted before reading or materializing it. Non-Dropbox home scope is
+unchanged. This relies on the attended confirmation that both Dropbox trees match.
+
 Canonical exclusions, the launchd agent and the documents-only SFTP wrapper are
 staged here. Shared Python client code is in `host/workstations/`. The installed
 agent runs hourly while logged in, including on battery, with no scheduled wake.

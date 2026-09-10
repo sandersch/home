@@ -55,6 +55,17 @@ def patterns(path):
 
 
 def excluded(relative, rules):
+    # only-file keeps one exact file within its parent; siblings and their trees
+    # are omitted before opening them. Other exclusions still apply to that file.
+    for rule in rules:
+        if rule.startswith('only-file:'):
+            keep = rule.removeprefix('only-file:')
+            parent, separator, name = keep.rpartition('/')
+            if not separator or not name or any(p in ('', '.', '..') for p in keep.split('/')):
+                raise ValueError('only-file requires a canonical home-relative file path')
+            if relative.startswith(parent + '/') and relative != keep:
+                return True
+    rules = [rule for rule in rules if not rule.startswith('only-file:')]
     # A slash anchors a rule to home; a bare glob matches any path component.
     # Match anchored globs component by component so '*' cannot cross '/'.
     parts = relative.split('/')

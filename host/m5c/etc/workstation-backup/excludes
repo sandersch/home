@@ -1,4 +1,7 @@
 # Preserve Library/Application Support, projects and hidden application state.
+# Shared Dropbox is backed up in full by ryze; Mac retains only the required KDBX.
+only-file:Library/CloudStorage/Dropbox/ccs.kdbx
+only-file:Dropbox/ccs.kdbx
 # Attended inventory: two UUID instances have an empty, mode-000 tombstone/a.
 # Match only UUID-named instances and this exact subtree, not other provider state.
 Library/Application Support/FileProvider/[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/wharf/tombstone/a

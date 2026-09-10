@@ -224,6 +224,31 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_mac_dropbox_only_keeps_database(self):
+        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
+        linux = client.patterns(ROOT / 'host/ryze/etc/workstation-backup/excludes')
+        for root in ('Dropbox', 'Library/CloudStorage/Dropbox'):
+            self.assertFalse(client.excluded(root, mac))
+            self.assertFalse(client.excluded(root + '/ccs.kdbx', mac))
+            self.assertTrue(client.excluded(root + '/other.txt', mac))
+            self.assertTrue(client.excluded(root + '/Documents', mac))
+            self.assertTrue(client.excluded(root + '/Documents/report', mac))
+        self.assertFalse(client.excluded('Dropbox/other.txt', linux))
+        self.assertFalse(client.excluded('Documents/report', mac))
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory)
+            (home / 'Documents').mkdir()
+            (home / 'Documents/report').write_text('keep')
+            target = home / 'Library/CloudStorage/Dropbox'
+            target.mkdir(parents=True)
+            (home / 'Dropbox').symlink_to(target)
+            (target / 'ccs.kdbx').write_bytes(client.KDBX + b'0' * 102400)
+            os.mkfifo(target / 'excluded-runtime')
+            records, omissions = client.inventory(home, mac)
+            self.assertIn('Library/CloudStorage/Dropbox/ccs.kdbx', records)
+            self.assertIn(str(target / 'excluded-runtime'), omissions)
+            self.assertEqual(records['Dropbox']['type'], 'symlink')
+
     def test_read_error_names_file_and_does_not_write_measurement(self):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory) / 'home'

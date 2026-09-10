@@ -19,6 +19,13 @@ Restic exit 3, permission failures, and manifest mismatch do not advance backup 
 
 ## Scope and preflight
 
+The identical shared Dropbox tree is protected in full by ryze. The Mac includes
+only its required `ccs.kdbx`, preserving the Dropbox alias and real parent directories;
+other Dropbox contents are omitted without reading cloud placeholders. Non-Dropbox
+home content remains in scope. `only-file:<home-relative-file>` excludes every other
+entry beneath that file's parent; ordinary exclusions still apply to the kept file.
+This policy changes the Mac exclusion hash and requires a fresh enrollment measurement.
+
 The exclusion files under `host/<host>/etc/workstation-backup/` are the reviewed
 source policy. A bare glob matches any path component; a rule containing `/` is an
 anchored home-relative subtree pattern, with each component matched separately
