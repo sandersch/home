@@ -224,13 +224,16 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
-    def test_mac_excludes_only_approved_textinput_baseline(self):
+    def test_mac_excludes_only_approved_textinput_dictionaries(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
         root = 'Library/Mobile Documents/com~apple~TextInput/Dictionaries/'
+        self.assertTrue(client.excluded(root.rstrip('/'), mac))
         self.assertTrue(client.excluded(root + '.baseline', mac))
         self.assertTrue(client.excluded(root + '.baseline/UserDictionary/id/baseline.zip', mac))
-        self.assertFalse(client.excluded(root + 'UserDictionary/data', mac))
-        self.assertFalse(client.excluded(root + '.baseline-other/data', mac))
+        self.assertTrue(client.excluded(root + 'UserDictionary/data', mac))
+        self.assertTrue(client.excluded(root + 'charlie/id/receipt.0.cdt', mac))
+        self.assertFalse(client.excluded('Library/Mobile Documents/com~apple~TextInput/other/data', mac))
+        self.assertFalse(client.excluded('Library/Mobile Documents/com~apple~TextInput/Dictionaries-other/data', mac))
 
     def test_mac_excludes_only_approved_safari_cloud_history(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
