@@ -1,5 +1,9 @@
 # m5c workstation backup client
 
+Approved omission: `Library/Mobile Documents/com~apple~mail` and its contents,
+including synced Mail signatures, are outside the recovery scope, alongside the
+existing local Mail exclusions. The operator confirmed Mail contains no unique data.
+
 Approved omission: `Library/Mobile Documents/com~apple~TextInput/Dictionaries`
 and its contents are outside the recovery scope. Other TextInput data remains in scope.
 
