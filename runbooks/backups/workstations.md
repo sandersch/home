@@ -295,3 +295,10 @@ deletion and 507 for quota exhaustion, then accepted a backup after direct prune
 and restart. These are fixture results, not production enrollment or Mac recovery
 evidence. Docker reassigned the fixture's dynamic host port on restart; the fixture
 now rediscovers it and uses a bounded readiness check.
+
+Ryze's existing measured inventory has the current exclusion hash. The operator
+identified `~/GDrive` as the shared Google Drive source. An attended check found it
+is a local directory on the home filesystem with 238 readable regular files and
+537,072,860 bytes (~513 MiB), so it was included in that measured ryze scope. The
+[ryze enrollment evidence](evidence/ryze-enrollment-20260910.json) records this and
+the capacity check; contract release remains a reviewed Git operation.
