@@ -6,6 +6,7 @@ Library/Application Support/FileProvider/[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-
 # Attended inventory: NordVPN Realm runtime FIFO, not database contents.
 Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.management/access_control.new_commit.cv
 Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.management/access_control.pick_writer.cv
+Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.note
 .local/state/workstation-backup
 .config/workstation-backup
 .config/vault-ingest

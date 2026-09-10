@@ -291,6 +291,8 @@ class ScopeTests(unittest.TestCase):
         for name in ('control', 'versions', 'write'):
             self.assertFalse(client.excluded(nordvpn + '.management/access_control.' + name + '.mx', mac))
         self.assertFalse(client.excluded(nordvpn, mac))
+        self.assertTrue(client.excluded(nordvpn + '.note', mac))
+        self.assertFalse(client.excluded(nordvpn + '.lock', mac))
         self.assertFalse(client.excluded(nordvpn + '.management/other', mac))
         self.assertTrue(client.excluded('project/node_modules/package/file', mac))
         self.assertTrue(client.excluded('Library/Caches/cache', mac))
