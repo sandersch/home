@@ -3,6 +3,8 @@
 # Match only UUID-named instances and this exact subtree, not other provider state.
 Library/Application Support/FileProvider/[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/wharf/tombstone/a
 .cache
+# Attended inventory: NordVPN Realm runtime FIFO, not database contents.
+Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.management/access_control.new_commit.cv
 .local/state/workstation-backup
 .config/workstation-backup
 .config/vault-ingest

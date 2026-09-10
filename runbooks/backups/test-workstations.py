@@ -285,6 +285,10 @@ class ScopeTests(unittest.TestCase):
         self.assertFalse(client.excluded(second.replace('91648096-DD36-4235-A042-266128DB70C5', 'user-data') + 'a', mac))
         self.assertFalse(client.excluded(tombstone + 'other', mac))
         self.assertFalse(client.excluded('Library/CloudStorage/Dropbox/ccs.kdbx', mac))
+        nordvpn = 'Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm'
+        self.assertTrue(client.excluded(nordvpn + '.management/access_control.new_commit.cv', mac))
+        self.assertFalse(client.excluded(nordvpn, mac))
+        self.assertFalse(client.excluded(nordvpn + '.management/other', mac))
         self.assertTrue(client.excluded('project/node_modules/package/file', mac))
         self.assertTrue(client.excluded('Library/Caches/cache', mac))
         self.assertTrue(client.excluded('.config/workstation-backup/credentials.json', mac))
