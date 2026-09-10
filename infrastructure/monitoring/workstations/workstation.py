@@ -99,9 +99,14 @@ def inventory(home, rules):
                 elif stat.S_ISREG(info.st_mode):
                     # Reading all bytes also detects privacy failures and cloud placeholders
                     # that cannot be materialized. Never advance on an unreadable source.
-                    with path.open('rb') as stream:
-                        while stream.read(1024 * 1024):
-                            pass
+                    try:
+                        with path.open('rb') as stream:
+                            while stream.read(1024 * 1024):
+                                pass
+                    except OSError as error:
+                        raise OSError(error.errno,
+                                      f'inventory read failed: {error.strerror or str(error)}',
+                                      str(path)) from error
                     if path.stat().st_size != info.st_size:
                         raise ValueError(f'file changed during inventory: {path}')
                     records[relative] = {'type': 'file', 'size': info.st_size}

@@ -224,6 +224,36 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_read_error_names_file_and_does_not_write_measurement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory) / 'home'
+            home.mkdir()
+            source = home / 'unreadable'
+            source.touch()
+            excludes = Path(directory) / 'excludes'
+            excludes.write_text('')
+            output = Path(directory) / 'measurement.json'
+            failure = OSError(11, 'Resource deadlock avoided')
+            real_open = Path.open
+
+            def failing_open(path, *args, **kwargs):
+                if path == source:
+                    class Unreadable(io.BytesIO):
+                        def read(self, *args):
+                            raise failure
+                    return Unreadable()
+                return real_open(path, *args, **kwargs)
+
+            with patch.object(Path, 'open', failing_open):
+                with self.assertRaises(OSError) as caught:
+                    client.enroll(SimpleNamespace(home=home, excludes=excludes,
+                                                  output=output, host='m5c'))
+            self.assertEqual(caught.exception.errno, 11)
+            self.assertEqual(caught.exception.filename, str(source))
+            self.assertIn('Resource deadlock avoided', str(caught.exception))
+            self.assertIs(caught.exception.__cause__, failure)
+            self.assertFalse(output.exists())
+
     def test_dropbox_alias_cannot_escape_or_use_symlink_ancestors(self):
         records = {'Dropbox': {'type': 'symlink', 'linktarget': '/outside/Dropbox'}}
         with self.assertRaisesRegex(ValueError, 'in-home'):
