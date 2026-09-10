@@ -19,8 +19,8 @@ configMapGenerator:
 - name: restic-workstation-contracts
   namespace: monitoring
   files:
-  - workstation-ryze-v1.json=contracts/ryze.pending.json
-  - workstation-m5c-v1.json=contracts/m5c.pending.json
+  - workstation-ryze-v1.json=contracts/workstation-ryze-v1.json
+  - workstation-m5c-v1.json=contracts/workstation-m5c-v1.json
   - ryze.excludes=contracts/ryze.excludes
   - m5c.excludes=contracts/m5c.excludes
 generatorOptions:

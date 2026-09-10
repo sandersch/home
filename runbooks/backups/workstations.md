@@ -1,7 +1,7 @@
 # Workstation enrollment and recovery
 
-Status: implementation staged, **not deployed or enrolled**. No released workstation
-contract or vault-v3 contract exists until its measurements and attended gates pass.
+Status: implementation staged, **not deployed or enrolled**. Both workstation v1
+contracts are released after measured enrollment gates; vault-v3 remains pending.
 `infrastructure/monitoring/workstations/` is intentionally outside the active monitoring
 Kustomization. Its four CronJobs per host are suspended. Pending contract documents
 are explicit blockers, not usable zero-floor contracts.
@@ -269,8 +269,8 @@ record confirmed privacy/readability settings and attended capacity checks (360 
 free on the Mac; 758 GiB free on the expected NAS ext4 volume). The m5c v1 contract
 is released in the host, cluster and recovery contract directories, pending commit
 and deployment activation. This is not proof of backup or restore; no schedules
-are activated by recording it. The cluster ConfigMap remains mapped to its pending
-contract until the attended infrastructure rollout.
+are activated by recording it. The staged cluster ConfigMap references the released
+contract; the package remains outside the active monitoring Kustomization.
 
 Run `test-workstations.py` with `WORKSTATION_RESTIC` pointing at verified Restic
 0.19.1, `test-workstation-alerts.py` with `PROMTOOL`, existing backup regressions,
@@ -301,4 +301,8 @@ identified `~/GDrive` as the shared Google Drive source. An attended check found
 is a local directory on the home filesystem with 238 readable regular files and
 537,072,860 bytes (~513 MiB), so it was included in that measured ryze scope. The
 [ryze enrollment evidence](evidence/ryze-enrollment-20260910.json) records this and
-the capacity check; contract release remains a reviewed Git operation.
+the capacity check. The ryze v1 contract was released on 2026-09-10 from that saved
+measurement, identically in the host, cluster and recovery directories. Both staged
+ConfigMap entries now reference released contracts. Credentials, host preparation,
+deployment, initial backups and native NAS/B2 restore drills remain pending; all
+maintenance CronJobs remain suspended.

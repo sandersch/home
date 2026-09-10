@@ -1,0 +1,48 @@
+{
+  "contract": "workstation-ryze-v1",
+  "enrollment_evidence": {
+    "capacity_reviewed": true,
+    "host": "ryze",
+    "inventory_reviewed": true,
+    "notes": [
+      "Verified /home/charlie/GDrive is a local directory on the home ext4 filesystem, not a separate mount or symlink.",
+      "Verified 238 regular files are readable; directory usage is 537072860 bytes (~513 MiB).",
+      "Existing ryze measurement completed 2026-09-08 with matching exclusion hash 4b1babec204a7936b56f6b500112637f840f272d6b846d8c2d430a361464ed16; GDrive was in scope.",
+      "Verified /mnt/backups is the intended ext4 volume with 758 GiB available.",
+      "No repository enrollment, backup or restore is claimed."
+    ],
+    "required_content_readable": true
+  },
+  "enrollment_status": "released",
+  "exclusion_sha256": "4b1babec204a7936b56f6b500112637f840f272d6b846d8c2d430a361464ed16",
+  "floors": {
+    "": {
+      "bytes": 22337299649,
+      "files": 442272
+    },
+    "Documents/": {
+      "bytes": 237406155,
+      "files": 431
+    }
+  },
+  "hostname": "ryze",
+  "kdbx_minimum_bytes": 102400,
+  "manifest": "/home/charlie/.workstation-backup-manifest.json",
+  "maximum_shrink_percent": 20,
+  "measured": {
+    "": {
+      "bytes": 27921624561,
+      "files": 552840
+    },
+    "Documents/": {
+      "bytes": 296757693,
+      "files": 538
+    }
+  },
+  "measured_at": "2026-09-08T23:14:37.536250+00:00",
+  "platform": "Linux",
+  "shrink_baseline_samples": 7,
+  "source_roots": [
+    "/home/charlie"
+  ]
+}
