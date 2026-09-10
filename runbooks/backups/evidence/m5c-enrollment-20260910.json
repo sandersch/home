@@ -1,0 +1,19 @@
+{
+  "host": "m5c",
+  "inventory_reviewed": true,
+  "capacity_reviewed": true,
+  "required_content_readable": true,
+  "fda_launchd_passed": true,
+  "icloud_optimize_disabled": true,
+  "photos_mail_no_unique_data": true,
+  "dropbox_materialized": true,
+  "filevault_enabled": true,
+  "notes": [
+    "Operator supplied measurement JSON and launchd last exit code 0; Documents totals confirmed expected.",
+    "Dropbox materialization covers only the required ccs.kdbx in the approved Mac scope.",
+    "Operator reports Mac Data volume has 360 GiB available; Documents staging is approximately 3.29 MB before archive overhead.",
+    "Operator reports /mnt/backups mounted rw ext4 from /dev/mapper/hoardvg-backuplv with 758 GiB available, exceeding combined workstation quotas of 250 GiB. Mount sentinel verification remains a separate deployment gate.",
+    "Initial Mac logical inventory is 25.87 GB against a 100 GiB NAS quota and 50 GB B2 ceiling; retained history and physical usage still require monitoring.",
+    "No repository enrollment, backup or restore is claimed."
+  ]
+}

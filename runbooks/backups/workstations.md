@@ -260,6 +260,18 @@ suspended window.
 
 ## Checks and evidence
 
+Mac attended inventory completed through launchd with exit code 0 at
+2026-09-10T04:36:02Z: 261,860 files / 25,872,475,952 bytes, including 12 Documents
+files / 3,288,711 bytes. The operator confirmed the Documents totals are expected.
+The [measurement](evidence/m5c-measured-20260910.json) pins the reviewed exclusion
+hash and real Dropbox KDBX path. The [enrollment checks](evidence/m5c-enrollment-20260910.json)
+record confirmed privacy/readability settings and attended capacity checks (360 GiB
+free on the Mac; 758 GiB free on the expected NAS ext4 volume). The m5c v1 contract
+is released in the host, cluster and recovery contract directories, pending commit
+and deployment activation. This is not proof of backup or restore; no schedules
+are activated by recording it. The cluster ConfigMap remains mapped to its pending
+contract until the attended infrastructure rollout.
+
 Run `test-workstations.py` with `WORKSTATION_RESTIC` pointing at verified Restic
 0.19.1, `test-workstation-alerts.py` with `PROMTOOL`, existing backup regressions,
 `test-config-scripts.sh`, image-policy validation and both monitoring renders.
