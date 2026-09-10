@@ -224,6 +224,14 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_mac_excludes_only_approved_keynote_placeholder(self):
+        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
+        root = 'Library/Mobile Documents/com~apple~Keynote/'
+        self.assertTrue(client.excluded(root + '.ginger', mac))
+        self.assertFalse(client.excluded(root + 'presentation.key', mac))
+        self.assertFalse(client.excluded(root + 'nested/.ginger', mac))
+        self.assertFalse(client.excluded('Library/Mobile Documents/other/.ginger', mac))
+
     def test_directory_eintr_retries_open_and_iteration(self):
         from contextlib import contextmanager
         @contextmanager
