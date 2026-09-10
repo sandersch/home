@@ -224,6 +224,13 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_mac_excludes_only_reviewed_google_updater_statistics(self):
+        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
+        root = 'Library/Google/GoogleSoftwareUpdate/Stats/'
+        self.assertTrue(client.excluded(root + 'Keystone.stats', mac))
+        self.assertFalse(client.excluded(root + 'other', mac))
+        self.assertFalse(client.excluded('Library/Application Support/Google/Chrome/Default/Bookmarks', mac))
+
     def test_mac_google_drive_is_delegated_to_ryze(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
         linux = client.patterns(ROOT / 'host/ryze/etc/workstation-backup/excludes')
