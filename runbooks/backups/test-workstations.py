@@ -287,6 +287,9 @@ class ScopeTests(unittest.TestCase):
         self.assertFalse(client.excluded('Library/CloudStorage/Dropbox/ccs.kdbx', mac))
         nordvpn = 'Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm'
         self.assertTrue(client.excluded(nordvpn + '.management/access_control.new_commit.cv', mac))
+        self.assertTrue(client.excluded(nordvpn + '.management/access_control.pick_writer.cv', mac))
+        for name in ('control', 'versions', 'write'):
+            self.assertFalse(client.excluded(nordvpn + '.management/access_control.' + name + '.mx', mac))
         self.assertFalse(client.excluded(nordvpn, mac))
         self.assertFalse(client.excluded(nordvpn + '.management/other', mac))
         self.assertTrue(client.excluded('project/node_modules/package/file', mac))
