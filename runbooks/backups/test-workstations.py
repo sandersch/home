@@ -224,6 +224,14 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_mac_excludes_corespeech_compilation_cache_only(self):
+        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
+        root = 'Library/Group Containers/group.com.apple.CoreSpeech/'
+        self.assertTrue(client.excluded(root + 'Caches/onDeviceCompilationCaches', mac))
+        self.assertTrue(client.excluded(root + 'Caches/onDeviceCompilationCaches/secondPassChecker/model.bnnsir', mac))
+        self.assertFalse(client.excluded(root + 'Library/Preferences/settings.plist', mac))
+        self.assertFalse(client.excluded('Library/Group Containers/other/data', mac))
+
     def test_mac_excludes_only_reviewed_google_updater_statistics(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
         root = 'Library/Google/GoogleSoftwareUpdate/Stats/'

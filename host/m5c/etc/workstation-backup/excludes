@@ -1,4 +1,6 @@
 # Preserve Library/Application Support, projects and hidden application state.
+# Generated CoreSpeech compilation cache; preserve other group-container state.
+Library/Group Containers/group.com.apple.CoreSpeech/Caches/onDeviceCompilationCaches
 # Attended inventory: root-owned mode-0600 Google updater statistics, not user data.
 Library/Google/GoogleSoftwareUpdate/Stats/Keystone.stats
 # Attended confirmation: this Google Drive tree is fully present and backed up on ryze.
