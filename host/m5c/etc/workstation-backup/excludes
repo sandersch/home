@@ -1,4 +1,6 @@
 # Preserve Library/Application Support, projects and hidden application state.
+# Approved omission: root-owned mode-0600 Control Center preferences; not recoverable.
+Library/Group Containers/group.com.apple.secure-control-center-preferences/Library/Preferences/group.com.apple.secure-control-center-preferences.av.plist
 # Generated CoreSpeech compilation cache; preserve other group-container state.
 Library/Group Containers/group.com.apple.CoreSpeech/Caches/onDeviceCompilationCaches
 # Attended inventory: root-owned mode-0600 Google updater statistics, not user data.

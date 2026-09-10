@@ -1,5 +1,11 @@
 # m5c workstation backup client
 
+Approved recovery limitation: the root-owned, mode-0600 file
+`Library/Group Containers/group.com.apple.secure-control-center-preferences/Library/Preferences/group.com.apple.secure-control-center-preferences.av.plist`
+is excluded. Settings stored in this file are outside the recovery promise; other
+preferences remain in scope. Do not change its permissions or elevate the backup
+client to recover this omission.
+
 The Google Drive account tree at `Library/CloudStorage/GoogleDrive-sanderscharlie@gmail.com`
 is excluded on m5c: the operator confirmed it is fully present on ryze and intended
 to be backed up there. Verify its actual ryze path and included, locally readable

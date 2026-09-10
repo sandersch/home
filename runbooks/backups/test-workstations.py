@@ -224,6 +224,12 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_mac_excludes_only_approved_control_center_preferences(self):
+        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
+        root = 'Library/Group Containers/group.com.apple.secure-control-center-preferences/Library/Preferences/'
+        self.assertTrue(client.excluded(root + 'group.com.apple.secure-control-center-preferences.av.plist', mac))
+        self.assertFalse(client.excluded(root + 'other.plist', mac))
+
     def test_mac_excludes_corespeech_compilation_cache_only(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
         root = 'Library/Group Containers/group.com.apple.CoreSpeech/'
