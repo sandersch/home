@@ -1,6 +1,8 @@
 # Preserve Library/Application Support, projects and hidden application state.
 # Approved omission: iCloud Mail tree, including synced signatures.
 Library/Mobile Documents/com~apple~mail
+# Approved omission: separate iCloud mobilemail tree.
+Library/Mobile Documents/com~apple~mobilemail
 # Approved omission: entire iCloud TextInput Dictionaries tree.
 Library/Mobile Documents/com~apple~TextInput/Dictionaries
 # Approved omission: iCloud Safari shared-history tree, not other Safari data.

@@ -224,6 +224,14 @@ class RepositoryTests(unittest.TestCase):
 
 
 class ScopeTests(unittest.TestCase):
+    def test_mac_excludes_only_approved_icloud_mobilemail_tree(self):
+        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
+        root = 'Library/Mobile Documents/com~apple~mobilemail'
+        self.assertTrue(client.excluded(root, mac))
+        self.assertTrue(client.excluded(root + '/Documents/message', mac))
+        self.assertFalse(client.excluded(root + '-other/Documents', mac))
+        self.assertFalse(client.excluded('Library/Mobile Documents/com~apple~Keynote/presentation.key', mac))
+
     def test_mac_excludes_only_approved_icloud_mail_tree(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
         root = 'Library/Mobile Documents/com~apple~mail'
