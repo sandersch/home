@@ -9,8 +9,17 @@ from pathlib import Path
 import re
 import stat
 import subprocess
+import sys
 import tempfile
 import time
+
+
+def read_xattr(path, name):
+    if sys.platform == 'darwin':
+        # Python exposes os.getxattr on Linux, but not on macOS.
+        value = subprocess.check_output(['/usr/bin/xattr', '-p', '-x', '-s', name, str(path)])
+        return bytes.fromhex(value.decode('ascii'))
+    return os.getxattr(path, name, follow_symlinks=False)
 
 
 def main():
@@ -103,7 +112,7 @@ def main():
         if not attrs:
             raise ValueError('metadata sample contains no stored extended attributes')
         for attr in attrs:
-            if os.getxattr(recovered / Path(selected).relative_to(source_root), attr['name'], follow_symlinks=False) != base64.b64decode(attr['value']):
+            if read_xattr(recovered / Path(selected).relative_to(source_root), attr['name']) != base64.b64decode(attr['value']):
                 raise ValueError('extended attribute/resource fork mismatch')
     report = {'snapshot_id': args.snapshot, 'destination': args.destination, 'hostname': rows[0]['hostname'],
               'restored_nodes': verified, 'elapsed_seconds': time.time() - started,
