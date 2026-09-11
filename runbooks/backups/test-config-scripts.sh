@@ -112,6 +112,14 @@ grep -q 'mv -- "$archive" "$claimed_archive"' "$promoter" \
   && grep -q 'tar -xf "$frozen_archive"' "$promoter" \
   || { echo "document promotion must validate and extract a root-only frozen archive" >&2; exit 1; }
 
+# Every host script that enforces the sentinel contract must be installed by the
+# host-config step, or a contract change can leave a stale copy on minis.
+host_config="$repo_root/runbooks/backups/04-install-vault-host-config.sh"
+while IFS= read -r consumer; do
+  grep -qF "\"\$REPO_ROOT/${consumer#"$repo_root"/}\"" "$host_config" \
+    || { echo "04-install-vault-host-config.sh must install ${consumer#"$repo_root"/}" >&2; exit 1; }
+done < <(grep -rlF 'vault-contract-version=' "$repo_root/host/minis/usr/local/sbin")
+
 promoter_unit="$repo_root/host/minis/etc/systemd/system/vault-ingest-promote.service"
 grep -qx 'ConditionPathIsMountPoint=/mnt/vault' "$promoter_unit" \
   || { echo "vault promoter must require the mounted vault path" >&2; exit 1; }

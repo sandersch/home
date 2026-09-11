@@ -177,6 +177,11 @@ Add v3 JSON and exclusions to the vault contract ConfigMap, set
 `VAULT_CONTRACT_VERSION=3` in the vault Job environments and host vault.conf, and
 atomically replace the mounted sentinel with version 3 while retaining its UUID
 and root:root 0444 metadata. The default remains version 2 until this gate.
+Before replacing the sentinel, reinstall `vault-unlock` and `vault-ingest-promote`
+from the repository and confirm with `cmp` that each installed copy matches. A stale
+promoter rejects every upload with `vault sentinel contract mismatch`, which surfaces
+only as `StrongboxVaultIngestionStale` 36 hours later. After the switch, start
+`vault-ingest-promote.service` once and confirm it exits 0.
 Update the current vault baseline through its existing attended contract transition
 and restore procedure; never overwrite a v2 baseline merely to silence a hold.
 Validate a new v3 NAS snapshot and its B2 restore before resuming schedules.
@@ -218,6 +223,13 @@ FileVault, cloud settings and metadata evidence. Exercise append-only deletion a
 quota exhaustion/recount **only on disposable fixture repositories**, and test
 cross-host credentials and cluster NetworkPolicy independently. Prove warning and
 resolved Pushover delivery using the established synthetic alert workflow.
+
+Workstation alerts stay quiet until `maintenance.py` records a host's first seed
+snapshot as accepted or held, which sets `homelab_workstation_enrolled` to 1.
+Initialization alone does not enroll a host. Zero copy, prune and check timestamps
+then count from the enrollment timestamp, so a new seed has each rule's full window.
+`ResticWorkstationEnrollmentLost` fires if enrollment metrics vanish or revert
+afterwards, because that would otherwise silence every gated rule.
 
 Enable validate (daily 05:30), copy (Monday 05:45), prune (Tuesday 00:30), and monthly
 check schedules through reviewed commits only after both destinations' recovery

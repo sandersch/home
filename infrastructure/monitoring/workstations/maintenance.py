@@ -418,7 +418,13 @@ class Manager:
         def emit(name, value, destination=None):
             labels = label + (f',destination="{destination}"' if destination else '')
             rows.append(f'homelab_workstation_{name}{{{labels}}} {value}')
-        emit('enrolled', 1)
+        # Enrollment begins when the first seed snapshot is accepted or held, not
+        # at initialization, so alerts stay quiet until an attended seed exists.
+        # Accepted entries survive retention, keeping the timestamp stable.
+        seeded = [row['time'] for row in self.state['accepted'].values()]
+        seeded += [row['time'] for row in self.state['holds'].values()]
+        emit('enrolled', int(bool(seeded)))
+        emit('enrollment_timestamp_seconds', min(seeded, default=0))
         emit('prune_success_timestamp_seconds', self.state['prune_success'])
         emit('copy_success_timestamp_seconds', self.state['copy_success'])
         emit('validation_success_timestamp_seconds', self.state['validation_success'])

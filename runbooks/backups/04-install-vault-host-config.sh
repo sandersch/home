@@ -90,6 +90,12 @@ sudo install -D -o root -g root -m 0755 \
 sudo install -D -o root -g root -m 0755 \
   "$REPO_ROOT/host/minis/usr/local/sbin/vault-unlock" \
   /usr/local/sbin/vault-unlock
+# The promoter enforces the same sentinel contract as vault-unlock; install them
+# together so a contract change never leaves a stale copy rejecting uploads.
+# Its path/service units stay with 08-install-vault-ingest-server.sh.
+sudo install -D -o root -g root -m 0755 \
+  "$REPO_ROOT/host/minis/usr/local/sbin/vault-ingest-promote" \
+  /usr/local/sbin/vault-ingest-promote
 sudo install -D -o root -g root -m 0644 \
   "$REPO_ROOT/host/minis/etc/systemd/system/vault-mountpoint-guard.service" \
   /etc/systemd/system/vault-mountpoint-guard.service
