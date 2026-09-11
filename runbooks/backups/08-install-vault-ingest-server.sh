@@ -6,7 +6,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_not_root
 require_sudo
 require_host_etc
-require_tools findmnt getent groupadd head nft ss sshd systemctl tar useradd wc
+require_tools findmnt flock getent groupadd head nft python3 ss sshd systemctl tar useradd wc
 [ "$(hostname -s)" = minis ] || die "run this step on minis"
 sudo /usr/local/sbin/vault-unlock
 
@@ -51,6 +51,9 @@ done
 sudo install -o root -g root -m 0755 \
   "$REPO_ROOT/host/minis/usr/local/sbin/vault-ingest-promote" \
   /usr/local/sbin/vault-ingest-promote
+sudo install -D -o root -g root -m 0755 \
+  "$REPO_ROOT/host/minis/usr/local/libexec/validate-document-archive" \
+  /usr/local/libexec/validate-document-archive
 
 sudo sshd -t -f /etc/ssh/sshd_config_vault_ingest
 effective_sshd="$(sudo sshd -T -f /etc/ssh/sshd_config_vault_ingest \

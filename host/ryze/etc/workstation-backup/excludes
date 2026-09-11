@@ -1,0 +1,35 @@
+# Slash rules are home-relative subtrees; bare globs match any component.
+.cache
+.local/state/workstation-backup
+.config/workstation-backup
+.config/vault-ingest
+.local/share/Trash
+.local/share/Steam
+.steam
+# Zoom IPC pipes are runtime endpoints, not file contents.
+com.zoom.ipc.*
+.local/share/containers
+.local/share/docker
+.docker
+# Downloaded Dropbox runtime, not the .dropbox account state or Dropbox data.
+.dropbox-dist
+Downloads
+node_modules
+.venv
+venv
+__pycache__
+.tox
+.gradle
+target
+build
+dist
+.next
+.npm
+.cargo/registry
+.rustup/toolchains
+.local/share/virtualenvs
+.local/share/JetBrains/Toolbox
+restore-scratch
+.restore-tests
+*.iso
+*.AppImage

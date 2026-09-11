@@ -4,4 +4,5 @@ After=local-fs.target
 
 [Path]
 PathChanged=/mnt/vault/inbox/ryze/upload
+PathChanged=/mnt/vault/inbox/m5c/upload
 Unit=vault-ingest-promote.service

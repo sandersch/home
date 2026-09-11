@@ -5,6 +5,13 @@ practices, and deferred work. Built out in [Phase 5](./build-plan.md#phase-5--ob
 
 ## Backups
 
+Workstation backups for ryze/m5c are staged, not active. Follow
+[workstation enrollment and recovery](../runbooks/backups/workstations.md) for
+measured contracts, SOPS credentials, suspended deployment, native NAS/B2 restore
+gates and activation. Monthly per-host checks and quarterly/annual restores join
+the operating calendar only after enrollment. The new maintenance jobs are
+independent of the locked vault; document alerts defer while it is locked.
+
 Several categories of data have different protection needs:
 
 | What | Mechanism | Destination | Cadence |

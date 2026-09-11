@@ -1,0 +1,209 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: workstation-backups
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+  - name: workstation-backups
+    rules:
+    - alert: ResticWorkstationBackupStale
+      expr: |
+        time() - homelab_workstation_snapshot_timestamp_seconds{dataset="workstations",host="ryze",destination="nas"} > 7 * 86400 or absent(homelab_workstation_snapshot_timestamp_seconds{dataset="workstations",host="ryze",destination="nas"})
+      for: 15m
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: ResticWorkstationBackupStale"
+        description: "NAS backup is older than seven days or missing. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationCopyOverdue
+      expr: |
+        time() - homelab_workstation_snapshot_timestamp_seconds{dataset="workstations",host="ryze",destination="b2"} > 8 * 86400 or absent(homelab_workstation_snapshot_timestamp_seconds{dataset="workstations",host="ryze",destination="b2"})
+      for: 15m
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: ResticWorkstationCopyOverdue"
+        description: "B2 backup is older than eight days or missing. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationValidationHeld
+      expr: |
+        homelab_workstation_validation_hold{dataset="workstations",host="ryze"} > 0 or absent(homelab_workstation_validation_hold{dataset="workstations",host="ryze"})
+      for: 15m
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: ResticWorkstationValidationHeld"
+        description: "Validation is held or trusted validation metrics are missing; inspect exact IDs before resolution. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationSnapshotTimeInvalid
+      expr: |
+        homelab_workstation_snapshot_time_invalid{dataset="workstations",host="ryze"} > 0
+      for: 15m
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: ResticWorkstationSnapshotTimeInvalid"
+        description: "Snapshot time is outside the accepted ten-minute clock tolerance. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationPruneOverdue
+      expr: |
+        time() - homelab_workstation_prune_success_timestamp_seconds{dataset="workstations",host="ryze"} > 10 * 86400 or absent(homelab_workstation_prune_success_timestamp_seconds{dataset="workstations",host="ryze"})
+      for: 15m
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: ResticWorkstationPruneOverdue"
+        description: "Retention and quota recount have not completed within ten days. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationCapacity
+      expr: |
+        homelab_workstation_repository_bytes{dataset="workstations",host="ryze"} / homelab_workstation_ceiling_bytes{dataset="workstations",host="ryze"} > 0.8
+      for: 15m
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: ResticWorkstationCapacity"
+        description: "Repository is above 80 percent of its NAS quota or B2 ceiling. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationCapacityUnknown
+      expr: |
+        homelab_workstation_size_collection_success{dataset="workstations",host="ryze"} == 0 or absent(homelab_workstation_size_collection_success{dataset="workstations",host="ryze",destination="nas"}) or absent(homelab_workstation_size_collection_success{dataset="workstations",host="ryze",destination="b2"})
+      for: 1h
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: ResticWorkstationCapacityUnknown"
+        description: "Physical repository size collection is failing or absent. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationCheckOverdue
+      expr: |
+        time() - homelab_workstation_check_success_timestamp_seconds{dataset="workstations",host="ryze"} > 40 * 86400 or absent(homelab_workstation_check_success_timestamp_seconds{dataset="workstations",host="ryze",destination="nas"}) or absent(homelab_workstation_check_success_timestamp_seconds{dataset="workstations",host="ryze",destination="b2"})
+      for: 1h
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: ResticWorkstationCheckOverdue"
+        description: "Monthly structural and rotating-data repository check is overdue. See runbooks/backups/workstations.md."
+    - alert: VaultWorkstationDocumentsStale
+      expr: |
+        (time() - homelab_vault_ingestion_timestamp_seconds{kind="documents",host="ryze",stage="promotion"} > 7 * 86400 or absent(homelab_vault_ingestion_timestamp_seconds{kind="documents",host="ryze",stage="promotion"})) and on() (count(node_filesystem_size_bytes{device="/dev/mapper/vault",mountpoint="/mnt/vault"}) > 0)
+      for: 15m
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: VaultWorkstationDocumentsStale"
+        description: "Document promotion is older than seven days or missing while the vault is mounted. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationBackupStale
+      expr: |
+        time() - homelab_workstation_snapshot_timestamp_seconds{dataset="workstations",host="m5c",destination="nas"} > 7 * 86400 or absent(homelab_workstation_snapshot_timestamp_seconds{dataset="workstations",host="m5c",destination="nas"})
+      for: 15m
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: ResticWorkstationBackupStale"
+        description: "NAS backup is older than seven days or missing. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationCopyOverdue
+      expr: |
+        time() - homelab_workstation_snapshot_timestamp_seconds{dataset="workstations",host="m5c",destination="b2"} > 8 * 86400 or absent(homelab_workstation_snapshot_timestamp_seconds{dataset="workstations",host="m5c",destination="b2"})
+      for: 15m
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: ResticWorkstationCopyOverdue"
+        description: "B2 backup is older than eight days or missing. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationValidationHeld
+      expr: |
+        homelab_workstation_validation_hold{dataset="workstations",host="m5c"} > 0 or absent(homelab_workstation_validation_hold{dataset="workstations",host="m5c"})
+      for: 15m
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: ResticWorkstationValidationHeld"
+        description: "Validation is held or trusted validation metrics are missing; inspect exact IDs before resolution. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationSnapshotTimeInvalid
+      expr: |
+        homelab_workstation_snapshot_time_invalid{dataset="workstations",host="m5c"} > 0
+      for: 15m
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: ResticWorkstationSnapshotTimeInvalid"
+        description: "Snapshot time is outside the accepted ten-minute clock tolerance. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationPruneOverdue
+      expr: |
+        time() - homelab_workstation_prune_success_timestamp_seconds{dataset="workstations",host="m5c"} > 10 * 86400 or absent(homelab_workstation_prune_success_timestamp_seconds{dataset="workstations",host="m5c"})
+      for: 15m
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: ResticWorkstationPruneOverdue"
+        description: "Retention and quota recount have not completed within ten days. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationCapacity
+      expr: |
+        homelab_workstation_repository_bytes{dataset="workstations",host="m5c"} / homelab_workstation_ceiling_bytes{dataset="workstations",host="m5c"} > 0.8
+      for: 15m
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: ResticWorkstationCapacity"
+        description: "Repository is above 80 percent of its NAS quota or B2 ceiling. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationCapacityUnknown
+      expr: |
+        homelab_workstation_size_collection_success{dataset="workstations",host="m5c"} == 0 or absent(homelab_workstation_size_collection_success{dataset="workstations",host="m5c",destination="nas"}) or absent(homelab_workstation_size_collection_success{dataset="workstations",host="m5c",destination="b2"})
+      for: 1h
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: ResticWorkstationCapacityUnknown"
+        description: "Physical repository size collection is failing or absent. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationCheckOverdue
+      expr: |
+        time() - homelab_workstation_check_success_timestamp_seconds{dataset="workstations",host="m5c"} > 40 * 86400 or absent(homelab_workstation_check_success_timestamp_seconds{dataset="workstations",host="m5c",destination="nas"}) or absent(homelab_workstation_check_success_timestamp_seconds{dataset="workstations",host="m5c",destination="b2"})
+      for: 1h
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: ResticWorkstationCheckOverdue"
+        description: "Monthly structural and rotating-data repository check is overdue. See runbooks/backups/workstations.md."
+    - alert: VaultWorkstationDocumentsStale
+      expr: |
+        (time() - homelab_vault_ingestion_timestamp_seconds{kind="documents",host="m5c",stage="promotion"} > 7 * 86400 or absent(homelab_vault_ingestion_timestamp_seconds{kind="documents",host="m5c",stage="promotion"})) and on() (count(node_filesystem_size_bytes{device="/dev/mapper/vault",mountpoint="/mnt/vault"}) > 0)
+      for: 15m
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: VaultWorkstationDocumentsStale"
+        description: "Document promotion is older than seven days or missing while the vault is mounted. See runbooks/backups/workstations.md."

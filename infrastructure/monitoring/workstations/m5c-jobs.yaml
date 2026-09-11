@@ -1,0 +1,370 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restic-m5c-validate
+  namespace: monitoring
+spec:
+  schedule: "30 5 * * *"
+  timeZone: America/Chicago
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 21600
+      template:
+        metadata:
+          labels:
+            worm.run/workstation-maintenance: m5c
+        spec:
+          restartPolicy: Never
+          priorityClassName: homelab-low
+          automountServiceAccountToken: false
+          serviceAccountName: restic-workstation-maintenance
+          nodeSelector:
+            kubernetes.io/hostname: minis
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+          - name: binary
+            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic"]
+            resources:
+              requests: {cpu: 10m, memory: 16Mi}
+              limits: {cpu: 100m, memory: 64Mi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            volumeMounts:
+            - {name: tools, mountPath: /tools}
+          containers:
+          - name: maintenance
+            image: python:3.13.7-alpine3.22@sha256:527c28b29498575b851ad88e7522ac7201bbd9e920d2c11b00ff2b39b315f5f8
+            command: ["python3", "/scripts/maintenance.py", "validate", "--host", "m5c"]
+            env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            resources:
+              requests: {cpu: 250m, memory: 512Mi}
+              limits: {cpu: "1", memory: 4Gi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+                add: [DAC_OVERRIDE, SETUID, SETGID]
+            volumeMounts:
+            - {name: tools, mountPath: /tools, readOnly: true}
+            - {name: scripts, mountPath: /scripts, readOnly: true}
+            - {name: contracts, mountPath: /contracts, readOnly: true}
+            - {name: credentials, mountPath: /credentials, readOnly: true}
+            - {name: backups, mountPath: /repo/nas}
+            - {name: metrics, mountPath: /metrics}
+            - {name: tmp, mountPath: /tmp}
+          volumes:
+          - name: tools
+            emptyDir: {}
+          - name: scripts
+            configMap: {name: restic-workstation-scripts}
+          - name: contracts
+            configMap: {name: restic-workstation-contracts}
+          - name: credentials
+            secret:
+              secretName: restic-workstation-m5c
+              defaultMode: 0400
+              items:
+              - {key: maintenance.json, path: maintenance.json}
+          - name: backups
+            hostPath: {path: /mnt/backups, type: Directory}
+          - name: metrics
+            hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
+          - name: tmp
+            emptyDir: {medium: Memory, sizeLimit: 512Mi}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restic-m5c-copy
+  namespace: monitoring
+spec:
+  schedule: "45 5 * * 1"
+  timeZone: America/Chicago
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 21600
+      template:
+        metadata:
+          labels:
+            worm.run/workstation-maintenance: m5c
+        spec:
+          restartPolicy: Never
+          priorityClassName: homelab-low
+          automountServiceAccountToken: false
+          serviceAccountName: restic-workstation-maintenance
+          nodeSelector:
+            kubernetes.io/hostname: minis
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+          - name: binary
+            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic"]
+            resources:
+              requests: {cpu: 10m, memory: 16Mi}
+              limits: {cpu: 100m, memory: 64Mi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            volumeMounts:
+            - {name: tools, mountPath: /tools}
+          containers:
+          - name: maintenance
+            image: python:3.13.7-alpine3.22@sha256:527c28b29498575b851ad88e7522ac7201bbd9e920d2c11b00ff2b39b315f5f8
+            command: ["python3", "/scripts/maintenance.py", "copy", "--host", "m5c"]
+            env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            resources:
+              requests: {cpu: 250m, memory: 512Mi}
+              limits: {cpu: "1", memory: 4Gi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+                add: [DAC_OVERRIDE, SETUID, SETGID]
+            volumeMounts:
+            - {name: tools, mountPath: /tools, readOnly: true}
+            - {name: scripts, mountPath: /scripts, readOnly: true}
+            - {name: contracts, mountPath: /contracts, readOnly: true}
+            - {name: credentials, mountPath: /credentials, readOnly: true}
+            - {name: backups, mountPath: /repo/nas}
+            - {name: metrics, mountPath: /metrics}
+            - {name: tmp, mountPath: /tmp}
+          volumes:
+          - name: tools
+            emptyDir: {}
+          - name: scripts
+            configMap: {name: restic-workstation-scripts}
+          - name: contracts
+            configMap: {name: restic-workstation-contracts}
+          - name: credentials
+            secret:
+              secretName: restic-workstation-m5c
+              defaultMode: 0400
+              items:
+              - {key: maintenance.json, path: maintenance.json}
+          - name: backups
+            hostPath: {path: /mnt/backups, type: Directory}
+          - name: metrics
+            hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
+          - name: tmp
+            emptyDir: {medium: Memory, sizeLimit: 512Mi}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restic-m5c-prune
+  namespace: monitoring
+spec:
+  schedule: "30 0 * * 2"
+  timeZone: America/Chicago
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 21600
+      template:
+        metadata:
+          labels:
+            worm.run/workstation-maintenance: m5c
+        spec:
+          restartPolicy: Never
+          priorityClassName: homelab-low
+          automountServiceAccountToken: false
+          serviceAccountName: restic-workstation-maintenance
+          nodeSelector:
+            kubernetes.io/hostname: minis
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+          - name: binary
+            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic"]
+            resources:
+              requests: {cpu: 10m, memory: 16Mi}
+              limits: {cpu: 100m, memory: 64Mi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            volumeMounts:
+            - {name: tools, mountPath: /tools}
+          containers:
+          - name: maintenance
+            image: python:3.13.7-alpine3.22@sha256:527c28b29498575b851ad88e7522ac7201bbd9e920d2c11b00ff2b39b315f5f8
+            command: ["python3", "/scripts/maintenance.py", "prune", "--host", "m5c"]
+            env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            resources:
+              requests: {cpu: 250m, memory: 512Mi}
+              limits: {cpu: "1", memory: 4Gi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+                add: [DAC_OVERRIDE, SETUID, SETGID]
+            volumeMounts:
+            - {name: tools, mountPath: /tools, readOnly: true}
+            - {name: scripts, mountPath: /scripts, readOnly: true}
+            - {name: contracts, mountPath: /contracts, readOnly: true}
+            - {name: credentials, mountPath: /credentials, readOnly: true}
+            - {name: backups, mountPath: /repo/nas}
+            - {name: metrics, mountPath: /metrics}
+            - {name: tmp, mountPath: /tmp}
+            - {name: api, mountPath: /var/run/secrets/kubernetes.io/serviceaccount, readOnly: true}
+          volumes:
+          - name: tools
+            emptyDir: {}
+          - name: scripts
+            configMap: {name: restic-workstation-scripts}
+          - name: contracts
+            configMap: {name: restic-workstation-contracts}
+          - name: credentials
+            secret:
+              secretName: restic-workstation-m5c
+              defaultMode: 0400
+              items:
+              - {key: maintenance.json, path: maintenance.json}
+          - name: backups
+            hostPath: {path: /mnt/backups, type: Directory}
+          - name: metrics
+            hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
+          - name: tmp
+            emptyDir: {medium: Memory, sizeLimit: 512Mi}
+          - name: api
+            projected:
+              sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                  - {key: ca.crt, path: ca.crt}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: restic-m5c-check
+  namespace: monitoring
+spec:
+  schedule: "30 2 15 * *"
+  timeZone: America/Chicago
+  suspend: true
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 21600
+      template:
+        metadata:
+          labels:
+            worm.run/workstation-maintenance: m5c
+        spec:
+          restartPolicy: Never
+          priorityClassName: homelab-low
+          automountServiceAccountToken: false
+          serviceAccountName: restic-workstation-maintenance
+          nodeSelector:
+            kubernetes.io/hostname: minis
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+          - name: binary
+            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic"]
+            resources:
+              requests: {cpu: 10m, memory: 16Mi}
+              limits: {cpu: 100m, memory: 64Mi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+            volumeMounts:
+            - {name: tools, mountPath: /tools}
+          containers:
+          - name: maintenance
+            image: python:3.13.7-alpine3.22@sha256:527c28b29498575b851ad88e7522ac7201bbd9e920d2c11b00ff2b39b315f5f8
+            command: ["python3", "/scripts/maintenance.py", "check", "--host", "m5c"]
+            env:
+            - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            resources:
+              requests: {cpu: 250m, memory: 512Mi}
+              limits: {cpu: "1", memory: 4Gi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop: [ALL]
+                add: [DAC_OVERRIDE, SETUID, SETGID]
+            volumeMounts:
+            - {name: tools, mountPath: /tools, readOnly: true}
+            - {name: scripts, mountPath: /scripts, readOnly: true}
+            - {name: contracts, mountPath: /contracts, readOnly: true}
+            - {name: credentials, mountPath: /credentials, readOnly: true}
+            - {name: backups, mountPath: /repo/nas}
+            - {name: metrics, mountPath: /metrics}
+            - {name: tmp, mountPath: /tmp}
+          volumes:
+          - name: tools
+            emptyDir: {}
+          - name: scripts
+            configMap: {name: restic-workstation-scripts}
+          - name: contracts
+            configMap: {name: restic-workstation-contracts}
+          - name: credentials
+            secret:
+              secretName: restic-workstation-m5c
+              defaultMode: 0400
+              items:
+              - {key: maintenance.json, path: maintenance.json}
+          - name: backups
+            hostPath: {path: /mnt/backups, type: Directory}
+          - name: metrics
+            hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
+          - name: tmp
+            emptyDir: {medium: Memory, sizeLimit: 512Mi}

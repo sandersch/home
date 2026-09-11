@@ -7,15 +7,16 @@
 > passed. Flux reconciled activation commit `eb02a61` on 2026-09-07, and the live
 > `restic-vault-copy` and `restic-vault-prune` CronJobs are present with `SUSPEND=false`.
 > The first copy run completed successfully; the first prune run is pending its scheduled
-> Saturday window. Workstation backups, offline copies, and mail archival remain draft.
-> Updated 2026-09-07.
+> Saturday window. Workstation code and suspended manifests are now staged; enrollment,
+> native restore gates and activation remain pending. Offline copies and mail archival
+> remain draft. Updated 2026-09-08.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
 > verifier, a restricted `ryze` ingestion path, versioned contracts, alerts, and restore
 > runbooks. The local vault, `appstate`, and vault B2 copy pipelines run today; vault B2
 > prune is enabled and awaiting its first scheduled run. Workstation backup and offline
-> copies remain design work. The `appstate` pipeline is
+> copies are not active; see the staged workstation runbook below. The `appstate` pipeline is
 > described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
 > datastore, and validated hot dumps.
@@ -135,15 +136,15 @@ file?"
 
 | Repository | Retention arguments | Nominal RPO | Max tolerated staleness | Recovery window | Applied by |
 |---|---|---|---|---|---|
-| `vault` (NAS) | `--keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 12w --keep-within-monthly 24m` | 4h | 8h (`ResticVaultBackupOverdue`) | 24 months | weekly prune job (§ 2) |
-| `vault` (B2) | `--keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 12w --keep-within-monthly 24m` | 24h | 36h (`ResticVaultCopyOverdue`) | 24 months | weekly prune job, against the B2 repo |
+| `vault` (NAS) | `--keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 24m` | 4h | 8h (`ResticVaultBackupOverdue`) | 24 months | weekly prune job (§ 2) |
+| `vault` (B2) | `--keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 24m` | 24h | 36h (`ResticVaultCopyOverdue`) | 24 months | weekly prune job, against the B2 repo |
 | `vault` (offline) | **none — `forget` never runs**, see below | 90d | 120d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
 | `appstate` (NAS) | `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` — **existing, unchanged** | 24h | 30h (`ResticLocalBackupOverdue`) | ~12 months | inline in `restic-nas-backup` (§ 3) |
 | `appstate` (B2) | `--keep-weekly 8 --keep-monthly 12` — **existing, unchanged** | 7d | 8d (`ResticB2BackupOverdue`) | ~12 months | inline in `restic-b2-backup` |
 | `appstate` (offline) | none — `forget` never runs | 90d | 120d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
-| each workstation (NAS) | `--keep-within 30d --keep-within-daily 30d --keep-within-weekly 12w --keep-within-monthly 12m` | 24h | 7d (`ResticWorkstationBackupStale`) | every snapshot for 30d; selected history for 12 months | weekly prune job, over each hostPath (§ 4) |
-| `workstations/ryze` (B2) | `--keep-within 30d --keep-within-weekly 12w --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the `ryze` B2 repo |
-| `workstations/m5c` (B2) | `--keep-within 30d --keep-within-weekly 12w --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the `m5c` B2 repo |
+| each workstation (NAS) | `--keep-within 30d --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 12m` | 24h | 7d (`ResticWorkstationBackupStale`) | every snapshot for 30d; selected history for 12 months | weekly prune job, over each hostPath (§ 4) |
+| `workstations/ryze` (B2) | `--keep-within 30d --keep-within-weekly 84d --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the `ryze` B2 repo |
+| `workstations/m5c` (B2) | `--keep-within 30d --keep-within-weekly 84d --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the `m5c` B2 repo |
 
 **"Nominal" is the schedule, not a guarantee.** These RPOs are what the cadence produces
 when every job succeeds. The *true* worst case is unbounded — a job can fail every night, a
@@ -579,8 +580,8 @@ exclusion is not allowed to rely only on operator memory or a broad wildcard.
 
 The cost accepted in exchange: after an unattended reboot, new or changed tier-0 data is
 not ingested or backed up until a human unlocks the vault. Vault backup, copy, and vault-only
-prune work skip; once deployed, the shared prune job continues with the proposed workstation
-repositories. The host, k3s, camera recording, and existing `appstate` pipeline remain
+prune work skip; once deployed, the separate per-host workstation maintenance jobs continue.
+The host, k3s, camera recording, and existing `appstate` pipeline remain
 unattended, and the workstation pipeline must do the same after it is built. This is no
 additional availability loss over manual vault unlock itself, and `VaultLocked` (§ 9)
 bounds the window operationally.
@@ -947,8 +948,9 @@ data:
   snapshot still exists. Conversely, an actual snapshot absent from the ledger remains
   unvalidated until attended revalidation records it.
 - **Prune decoupled from backup.** A 4-hourly job must not prune. Retention and prune work
-  move to a separate weekly `restic-prune-cronjob.yaml` covering the **new** repos — `vault`
-  and the two workstation repos. `appstate` is not included; see below.
+  use the separate weekly vault prune job and per-host workstation prune jobs.
+  Workstation maintenance does not share the vault job. `appstate` is not included;
+  see below.
 
   Because the guard now lives in one job and the prune in another, the guard cannot be a
   decision the backup run makes about its own trailing step — a truncated snapshot at 04:00
@@ -1081,10 +1083,10 @@ backup followed by a copy rather than waiting for their next schedules; the host
 `vault-unlock` helper itself needs no Kubernetes credential. The ordinary 36-hour copy
 alert remains the backstop.
 
-The same rule applies to retention. Once deployed, the shared prune job may continue
-pruning workstation repositories with their SOPS-managed credentials while the vault is
-locked, but skips the vault NAS and B2 repositories individually because their password
-files are unavailable. It must not copy vault credentials into a Kubernetes Secret or a
+The same rule applies to retention. Once deployed, the per-host workstation prune jobs
+continue with their SOPS-managed credentials while the vault is locked. The separate
+vault prune job skips its repositories because their password files are unavailable.
+It must not copy vault credentials into a Kubernetes Secret or a
 node-backed temporary directory to make locked-state pruning possible; a safe retention
 stall is preferable to reopening the powered-off theft path.
 
@@ -1152,6 +1154,21 @@ porting back.
 
 ### 4. Workstations push via append-only REST server
 
+Executable retention uses `84d` for twelve weeks: Restic 0.19.1 rejects `12w`.
+The existing vault prune command received the same correction during workstation
+fixture verification; that code change is not yet deployed.
+
+The staged implementation and attended deployment/recovery procedure are in
+[workstations.md](../runbooks/backups/workstations.md). The package under
+`infrastructure/monitoring/workstations/` is not yet referenced by the active
+monitoring Kustomization, and all new maintenance schedules are suspended.
+No production workstation snapshot or successful native restore is claimed.
+The 2026-09-08 ryze preflight measured **552,840 included files / 27,921,624,561
+bytes**, including **538 Documents files / 296,757,693 bytes**. Proposed 80% floors
+are generated from those measurements; the immutable release awaits review.
+Mac measurements, privacy/cloud checks, credential enrollment and seven-day
+observation remain outstanding.
+
 `ryze` and `m5c` aren't cluster nodes. Run **two** `restic/rest-server` Deployments in the
 cluster, one per workstation, each backed by its own fixed hostPath under
 `/mnt/backups/workstations/` and exposed as its own Tailscale endpoint. A single shared
@@ -1211,10 +1228,12 @@ detail that may be omitted.
 client from deleting, but not from *pushing*: a flood of snapshots with attacker-chosen
 timestamps can walk the real ones out of a `--keep-daily 14`-style window, and prune then
 does the deleting on its behalf. These repos therefore start with the unbucketed safety
-window `--keep-within 30d`, then add `--keep-within-daily 30d --keep-within-weekly 12w
+window `--keep-within 30d`, then add `--keep-within-daily 30d --keep-within-weekly 84d
 --keep-within-monthly 12m` (and `--group-by host` — see
-[Retention](#retention-proposed)), which is anchored to wall-clock age and
-cannot be pushed out by snapshot volume. This is restic's own guidance for append-only
+[Retention](#retention-proposed)), which is relative to the newest snapshot in the
+group, not wall-clock age. Snapshot volume alone cannot push points out, but invalid
+timestamps can move the window; validate timestamps before planning retention.
+This is restic's own guidance for append-only
 repositories ([security considerations in append-only
 mode](https://restic.readthedocs.io/en/stable/060_forget.html#security-considerations-in-append-only-mode)).
 

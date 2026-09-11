@@ -1,0 +1,13 @@
+{
+  "host": "ryze",
+  "inventory_reviewed": true,
+  "capacity_reviewed": true,
+  "required_content_readable": true,
+  "notes": [
+    "Verified /home/charlie/GDrive is a local directory on the home ext4 filesystem, not a separate mount or symlink.",
+    "Verified 238 regular files are readable; directory usage is 537072860 bytes (~513 MiB).",
+    "Existing ryze measurement completed 2026-09-08 with matching exclusion hash 4b1babec204a7936b56f6b500112637f840f272d6b846d8c2d430a361464ed16; GDrive was in scope.",
+    "Verified /mnt/backups is the intended ext4 volume with 758 GiB available.",
+    "No repository enrollment, backup or restore is claimed."
+  ]
+}

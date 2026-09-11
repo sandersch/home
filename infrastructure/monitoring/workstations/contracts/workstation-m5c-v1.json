@@ -1,0 +1,59 @@
+{
+  "contract": "workstation-m5c-v1",
+  "enrollment_evidence": {
+    "capacity_reviewed": true,
+    "dropbox_materialized": true,
+    "fda_launchd_passed": true,
+    "filevault_enabled": true,
+    "host": "m5c",
+    "icloud_optimize_disabled": true,
+    "inventory_reviewed": true,
+    "notes": [
+      "Operator supplied measurement JSON and launchd last exit code 0; Documents totals confirmed expected.",
+      "Dropbox materialization covers only the required ccs.kdbx in the approved Mac scope.",
+      "Operator reports Mac Data volume has 360 GiB available; Documents staging is approximately 3.29 MB before archive overhead.",
+      "Operator reports /mnt/backups mounted rw ext4 from /dev/mapper/hoardvg-backuplv with 758 GiB available, exceeding combined workstation quotas of 250 GiB. Mount sentinel verification remains a separate deployment gate.",
+      "Initial Mac logical inventory is 25.87 GB against a 100 GiB NAS quota and 50 GB B2 ceiling; retained history and physical usage still require monitoring.",
+      "No repository enrollment, backup or restore is claimed."
+    ],
+    "photos_mail_no_unique_data": true,
+    "required_content_readable": true
+  },
+  "enrollment_status": "released",
+  "exclusion_sha256": "bd4ac5117e673e9b0d1f4ca8c02e884c23382d8d2ff042c96bef0bdc3662d24f",
+  "floors": {
+    "": {
+      "bytes": 20697980762,
+      "files": 209488
+    },
+    "Documents/": {
+      "bytes": 2630969,
+      "files": 10
+    }
+  },
+  "hostname": "m5c",
+  "kdbx_minimum_bytes": 102400,
+  "kdbx_path": "Library/CloudStorage/Dropbox/ccs.kdbx",
+  "manifest": "/Users/charlessanders/.workstation-backup-manifest.json",
+  "maximum_shrink_percent": 20,
+  "measured": {
+    "": {
+      "bytes": 25872475952,
+      "files": 261860
+    },
+    "Documents/": {
+      "bytes": 3288711,
+      "files": 12
+    }
+  },
+  "measured_at": "2026-09-10T04:36:02.606040+00:00",
+  "platform": "Darwin",
+  "required_content": [
+    "Documents",
+    "Dropbox/ccs.kdbx"
+  ],
+  "shrink_baseline_samples": 7,
+  "source_roots": [
+    "/Users/charlessanders"
+  ]
+}

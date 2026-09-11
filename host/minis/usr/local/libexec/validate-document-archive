@@ -1,0 +1,26 @@
+#!/usr/bin/env python3
+"""Reject unsafe or oversized frozen archives before GNU tar extracts them."""
+from pathlib import PurePosixPath
+import sys
+import tarfile
+
+
+def validate(path):
+    seen, total = set(), 0
+    with tarfile.open(path, 'r:') as archive:
+        for entry in archive:
+            name = PurePosixPath(entry.name)
+            if (name.is_absolute() or '..' in name.parts or '\n' in entry.name or '\r' in entry.name
+                    or not (entry.isfile() or entry.isdir()) or entry.issparse()):
+                raise ValueError('unsafe archive path or type')
+            normalized = str(name)
+            if normalized in seen:
+                raise ValueError('duplicate archive path')
+            seen.add(normalized)
+            total += entry.size
+            if total > 50 * 1024**3 or len(seen) > 1000000:
+                raise ValueError('archive exceeds extraction ceiling')
+
+
+if __name__ == '__main__':
+    validate(sys.argv[1])

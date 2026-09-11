@@ -5,6 +5,8 @@ ConditionPathIsMountPoint=/mnt/vault
 
 [Service]
 Type=oneshot
+RuntimeDirectory=vault-ingest-promote
+RuntimeDirectoryMode=0700
 ExecStart=/usr/local/sbin/vault-ingest-promote
 User=root
 Group=root

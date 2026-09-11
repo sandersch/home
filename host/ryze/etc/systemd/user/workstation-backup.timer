@@ -1,0 +1,10 @@
+[Unit]
+Description=Check hourly for daily workstation work
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=5m
+
+[Install]
+WantedBy=timers.target

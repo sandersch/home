@@ -2,10 +2,28 @@
 set -Eeuo pipefail
 
 vault=/mnt/vault
-upload="$vault/inbox/ryze/upload"
+if [ "$#" -eq 0 ]; then
+  result=0
+  for client in ryze m5c; do
+    [ -d "$vault/inbox/$client/upload" ] || continue
+    "$0" "$client" || result=1
+  done
+  exit "$result"
+fi
+client="$1"
+case "$client" in
+  ryze) ingest_owner=2100:2100 ;;
+  m5c) ingest_owner=2101:2101 ;;
+  *) echo 'unknown ingestion client' >&2; exit 1 ;;
+esac
+install -d -o root -g root -m 0700 /run/vault-ingest-promote
+exec 9>"/run/vault-ingest-promote/$client.lock"
+flock -n 9 || exit 0
+upload="$vault/inbox/$client/upload"
 strongbox="$vault/credentials/strongbox"
-documents="$vault/documents/ryze"
+documents="$vault/documents/$client"
 metrics=/var/lib/node-exporter/textfile/vault-ingestion.prom
+[ "$client" = ryze ] || metrics=/var/lib/node-exporter/textfile/vault-ingestion-m5c.prom
 documents_archive_max_bytes=$((50 * 1024 * 1024 * 1024))
 document_stage=""
 
@@ -23,7 +41,7 @@ mountpoint -q "$vault" || die "$vault is not mounted"
 source /etc/homelab/vault.conf
 [ "$(findmnt -n -o SOURCE --target "$vault" | xargs readlink -f)" = "$(readlink -f /dev/mapper/vault)" ] \
   || die "$vault is not mounted from /dev/mapper/vault"
-grep -qxF 'vault-contract-version=2' "$vault/.vault-sentinel" \
+grep -qxF "vault-contract-version=${VAULT_CONTRACT_VERSION:-2}" "$vault/.vault-sentinel" \
   || die "vault sentinel contract mismatch"
 grep -qxF "filesystem-uuid=$VAULT_FS_UUID" "$vault/.vault-sentinel" \
   || die "vault sentinel UUID mismatch"
@@ -32,8 +50,10 @@ write_metrics() {
   local strongbox_time="$1" documents_time="$2" tmp="${metrics}.tmp.$$"
   umask 0027
   {
-    printf 'homelab_vault_ingestion_timestamp_seconds{kind="strongbox",host="ryze",stage="promotion"} %s\n' "$strongbox_time"
-    printf 'homelab_vault_ingestion_timestamp_seconds{kind="documents",host="ryze",stage="promotion"} %s\n' "$documents_time"
+    if [ "$client" = ryze ]; then
+      printf 'homelab_vault_ingestion_timestamp_seconds{kind="strongbox",host="ryze",stage="promotion"} %s\n' "$strongbox_time"
+    fi
+    printf 'homelab_vault_ingestion_timestamp_seconds{kind="documents",host="%s",stage="promotion"} %s\n' "$client" "$documents_time"
   } >"$tmp"
   chown root:nogroup "$tmp"
   chmod 0640 "$tmp"
@@ -49,6 +69,7 @@ fi
 
 shopt -s nullglob
 for ready in "$upload"/ccs.kdbx.*.ready; do
+  [ "$client" = ryze ] || die "m5c is not a Strongbox uploader"
   [ -f "$ready" ] && [ ! -L "$ready" ] || die "invalid KDBX upload $ready"
   [ "$(stat -c '%u:%g' "$ready")" = 2100:2100 ] \
     || die "unexpected KDBX upload ownership"
@@ -68,7 +89,8 @@ done
 for checksum in "$upload"/documents.*.sha256.ready; do
   base="${checksum%.sha256.ready}"
   archive="$base.tar.ready"
-  document_stage="$vault/.restore-tests/documents-promote.$$"
+  [ -e "$archive" ] || continue
+  document_stage="$vault/.restore-tests/documents-promote.$client.$$"
   [ ! -e "$document_stage" ] || die "document promotion stage already exists"
   install -d -o root -g root -m 0700 "$document_stage"
   claimed_archive="$document_stage/client-archive.tar"
@@ -79,8 +101,8 @@ for checksum in "$upload"/documents.*.sha256.ready; do
     || die "claimed document archive is not a regular file"
   [ -f "$claimed_checksum" ] && [ ! -L "$claimed_checksum" ] \
     || die "claimed document checksum is not a regular file"
-  [ "$(stat -c '%u:%g' "$claimed_archive")" = 2100:2100 ] \
-    && [ "$(stat -c '%u:%g' "$claimed_checksum")" = 2100:2100 ] \
+  [ "$(stat -c '%u:%g' "$claimed_archive")" = "$ingest_owner" ] \
+    && [ "$(stat -c '%u:%g' "$claimed_checksum")" = "$ingest_owner" ] \
     || die "unexpected claimed document upload ownership"
 
   frozen_archive="$document_stage/archive.tar"
@@ -100,6 +122,7 @@ for checksum in "$upload"/documents.*.sha256.ready; do
   [[ "$expected" =~ ^[0-9a-f]{64}$ ]] || die "document checksum is malformed"
   [ "$(sha256sum "$frozen_archive" | awk '{print $1}')" = "$expected" ] \
     || die "document archive checksum mismatch"
+  /usr/local/libexec/validate-document-archive "$frozen_archive"
   while IFS= read -r entry; do
     case "$entry" in
       /*|..|../*|*/../*|*/..) die "unsafe document archive path: $entry" ;;
@@ -122,6 +145,12 @@ for checksum in "$upload"/documents.*.sha256.ready; do
     touch -r "$file" "$target_tmp"
     mv -f "$target_tmp" "$target"
   done < <(find "$extracted" -type f -print0)
+  # Completion is committed only after every file is promoted. Retrying a
+  # partial promotion is additive and never propagates a client's deletions.
+  completion="$vault/.restore-tests/ingestion-$client.complete"
+  printf '%s %s\n' "$expected" "$(date +%s)" >"$completion.tmp.$$"
+  chmod 0600 "$completion.tmp.$$"
+  mv -f "$completion.tmp.$$" "$completion"
   rm -rf -- "$document_stage"
   document_stage=""
   existing_documents="$(date +%s)"

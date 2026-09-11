@@ -43,7 +43,19 @@ jobs:
             docker run --rm --network none -v /tmp:/tmp:ro
             --tmpfs /work -e TMPDIR=/work --entrypoint /bin/promtool
             quay.io/prometheus/prometheus:v3.13.1-distroless@sha256:214f8427c8fba80c327bb94a75feb802ae12f2d6ca30812aa6e7d22f09bbea80
-        run: python3 runbooks/backups/test-prune-alerts.py
+        run: |
+          python3 runbooks/backups/test-prune-alerts.py
+          python3 runbooks/backups/test-workstation-alerts.py
+
+      - name: Test workstation repositories and append-only server
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          python3 runbooks/backups/workstation-install-restic.py --directory "$RUNNER_TEMP/restic"
+          export WORKSTATION_RESTIC="$RUNNER_TEMP/restic/restic"
+          python3 runbooks/backups/test-workstations.py
+          bash runbooks/backups/test-workstation-rest-server.sh
 
       - name: Check changed shell scripts
         env:
@@ -60,6 +72,7 @@ jobs:
         uses: imranismail/setup-kustomize@v2
       - run: kustomize build apps >/dev/null
       - run: kustomize build infrastructure/monitoring >/dev/null
+      - run: kustomize build infrastructure/monitoring/workstations >/dev/null
 
       - name: Validate Renovate configuration strictly
         uses: actions/setup-node@v6

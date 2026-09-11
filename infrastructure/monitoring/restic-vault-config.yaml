@@ -126,8 +126,8 @@ data:
 
     vault_path=/data/vault
     host_config=/host-config/vault.conf
-    contract=/contracts/vault-v2.json
-    exclusions=/contracts/vault-v2.excludes
+    contract=/contracts/vault-v${VAULT_CONTRACT_VERSION:-2}.json
+    exclusions=/contracts/vault-v${VAULT_CONTRACT_VERSION:-2}.excludes
     control=/repo/nas/.control/vault
     metrics=/metrics/restic-vault.prom
 
@@ -211,7 +211,7 @@ data:
     [ -f "$sentinel" ] && [ ! -L "$sentinel" ] || die "$sentinel is invalid"
     [ "$(stat -c '%u:%g:%a' "$sentinel")" = 0:0:444 ] \
       || die "$sentinel ownership or mode is invalid"
-    grep -qxF 'vault-contract-version=2' "$sentinel" \
+    grep -qxF "vault-contract-version=${VAULT_CONTRACT_VERSION:-2}" "$sentinel" \
       || die "$sentinel has the wrong contract version"
     grep -qxF "filesystem-uuid=$VAULT_FS_UUID" "$sentinel" \
       || die "$sentinel has the wrong filesystem UUID"
@@ -233,7 +233,7 @@ data:
     [ "$exclusion_hash" = "$expected_exclusion_hash" ] \
       || die "vault exclusion hash does not match the released contract"
     jq -e '
-      .contract == "vault-v2" and
+      .contract == ("vault-v" + (env.VAULT_CONTRACT_VERSION // "2")) and
       .source_roots == ["/data/vault"] and
       .sentinel == "/data/vault/.vault-sentinel" and
       .shrink_baseline_samples == 7 and
@@ -294,7 +294,7 @@ data:
     export RESTIC_CACHE_DIR=/work/restic-cache
     generated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     jq -n \
-      --arg contract vault-v2 \
+      --arg contract "vault-v${VAULT_CONTRACT_VERSION:-2}" \
       --arg contract_sha256 "$contract_hash" \
       --arg exclusion_sha256 "$exclusion_hash" \
       --arg filesystem_uuid "$VAULT_FS_UUID" \
@@ -344,7 +344,7 @@ data:
         --arg snapshot_id "$snapshot_id" \
         --arg lineage "$lineage" \
         --arg reason "$reason" \
-        --arg contract vault-v2 \
+        --arg contract "vault-v${VAULT_CONTRACT_VERSION:-2}" \
         --arg contract_sha256 "$contract_hash" \
         --arg created_at "$generated_at" \
         --argjson generation "$generation" \
@@ -448,7 +448,7 @@ data:
     IFS=$'\t' read -r vault_filesystem vault_source <<<"$mount_record"
     [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
       || die "/data/vault is not the configured vault filesystem"
-    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+    grep -qxF "vault-contract-version=${VAULT_CONTRACT_VERSION:-2}" /data/vault/.vault-sentinel \
       || die "vault sentinel contract mismatch"
     grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel \
       || die "vault sentinel UUID mismatch"
@@ -580,7 +580,7 @@ data:
     [ "$HOLD_ACTION" != accept ] || [ -n "${HOLD_REASON:-}" ] \
       || die "accept requires a nonempty HOLD_REASON"
 
-    contract=/contracts/vault-v2.json
+    contract=/contracts/vault-v${VAULT_CONTRACT_VERSION:-2}.json
     control=/repo/nas/.control/vault
     hold="$control/holds/$HOLD_SNAPSHOT.json"
     state="$control/resolutions/$HOLD_SNAPSHOT.json"
@@ -603,7 +603,7 @@ data:
     IFS=$'\t' read -r vault_filesystem vault_source <<<"$mount_record"
     [ "$vault_filesystem" = ext4 ] && [ "$vault_source" = /dev/mapper/vault ] \
       || die "/data/vault is not the configured vault filesystem"
-    grep -qxF 'vault-contract-version=2' /data/vault/.vault-sentinel \
+    grep -qxF "vault-contract-version=${VAULT_CONTRACT_VERSION:-2}" /data/vault/.vault-sentinel \
       || die "vault sentinel contract mismatch"
     grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel \
       || die "vault sentinel UUID mismatch"
@@ -740,7 +740,7 @@ data:
         --argjson generation "$next_generation" \
         --arg snapshot_id "$HOLD_SNAPSHOT" \
         --arg lineage "$lineage" \
-      --arg contract vault-v2 \
+      --arg contract "vault-v${VAULT_CONTRACT_VERSION:-2}" \
         --arg contract_sha256 "$contract_hash" \
         --arg accepted_at "$accepted_at" \
         --arg operator "$HOLD_OPERATOR" \
