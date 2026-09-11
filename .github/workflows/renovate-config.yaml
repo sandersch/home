@@ -1,0 +1,35 @@
+name: renovate-config
+
+# The validator result depends only on renovate.json5 and the Renovate version
+# pinned below, so skip the ~30s install when neither changes.
+on:
+  pull_request:
+    paths:
+      - renovate.json5
+      - .github/workflows/renovate-config.yaml
+  push:
+    branches:
+      - main
+    paths:
+      - renovate.json5
+      - .github/workflows/renovate-config.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # --loglevel=error hides deprecation warnings from Renovate's own dependencies.
+      - name: Validate Renovate configuration strictly
+        run: npm exec --yes --loglevel=error --package=renovate@44.32.5 -- renovate-config-validator --strict renovate.json5
