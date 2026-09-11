@@ -37,8 +37,7 @@ live_fstab_tmp="$(mktemp)"
 sentinel_tmp=""
 credential_tmp=""
 trap 'rm -f "$config_tmp" "$crypttab_tmp" "$fstab_tmp" "$live_crypttab_tmp" "$live_fstab_tmp" "$sentinel_tmp" "$credential_tmp"' EXIT
-printf 'VAULT_LUKS_UUID=%s\nVAULT_FS_UUID=%s\n' \
-  "$VAULT_LUKS_UUID" "$VAULT_FS_UUID" >"$config_tmp"
+stage_vault_config "$canonical_config" "$config_tmp" "$VAULT_LUKS_UUID" "$VAULT_FS_UUID"
 install -m 0644 "$config_tmp" "$canonical_config"
 
 crypttab_line="$(printf 'vault\tUUID=%s\tnone\tluks,noauto' "$VAULT_LUKS_UUID")"

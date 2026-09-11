@@ -70,3 +70,12 @@ ensure_mount_table_entry() {
     printf '\n%s\n' "$expected" >>"$file"
   fi
 }
+
+# Rewrite only the vault identity assignments. Every other canonical line, such as
+# the attended VAULT_CONTRACT_VERSION gate, must survive a rerun.
+stage_vault_config() {
+  local canonical="$1" staged="$2" luks_uuid="$3" fs_uuid="$4"
+  printf 'VAULT_LUKS_UUID=%s\nVAULT_FS_UUID=%s\n' "$luks_uuid" "$fs_uuid" >"$staged"
+  [ -f "$canonical" ] || return 0
+  awk '!/^[[:space:]]*(export[[:space:]]+)?VAULT_(LUKS|FS)_UUID=/' "$canonical" >>"$staged"
+}
