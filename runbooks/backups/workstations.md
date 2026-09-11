@@ -91,8 +91,11 @@ workstation tests enforce this.
 
 ## Host and credential preparation
 
-Confirm m5c's Wi-Fi MAC (inventory currently records `aa:9a:b7:f2:ea:2d`), check UDM
-leases/reservations and ARP from VLAN 30 for conflicts, then reserve `10.137.30.7`.
+The operator confirmed m5c's static IP assignment at `10.137.30.7` on 2026-09-10;
+SSH verified that address and active Wi-Fi MAC `aa:9a:b7:f2:ea:2d`.
+The operator also confirmed Private Wi-Fi Address is **Fixed** for the home network;
+the assignment uses that fixed private MAC, not hardware MAC `c0:c7:db:ed:b5:bd`.
+Before host preparation, check UDM leases/reservations and ARP from VLAN 30 for conflicts.
 Record the checks before installing the staged nftables rule allowing that source
 to minis TCP 2222. If the MAC differs, update and review the inventory first.
 Verify UID/GID 2101 are unused or already belong to vault-ingest-m5c.

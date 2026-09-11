@@ -436,7 +436,7 @@ Use this table when creating DHCP reservations, static host records, ISP records
 | `bastion` tagged Trusted interface | 30 | `10.137.30.9` | `c0:25:a5:5e:4b:bf` | Static; sole SSH listener and default route |
 | SLZB-MRW10U dual-radio coordinator | 30 currently; target 60 | Current `10.137.30.11`; target `10.137.60.11` TBD | `ea:f6:0a:d0:9c:58` | Current UDM fixed-IP reservation; create a stable VLAN 60 reservation before migration |
 | RATGDO `ratgdo0` | 60 | `10.137.60.12` | `28:05:a5:4f:f0:58` | UDM fixed-IP reservation; offline at inventory |
-| `m5c` Wi-Fi | 30 | Current DHCP `10.137.30.x`; proposed reservation `10.137.30.7` | `aa:9a:b7:f2:ea:2d` | Reservation pending attended conflict/MAC check; private MAC disabled |
+| `m5c` Wi-Fi | 30 | `10.137.30.7` | `aa:9a:b7:f2:ea:2d` | Static IP assignment confirmed by operator on 2026-09-10; address and active MAC verified over SSH |
 | `st-ccs` | 30 | `10.137.30.50` | `64:4b:f0:18:cf:5d` | UDM fixed-IP reservation |
 | APC AP7800 `rack-pdu-01` | 30 | `10.137.30.78` | `00:c0:b7:c6:c1:ac` | UDM fixed-IP reservation; currently on Trusted despite `.mgmt.matrix` name |
 | NanoKVM | 30 | `10.137.30.200` | `48:da:35:6f:25:34` | UDM fixed-IP reservation |
@@ -477,10 +477,13 @@ Create or retain these forward (A) records on the UDM resolver. The network's lo
 > Cameras still sync independently from `minis` at `192.168.105.1` using local
 > `chrony` on the isolated camera-side NIC.
 
+`m5c` now has the static assignment `10.137.30.7` (2026-09-10), so dynamic
+addressing no longer prevents a fixed DNS record. `ssh m5c` works and the host
+reports `m5c.matrix`; a UDM DNS record has not been independently verified.
+
 **Deliberately excluded:**
 
 * **`minis` camera-side NIC (`192.168.105.1`, VLAN 105)** — VLAN 105 never reaches the UDM and is off the trunk, so the UDM has no interface on `192.168.105.0/24` and cannot resolve or route it. Camera-side naming/DHCP is handled by `minis` `dnsmasq`, which is intentionally DHCP-only with no DNS.
-* **`m5c` (`10.137.30.x`)** — DHCP-assigned with no static reservation, so its address is not stable enough for a fixed record.
 * **`bastion` VLAN 10 (`10.137.10.9`)** — do not publish it as an operator entry
   point. The only record for this address is `ntp.service.mgmt.matrix`; operators
   resolve only `bastion.matrix` on VLAN 30 for SSH.
@@ -499,7 +502,7 @@ Create or retain these forward (A) records on the UDM resolver. The network's lo
 
 * **m5c (MacBook Laptop)**
   * *Connection:* WiFi → UniFi U7 Pro (VLAN 30 SSID)
-  * *IP / MAC:* DHCP (`10.137.30.x`) | `aa:9a:b7:f2:ea:2d` (Turn off Private MAC address feature for reliable tracking).
+  * *IP / MAC:* Static assignment `10.137.30.7` | active Wi-Fi MAC `aa:9a:b7:f2:ea:2d`, verified over SSH on 2026-09-10. Hardware MAC is `c0:c7:db:ed:b5:bd`; the operator confirmed Private Wi-Fi Address is **Fixed** for the home network. The assignment uses the fixed private MAC.
   * *Admin Access:* Does not receive direct VLAN 10 administrative access in
     steady state. Use `bastion.matrix` for ProxyJump/local/SOCKS access;
     temporary direct access is allowed only during the documented Rule 940
