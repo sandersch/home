@@ -30,7 +30,7 @@ def main():
         raise ValueError('platform does not match host')
     home = Path.home()
     contract = read_json(args.contract)
-    scope = ROOT / f'host/{args.host}/etc/workstation-backup/excludes'
+    scope = ROOT / f'host/{args.host}/etc/workstation-backup/{contract["contract"]}.excludes'
     if (contract.get('enrollment_status') != 'released' or contract['hostname'] != args.host or
             contract['source_roots'] != [str(home)] or contract['exclusion_sha256'] != digest(scope.read_bytes())):
         raise ValueError('released contract, home, host and exclusion hash must match')

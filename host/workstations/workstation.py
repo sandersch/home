@@ -12,6 +12,7 @@ import math
 import os
 from pathlib import Path, PurePosixPath
 import platform
+import re
 import stat
 import subprocess
 import sys
@@ -19,7 +20,10 @@ import tempfile
 import time
 
 MANIFEST = '.workstation-backup-manifest.json'
+RECEIPT_ROOT = '/.workstation-backup-validation'
 KDBX = bytes.fromhex('03d9a29a67fb4bb5')
+# ctime comes from a coarse kernel clock; allow for it when explaining churn.
+CLOCK_SLACK = 2
 
 
 def digest(value):
@@ -197,15 +201,73 @@ def check_floors(records, contract):
             raise ValueError(f'below released floor: {prefix or "home"}')
 
 
-def restic(*args, env=None):
+def churn_tolerance(measured_files, kdbx_path):
+    """Paths a snapshot may differ from its pre-backup manifest, fixed at release."""
+    return {'maximum_paths': min(1000, measured_files * 5 // 1000),
+            'protected_paths': ['Documents', kdbx_path]}
+
+
+def drift(expected, actual):
+    return sorted(p for p in expected.keys() | actual.keys() if expected.get(p) != actual.get(p))
+
+
+def check_drift(paths, contract):
+    """Contracts released without churn_tolerance (v1) still require an exact match."""
+    if not paths:
+        return
+    tolerance = contract.get('churn_tolerance')
+    if not tolerance:
+        raise ValueError('manifest does not match actual snapshot listing')
+    protected = tolerance['protected_paths']
+    if any(p == q or p.startswith(q + '/') for p in paths for q in protected):
+        raise ValueError('required content changed during backup')
+    if len(paths) > tolerance['maximum_paths']:
+        raise ValueError('manifest drift exceeds contract tolerance')
+
+
+def unexplained(paths, home, since):
+    """Return paths the live filesystem does not show changing after `since`.
+
+    A changed or added path must have a later ctime; a vanished one must have a
+    nearest surviving ancestor whose ctime is later. An old, unchanged file that
+    is missing from the snapshot is an omission, never churn.
+    """
+    result = []
+    for relative in paths:
+        path = Path(home) / relative
+        while not os.path.lexists(path):
+            path = path.parent
+        if os.lstat(path).st_ctime < since - CLOCK_SLACK:
+            result.append(relative)
+    return result
+
+
+def completion_receipt(sid, tree, contract):
+    if not re.fullmatch('[0-9a-f]{64}', sid) or not re.fullmatch('[0-9a-f]{64}', tree):
+        raise ValueError('completion receipt requires exact snapshot and tree IDs')
+    return {'schema': 1, 'snapshot_id': sid, 'tree': tree,
+            'contract': contract['contract'], 'exclusion_sha256': contract['exclusion_sha256'],
+            'client_validation': 'passed'}
+
+
+def publish_receipt(sid, tree, contract, env):
+    receipt = completion_receipt(sid, tree, contract)
+    # A separate append-only snapshot commits completion AFTER all client checks.
+    # Never tag/rewrite the home snapshot or mutate an existing repository object.
+    restic('--retry-lock', '15m', 'backup', '--json', '--host', contract['hostname'],
+           '--stdin', '--stdin-filename', f'{RECEIPT_ROOT}/{sid}.json',
+           input_bytes=json.dumps(receipt, sort_keys=True).encode(), env=env)
+
+
+def restic(*args, env=None, input_bytes=None):
     command = [os.environ.get('WORKSTATION_RESTIC', '/usr/local/bin/restic'), *map(str, args)]
-    return subprocess.run(command, env=env, check=True, stdout=subprocess.PIPE).stdout
+    return subprocess.run(command, env=env, input=input_bytes, check=True, stdout=subprocess.PIPE).stdout
 
 
 def enroll(args):
     records, _ = inventory(args.home, patterns(args.excludes))
     measured = {p: totals(records, p) for p in ('', 'Documents/')}
-    value = {'contract': f'workstation-{args.host}-v1', 'hostname': args.host,
+    value = {'contract': f'workstation-{args.host}-v{args.contract_version}', 'hostname': args.host,
              'enrollment_status': 'measured-unreleased',
              'source_roots': [str(Path(args.home).absolute())],
              'exclusion_sha256': digest(Path(args.excludes).read_bytes()),
@@ -214,6 +276,7 @@ def enroll(args):
              'kdbx_path': database_path(records, args.home),
              'measured': measured,
              'floors': {p: {k: math.ceil(n * .8) for k, n in m.items()} for p, m in measured.items()},
+             'churn_tolerance': churn_tolerance(measured['']['files'], database_path(records, args.home)),
              'kdbx_minimum_bytes': 102400, 'shrink_baseline_samples': 7,
              'maximum_shrink_percent': 20,
              'measured_at': dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -237,6 +300,7 @@ def backup(config, state):
         raise ValueError('client identity differs from released contract')
     if not restic('version').decode().startswith('restic 0.19.1 '):
         raise ValueError('Restic 0.19.1 is required')
+    since = time.time()
     records, omissions = inventory(home, patterns(excludes))
     check_floors(records, contract)
     manifest = {'contract': contract['contract'], 'exclusion_sha256': contract['exclusion_sha256'],
@@ -266,8 +330,20 @@ def backup(config, state):
     nodes = [json.loads(line) for line in restic('ls', '--json', sid, env=env).splitlines()]
     attach_link_targets(nodes, nodes[0]['tree'], lambda tree: json.loads(restic('cat', 'blob', tree, env=env)))
     actual = snapshot_records(nodes, str(home), str(home / MANIFEST))
-    if actual != records:
-        raise ValueError(f'snapshot {sid} differs from inventory; success not advanced')
+    paths = drift(records, actual)
+    try:
+        check_drift(paths, contract)
+    except ValueError as error:
+        raise ValueError(f'snapshot {sid} differs from inventory ({error}); success not advanced') from error
+    # The server re-checks these bounds but cannot see the live filesystem.
+    missing = unexplained(paths, home, since)
+    if missing:
+        raise ValueError(f'snapshot {sid} differs from inventory at {len(missing)} paths not changed '
+                         f'during backup, first {missing[0]!r}; success not advanced')
+    if paths:
+        print(f'backup: snapshot {sid} accepted {len(paths)} paths changed during backup', file=sys.stderr)
+    if contract.get('churn_tolerance'):
+        publish_receipt(sid, nodes[0]['tree'], contract, env)
     return sid
 
 
@@ -356,6 +432,8 @@ def main():
     measure.add_argument('--host', choices=['ryze', 'm5c'], required=True)
     measure.add_argument('--home', default=str(Path.home()))
     measure.add_argument('--excludes', required=True)
+    measure.add_argument('--contract-version', type=int, required=True,
+                         help='next unreleased version; released contracts are immutable')
     measure.add_argument('--output', required=True)
     run = sub.add_parser('daily')
     run.add_argument('--config', default=str(Path.home() / '.config/workstation-backup/config.json'))

@@ -1,5 +1,5 @@
-# Staged package: enrollment replaces pending contracts and adds SOPS resources.
-# Add this directory to ../kustomization.yaml only at the attended deployment gate.
+# Active via ../kustomization.yaml; its CronJobs stay suspended until the recovery gates pass.
+# Each contract release adds its .json and .excludes to restic-workstation-contracts.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -21,9 +21,12 @@ configMapGenerator:
 - name: restic-workstation-contracts
   namespace: monitoring
   files:
+  # Every released version stays mapped so historical snapshots keep validating.
   - workstation-ryze-v1.json=contracts/workstation-ryze-v1.json
+  - workstation-ryze-v1.excludes=contracts/workstation-ryze-v1.excludes
+  - workstation-ryze-v2.json=contracts/workstation-ryze-v2.json
+  - workstation-ryze-v2.excludes=contracts/workstation-ryze-v2.excludes
   - workstation-m5c-v1.json=contracts/workstation-m5c-v1.json
-  - ryze.excludes=contracts/ryze.excludes
-  - m5c.excludes=contracts/m5c.excludes
+  - workstation-m5c-v1.excludes=contracts/workstation-m5c-v1.excludes
 generatorOptions:
   disableNameSuffixHash: true

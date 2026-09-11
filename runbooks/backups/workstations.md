@@ -1,10 +1,9 @@
 # Workstation enrollment and recovery
 
-Status: implementation staged, **not deployed or enrolled**. Both workstation v1
-contracts are released after measured enrollment gates; vault-v3 remains pending.
-`infrastructure/monitoring/workstations/` is intentionally outside the active monitoring
-Kustomization. Its four CronJobs per host are suspended. Pending contract documents
-are explicit blockers, not usable zero-floor contracts.
+Status: rest-servers deployed, **no host enrolled**. Both workstation v1 contracts
+are released; ryze's v2 contract is released in git, pending deployment and client installation. `infrastructure/monitoring/workstations/`
+is in the active monitoring Kustomization with all four CronJobs per host suspended.
+ryze's repositories are initialized; m5c's are not. vault-v3 remains pending.
 
 | Host | NAS cap | B2 ceiling | Client schedule | Documents |
 | --- | ---: | ---: | --- | --- |
@@ -15,7 +14,8 @@ Python 3.11+ and checksum-verified Restic 0.19.1 are required on clients. The Ma
 uses `/opt/homebrew/bin/python3`; verify that exact executable's Full Disk Access
 through launchd. It runs on battery and does not schedule wakes. Missed work is
 checked on login/wake and retried while awake. Backup and upload success are separate;
-Restic exit 3, permission failures, and manifest mismatch do not advance backup success.
+Restic exit 3, permission failures, and unexplained or out-of-bounds manifest drift do not
+advance backup success.
 
 ## Scope and preflight
 
@@ -38,7 +38,8 @@ source policy. A bare glob matches any path component; a rule containing `/` is 
 anchored home-relative subtree pattern, with each component matched separately
 (wildcards cannot cross `/`). The client resolves exclusions to escaped absolute
 Restic exclusions, skips cache-tagged directories and mounted filesystems, and
-checks the resulting snapshot listing against the measured manifest. Symlink
+checks the resulting snapshot listing against the pre-backup manifest (see
+[Churn tolerance](#churn-tolerance)). Symlink
 targets are read from authenticated tree blobs because `restic ls --json` omits them.
 Documents must contain included regular files and Dropbox/ccs.kdbx must be a readable
 local regular KDBX of at least 100 KiB. Hidden application state and Mac
@@ -56,10 +57,11 @@ On each host:
 sudo python3 runbooks/backups/workstation-install-restic.py
 python3 host/workstations/workstation.py measure --host ryze \
   --excludes host/ryze/etc/workstation-backup/excludes \
-  --output /tmp/workstation-ryze-v1.measured.json
+  --contract-version N --output /tmp/workstation-ryze-vN.measured.json
 ```
 
-Use `m5c` and its exclusion file on the Mac. Measurement output must be a new path.
+Use `m5c` and its exclusion file on the Mac. Measurement output must be a new path,
+and `N` is the host's next unreleased contract version.
 The proposal fixes source root, logical hostname, exclusion hash, total and Documents
 file/byte measurements, 80% floors, and the fixed KDBX floor. Review logical bytes
 against 50 GB / 20 GB source budgets and actual NAS headroom; do not release a
@@ -80,14 +82,80 @@ OS/version, execution path, timestamp, operator, and any privacy checks in the r
 
 ```sh
 python3 runbooks/backups/workstation-release-contract.py \
-  /tmp/workstation-ryze-v1.measured.json --evidence /tmp/ryze-enrollment-evidence.json
+  /tmp/workstation-ryze-vN.measured.json --evidence /tmp/ryze-enrollment-evidence.json
 ```
 
-The release is written identically to host, cluster, and recovery directories.
-An existing release cannot be overwritten; identical partial releases can resume.
-Replace the matching `*.pending.json` mapping in the staged Kustomization with the
-released file. Keep the canonical script/exclusion mirrors byte-identical; the
-workstation tests enforce this.
+The release writes `workstation-<host>-vN.json` and a frozen copy of the exclusions,
+`workstation-<host>-vN.excludes`, identically to host, cluster, and recovery
+directories. An existing release cannot be overwritten; identical partial releases
+can resume, and vN requires v(N-1) to be released first. Add both files to the
+contracts ConfigMap and never remove a released version. Keep the canonical script
+mirror byte-identical; the workstation tests enforce this and the mappings.
+
+### Contract versions
+
+`host/<host>/etc/workstation-backup/excludes` is the working policy. Released
+versions are immutable, so any exclusion change is a new measurement and the next
+contract version; the client refuses to run when its exclusions differ from its
+installed contract. The installer takes exclusions from the contract's own frozen
+`.excludes` file.
+
+Validation reads the contract named by each snapshot's manifest and applies that
+version's exclusions and floors, so historical snapshots stay verifiable. Every
+released version is pinned in root control state when first loaded (the pre-versioning
+`contract_sha256` becomes the v1 pin); a changed or missing pinned version stops all
+maintenance. The first accepted snapshot of a higher version starts a new shrink
+baseline generation and records a `contract-transition` resolution. A snapshot whose
+version is below the newest accepted one is held as `contract-downgrade`; reinstall
+the current contract on the client and reject the exact held ID.
+
+### Churn tolerance
+
+The client writes its manifest from an inventory taken before Restic runs, so on a
+desktop in use the snapshot normally differs from it. v1 contracts have no
+`churn_tolerance` and still require an exact match. From v2, the release fixes
+`churn_tolerance`: at most `min(1000, 0.5%)` of measured files may differ, and none
+at or under `Documents` or the KDBX path. The server enforces those bounds; it
+measures floors, exclusions and required content from the actual snapshot, and
+requires the manifest's own totals to match its records.
+
+The client additionally requires every differing path to be explained by the live
+filesystem: a changed or added path must have a ctime after the backup started (less
+two seconds of clock slack), and a vanished path must have a surviving ancestor
+changed since then. An unchanged file missing from the snapshot is an omission, so
+success is not advanced. Accepted churn is logged as `accepted N paths changed during
+backup`. A change under Documents or to the KDBX during a run fails that run; the next
+hourly retry repeats it.
+
+After all client checks pass, a tolerant-contract client writes a small encrypted
+completion receipt as a separate append-only Restic snapshot, using the reserved
+path `/.workstation-backup-validation/<full-home-snapshot-id>.json`. Its payload
+binds the exact home snapshot ID, tree ID, contract and exclusion hash. Publishing
+the receipt must succeed before local backup success advances. Strict v1 snapshots
+do not require receipts.
+
+Maintenance independently validates the home snapshot and requires a matching,
+size-bounded receipt before accepting any tolerant-contract snapshot, even one
+with no manifest drift. Missing receipts produce a `client-validation-incomplete`
+hold: no trusted freshness, copying or retention advances. If validation races
+receipt publication, the next validation automatically clears the hold once the
+receipt arrives and all checks pass. A failed or interrupted client run that never
+published a receipt remains held; make a fresh successful backup, then use the
+attended exact-ID rejection procedure for the incomplete snapshot and validate
+again. Do not manufacture receipts for failed runs.
+
+The receipt communicates successful completion by the enrolled client; it cannot
+prove live ctimes against a compromised client. Server-side floors, exclusions,
+required content and churn bounds remain mandatory. Neither tags nor `original`
+fields establish completion. The checked receipt payload and its exact IDs are
+saved in root-owned acceptance state, which also binds any B2 counterpart. Receipts
+are NAS ingestion metadata, are not copied as home backups, and never contribute
+to freshness or retention's time anchor. Normal NAS retention removes validated
+receipts only after their home snapshot is gone; the root-owned acceptance evidence
+survives. Unrecognized receipts are retained for attended inspection.
+
+Deploy the updated maintenance code and install the updated client before making
+the first v2 seed. Existing suspended schedules and native restore gates still apply.
 
 ## Host and credential preparation
 
@@ -329,7 +397,41 @@ is a local directory on the home filesystem with 238 readable regular files and
 537,072,860 bytes (~513 MiB), so it was included in that measured ryze scope. The
 [ryze enrollment evidence](evidence/ryze-enrollment-20260910.json) records this and
 the capacity check. The ryze v1 contract was released on 2026-09-10 from that saved
-measurement, identically in the host, cluster and recovery directories. Both staged
-ConfigMap entries now reference released contracts. Credentials, host preparation,
-deployment, initial backups and native NAS/B2 restore drills remain pending; all
-maintenance CronJobs remain suspended.
+measurement, identically in the host, cluster and recovery directories. Credentials,
+host preparation and deployment were completed later that day (above); initial
+backups and native NAS/B2 restore drills remain pending, and all maintenance CronJobs
+remain suspended.
+
+2026-09-11 deployment and ryze seed attempt. The Tailscale Ingresses stayed without
+an address until HTTPS was enabled on the tailnet; ryze then joined the tailnet with
+`--accept-routes` left false because it is already on the LAN. Both endpoints resolve
+and return 401 unauthenticated over a verifying certificate. The running servers use
+`--append-only` with `--max-size` 161061273600 (ryze) and 107374182400 (m5c), each
+serving only its own hostPath; both NetworkPolicies admit only that host's Tailscale
+proxy and labelled maintenance Jobs on port 8000, and the mount guard passed. Denial
+of unlabelled pods and of cross-host credentials was not re-tested live.
+
+ryze's repositories were initialized from an attended Job at 03:46Z: NAS
+`0bb298b1e54a468d2d911d03cb7b8394dc1dc3540e755b6bee09fb30e412cd98` and B2
+`ee32a7cffd6d8413d11c9fcbceefdc1314b7c92b3900bf87d99fdd9f35d9557d`, both format 2 with
+chunker polynomial `325f7bfd55d179`. The first manual `daily` run wrote NAS snapshot
+`bbff493974095c55e80255b87e2b6313dea2b87c857ba13cc686beb681272e62` but did not advance
+success: 28 of ~648k paths changed during the 11-minute scan (Chrome profile state,
+Klipper history, Dropbox metrics, Claude Code session files and a `git pull` in
+`~/src/home`). The Documents upload succeeded. That snapshot is v1 and will be held
+by the first `validate`; reject that exact ID once a v2 seed exists, then validate
+again within the hour so `ResticWorkstationEnrollmentLost` does not fire. The v2
+exclusions drop regenerable and volatile state (Klipper, kubectl and application
+caches, Claude Code and Codex transcripts and runtime databases), and v2 carries a
+churn tolerance so in-scope files changing mid-backup no longer fail it.
+
+2026-09-11 ryze v2 contract release. The [completed measurement](evidence/ryze-measured-20260911.json)
+at 04:50:20Z contains 525,617 home files / 26,992,623,308 bytes and unchanged
+Documents totals of 538 files / 296,757,693 bytes. The
+[release evidence](evidence/ryze-enrollment-20260911.json) records the exclusion and
+capacity review. The immutable v2 JSON and frozen exclusions are released identically
+in host, cluster and recovery directories and mapped in the contracts ConfigMap.
+The contract permits at most 1,000 changed paths while protecting Documents and
+the KDBX path. Deploy the updated maintenance code and contract, install the updated
+client with v2, and retry the manual seed before proceeding to validation and B2
+copy. No successful v2 seed or native restore is claimed; schedules remain disabled.

@@ -22,6 +22,15 @@ def read_xattr(path, name):
     return os.getxattr(path, name, follow_symlinks=False)
 
 
+def mtime_ns(value):
+    """Restic records nanoseconds; datetime keeps only microseconds, so split them off."""
+    match = re.fullmatch(r'(.+T\d\d:\d\d:\d\d)(?:\.(\d{1,9}))?(Z|[+-]\d\d:\d\d)', value)
+    if not match:
+        raise ValueError('unexpected snapshot mtime: ' + value)
+    seconds = dt.datetime.fromisoformat(match[1] + match[3].replace('Z', '+00:00'))
+    return int(seconds.timestamp()) * 10**9 + int((match[2] or '').ljust(9, '0'))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--snapshot', required=True)
@@ -98,8 +107,8 @@ def main():
                     mode |= permission
             if stat.S_IMODE(info.st_mode) != mode:
                 raise ValueError('restored mode mismatch: ' + node['path'])
-            expected = dt.datetime.fromisoformat(node['mtime'].replace('Z', '+00:00')).timestamp()
-            if abs(info.st_mtime - expected) > .000001:
+            # Allow filesystems that keep only microseconds, never float rounding.
+            if abs(info.st_mtime_ns - mtime_ns(node['mtime'])) >= 1000:
                 raise ValueError('restored mtime mismatch: ' + node['path'])
         verified += 1
     for selected in args.metadata_path:

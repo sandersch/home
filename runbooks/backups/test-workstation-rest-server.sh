@@ -40,6 +40,13 @@ wait_ready
 printf 'healthy fixture\n' >"$fixture/source/file"
 "$restic" backup --host ryze "$fixture/source"
 snapshot="$("$restic" snapshots --json | jq -r '.[0].id')"
+# Completion receipts must work through the same append-only credentials. They
+# create a new snapshot and never require tagging/replacing the home snapshot.
+receipt_path="/.workstation-backup-validation/$snapshot.json"
+printf '{"snapshot_id":"%s","client_validation":"passed"}\n' "$snapshot" |
+  "$restic" backup --host ryze --stdin --stdin-filename "$receipt_path"
+receipt="$("$restic" snapshots --json --path "$receipt_path" | jq -r '.[0].id')"
+[ "$("$restic" dump "$receipt" "$receipt_path" | jq -r '.snapshot_id')" = "$snapshot" ]
 if "$restic" forget "$snapshot"; then
   echo 'append-only endpoint allowed snapshot deletion' >&2
   exit 1
