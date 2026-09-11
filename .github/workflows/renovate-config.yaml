@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: 24
+  RENOVATE_VERSION: 44.32.5
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -28,7 +32,15 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
+
+      # ~/.npm holds npm exec's installed package (_npx) as well as downloaded
+      # tarballs, so a cache hit skips the install entirely.
+      - name: Cache Renovate installation
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: renovate-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.RENOVATE_VERSION }}
 
       - name: Validate Renovate configuration strictly
-        run: npm exec --yes --package=renovate@44.32.5 -- renovate-config-validator --strict renovate.json5
+        run: npm exec --yes --package="renovate@$RENOVATE_VERSION" -- renovate-config-validator --strict renovate.json5
