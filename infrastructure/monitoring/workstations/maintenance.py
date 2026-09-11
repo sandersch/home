@@ -21,10 +21,11 @@ import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
 
-from workstation import atomic, attach_link_targets, check_drift, check_floors, digest, drift, excluded, patterns, read_json, snapshot_records, totals, KDBX
+from workstation import atomic, attach_link_targets, check_drift, check_floors, completion_receipt, digest, drift, excluded, patterns, read_json, snapshot_records, totals, KDBX, RECEIPT_ROOT
 
 ID = re.compile(r'^[0-9a-f]{64}$')
 CONTRACT = re.compile(r'workstation-(?P<host>ryze|m5c)-v(?P<version>[1-9][0-9]*)')
+RECEIPT = re.compile(re.escape(RECEIPT_ROOT) + r'/([0-9a-f]{64})\.json')
 RETENTION = ['--group-by', 'host', '--keep-within', '30d', '--keep-within-daily', '30d',
              '--keep-within-weekly', '84d', '--keep-within-monthly', '12m']
 
@@ -153,7 +154,44 @@ class Manager:
         rows = self.run(destination, 'snapshots', '--json') or []
         if any(not ID.fullmatch(row['id']) for row in rows):
             raise ValueError('snapshot listing contains a non-exact ID')
+        if destination == 'nas':
+            # Receipts are an ingestion handshake, not home backups. Keep them
+            # out of freshness, copy selection and the retention time anchor.
+            self.receipts = {}
+            homes = []
+            for row in rows:
+                paths = row.get('paths', [])
+                match = RECEIPT.fullmatch(paths[0]) if len(paths) == 1 else None
+                if match and row.get('hostname') == self.host:
+                    self.receipts.setdefault(match[1], []).append(row)
+                else:
+                    homes.append(row)
+            rows = homes
         return {row['id']: row for row in rows}
+
+    def client_completion(self, snapshot, name):
+        contract = self.contracts[name][0]
+        if not contract.get('churn_tolerance'):
+            return None
+        expected = completion_receipt(snapshot['id'], snapshot['tree'], contract)
+        receipts = self.receipts.get(snapshot['id'], [])
+        if not receipts:
+            raise ValueError('client-validation-incomplete')
+        verified = []
+        for row in receipts:
+            path, = row['paths']
+            nodes = [json.loads(line) for line in self.run('nas', 'ls', '--json', row['id'], raw=True).splitlines()]
+            records = snapshot_records(nodes, RECEIPT_ROOT, '')
+            record = records.get(path.removeprefix(RECEIPT_ROOT + '/'), {})
+            if (len(records) != 1 or record.get('type') != 'file' or
+                    not 0 < record.get('size', 0) <= 4096):
+                raise ValueError('invalid client completion receipt')
+            if json.loads(self.run('nas', 'dump', row['id'], path, raw=True)) != expected:
+                raise ValueError('client completion receipt identity mismatch')
+            verified.append(row['id'])
+        # Persist the checked payload and exact receipt IDs with acceptance.
+        # B2 copies inherit this root-owned evidence via their exact-ID mapping.
+        return {'receipt_ids': sorted(verified), 'payload': expected}
 
     def content(self, destination, snapshot):
         sid = snapshot['id']
@@ -226,6 +264,7 @@ class Manager:
                 if stamp > time.time() + 600 or stamp < self.state['highwater'] - 600:
                     raise ValueError('snapshot-time-invalid')
                 name, measured = self.content('nas', row)
+                completion = self.client_completion(row, name)
                 current = self.state.get('contract', f'workstation-{self.host}-v1')
                 if version(name) < version(current):
                     raise ValueError('contract-downgrade')
@@ -255,6 +294,8 @@ class Manager:
                     self.state['contract'] = name
                 self.state['accepted'][sid] = {'time': stamp, 'measured': measured, 'contract': name,
                     'tree': row['tree'], 'generation': self.state['generation']}
+                if completion is not None:
+                    self.state['accepted'][sid]['client_completion'] = completion
                 self.state['highwater'] = max(self.state['highwater'], stamp)
                 self.state['baseline'] = (self.state['baseline'] + [measured])[-7:]
                 self.state['holds'].pop('nas:' + sid, None)
@@ -343,7 +384,8 @@ class Manager:
             raise ValueError('destination content differs')
 
     def candidates(self, destination):
-        result = self.run(destination, 'forget', '--dry-run', '--json', *RETENTION)
+        result = self.run(destination, 'forget', '--dry-run', '--json',
+                          '--host', self.host, '--path', self.contract['source_roots'][0], *RETENTION)
         ids = [s['id'] for group in result or [] for s in (group.get('remove') or [])]
         if any(not ID.fullmatch(sid) for sid in ids):
             raise ValueError('retention returned a non-exact ID')
@@ -406,6 +448,18 @@ class Manager:
             self.validate_pair(source[sid], destination[counterpart])
             mount_guard()
             self.run('nas', 'forget', '--group-by', 'host', sid, raw=True)
+        # The accepted control record retains the receipt payload. Delete only
+        # its validated receipt IDs after the associated home snapshot is gone;
+        # interrupted cleanup resumes on the next prune. Unknown receipts stay.
+        remaining = self.listing('nas')
+        for sid, accepted in self.state['accepted'].items():
+            if sid in remaining:
+                continue
+            present = {row['id'] for row in self.receipts.get(sid, [])}
+            for receipt_id in accepted.get('client_completion', {}).get('receipt_ids', []):
+                if receipt_id in present:
+                    mount_guard()
+                    self.run('nas', 'forget', '--group-by', 'host', receipt_id, raw=True)
         # Persist a recount obligation BEFORE filesystem pruning; interruption
         # anywhere afterwards will repeat the restart before success is emitted.
         self.run('nas', 'prune', raw=True)

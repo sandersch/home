@@ -12,6 +12,7 @@ import math
 import os
 from pathlib import Path, PurePosixPath
 import platform
+import re
 import stat
 import subprocess
 import sys
@@ -19,6 +20,7 @@ import tempfile
 import time
 
 MANIFEST = '.workstation-backup-manifest.json'
+RECEIPT_ROOT = '/.workstation-backup-validation'
 KDBX = bytes.fromhex('03d9a29a67fb4bb5')
 # ctime comes from a coarse kernel clock; allow for it when explaining churn.
 CLOCK_SLACK = 2
@@ -240,9 +242,26 @@ def unexplained(paths, home, since):
     return result
 
 
-def restic(*args, env=None):
+def completion_receipt(sid, tree, contract):
+    if not re.fullmatch('[0-9a-f]{64}', sid) or not re.fullmatch('[0-9a-f]{64}', tree):
+        raise ValueError('completion receipt requires exact snapshot and tree IDs')
+    return {'schema': 1, 'snapshot_id': sid, 'tree': tree,
+            'contract': contract['contract'], 'exclusion_sha256': contract['exclusion_sha256'],
+            'client_validation': 'passed'}
+
+
+def publish_receipt(sid, tree, contract, env):
+    receipt = completion_receipt(sid, tree, contract)
+    # A separate append-only snapshot commits completion AFTER all client checks.
+    # Never tag/rewrite the home snapshot or mutate an existing repository object.
+    restic('--retry-lock', '15m', 'backup', '--json', '--host', contract['hostname'],
+           '--stdin', '--stdin-filename', f'{RECEIPT_ROOT}/{sid}.json',
+           input_bytes=json.dumps(receipt, sort_keys=True).encode(), env=env)
+
+
+def restic(*args, env=None, input_bytes=None):
     command = [os.environ.get('WORKSTATION_RESTIC', '/usr/local/bin/restic'), *map(str, args)]
-    return subprocess.run(command, env=env, check=True, stdout=subprocess.PIPE).stdout
+    return subprocess.run(command, env=env, input=input_bytes, check=True, stdout=subprocess.PIPE).stdout
 
 
 def enroll(args):
@@ -323,6 +342,8 @@ def backup(config, state):
                          f'during backup, first {missing[0]!r}; success not advanced')
     if paths:
         print(f'backup: snapshot {sid} accepted {len(paths)} paths changed during backup', file=sys.stderr)
+    if contract.get('churn_tolerance'):
+        publish_receipt(sid, nodes[0]['tree'], contract, env)
     return sid
 
 

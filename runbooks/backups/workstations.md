@@ -127,6 +127,36 @@ success is not advanced. Accepted churn is logged as `accepted N paths changed d
 backup`. A change under Documents or to the KDBX during a run fails that run; the next
 hourly retry repeats it.
 
+After all client checks pass, a tolerant-contract client writes a small encrypted
+completion receipt as a separate append-only Restic snapshot, using the reserved
+path `/.workstation-backup-validation/<full-home-snapshot-id>.json`. Its payload
+binds the exact home snapshot ID, tree ID, contract and exclusion hash. Publishing
+the receipt must succeed before local backup success advances. Strict v1 snapshots
+do not require receipts.
+
+Maintenance independently validates the home snapshot and requires a matching,
+size-bounded receipt before accepting any tolerant-contract snapshot, even one
+with no manifest drift. Missing receipts produce a `client-validation-incomplete`
+hold: no trusted freshness, copying or retention advances. If validation races
+receipt publication, the next validation automatically clears the hold once the
+receipt arrives and all checks pass. A failed or interrupted client run that never
+published a receipt remains held; make a fresh successful backup, then use the
+attended exact-ID rejection procedure for the incomplete snapshot and validate
+again. Do not manufacture receipts for failed runs.
+
+The receipt communicates successful completion by the enrolled client; it cannot
+prove live ctimes against a compromised client. Server-side floors, exclusions,
+required content and churn bounds remain mandatory. Neither tags nor `original`
+fields establish completion. The checked receipt payload and its exact IDs are
+saved in root-owned acceptance state, which also binds any B2 counterpart. Receipts
+are NAS ingestion metadata, are not copied as home backups, and never contribute
+to freshness or retention's time anchor. Normal NAS retention removes validated
+receipts only after their home snapshot is gone; the root-owned acceptance evidence
+survives. Unrecognized receipts are retained for attended inspection.
+
+Deploy the updated maintenance code and install the updated client before making
+the first v2 seed. Existing suspended schedules and native restore gates still apply.
+
 ## Host and credential preparation
 
 The operator confirmed m5c's static IP assignment at `10.137.30.7` on 2026-09-10;

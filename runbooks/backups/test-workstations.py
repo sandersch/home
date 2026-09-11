@@ -181,6 +181,18 @@ class RepositoryTests(unittest.TestCase):
         self.contract['churn_tolerance'] = {'maximum_paths': maximum,
                                             'protected_paths': ['Documents', 'Dropbox/ccs.kdbx']}
 
+    def receipt(self, sid, payload=None, when=None):
+        row = self.manager.listing('nas')[sid]
+        payload = payload or client.completion_receipt(sid, row['tree'], self.contract)
+        args = ['backup', '--json', '--host', 'ryze', '--stdin',
+                '--stdin-filename', f'{client.RECEIPT_ROOT}/{sid}.json']
+        if when:
+            args += ['--time', when]
+        output = subprocess.check_output([RESTIC, '--no-cache', *args],
+            input=json.dumps(payload).encode(), env={**os.environ, **self.manager.credentials['nas']})
+        return next(json.loads(line)['snapshot_id'] for line in output.splitlines()
+                    if json.loads(line).get('message_type') == 'summary')
+
     def test_strict_contract_holds_any_churn(self):
         sid = self.snapshot(churn=lambda: (self.home / '.hidden').write_text('changed state'))
         self.manager.validate()
@@ -193,6 +205,7 @@ class RepositoryTests(unittest.TestCase):
             (self.home / '.hidden').write_text('changed state')
             (self.home / 'new-during-backup').write_text('x' * 10)
         sid = self.snapshot(churn=churn)
+        self.receipt(sid)
         self.manager.validate()
         self.assertIn(sid, self.manager.state['accepted'])
         # Measurements come from the snapshot, not the stale manifest.
@@ -210,6 +223,7 @@ class RepositoryTests(unittest.TestCase):
                  lambda: (self.home / 'Dropbox/ccs.kdbx').write_bytes(client.KDBX + b'\0' * 102500))):
             with self.subTest(reason=reason):
                 sid = self.snapshot(churn=churn)
+                self.receipt(sid)
                 self.manager.validate()
                 self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'], reason)
                 self.manager.reject(sid, 'fixture churn', 'nas')
@@ -221,6 +235,7 @@ class RepositoryTests(unittest.TestCase):
             manifest['measured']['files'] += 1
             client.atomic(self.home / client.MANIFEST, manifest)
         sid = self.snapshot(churn=forge)
+        self.receipt(sid)
         self.manager.validate()
         self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'], 'manifest totals are inconsistent')
 
@@ -237,10 +252,10 @@ class RepositoryTests(unittest.TestCase):
         config = {'host': 'ryze', 'contract': str(contract), 'excludes': str(excludes),
                   'credentials': str(credentials)}
         real = client.restic
-        def restic(*args, env=None):
-            if args and args[0] == '--retry-lock':
+        def restic(*args, env=None, input_bytes=None):
+            if args and args[0] == '--retry-lock' and '--stdin' not in args:
                 args = during_backup(list(args))
-            return real(*args, env=env)
+            return real(*args, env=env, input_bytes=input_bytes)
         state = self.base / 'client-state'
         state.mkdir()
         with patch.object(Path, 'home', return_value=self.home), patch.object(client, 'restic', restic), \
@@ -260,12 +275,103 @@ class RepositoryTests(unittest.TestCase):
 
     def test_client_rejects_unexplained_omission(self):
         self.tolerate(5)
+        (self.home / 'spare').write_text('keeps actual totals above the released floor')
         time.sleep(0.05)
         def during_backup(args):
             # Restic silently skips an unchanged file: the manifest has it, the snapshot does not.
             return args[:-1] + ['--exclude', str(self.home / '.hidden'), args[-1]]
         with self.assertRaisesRegex(ValueError, "1 paths not changed during backup, first '.hidden'"):
             self.client_backup(during_backup)
+        sid, = self.manager.listing('nas')
+        # This passes independent content checks; the missing completion is the
+        # only reason the server must not accept/copy it or advance freshness.
+        self.manager.content('nas', self.manager.listing('nas')[sid])
+        self.assertEqual(self.manager.receipts, {})
+        for operation in (self.manager.copy, self.manager.prune, self.manager.check):
+            with self.assertRaisesRegex(ValueError, 'unresolved validation holds'):
+                operation()
+        self.assertEqual(self.manager.state['accepted'], {})
+        self.assertEqual(self.manager.state['copies'], {})
+        self.assertEqual(self.manager.state['highwater'], 0)
+        self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'], 'client-validation-incomplete')
+
+    def test_receipt_required_even_without_drift_and_late_completion_recovers(self):
+        self.tolerate(5)
+        sid = self.snapshot()
+        self.manager.validate()
+        self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'], 'client-validation-incomplete')
+        receipt = self.receipt(sid)
+        self.manager.copy()
+        self.assertFalse(self.manager.state['holds'])
+        self.assertEqual(set(self.manager.state['accepted']), {sid})
+        self.assertEqual(self.manager.state['accepted'][sid]['client_completion']['receipt_ids'], [receipt])
+        self.assertEqual(len(self.manager.listing('b2')), 1)
+
+    def test_receipt_identity_cannot_be_replayed(self):
+        self.tolerate(5)
+        sid = self.snapshot()
+        row = self.manager.listing('nas')[sid]
+        for field, value in [('snapshot_id', 'a' * 64), ('tree', 'b' * 64),
+                             ('contract', 'workstation-ryze-v999'), ('exclusion_sha256', 'wrong'),
+                             ('client_validation', 'failed')]:
+            with self.subTest(field=field):
+                payload = client.completion_receipt(sid, row['tree'], self.contract)
+                payload[field] = value
+                receipt = self.receipt(sid, payload)
+                self.manager.validate()
+                self.assertNotIn(sid, self.manager.state['accepted'])
+                self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'],
+                                 'client completion receipt identity mismatch')
+                self.manager.run('nas', 'forget', receipt, raw=True)
+
+    def test_receipt_upload_failure_does_not_complete_backup(self):
+        self.tolerate(5)
+        with patch.object(client, 'publish_receipt', side_effect=subprocess.CalledProcessError(1, 'receipt')):
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.client_backup(lambda args: args)
+        self.manager.validate()
+        self.assertFalse(self.manager.state['accepted'])
+        self.assertEqual(next(iter(self.manager.state['holds'].values()))['reason'],
+                         'client-validation-incomplete')
+
+    def test_oversized_receipt_is_not_dumped_or_accepted(self):
+        self.tolerate(5)
+        sid = self.snapshot()
+        receipt = self.receipt(sid, {'padding': 'x' * 4096})
+        self.manager.commands.clear()
+        self.manager.validate()
+        self.assertFalse(self.manager.state['accepted'])
+        self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'],
+                         'invalid client completion receipt')
+        self.assertFalse(any(args[:2] == ('dump', receipt) for _, args in self.manager.commands))
+
+    def test_receipts_do_not_anchor_retention_and_cleanup_is_resumable(self):
+        self.tolerate(5)
+        sid = self.snapshot()
+        before = self.manager.candidates('nas')
+        receipt = self.receipt(sid, when='2099-01-01 12:00:00')
+        self.assertEqual(self.manager.candidates('nas'), before)
+        self.manager.copy()
+        self.assertEqual(set(self.manager.state['accepted']), {sid})
+        self.assertNotIn(receipt, self.manager.listing('nas'))
+        original_run = self.manager.run
+        def interrupt_cleanup(destination, *args, **kwargs):
+            if args[0] == 'forget' and args[-1] == receipt:
+                raise ValueError('interrupted receipt cleanup')
+            return original_run(destination, *args, **kwargs)
+        with patch.object(server, 'mount_guard'), patch.object(self.manager, 'candidates',
+                side_effect=lambda destination: [sid] if destination == 'nas' else []), \
+                patch.object(self.manager, 'run', side_effect=interrupt_cleanup):
+            with self.assertRaisesRegex(ValueError, 'interrupted receipt cleanup'):
+                self.manager.prune()
+        self.assertNotIn(sid, self.manager.listing('nas'))
+        self.assertTrue(self.manager.state['recount_required'])
+        with patch.object(server, 'mount_guard'), patch.object(self.manager, 'candidates', return_value=[]):
+            self.manager.prune()
+        all_nas = self.manager.run('nas', 'snapshots', '--json')
+        self.assertNotIn(receipt, {row['id'] for row in all_nas})
+        self.assertTrue(self.manager.listing('b2'))
+        self.assertFalse(self.manager.state['recount_required'])
 
     def test_unreleased_contract_name_is_held(self):
         self.contract['contract'] = 'workstation-ryze-v2'
