@@ -1,0 +1,70 @@
+# Slash rules are home-relative subtrees; bare globs match any component.
+.cache
+.local/state/workstation-backup
+.config/workstation-backup
+.config/vault-ingest
+.local/share/Trash
+.local/share/Steam
+.steam
+# Zoom IPC pipes are runtime endpoints, not file contents.
+com.zoom.ipc.*
+.local/share/containers
+.local/share/docker
+.docker
+# Downloaded Dropbox runtime, not the .dropbox account state or Dropbox data.
+.dropbox-dist
+Downloads
+node_modules
+.venv
+venv
+__pycache__
+.tox
+.gradle
+target
+build
+dist
+.next
+.npm
+.cargo/registry
+.rustup/toolchains
+.local/share/virtualenvs
+.local/share/JetBrains/Toolbox
+restore-scratch
+.restore-tests
+*.iso
+*.AppImage
+# Clipboard history: volatile, and it retains copied secrets.
+.local/share/klipper
+.kube/cache
+.dropbox/metrics
+# Browser-downloaded data sets; the profile itself stays in scope.
+.config/google-chrome/Safe Browsing
+.config/google-chrome/segmentation_platform
+# Discord re-syncs from its servers; *Cache covers Cache, GPUCache, Code Cache and Dawn caches.
+.config/discord/*Cache
+.config/discord/logs
+# Claude Code: session transcripts and runtime state. Memory, settings and plans stay.
+.claude/projects/*/*.jsonl
+.claude/projects/*/????????-????-????-????-????????????
+.claude/backups
+.claude/file-history
+.claude/plugins/marketplaces
+.claude/cache
+.claude/paste-cache
+.claude/session-env
+.claude/sessions
+.claude/shell-snapshots
+# Codex: session transcripts, logs and runtime databases. Memories, rules and skills stay.
+.codex/sessions
+.codex/logs_*.sqlite*
+.codex/state_*.sqlite*
+.codex/thread_history_*.sqlite*
+.codex/goals_*.sqlite*
+.codex/queue_*.sqlite*
+.codex/shell_snapshots
+.codex/thread-writer-locks
+.codex/cache
+.codex/plugins/cache
+.codex/models_cache.json
+.codex/tmp
+.codex/.tmp

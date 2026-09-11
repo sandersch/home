@@ -1,7 +1,7 @@
 # Workstation enrollment and recovery
 
 Status: rest-servers deployed, **no host enrolled**. Both workstation v1 contracts
-are released; ryze's v2 contract awaits release. `infrastructure/monitoring/workstations/`
+are released; ryze's v2 contract is released in git, pending deployment and client installation. `infrastructure/monitoring/workstations/`
 is in the active monitoring Kustomization with all four CronJobs per host suspended.
 ryze's repositories are initialized; m5c's are not. vault-v3 remains pending.
 
@@ -424,3 +424,14 @@ again within the hour so `ResticWorkstationEnrollmentLost` does not fire. The v2
 exclusions drop regenerable and volatile state (Klipper, kubectl and application
 caches, Claude Code and Codex transcripts and runtime databases), and v2 carries a
 churn tolerance so in-scope files changing mid-backup no longer fail it.
+
+2026-09-11 ryze v2 contract release. The [completed measurement](evidence/ryze-measured-20260911.json)
+at 04:50:20Z contains 525,617 home files / 26,992,623,308 bytes and unchanged
+Documents totals of 538 files / 296,757,693 bytes. The
+[release evidence](evidence/ryze-enrollment-20260911.json) records the exclusion and
+capacity review. The immutable v2 JSON and frozen exclusions are released identically
+in host, cluster and recovery directories and mapped in the contracts ConfigMap.
+The contract permits at most 1,000 changed paths while protecting Documents and
+the KDBX path. Deploy the updated maintenance code and contract, install the updated
+client with v2, and retry the manual seed before proceeding to validation and B2
+copy. No successful v2 seed or native restore is claimed; schedules remain disabled.

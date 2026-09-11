@@ -1,0 +1,74 @@
+{
+  "churn_tolerance": {
+    "maximum_paths": 1000,
+    "protected_paths": [
+      "Documents",
+      "Dropbox/ccs.kdbx"
+    ]
+  },
+  "contract": "workstation-ryze-v2",
+  "enrollment_evidence": {
+    "capacity_reviewed": true,
+    "exclusion_sha256": "58d6d276a49a54b35c4b0eec5e11b491bcb2682139a7f51408b68770b23ac8cf",
+    "host": "ryze",
+    "inventory_reviewed": true,
+    "measured": {
+      "": {
+        "bytes": 26992623308,
+        "files": 525617
+      },
+      "Documents/": {
+        "bytes": 296757693,
+        "files": 538
+      }
+    },
+    "measured_at": "2026-09-11T04:50:20.647258+00:00",
+    "notes": [
+      "Operator supplied completed v2 measurement and explicitly authorized release on 2026-09-11.",
+      "Reviewed exclusions against released v1: added exclusions cover regenerable caches, clipboard history, and assistant transcripts/runtime state; Documents and GDrive remain in scope.",
+      "Home scope decreased from 552840 files / 27921624561 bytes to 525617 files / 26992623308 bytes; Documents remains 538 files / 296757693 bytes.",
+      "Capacity review uses the 2026-09-10 attended evidence of 758 GiB free on the expected NAS ext4 volume and the smaller v2 scope, below the 50 GB source budget and 150 GiB NAS cap; no fresh NAS free-space check is claimed.",
+      "Completed measurement reads every included regular file and checks required Documents and local KDBX readability. Prior GDrive location/readability evidence remains in ryze-enrollment-20260910.json.",
+      "This releases the contract only; no successful v2 backup, restore, deployment, or schedule activation is claimed."
+    ],
+    "platform": "Linux",
+    "required_content_readable": true
+  },
+  "enrollment_status": "released",
+  "exclusion_sha256": "58d6d276a49a54b35c4b0eec5e11b491bcb2682139a7f51408b68770b23ac8cf",
+  "floors": {
+    "": {
+      "bytes": 21594098647,
+      "files": 420494
+    },
+    "Documents/": {
+      "bytes": 237406155,
+      "files": 431
+    }
+  },
+  "hostname": "ryze",
+  "kdbx_minimum_bytes": 102400,
+  "kdbx_path": "Dropbox/ccs.kdbx",
+  "manifest": "/home/charlie/.workstation-backup-manifest.json",
+  "maximum_shrink_percent": 20,
+  "measured": {
+    "": {
+      "bytes": 26992623308,
+      "files": 525617
+    },
+    "Documents/": {
+      "bytes": 296757693,
+      "files": 538
+    }
+  },
+  "measured_at": "2026-09-11T04:50:20.647258+00:00",
+  "platform": "Linux",
+  "required_content": [
+    "Documents",
+    "Dropbox/ccs.kdbx"
+  ],
+  "shrink_baseline_samples": 7,
+  "source_roots": [
+    "/home/charlie"
+  ]
+}
