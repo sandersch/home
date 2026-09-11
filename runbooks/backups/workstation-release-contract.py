@@ -31,8 +31,9 @@ def main():
         gates += ['fda_launchd_passed', 'icloud_optimize_disabled', 'photos_mail_no_unique_data', 'dropbox_materialized']
     if not all(evidence.get(gate) is True for gate in gates):
         raise ValueError('attended enrollment gates have not passed')
-    scope = ROOT / f'host/{host}/etc/workstation-backup/excludes'
-    if value['exclusion_sha256'] != digest(scope.read_bytes()):
+    # Read once: the hashed bytes are exactly the frozen copy written below.
+    exclusions = (ROOT / f'host/{host}/etc/workstation-backup/excludes').read_bytes()
+    if value['exclusion_sha256'] != digest(exclusions):
         raise ValueError('exclusions changed after measurement')
     directories = [ROOT / f'host/{host}/etc/workstation-backup',
                    ROOT / 'infrastructure/monitoring/workstations/contracts',
@@ -57,7 +58,7 @@ def main():
     outputs = {}
     for directory in directories:
         outputs[directory / f'{value["contract"]}.json'] = content.encode()
-        outputs[directory / f'{value["contract"]}.excludes'] = scope.read_bytes()
+        outputs[directory / f'{value["contract"]}.excludes'] = exclusions
     # Resume a partially completed release only if its bytes are identical.
     for target, text in outputs.items():
         if target.exists() and target.read_bytes() != text:
@@ -66,7 +67,8 @@ def main():
         if not target.exists():
             with target.open('xb') as output:
                 output.write(text)
-    print('Released immutable contracts. Review and commit them, then replace the pending ConfigMap mappings.')
+    print(f'Released immutable contracts. Review and commit them, then add {value["contract"]}.json and '
+          f'{value["contract"]}.excludes to the restic-workstation-contracts ConfigMap.')
 
 
 if __name__ == '__main__':

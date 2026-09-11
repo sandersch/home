@@ -1,5 +1,5 @@
-# Staged package: enrollment replaces pending contracts and adds SOPS resources.
-# Add this directory to ../kustomization.yaml only at the attended deployment gate.
+# Active via ../kustomization.yaml; its CronJobs stay suspended until the recovery gates pass.
+# Each contract release adds its .json and .excludes to restic-workstation-contracts.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
