@@ -57,9 +57,11 @@ completed migration has no allowlist.
 
 `.github/workflows/image-policy.yaml` runs on every pull request and push to `main`.
 It executes the fixtures and inventory, runs `bash -n` and ShellCheck on changed shell
-scripts, renders the application and monitoring Kustomizations, and strictly validates
-the Renovate configuration. After its first successful repository run, make
-`image-policy / validate` a required `main` branch check.
+scripts, and renders the application and monitoring Kustomizations. After its first
+successful repository run, make `image-policy / validate` a required `main` branch check.
+`.github/workflows/renovate-config.yaml` strictly validates the Renovate configuration,
+running only when `renovate.json5` or that workflow (which pins the validator version)
+changes.
 
 ## Renovate proposal policy
 

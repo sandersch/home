@@ -73,9 +73,3 @@ jobs:
       - run: kustomize build apps >/dev/null
       - run: kustomize build infrastructure/monitoring >/dev/null
       - run: kustomize build infrastructure/monitoring/workstations >/dev/null
-
-      - name: Validate Renovate configuration strictly
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-      - run: npm exec --yes --package=renovate@44.32.5 -- renovate-config-validator --strict renovate.json5

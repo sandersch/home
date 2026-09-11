@@ -1,0 +1,46 @@
+name: renovate-config
+
+# The validator result depends only on renovate.json5 and the Renovate version
+# pinned below, so skip the ~30s install when neither changes.
+on:
+  pull_request:
+    paths:
+      - renovate.json5
+      - .github/workflows/renovate-config.yaml
+  push:
+    branches:
+      - main
+    paths:
+      - renovate.json5
+      - .github/workflows/renovate-config.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: 24
+  RENOVATE_VERSION: 44.32.5
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # ~/.npm holds npm exec's installed package (_npx) as well as downloaded
+      # tarballs, so a cache hit skips the install entirely.
+      - name: Cache Renovate installation
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: renovate-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.RENOVATE_VERSION }}
+
+      - name: Validate Renovate configuration strictly
+        run: npm exec --yes --package="renovate@$RENOVATE_VERSION" -- renovate-config-validator --strict renovate.json5
