@@ -20,7 +20,7 @@ docker run -d --name "$container" --user "$(id -u):$(id -g)" \
   -v "$fixture/htpasswd:/authentication/htpasswd:ro" \
   --entrypoint /usr/bin/rest-server "$image" --path /repository \
   --listen :8000 --htpasswd-file /authentication/htpasswd --append-only \
-  --max-size 1048576 >/dev/null
+  --max-size 8388608 >/dev/null
 port="$(docker port "$container" 8000/tcp | cut -d: -f2)"
 endpoint="http://127.0.0.1:$port"
 export RESTIC_PASSWORD=disposable-fixture-encryption-password
@@ -46,8 +46,10 @@ if "$restic" forget "$snapshot"; then
 fi
 [ "$(curl -s -o /dev/null -w '%{http_code}' -u m5c:wrong "$endpoint/config")" = 401 ]
 [ "$(curl -s -o /dev/null -w '%{http_code}' -u ryze:fixture-http-password -X DELETE "$endpoint/config")" = 403 ]
-# Incompressible data exhausts the one-MiB fixture quota.
-dd if=/dev/urandom of="$fixture/source/large" bs=1048576 count=2 status=none
+# Recount includes directory sizes: Restic's 256 pack directories alone can
+# exceed one MiB on ext4. Leave room for that metadata while still testing a
+# payload larger than the eight-MiB quota.
+dd if=/dev/urandom of="$fixture/source/large" bs=1048576 count=16 status=none
 if "$restic" backup --host ryze "$fixture/source"; then
   echo 'quota unexpectedly accepted an oversized backup' >&2
   exit 1
