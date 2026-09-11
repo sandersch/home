@@ -4,7 +4,9 @@ set -Eeuo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 [ "$(hostname -s)" = minis ] || { echo 'run on minis' >&2; exit 1; }
 [ -t 0 ] || { echo 'attended terminal required' >&2; exit 1; }
-identity="$(findmnt -rn -o SOURCE,FSTYPE --mountpoint /mnt/backups)"
+# Activate the automount, then inspect only its real backing filesystem.
+timeout 20 stat /mnt/backups/.backup-sentinel >/dev/null
+identity="$(findmnt -rn --real -o SOURCE,FSTYPE --mountpoint /mnt/backups)"
 [ "$identity" = '/dev/mapper/hoardvg-backuplv ext4' ] \
   || { echo 'backup mount identity mismatch' >&2; exit 1; }
 [ "$(sudo stat -c '%u:%g:%a' /mnt/backups/.backup-sentinel)" = 0:0:444 ] \
