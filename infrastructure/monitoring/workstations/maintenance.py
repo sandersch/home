@@ -24,6 +24,7 @@ import xml.etree.ElementTree as ET
 from workstation import atomic, attach_link_targets, check_floors, digest, excluded, patterns, read_json, snapshot_records, totals, KDBX
 
 ID = re.compile(r'^[0-9a-f]{64}$')
+CONTRACT = re.compile(r'workstation-(?P<host>ryze|m5c)-v(?P<version>[1-9][0-9]*)')
 RETENTION = ['--group-by', 'host', '--keep-within', '30d', '--keep-within-daily', '30d',
              '--keep-within-weekly', '84d', '--keep-within-monthly', '12m']
 
@@ -33,6 +34,53 @@ def timestamp(value):
     if parsed.tzinfo is None:
         raise ValueError('snapshot timestamp lacks timezone')
     return parsed.timestamp()
+
+
+def version(name):
+    match = CONTRACT.fullmatch(name)
+    if not match:
+        raise ValueError('unexpected workstation contract name')
+    return int(match['version'])
+
+
+def load_contracts(host, directory):
+    """Return every released version as {name: (contract, rules, sha256)}."""
+    contracts = {}
+    for path in sorted(Path(directory).glob(f'workstation-{host}-v*.json')):
+        name = path.stem
+        version(name)
+        contract = read_json(path)
+        rules_file = path.with_suffix('.excludes')
+        if (contract.get('contract') != name or contract.get('hostname') != host or
+                CONTRACT.fullmatch(name)['host'] != host):
+            raise ValueError(f'contract identity mismatch: {name}')
+        if contract.get('enrollment_status') != 'released':
+            raise ValueError(f'measured contract has not been released: {name}')
+        if digest(rules_file.read_bytes()) != contract['exclusion_sha256']:
+            raise ValueError(f'released contract/exclusion identity mismatch: {name}')
+        contracts[name] = (contract, patterns(rules_file), digest(path.read_bytes()))
+    if not contracts:
+        raise ValueError('no released contract')
+    versions = sorted(version(name) for name in contracts)
+    if versions != list(range(1, len(versions) + 1)):
+        raise ValueError('released contract versions must be contiguous from v1')
+    # Accepted snapshot identity and the manifest location span all versions.
+    if len({(json.dumps(c['source_roots']), c['manifest']) for c, _, _ in contracts.values()}) != 1:
+        raise ValueError('contract versions disagree on source root or manifest')
+    return contracts
+
+
+def pin_contracts(state, host, contracts):
+    """Pin each released version the first time it is trusted; never repin."""
+    pinned = state.setdefault('contracts', {})
+    # The pre-versioning single pin is the v1 hash.
+    if 'contract_sha256' in state:
+        pinned.setdefault(f'workstation-{host}-v1', state.pop('contract_sha256'))
+    for name, (_, _, contract_hash) in contracts.items():
+        if pinned.setdefault(name, contract_hash) != contract_hash:
+            raise ValueError(f'released contract {name} differs from trusted enrollment state')
+    if set(pinned) - set(contracts):
+        raise ValueError('a trusted released contract is missing')
 
 
 def mount_guard(root='/repo/nas', mountinfo='/proc/self/mountinfo'):
@@ -81,17 +129,9 @@ class Manager:
             'accepted': {}, 'rejected': {}, 'holds': {}, 'copies': {}, 'pending': [],
             'generation': 1, 'baseline': [], 'highwater': 0, 'prune_success': 0,
             'copy_success': 0, 'check_success': {}, 'validation_success': 0}
-        self.contract = read_json(contracts / f'workstation-{host}-v1.json')
-        if self.contract.get('enrollment_status') != 'released':
-            raise ValueError('measured contract has not been released')
-        self.rules_file = contracts / (host + '.excludes')
-        self.rules = patterns(self.rules_file)
-        if self.contract['hostname'] != host or digest(self.rules_file.read_bytes()) != self.contract['exclusion_sha256']:
-            raise ValueError('released contract/exclusion identity mismatch')
-        contract_hash = digest((contracts / f'workstation-{host}-v1.json').read_bytes())
-        if self.state.get('contract_sha256', contract_hash) != contract_hash:
-            raise ValueError('released contract differs from trusted enrollment state')
-        self.state['contract_sha256'] = contract_hash
+        self.contracts = load_contracts(host, contracts)
+        pin_contracts(self.state, host, self.contracts)
+        self.contract, self.rules, _ = self.contracts[max(self.contracts, key=version)]
         self.credentials = read_json('/credentials/maintenance.json')
 
     def save(self):
@@ -127,12 +167,17 @@ class Manager:
         if len(manifests) != 1 or not 0 < manifests[0]['size'] <= 128 * 1024 * 1024:
             raise ValueError('missing or oversized measured manifest')
         manifest = json.loads(self.run(destination, 'dump', sid, contract['manifest'], raw=True))
-        if manifest['contract'] != contract['contract'] or manifest['exclusion_sha256'] != contract['exclusion_sha256']:
+        # The manifest names its contract; only a released, pinned version with
+        # the same exclusion identity can validate it.
+        if manifest.get('contract') not in self.contracts:
+            raise ValueError('manifest contract drift')
+        contract, rules, _ = self.contracts[manifest['contract']]
+        if manifest['exclusion_sha256'] != contract['exclusion_sha256']:
             raise ValueError('manifest contract drift')
         records = snapshot_records(nodes, home, contract['manifest'])
         if records != manifest['records'] or totals(records) != manifest['measured']:
             raise ValueError('manifest does not match actual snapshot listing')
-        if any(excluded(path, self.rules) for path in records):
+        if any(excluded(path, rules) for path in records):
             raise ValueError('excluded content leaked into snapshot')
         if not any(n.get('path') == home + '/Documents' and n.get('type') == 'dir' for n in nodes):
             raise ValueError('Documents directory is absent')
@@ -145,7 +190,7 @@ class Manager:
             raise ValueError('KDBX exceeds validation bound')
         if not self.run(destination, 'dump', sid, home + '/' + database_path, raw=True).startswith(KDBX):
             raise ValueError('KDBX signature mismatch')
-        return {prefix: totals(records, prefix) for prefix in contract['floors']}
+        return contract['contract'], {prefix: totals(records, prefix) for prefix in contract['floors']}
 
     def hold(self, sid, reason, destination='nas'):
         key = destination + ':' + sid
@@ -178,8 +223,14 @@ class Manager:
                 stamp = timestamp(row['time'])
                 if stamp > time.time() + 600 or stamp < self.state['highwater'] - 600:
                     raise ValueError('snapshot-time-invalid')
-                measured = self.content('nas', row)
-                baseline = self.state['baseline'][-7:]
+                name, measured = self.content('nas', row)
+                current = self.state.get('contract', f'workstation-{self.host}-v1')
+                if version(name) < version(current):
+                    raise ValueError('contract-downgrade')
+                # A released version is a reviewed scope change with its own
+                # measured floors, so its sizes start a new shrink baseline.
+                transition = version(name) > version(current)
+                baseline = [] if transition else self.state['baseline'][-7:]
                 shrink = len(baseline) == 7 and any(
                     measured[p][k] < statistics.median(b[p][k] for b in baseline) * .8
                     for p in measured for k in ('files', 'bytes'))
@@ -193,7 +244,14 @@ class Manager:
                     self.state.setdefault('resolutions', {})[sid] = {
                         'action': 'accept-shrink', 'time': time.time(),
                         'generation': self.state['generation']}
-                self.state['accepted'][sid] = {'time': stamp, 'measured': measured,
+                if transition:
+                    self.state['generation'] += 1
+                    self.state['baseline'] = []
+                    self.state.setdefault('resolutions', {})[sid] = {
+                        'action': 'contract-transition', 'from': current, 'to': name,
+                        'time': time.time(), 'generation': self.state['generation']}
+                    self.state['contract'] = name
+                self.state['accepted'][sid] = {'time': stamp, 'measured': measured, 'contract': name,
                     'tree': row['tree'], 'generation': self.state['generation']}
                 self.state['highwater'] = max(self.state['highwater'], stamp)
                 self.state['baseline'] = (self.state['baseline'] + [measured])[-7:]

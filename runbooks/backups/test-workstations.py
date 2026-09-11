@@ -33,6 +33,7 @@ class FixtureManager(server.Manager):
         self.host = 'ryze'
         self.contract = fixture.contract
         self.rules = ['.cache']
+        self.contracts = {fixture.contract['contract']: (fixture.contract, self.rules, 'fixture')}
         self.state = {'accepted': {}, 'rejected': {}, 'holds': {}, 'copies': {}, 'pending': [],
                       'generation': 1, 'baseline': [], 'highwater': 0, 'prune_success': 0,
                       'copy_success': 0, 'check_success': {}, 'validation_success': 0}
@@ -170,9 +171,55 @@ class RepositoryTests(unittest.TestCase):
 
     def test_contract_drift_is_held(self):
         sid = self.snapshot()
-        self.manager.contract = {**self.contract, 'exclusion_sha256': 'changed'}
+        self.manager.contracts['workstation-ryze-v1'] = ({**self.contract, 'exclusion_sha256': 'changed'}, ['.cache'], 'fixture')
         self.manager.validate()
         self.assertNotIn(sid, self.manager.state['accepted'])
+
+    def test_unreleased_contract_name_is_held(self):
+        self.contract['contract'] = 'workstation-ryze-v2'
+        sid = self.snapshot()
+        self.manager.validate()
+        self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'], 'manifest contract drift')
+
+    def add_version(self, number, rules=('.cache',)):
+        contract = {**self.contract, 'contract': f'workstation-ryze-v{number}'}
+        self.manager.contracts[contract['contract']] = (contract, list(rules), 'fixture')
+        return contract
+
+    def test_contract_upgrade_starts_baseline_and_downgrade_is_held(self):
+        first = self.snapshot()
+        self.manager.state['baseline'] = [{'': {'files': 100, 'bytes': 10000000},
+                                          'Documents/': {'files': 10, 'bytes': 40000}}] * 7
+        self.manager.validate()
+        self.manager.reject(first, 'fixture shrink against synthetic baseline', 'nas')
+        self.contract = self.add_version(2)
+        upgraded = self.snapshot()
+        self.manager.validate()
+        # The same smaller scope is not a shrink under a newly released version.
+        self.assertIn(upgraded, self.manager.state['accepted'])
+        self.assertEqual(self.manager.state['accepted'][upgraded]['contract'], 'workstation-ryze-v2')
+        self.assertEqual(self.manager.state['contract'], 'workstation-ryze-v2')
+        self.assertEqual(self.manager.state['generation'], 2)
+        self.assertEqual(len(self.manager.state['baseline']), 1)
+        self.assertEqual(self.manager.state['resolutions'][upgraded]['action'], 'contract-transition')
+        self.contract = self.manager.contracts['workstation-ryze-v1'][0]
+        downgraded = self.snapshot()
+        self.manager.validate()
+        self.assertEqual(self.manager.state['holds']['nas:' + downgraded]['reason'], 'contract-downgrade')
+        self.assertEqual(self.manager.state['contract'], 'workstation-ryze-v2')
+
+    def test_each_version_applies_its_own_exclusions(self):
+        (self.home / 'volatile').mkdir()
+        (self.home / 'volatile/state').write_text('churn')
+        v1 = self.snapshot()
+        self.manager.validate()
+        self.assertIn(v1, self.manager.state['accepted'])
+        # v2 excludes the path v1 kept; a v2-labelled snapshot that still carries it leaks.
+        self.contract = self.add_version(2, ('.cache', 'volatile'))
+        leaked = self.snapshot()
+        self.manager.validate()
+        self.assertEqual(self.manager.state['holds']['nas:' + leaked]['reason'],
+                         'excluded content leaked into snapshot')
 
     def test_future_clock_is_held(self):
         sid = self.snapshot('2099-01-01 12:00:00')
@@ -404,9 +451,9 @@ class ScopeTests(unittest.TestCase):
         base = os.environ.get('PR_BASE_SHA') or 'HEAD^'
         if subprocess.run(['git', 'rev-parse', '--verify', base], cwd=ROOT, capture_output=True).returncode == 0:
             changes = subprocess.check_output(['git', 'diff', '--name-only', '--diff-filter=DMRT', base, '--',
-                ':(glob)host/*/etc/workstation-backup/workstation-*-v*.json',
-                ':(glob)infrastructure/monitoring/workstations/contracts/workstation-*-v*.json',
-                ':(glob)runbooks/disaster-recovery/contracts/workstation-*-v*.json'], cwd=ROOT)
+                ':(glob)host/*/etc/workstation-backup/workstation-*-v*.*',
+                ':(glob)infrastructure/monitoring/workstations/contracts/workstation-*-v*.*',
+                ':(glob)runbooks/disaster-recovery/contracts/workstation-*-v*.*'], cwd=ROOT)
             self.assertFalse(changes.strip(), 'released workstation contracts cannot be altered or removed')
         for host in ('ryze', 'm5c'):
             for contract in (ROOT / f'host/{host}/etc/workstation-backup').glob('workstation-*-v*.json'):
@@ -437,9 +484,90 @@ class ScopeTests(unittest.TestCase):
     def test_cluster_mirrors_match_canonical_sources(self):
         self.assertEqual((ROOT / 'host/workstations/workstation.py').read_bytes(),
                          (ROOT / 'infrastructure/monitoring/workstations/workstation.py').read_bytes())
+        cluster = ROOT / 'infrastructure/monitoring/workstations/contracts'
+        mapped = (ROOT / 'infrastructure/monitoring/workstations/kustomization.yaml').read_text()
         for host in ('ryze', 'm5c'):
-            self.assertEqual((ROOT / f'host/{host}/etc/workstation-backup/excludes').read_bytes(),
-                             (ROOT / f'infrastructure/monitoring/workstations/contracts/{host}.excludes').read_bytes())
+            released = server.load_contracts(host, cluster)
+            for name in released:
+                for suffix in ('.json', '.excludes'):
+                    self.assertIn(f'{name}{suffix}=contracts/{name}{suffix}', mapped)
+                    self.assertEqual((ROOT / f'host/{host}/etc/workstation-backup' / (name + suffix)).read_bytes(),
+                                     (cluster / (name + suffix)).read_bytes())
+            self.assertEqual(released, server.load_contracts(host, ROOT / f'host/{host}/etc/workstation-backup'))
+            self.assertEqual(released, server.load_contracts(host, ROOT / 'runbooks/disaster-recovery/contracts'))
+
+    def test_contract_versions_are_pinned_contiguous_and_complete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            def release(number, rules, name=None):
+                name = name or f'workstation-ryze-v{number}'
+                (directory / f'workstation-ryze-v{number}.excludes').write_text(rules)
+                (directory / f'workstation-ryze-v{number}.json').write_text(json.dumps({
+                    'contract': name, 'hostname': 'ryze', 'enrollment_status': 'released',
+                    'source_roots': ['/home/test'], 'manifest': '/home/test/' + client.MANIFEST,
+                    'exclusion_sha256': client.digest(rules.encode())}))
+            release(1, '.cache\n')
+            legacy = {'contract_sha256': server.load_contracts('ryze', directory)['workstation-ryze-v1'][2]}
+            release(2, '.cache\nvolatile\n')
+            contracts = server.load_contracts('ryze', directory)
+            self.assertEqual(contracts['workstation-ryze-v2'][1], ['.cache', 'volatile'])
+            server.pin_contracts(legacy, 'ryze', contracts)
+            self.assertEqual(set(legacy['contracts']), {'workstation-ryze-v1', 'workstation-ryze-v2'})
+            self.assertNotIn('contract_sha256', legacy)
+            with self.assertRaisesRegex(ValueError, 'missing'):
+                server.pin_contracts(copy.deepcopy(legacy), 'ryze',
+                                     {k: v for k, v in contracts.items() if k.endswith('v1')})
+            second = directory / 'workstation-ryze-v2.json'
+            second.write_text(second.read_text() + ' ')
+            with self.assertRaisesRegex(ValueError, 'differs from trusted'):
+                server.pin_contracts(legacy, 'ryze', server.load_contracts('ryze', directory))
+            (directory / 'workstation-ryze-v2.excludes').write_text('changed\n')
+            with self.assertRaisesRegex(ValueError, 'exclusion identity'):
+                server.load_contracts('ryze', directory)
+            release(2, '.cache\n', name='workstation-ryze-v3')
+            with self.assertRaisesRegex(ValueError, 'identity mismatch'):
+                server.load_contracts('ryze', directory)
+            for suffix in ('.json', '.excludes'):
+                (directory / f'workstation-ryze-v2{suffix}').unlink()
+            release(3, '.cache\n')
+            with self.assertRaisesRegex(ValueError, 'contiguous'):
+                server.load_contracts('ryze', directory)
+
+    def test_release_requires_previous_version_and_writes_versioned_exclusions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in ('runbooks/backups/workstation-release-contract.py', 'host/workstations/workstation.py'):
+                (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(ROOT / relative, root / relative)
+            directories = [root / 'host/ryze/etc/workstation-backup',
+                           root / 'infrastructure/monitoring/workstations/contracts',
+                           root / 'runbooks/disaster-recovery/contracts']
+            for path in directories:
+                path.mkdir(parents=True)
+            (directories[0] / 'excludes').write_text('.cache\n')
+            evidence = root / 'evidence.json'
+            evidence.write_text(json.dumps({'host': 'ryze', 'inventory_reviewed': True,
+                'capacity_reviewed': True, 'required_content_readable': True}))
+            def measurement(number):
+                path = root / f'v{number}.measured.json'
+                measured = {'': {'files': 10, 'bytes': 1000}, 'Documents/': {'files': 2, 'bytes': 100}}
+                path.write_text(json.dumps({'contract': f'workstation-ryze-v{number}', 'hostname': 'ryze',
+                    'exclusion_sha256': client.digest(b'.cache\n'), 'measured': measured,
+                    'floors': {'': {'files': 8, 'bytes': 800}, 'Documents/': {'files': 2, 'bytes': 80}},
+                    'kdbx_minimum_bytes': 102400}))
+                return path
+            def release(number):
+                return subprocess.run([sys.executable, str(root / 'runbooks/backups/workstation-release-contract.py'),
+                    str(measurement(number)), '--evidence', str(evidence)], capture_output=True, text=True)
+            result = release(2)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('workstation-ryze-v1 must be released', result.stderr)
+            self.assertEqual(release(1).returncode, 0)
+            self.assertEqual(release(1).returncode, 0, 'identical partial releases resume')
+            self.assertEqual(release(2).returncode, 0)
+            for path in directories:
+                self.assertEqual((path / 'workstation-ryze-v2.excludes').read_bytes(), b'.cache\n')
+                self.assertEqual(json.loads((path / 'workstation-ryze-v2.json').read_text())['enrollment_status'], 'released')
 
     def test_exclusions_preserve_application_state(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
@@ -467,6 +595,33 @@ class ScopeTests(unittest.TestCase):
         self.assertFalse(client.excluded('Library/Application Support/app/state', mac))
         self.assertFalse(client.excluded('Dropbox/ccs.kdbx', mac))
         self.assertFalse(client.excluded('Documents/report', mac))
+
+    def test_ryze_excludes_volatile_state_but_keeps_memory_and_profiles(self):
+        linux = client.patterns(ROOT / 'host/ryze/etc/workstation-backup/excludes')
+        session = '6a20c8b6-6e95-472b-a31e-99aad6c6baf6'
+        for path in ('.local/share/klipper/data/history', '.kube/cache/discovery/api.json',
+                     '.dropbox/metrics/store.bin', '.config/google-chrome/Safe Browsing/UrlSoceng.store',
+                     '.config/google-chrome/segmentation_platform/ukm.db',
+                     '.config/discord/Cache/data_0', '.config/discord/GPUCache/data_1',
+                     '.config/discord/Code Cache/js/index', '.config/discord/DawnWebGPUCache/data',
+                     '.config/discord/logs/renderer.log',
+                     f'.claude/projects/-home-charlie-src-home/{session}.jsonl',
+                     f'.claude/projects/-home-charlie-src-home/{session}/tool-results/out.txt',
+                     f'.claude/projects/-home-charlie-src-home/{session}/subagents/agent.jsonl',
+                     '.claude/backups/.claude.json.backup.1', '.claude/file-history/x/y',
+                     '.claude/plugins/marketplaces/official/README.md', '.claude/shell-snapshots/s.sh',
+                     '.codex/sessions/2026/09/10/rollout.jsonl', '.codex/logs_2.sqlite',
+                     '.codex/logs_2.sqlite-wal', '.codex/state_5.sqlite', '.codex/thread_history_1.sqlite',
+                     '.codex/cache/remote_plugin_catalog/x', '.codex/plugins/cache/p', '.codex/models_cache.json'):
+            self.assertTrue(client.excluded(path, linux), path)
+        for path in ('.claude/projects/-home-charlie-src-home/memory/MEMORY.md', '.claude/settings.json',
+                     '.claude/plans/plan.md', '.claude/plugins/installed_plugins.json', '.claude.json',
+                     '.codex/memories_1.sqlite', '.codex/config.toml', '.codex/rules/default.rules',
+                     '.codex/skills/x/SKILL.md', '.config/google-chrome/Default/Bookmarks',
+                     '.config/discord/settings.json', '.config/discord/Local Storage/leveldb/000003.log',
+                     'src/home/runbooks/backups/workstations.md', 'Documents/report', 'Dropbox/ccs.kdbx',
+                     'GDrive/report'):
+            self.assertFalse(client.excluded(path, linux), path)
 
     def test_plist_has_hourly_awake_schedule(self):
         path = ROOT / 'host/m5c/Library/LaunchAgents/run.worm.workstation-backup.plist'

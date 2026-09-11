@@ -205,7 +205,7 @@ def restic(*args, env=None):
 def enroll(args):
     records, _ = inventory(args.home, patterns(args.excludes))
     measured = {p: totals(records, p) for p in ('', 'Documents/')}
-    value = {'contract': f'workstation-{args.host}-v1', 'hostname': args.host,
+    value = {'contract': f'workstation-{args.host}-v{args.contract_version}', 'hostname': args.host,
              'enrollment_status': 'measured-unreleased',
              'source_roots': [str(Path(args.home).absolute())],
              'exclusion_sha256': digest(Path(args.excludes).read_bytes()),
@@ -356,6 +356,8 @@ def main():
     measure.add_argument('--host', choices=['ryze', 'm5c'], required=True)
     measure.add_argument('--home', default=str(Path.home()))
     measure.add_argument('--excludes', required=True)
+    measure.add_argument('--contract-version', type=int, required=True,
+                         help='next unreleased version; released contracts are immutable')
     measure.add_argument('--output', required=True)
     run = sub.add_parser('daily')
     run.add_argument('--config', default=str(Path.home() / '.config/workstation-backup/config.json'))

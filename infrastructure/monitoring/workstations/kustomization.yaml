@@ -21,9 +21,10 @@ configMapGenerator:
 - name: restic-workstation-contracts
   namespace: monitoring
   files:
+  # Every released version stays mapped so historical snapshots keep validating.
   - workstation-ryze-v1.json=contracts/workstation-ryze-v1.json
+  - workstation-ryze-v1.excludes=contracts/workstation-ryze-v1.excludes
   - workstation-m5c-v1.json=contracts/workstation-m5c-v1.json
-  - ryze.excludes=contracts/ryze.excludes
-  - m5c.excludes=contracts/m5c.excludes
+  - workstation-m5c-v1.excludes=contracts/workstation-m5c-v1.excludes
 generatorOptions:
   disableNameSuffixHash: true
