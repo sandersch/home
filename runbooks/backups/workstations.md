@@ -263,6 +263,16 @@ suspended window.
 
 ## Checks and evidence
 
+2026-09-10 host preparation completed from `d7cafa1` on minis, after creating
+`/opt/.snapshots/pre-workstations-d7cafa1`. Both repository directories and root
+control directories were prepared, and UID/GID 2101 were assigned to
+`vault-ingest-m5c`. The restricted listener and source-IP firewall rule were
+installed. An SFTP session from m5c authenticated with its dedicated key and
+independently pinned minis host key, reporting `/upload` as its working directory.
+Both SOPS workstation credentials decrypt successfully and use separate B2 keys
+and independent repository passwords. No initial backup or restore is claimed by
+these preparation checks; all eight maintenance CronJobs remain suspended.
+
 Mac attended inventory completed through launchd with exit code 0 at
 2026-09-10T04:36:02Z: 261,860 files / 25,872,475,952 bytes, including 12 Documents
 files / 3,288,711 bytes. The operator confirmed the Documents totals are expected.
