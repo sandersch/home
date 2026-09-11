@@ -223,4 +223,28 @@ sudo() {
     assert table.read_text().startswith('other UUID=keep /etc/other-key luks\n')
     print('PASS: staged mount tables preserve unrelated entries and reject conflicts')
 
+    # Rerunning vault host configuration must replace identities without dropping
+    # the contract gate or other canonical settings.
+    stage = 'source "$1/runbooks/backups/lib.sh"; stage_vault_config "$2" "$3" "$4" "$5"'
+    canonical = root / 'vault.conf'
+    staged = root / 'vault.conf.staged'
+    settings = '# Change only with the attended v3 contract/sentinel activation gate.\nexport VAULT_CONTRACT_VERSION=3\n'
+    canonical.write_text('VAULT_LUKS_UUID=old-luks\nexport VAULT_FS_UUID=old-fs\n' + settings)
+    args = ['bash', '-c', stage, 'test', str(repo), str(canonical), str(staged), 'new-luks', 'new-fs']
+    result = subprocess.run(args, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert staged.read_text() == 'VAULT_LUKS_UUID=new-luks\nVAULT_FS_UUID=new-fs\n' + settings
+    canonical.write_bytes(staged.read_bytes())
+    assert subprocess.run(args, capture_output=True).returncode == 0
+    assert staged.read_bytes() == canonical.read_bytes()
+    canonical.unlink()
+    assert subprocess.run(args, capture_output=True).returncode == 0
+    assert staged.read_text() == 'VAULT_LUKS_UUID=new-luks\nVAULT_FS_UUID=new-fs\n'
+    live = repo / 'host/minis/etc/homelab/vault.conf'
+    identity = dict(line.split('=', 1) for line in live.read_text().splitlines()[:2])
+    args = ['bash', '-c', stage, 'test', str(repo), str(live), str(staged), identity['VAULT_LUKS_UUID'], identity['VAULT_FS_UUID']]
+    assert subprocess.run(args, capture_output=True).returncode == 0
+    assert staged.read_bytes() == live.read_bytes()
+    print('PASS: vault host config reruns preserve the contract gate')
+
 PY

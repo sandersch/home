@@ -139,6 +139,30 @@ class RepositoryTests(unittest.TestCase):
         self.assertNotIn(sid, self.manager.state['accepted'])
         self.assertIn('nas:' + sid, self.manager.state['holds'])
 
+    def test_enrollment_metrics_begin_at_first_seed(self):
+        metrics = self.base / 'metrics'
+        metrics.mkdir()
+        self.manager.root = self.base
+        def emitted():
+            with patch.object(server, 'Path', lambda p: metrics if p == '/metrics' else Path(p)):
+                self.manager.metrics()
+            rows = (metrics / 'restic-workstation-ryze.prom').read_text().splitlines()
+            return {row.split('{')[0]: float(row.split()[-1]) for row in rows if 'destination' not in row}
+        unseeded = emitted()
+        self.assertEqual(unseeded['homelab_workstation_enrolled'], 0)
+        self.assertEqual(unseeded['homelab_workstation_enrollment_timestamp_seconds'], 0)
+        held = self.snapshot(omit='.hidden')
+        self.manager.validate()
+        self.assertIn('nas:' + held, self.manager.state['holds'])
+        self.assertEqual(emitted()['homelab_workstation_enrolled'], 1)
+        self.manager.reject(held, 'fixture omitted a required file', 'nas')
+        sid = self.snapshot()
+        self.manager.validate()
+        seeded = emitted()
+        self.assertEqual(seeded['homelab_workstation_enrolled'], 1)
+        self.assertEqual(seeded['homelab_workstation_enrollment_timestamp_seconds'],
+                         self.manager.state['accepted'][sid]['time'])
+
     def test_contract_drift_is_held(self):
         sid = self.snapshot()
         self.manager.contract = {**self.contract, 'exclusion_sha256': 'changed'}

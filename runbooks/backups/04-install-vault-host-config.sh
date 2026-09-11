@@ -37,8 +37,7 @@ live_fstab_tmp="$(mktemp)"
 sentinel_tmp=""
 credential_tmp=""
 trap 'rm -f "$config_tmp" "$crypttab_tmp" "$fstab_tmp" "$live_crypttab_tmp" "$live_fstab_tmp" "$sentinel_tmp" "$credential_tmp"' EXIT
-printf 'VAULT_LUKS_UUID=%s\nVAULT_FS_UUID=%s\n' \
-  "$VAULT_LUKS_UUID" "$VAULT_FS_UUID" >"$config_tmp"
+stage_vault_config "$canonical_config" "$config_tmp" "$VAULT_LUKS_UUID" "$VAULT_FS_UUID"
 install -m 0644 "$config_tmp" "$canonical_config"
 
 crypttab_line="$(printf 'vault\tUUID=%s\tnone\tluks,noauto' "$VAULT_LUKS_UUID")"
@@ -90,6 +89,12 @@ sudo install -D -o root -g root -m 0755 \
 sudo install -D -o root -g root -m 0755 \
   "$REPO_ROOT/host/minis/usr/local/sbin/vault-unlock" \
   /usr/local/sbin/vault-unlock
+# The promoter enforces the same sentinel contract as vault-unlock; install them
+# together so a contract change never leaves a stale copy rejecting uploads.
+# Its path/service units stay with 08-install-vault-ingest-server.sh.
+sudo install -D -o root -g root -m 0755 \
+  "$REPO_ROOT/host/minis/usr/local/sbin/vault-ingest-promote" \
+  /usr/local/sbin/vault-ingest-promote
 sudo install -D -o root -g root -m 0644 \
   "$REPO_ROOT/host/minis/etc/systemd/system/vault-mountpoint-guard.service" \
   /etc/systemd/system/vault-mountpoint-guard.service
