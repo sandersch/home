@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -23,6 +24,7 @@ import workstation as client
 import maintenance as server
 
 RESTIC = os.environ.get('WORKSTATION_RESTIC', '/tmp/workstation-restic-tools/restic')
+REPOSITORIES = ROOT / 'runbooks/backups/fixtures/workstation-repositories'
 
 
 class FixtureManager(server.Manager):
@@ -72,9 +74,9 @@ class RepositoryTests(unittest.TestCase):
                          'exclusion_sha256': 'fixture', 'floors': {'': {'files': 3, 'bytes': 100000},
                          'Documents/': {'files': 1, 'bytes': 1}}, 'kdbx_minimum_bytes': 102400}
         self.manager = FixtureManager(self)
-        self.manager.run('nas', 'init', raw=True)
-        self.manager.run('b2', 'init', '--from-repo', self.base / 'nas', '--copy-chunker-params', raw=True,
-                         extra_env={'RESTIC_FROM_PASSWORD': 'disposable-test-password'})
+        # Empty NAS/B2 pair with low-cost scrypt keys; see fixtures/make-workstation-repositories.py.
+        for destination in ('nas', 'b2'):
+            shutil.copytree(REPOSITORIES / destination, self.base / destination)
 
     def snapshot(self, when=None, omit=None):
         records, _ = client.inventory(self.home, ['.cache'])

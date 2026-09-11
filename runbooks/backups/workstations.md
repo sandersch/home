@@ -298,7 +298,9 @@ are activated by recording it. The staged cluster ConfigMap references the relea
 contract; the package remains outside the active monitoring Kustomization.
 
 Run `test-workstations.py` with `WORKSTATION_RESTIC` pointing at verified Restic
-0.19.1, `test-workstation-alerts.py` with `PROMTOOL`, existing backup regressions,
+0.19.1 (its empty repositories are checked in with deliberately weak scrypt keys;
+regenerate them with `fixtures/make-workstation-repositories.py`),
+`test-workstation-alerts.py` with `PROMTOOL`, existing backup regressions,
 `test-config-scripts.sh`, image-policy validation and both monitoring renders.
 The Python plist check is portable; also run `plutil -lint` on the actual installed
 Mac plist. Live privacy, DHCP, NetworkPolicy, quota, notification, sleep/wake and
