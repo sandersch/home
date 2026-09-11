@@ -48,6 +48,9 @@ def quiet(name, input_series, eval_time='2h', names=alertnames):
             'alert_rule_test': [{'eval_time': eval_time, 'alertname': n, 'exp_alerts': []} for n in names]}
 
 
+# Day-scale timelines evaluate every 15m (the shortest `for`) instead of every
+# minute; promtool runtime scales with the number of evaluation steps.
+long_tests = []
 tests = [
     quiet('nothing enrolled stays quiet while the vault is mounted', [VAULT]),
     # Attended initialization writes metrics before any seed snapshot exists.
@@ -80,7 +83,7 @@ for host, other in [('ryze', 'm5c'), ('m5c', 'ryze')]:
     tests.append(quiet(f'{host} fresh enrollment is within every grace window',
                        [VAULT] + emitted(host, since=0, b2=0, prune=0, check=0)))
     # Real timestamps are positive, so staleness needs an eight-day timeline.
-    tests.append({'name': f'{host} stale NAS snapshot alerts', 'interval': '1m',
+    long_tests.append({'name': f'{host} stale NAS snapshot alerts', 'interval': '1m',
         'input_series': [{**s, 'values': s['values'].replace('x200', 'x12000')} for s in emitted(host)],
         'alert_rule_test': [{'eval_time': '8d', 'alertname': 'ResticWorkstationBackupStale',
                              'exp_alerts': [expected('ResticWorkstationBackupStale', host, destination='nas')]}]})
@@ -96,8 +99,11 @@ with tempfile.TemporaryDirectory(prefix='workstation-alerts-') as temporary:
     path = Path(temporary)
     path.chmod(0o755)
     (path / 'rules.yaml').write_text(yaml.safe_dump({'groups': groups}))
-    (path / 'tests.yaml').write_text(yaml.safe_dump({'rule_files': [str(path / 'rules.yaml')],
-                                                 'evaluation_interval': '1m', 'tests': tests}))
+    suites = []
+    for name, interval, group in (('tests', '1m', tests), ('long-tests', '15m', long_tests)):
+        suites.append(path / f'{name}.yaml')
+        suites[-1].write_text(yaml.safe_dump({'rule_files': [str(path / 'rules.yaml')],
+                                              'evaluation_interval': interval, 'tests': group}))
     command = shlex.split(os.environ.get('PROMTOOL', 'promtool'))
     subprocess.run(command + ['check', 'rules', str(path / 'rules.yaml')], check=True)
-    subprocess.run(command + ['test', 'rules', str(path / 'tests.yaml')], check=True)
+    subprocess.run(command + ['test', 'rules', *map(str, suites)], check=True)

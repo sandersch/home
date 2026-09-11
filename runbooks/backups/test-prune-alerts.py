@@ -85,16 +85,20 @@ stale = case('established success overdue', dict(base, **{'homelab_restic_prune_
 stale['interval'] = '1m'
 for series in stale['input_series']:
     series['values'] = series['values'].replace('x40', 'x15900')
-tests.append(stale)
+# Day-scale timelines evaluate every 15m (the shortest `for`) instead of every
+# minute; promtool runtime scales with the number of evaluation steps.
+long_tests = [stale]
 
 with tempfile.TemporaryDirectory(prefix='prune-alerts-') as directory:
     work = Path(directory)
     work.chmod(0o755)  # Allow the unprivileged promtool container to read fixtures.
     rule_file = work / 'rules.yaml'
     rule_file.write_text(yaml.safe_dump({'groups': [{'name': 'prune', 'rules': list(rules.values())}]}))
-    suite = work / 'tests.yaml'
-    suite.write_text(yaml.safe_dump({'rule_files': [str(rule_file)], 'evaluation_interval': '1m', 'tests': tests}))
-    subprocess.run(shlex.split(os.environ.get('PROMTOOL', 'promtool')) + ['test', 'rules', str(suite)], check=True)
+    suites = []
+    for name, interval, group in (('tests', '1m', tests), ('long-tests', '15m', long_tests)):
+        suites.append(work / f'{name}.yaml')
+        suites[-1].write_text(yaml.safe_dump({'rule_files': [str(rule_file)], 'evaluation_interval': interval, 'tests': group}))
+    subprocess.run(shlex.split(os.environ.get('PROMTOOL', 'promtool')) + ['test', 'rules', *map(str, suites)], check=True)
 
     copy = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-copy-config.yaml').read_text())['data']['copy-vault.sh']
     writer = copy.split('write_metrics() {', 1)[1].split('\nledger_has()', 1)[0]
