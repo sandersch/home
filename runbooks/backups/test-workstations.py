@@ -25,6 +25,7 @@ import maintenance as server
 
 RESTIC = os.environ.get('WORKSTATION_RESTIC', '/tmp/workstation-restic-tools/restic')
 REPOSITORIES = ROOT / 'runbooks/backups/fixtures/workstation-repositories'
+READ_ONLY = {'cat', 'dump', 'ls', 'snapshots'}
 
 
 class FixtureManager(server.Manager):
@@ -45,7 +46,9 @@ class FixtureManager(server.Manager):
     def run(self, destination, *args, raw=False, extra_env=None):
         self.commands.append((destination, args))
         env = {**os.environ, **self.credentials[destination], **(extra_env or {})}
-        result = subprocess.run([RESTIC, '--no-cache', *map(str, args)], env=env,
+        # Locking waits 200ms per command; fixtures never run commands concurrently.
+        lock = ['--no-lock'] if args[0] in READ_ONLY else []
+        result = subprocess.run([RESTIC, '--no-cache', *lock, *map(str, args)], env=env,
                                 capture_output=True)
         if result.returncode:
             raise subprocess.CalledProcessError(result.returncode, args, stderr=result.stderr)
