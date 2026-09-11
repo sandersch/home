@@ -9,7 +9,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'host/workstations'))
-from workstation import digest, read_json
+from workstation import churn_tolerance, digest, read_json
 
 
 def main():
@@ -48,6 +48,8 @@ def main():
             raise ValueError('released floors must be exactly 80% of the measured scope, rounded up')
     if value['kdbx_minimum_bytes'] != 102400:
         raise ValueError('the KDBX floor must remain 100 KiB')
+    if value.get('churn_tolerance') != churn_tolerance(value['measured']['']['files'], value['kdbx_path']):
+        raise ValueError('churn tolerance must be the standard bound protecting required content')
     value['enrollment_status'] = 'released'
     value['enrollment_evidence'] = evidence
     content = json.dumps(value, indent=2, sort_keys=True) + '\n'

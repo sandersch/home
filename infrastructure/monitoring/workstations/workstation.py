@@ -20,6 +20,8 @@ import time
 
 MANIFEST = '.workstation-backup-manifest.json'
 KDBX = bytes.fromhex('03d9a29a67fb4bb5')
+# ctime comes from a coarse kernel clock; allow for it when explaining churn.
+CLOCK_SLACK = 2
 
 
 def digest(value):
@@ -197,6 +199,47 @@ def check_floors(records, contract):
             raise ValueError(f'below released floor: {prefix or "home"}')
 
 
+def churn_tolerance(measured_files, kdbx_path):
+    """Paths a snapshot may differ from its pre-backup manifest, fixed at release."""
+    return {'maximum_paths': min(1000, measured_files * 5 // 1000),
+            'protected_paths': ['Documents', kdbx_path]}
+
+
+def drift(expected, actual):
+    return sorted(p for p in expected.keys() | actual.keys() if expected.get(p) != actual.get(p))
+
+
+def check_drift(paths, contract):
+    """Contracts released without churn_tolerance (v1) still require an exact match."""
+    if not paths:
+        return
+    tolerance = contract.get('churn_tolerance')
+    if not tolerance:
+        raise ValueError('manifest does not match actual snapshot listing')
+    protected = tolerance['protected_paths']
+    if any(p == q or p.startswith(q + '/') for p in paths for q in protected):
+        raise ValueError('required content changed during backup')
+    if len(paths) > tolerance['maximum_paths']:
+        raise ValueError('manifest drift exceeds contract tolerance')
+
+
+def unexplained(paths, home, since):
+    """Return paths the live filesystem does not show changing after `since`.
+
+    A changed or added path must have a later ctime; a vanished one must have a
+    nearest surviving ancestor whose ctime is later. An old, unchanged file that
+    is missing from the snapshot is an omission, never churn.
+    """
+    result = []
+    for relative in paths:
+        path = Path(home) / relative
+        while not os.path.lexists(path):
+            path = path.parent
+        if os.lstat(path).st_ctime < since - CLOCK_SLACK:
+            result.append(relative)
+    return result
+
+
 def restic(*args, env=None):
     command = [os.environ.get('WORKSTATION_RESTIC', '/usr/local/bin/restic'), *map(str, args)]
     return subprocess.run(command, env=env, check=True, stdout=subprocess.PIPE).stdout
@@ -214,6 +257,7 @@ def enroll(args):
              'kdbx_path': database_path(records, args.home),
              'measured': measured,
              'floors': {p: {k: math.ceil(n * .8) for k, n in m.items()} for p, m in measured.items()},
+             'churn_tolerance': churn_tolerance(measured['']['files'], database_path(records, args.home)),
              'kdbx_minimum_bytes': 102400, 'shrink_baseline_samples': 7,
              'maximum_shrink_percent': 20,
              'measured_at': dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -237,6 +281,7 @@ def backup(config, state):
         raise ValueError('client identity differs from released contract')
     if not restic('version').decode().startswith('restic 0.19.1 '):
         raise ValueError('Restic 0.19.1 is required')
+    since = time.time()
     records, omissions = inventory(home, patterns(excludes))
     check_floors(records, contract)
     manifest = {'contract': contract['contract'], 'exclusion_sha256': contract['exclusion_sha256'],
@@ -266,8 +311,18 @@ def backup(config, state):
     nodes = [json.loads(line) for line in restic('ls', '--json', sid, env=env).splitlines()]
     attach_link_targets(nodes, nodes[0]['tree'], lambda tree: json.loads(restic('cat', 'blob', tree, env=env)))
     actual = snapshot_records(nodes, str(home), str(home / MANIFEST))
-    if actual != records:
-        raise ValueError(f'snapshot {sid} differs from inventory; success not advanced')
+    paths = drift(records, actual)
+    try:
+        check_drift(paths, contract)
+    except ValueError as error:
+        raise ValueError(f'snapshot {sid} differs from inventory ({error}); success not advanced') from error
+    # The server re-checks these bounds but cannot see the live filesystem.
+    missing = unexplained(paths, home, since)
+    if missing:
+        raise ValueError(f'snapshot {sid} differs from inventory at {len(missing)} paths not changed '
+                         f'during backup, first {missing[0]!r}; success not advanced')
+    if paths:
+        print(f'backup: snapshot {sid} accepted {len(paths)} paths changed during backup', file=sys.stderr)
     return sid
 
 

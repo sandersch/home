@@ -82,10 +82,12 @@ class RepositoryTests(unittest.TestCase):
         for destination in ('nas', 'b2'):
             shutil.copytree(REPOSITORIES / destination, self.base / destination)
 
-    def snapshot(self, when=None, omit=None):
+    def snapshot(self, when=None, omit=None, churn=None):
         records, _ = client.inventory(self.home, ['.cache'])
         client.atomic(self.home / client.MANIFEST, {'contract': self.contract['contract'],
             'exclusion_sha256': 'fixture', 'records': records, 'measured': client.totals(records)})
+        if churn:
+            churn()
         args = ['backup', '--json', '--host', 'ryze']
         if when:
             args += ['--time', when]
@@ -174,6 +176,96 @@ class RepositoryTests(unittest.TestCase):
         self.manager.contracts['workstation-ryze-v1'] = ({**self.contract, 'exclusion_sha256': 'changed'}, ['.cache'], 'fixture')
         self.manager.validate()
         self.assertNotIn(sid, self.manager.state['accepted'])
+
+    def tolerate(self, maximum):
+        self.contract['churn_tolerance'] = {'maximum_paths': maximum,
+                                            'protected_paths': ['Documents', 'Dropbox/ccs.kdbx']}
+
+    def test_strict_contract_holds_any_churn(self):
+        sid = self.snapshot(churn=lambda: (self.home / '.hidden').write_text('changed state'))
+        self.manager.validate()
+        self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'],
+                         'manifest does not match actual snapshot listing')
+
+    def test_tolerant_contract_accepts_bounded_churn_with_actual_totals(self):
+        self.tolerate(2)
+        def churn():
+            (self.home / '.hidden').write_text('changed state')
+            (self.home / 'new-during-backup').write_text('x' * 10)
+        sid = self.snapshot(churn=churn)
+        self.manager.validate()
+        self.assertIn(sid, self.manager.state['accepted'])
+        # Measurements come from the snapshot, not the stale manifest.
+        records, _ = client.inventory(self.home, ['.cache'])
+        self.assertEqual(self.manager.state['accepted'][sid]['measured'][''], client.totals(records))
+
+    def test_tolerant_contract_bounds_count_and_protects_required_content(self):
+        self.tolerate(1)
+        for reason, churn in (
+                ('manifest drift exceeds contract tolerance',
+                 lambda: [(self.home / name).write_text('x') for name in ('one', 'two')]),
+                ('required content changed during backup',
+                 lambda: (self.home / 'Documents/new').write_text('x')),
+                ('required content changed during backup',
+                 lambda: (self.home / 'Dropbox/ccs.kdbx').write_bytes(client.KDBX + b'\0' * 102500))):
+            with self.subTest(reason=reason):
+                sid = self.snapshot(churn=churn)
+                self.manager.validate()
+                self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'], reason)
+                self.manager.reject(sid, 'fixture churn', 'nas')
+
+    def test_manifest_totals_must_match_its_records(self):
+        self.tolerate(5)
+        def forge():
+            manifest = client.read_json(self.home / client.MANIFEST)
+            manifest['measured']['files'] += 1
+            client.atomic(self.home / client.MANIFEST, manifest)
+        sid = self.snapshot(churn=forge)
+        self.manager.validate()
+        self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'], 'manifest totals are inconsistent')
+
+    def client_backup(self, during_backup):
+        excludes = self.base / 'excludes'
+        excludes.write_text('.cache\n')
+        credentials = self.base / 'client-credentials.json'
+        credentials.write_text(json.dumps(self.manager.credentials['nas']))
+        credentials.chmod(0o600)
+        # The fixture manager validates against this same contract object.
+        self.contract.update(enrollment_status='released', exclusion_sha256=client.digest(excludes.read_bytes()))
+        contract = self.base / 'contract.json'
+        contract.write_text(json.dumps(self.contract))
+        config = {'host': 'ryze', 'contract': str(contract), 'excludes': str(excludes),
+                  'credentials': str(credentials)}
+        real = client.restic
+        def restic(*args, env=None):
+            if args and args[0] == '--retry-lock':
+                args = during_backup(list(args))
+            return real(*args, env=env)
+        state = self.base / 'client-state'
+        state.mkdir()
+        with patch.object(Path, 'home', return_value=self.home), patch.object(client, 'restic', restic), \
+                patch.dict(os.environ, {'WORKSTATION_RESTIC': RESTIC}), patch.object(client, 'CLOCK_SLACK', 0):
+            return client.backup(config, state)
+
+    def test_client_accepts_explained_churn(self):
+        self.tolerate(5)
+        def during_backup(args):
+            time.sleep(0.05)
+            (self.home / '.hidden').write_text('changed during backup')
+            (self.home / 'link').unlink()
+            return args
+        sid = self.client_backup(during_backup)
+        self.manager.validate()
+        self.assertIn(sid, self.manager.state['accepted'])
+
+    def test_client_rejects_unexplained_omission(self):
+        self.tolerate(5)
+        time.sleep(0.05)
+        def during_backup(args):
+            # Restic silently skips an unchanged file: the manifest has it, the snapshot does not.
+            return args[:-1] + ['--exclude', str(self.home / '.hidden'), args[-1]]
+        with self.assertRaisesRegex(ValueError, "1 paths not changed during backup, first '.hidden'"):
+            self.client_backup(during_backup)
 
     def test_unreleased_contract_name_is_held(self):
         self.contract['contract'] = 'workstation-ryze-v2'
@@ -553,6 +645,7 @@ class ScopeTests(unittest.TestCase):
                 measured = {'': {'files': 10, 'bytes': 1000}, 'Documents/': {'files': 2, 'bytes': 100}}
                 path.write_text(json.dumps({'contract': f'workstation-ryze-v{number}', 'hostname': 'ryze',
                     'exclusion_sha256': client.digest(b'.cache\n'), 'measured': measured,
+                    'kdbx_path': 'Dropbox/ccs.kdbx', 'churn_tolerance': client.churn_tolerance(10, 'Dropbox/ccs.kdbx'),
                     'floors': {'': {'files': 8, 'bytes': 800}, 'Documents/': {'files': 2, 'bytes': 80}},
                     'kdbx_minimum_bytes': 102400}))
                 return path
@@ -629,6 +722,32 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(config['StartInterval'], 3600)
         self.assertTrue(config['RunAtLoad'])
         self.assertNotIn('StartCalendarInterval', config)
+
+    def test_churn_tolerance_is_bounded_and_protects_required_content(self):
+        self.assertEqual(client.churn_tolerance(525593, 'Dropbox/ccs.kdbx'),
+                         {'maximum_paths': 1000, 'protected_paths': ['Documents', 'Dropbox/ccs.kdbx']})
+        self.assertEqual(client.churn_tolerance(10000, 'x')['maximum_paths'], 50)
+        self.assertEqual(client.drift({'a': {'type': 'dir'}, 'b': {'type': 'file', 'size': 1}},
+                                      {'b': {'type': 'file', 'size': 2}, 'c': {'type': 'dir'}}), ['a', 'b', 'c'])
+        client.check_drift([], {})
+        with self.assertRaisesRegex(ValueError, 'does not match'):
+            client.check_drift(['a'], {})
+        contract = {'churn_tolerance': client.churn_tolerance(400, 'Dropbox/ccs.kdbx')}
+        client.check_drift(['.config/app', 'Documents-other/x'], contract)
+        with self.assertRaisesRegex(ValueError, 'exceeds'):
+            client.check_drift(['a', 'b', 'c'], contract)
+        for path in ('Documents', 'Documents/report', 'Dropbox/ccs.kdbx'):
+            with self.assertRaisesRegex(ValueError, 'required content'):
+                client.check_drift([path], contract)
+
+    def test_unexplained_uses_live_ctime_and_surviving_ancestors(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(client, 'CLOCK_SLACK', 0):
+            home = Path(directory)
+            (home / 'dir').mkdir()
+            (home / 'dir/file').write_text('x')
+            paths = ['dir/file', 'dir/vanished', 'gone/deeper/file']
+            self.assertEqual(client.unexplained(paths, home, time.time() - 60), [])
+            self.assertEqual(client.unexplained(paths, home, time.time() + 60), paths)
 
     def test_manifest_detects_missing_file(self):
         records = client.snapshot_records([{'message_type': 'node', 'path': '/home/test/a',

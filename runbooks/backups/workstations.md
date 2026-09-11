@@ -14,7 +14,8 @@ Python 3.11+ and checksum-verified Restic 0.19.1 are required on clients. The Ma
 uses `/opt/homebrew/bin/python3`; verify that exact executable's Full Disk Access
 through launchd. It runs on battery and does not schedule wakes. Missed work is
 checked on login/wake and retried while awake. Backup and upload success are separate;
-Restic exit 3, permission failures, and manifest mismatch do not advance backup success.
+Restic exit 3, permission failures, and unexplained or out-of-bounds manifest drift do not
+advance backup success.
 
 ## Scope and preflight
 
@@ -37,7 +38,8 @@ source policy. A bare glob matches any path component; a rule containing `/` is 
 anchored home-relative subtree pattern, with each component matched separately
 (wildcards cannot cross `/`). The client resolves exclusions to escaped absolute
 Restic exclusions, skips cache-tagged directories and mounted filesystems, and
-checks the resulting snapshot listing against the measured manifest. Symlink
+checks the resulting snapshot listing against the pre-backup manifest (see
+[Churn tolerance](#churn-tolerance)). Symlink
 targets are read from authenticated tree blobs because `restic ls --json` omits them.
 Documents must contain included regular files and Dropbox/ccs.kdbx must be a readable
 local regular KDBX of at least 100 KiB. Hidden application state and Mac
@@ -106,6 +108,24 @@ maintenance. The first accepted snapshot of a higher version starts a new shrink
 baseline generation and records a `contract-transition` resolution. A snapshot whose
 version is below the newest accepted one is held as `contract-downgrade`; reinstall
 the current contract on the client and reject the exact held ID.
+
+### Churn tolerance
+
+The client writes its manifest from an inventory taken before Restic runs, so on a
+desktop in use the snapshot normally differs from it. v1 contracts have no
+`churn_tolerance` and still require an exact match. From v2, the release fixes
+`churn_tolerance`: at most `min(1000, 0.5%)` of measured files may differ, and none
+at or under `Documents` or the KDBX path. The server enforces those bounds; it
+measures floors, exclusions and required content from the actual snapshot, and
+requires the manifest's own totals to match its records.
+
+The client additionally requires every differing path to be explained by the live
+filesystem: a changed or added path must have a ctime after the backup started (less
+two seconds of clock slack), and a vanished path must have a surviving ancestor
+changed since then. An unchanged file missing from the snapshot is an omission, so
+success is not advanced. Accepted churn is logged as `accepted N paths changed during
+backup`. A change under Documents or to the KDBX during a run fails that run; the next
+hourly retry repeats it.
 
 ## Host and credential preparation
 
@@ -372,6 +392,5 @@ Klipper history, Dropbox metrics, Claude Code session files and a `git pull` in
 by the first `validate`; reject that exact ID once a v2 seed exists, then validate
 again within the hour so `ResticWorkstationEnrollmentLost` does not fire. The v2
 exclusions drop regenerable and volatile state (Klipper, kubectl and application
-caches, Claude Code and Codex transcripts and runtime databases). Exact manifest
-matching still fails whenever an in-scope file changes mid-backup, so a desktop in
-active use can keep failing; bounded tolerance for explained churn is deferred.
+caches, Claude Code and Codex transcripts and runtime databases), and v2 carries a
+churn tolerance so in-scope files changing mid-backup no longer fail it.

@@ -21,7 +21,7 @@ import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
 
-from workstation import atomic, attach_link_targets, check_floors, digest, excluded, patterns, read_json, snapshot_records, totals, KDBX
+from workstation import atomic, attach_link_targets, check_drift, check_floors, digest, drift, excluded, patterns, read_json, snapshot_records, totals, KDBX
 
 ID = re.compile(r'^[0-9a-f]{64}$')
 CONTRACT = re.compile(r'workstation-(?P<host>ryze|m5c)-v(?P<version>[1-9][0-9]*)')
@@ -175,8 +175,10 @@ class Manager:
         if manifest['exclusion_sha256'] != contract['exclusion_sha256']:
             raise ValueError('manifest contract drift')
         records = snapshot_records(nodes, home, contract['manifest'])
-        if records != manifest['records'] or totals(records) != manifest['measured']:
-            raise ValueError('manifest does not match actual snapshot listing')
+        if totals(manifest['records']) != manifest['measured']:
+            raise ValueError('manifest totals are inconsistent')
+        # Floors, exclusions and required content below apply to actual records.
+        check_drift(drift(manifest['records'], records), contract)
         if any(excluded(path, rules) for path in records):
             raise ValueError('excluded content leaked into snapshot')
         if not any(n.get('path') == home + '/Documents' and n.get('type') == 'dir' for n in nodes):
