@@ -1,7 +1,10 @@
 # Workstation enrollment and recovery
 
-Status: rest-servers deployed, **no host enrolled**. Both workstation v1 contracts
-are released; ryze's v2 contract is released in git, pending deployment and client installation. `infrastructure/monitoring/workstations/`
+Status: rest-servers deployed; ryze has an accepted v2 seed (generation 2) and a
+successful B2 copy. Native NAS/B2 content restores and both manual KDBX openings
+passed on 2026-09-12; remaining metadata and activation checks are listed in the
+[recovery evidence](evidence/ryze-recovery-20260912.json). Both workstation v1 contracts
+and ryze's v2 contract are released. `infrastructure/monitoring/workstations/`
 is in the active monitoring Kustomization with all four CronJobs per host suspended.
 ryze's repositories are initialized; m5c's are not. vault-v3 remains pending.
 
@@ -374,9 +377,10 @@ The Python plist check is portable; also run `plutil -lint` on the actual instal
 Mac plist. Live privacy, DHCP, NetworkPolicy, quota, notification, sleep/wake and
 native Mac metadata gates cannot be replaced by Linux fixtures.
 
-No production snapshot IDs, B2 seeds, native restores, notification deliveries,
-or seven-day observation are recorded yet. Do not infer activation from the presence
-of these files.
+The dated entries below preserve rollout history. The 2026-09-12 recovery record
+supersedes earlier pending ryze seed/copy/restore statements. Notification delivery,
+remaining activation checks, and seven-day observation are not established by
+these recovery results. Do not infer activation from the presence of evidence files.
 
 Local implementation verification (2026-09-08–09): the curated ryze inventory
 completed at 552,840 regular files / 27,921,624,561 bytes; Documents measured 538
@@ -434,4 +438,46 @@ in host, cluster and recovery directories and mapped in the contracts ConfigMap.
 The contract permits at most 1,000 changed paths while protecting Documents and
 the KDBX path. Deploy the updated maintenance code and contract, install the updated
 client with v2, and retry the manual seed before proceeding to validation and B2
-copy. No successful v2 seed or native restore is claimed; schedules remain disabled.
+copy. At contract release, no successful v2 seed or native restore was claimed;
+the following entry records subsequent results. Schedules remain disabled.
+
+### 2026-09-12 ryze recovery evidence and remaining gates
+
+The [sanitized recovery record](evidence/ryze-recovery-20260912.json) records the
+accepted v2 snapshot, generation 2 transition, rejected v1 snapshot, clear validation
+holds, and successful attended B2 copy. The copy ran from 23:48:05Z on September 11
+to 02:21:06Z on September 12, with recurring ryze CronJobs still suspended.
+
+Each native restore extracted 618,536 nodes (25.427 GiB) and passed Restic content
+verification for 526,288 files. Both restored KDBX files were manually opened by
+the operator. The initial unprivileged restores could not preserve 17 root-owned
+nodes. A fresh privileged NAS restore passed the original helper, including
+symlink targets; its full elapsed time was approximately 68 minutes.
+
+B2 scratch ownership was repaired using NAS snapshot metadata, then file
+types/sizes, numeric owners, modes, timestamps, and 2,534 symlink entries were
+checked against the actual B2 snapshot. This follow-up checked **symlink presence
+only**, so B2 target-string verification remains pending. Neither restore selected
+an extended-attribute sample. Earlier session summaries calling both complete
+overstated the metadata coverage. The B2 scratch report also inherited a 36-second
+NAS repair duration; the committed record explicitly excludes it as a B2 timing.
+B2 extraction took 3h24m14s and content verification 1h36m32.819s; no reliable total
+drill duration was captured.
+
+Credentials for the B2 restore were recovered through SOPS + age on Ryze, independently
+of minis. This does not establish password-manager credential retrieval. The vault's
+separate break-glass-card document/photo drill must not be represented as a workstation
+result or automatically imposed as an additional workstation restore requirement.
+
+Next, close B2 symlink-target verification, native xattr samples for each repository,
+and representative executable/hidden-state inspection. Then reconcile the remaining
+activation evidence: disposable append-only/quota tests, live cross-host and
+NetworkPolicy isolation, network retry, document promotion, vault-lock independence,
+repository checks, and warning/resolved notification delivery. Use disposable
+repositories for destructive denial/quota tests. Only after the applicable gates pass
+should the attended client installer and reviewed CronJob activation proceed, followed
+by seven days and a successful weekly copy/prune cycle.
+
+Retain the scratch artifacts until inspection and evidence review are complete.
+The committed JSON records measured results and limitations; it is not an activation
+approval file and must not be used to bypass the installer's required evidence fields.

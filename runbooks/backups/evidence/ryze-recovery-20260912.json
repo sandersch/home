@@ -1,0 +1,81 @@
+{
+  "host": "ryze",
+  "recorded_date": "2026-09-12",
+  "platform": "Linux",
+  "evidence_source": "Attended session command results, retained scratch reports, and operator confirmations",
+  "activation_complete": false,
+  "seed": {
+    "contract": "workstation-ryze-v2",
+    "generation": 2,
+    "accepted_snapshot": "ea99175fb0022476765eb4531fb3d5ccf0c5b972817d374b0c9319d1c371abba",
+    "rejected_v1_snapshot": "bbff493974095c55e80255b87e2b6313dea2b87c857ba13cc686beb681272e62",
+    "validation_holds_at_attended_check": 0
+  },
+  "copy": {
+    "job": "monitoring/restic-ryze-copy-attended-20260911",
+    "started_at": "2026-09-11T23:48:05Z",
+    "completed_at": "2026-09-12T02:21:06Z",
+    "result": "Complete",
+    "b2_snapshot": "a1b818ce85f3fb93a3c3c4bd6c41485f1a44e02ae300a65aa1ca196a281b9623",
+    "physical_b2_bytes_observed": 10506010188,
+    "recurring_ryze_cronjobs_suspended_at_completion": true
+  },
+  "nas": {
+    "snapshot_id": "ea99175fb0022476765eb4531fb3d5ccf0c5b972817d374b0c9319d1c371abba",
+    "scratch": "/home/charlie/restore-scratch/workstation-restore-23buexc7",
+    "restored_nodes": 618536,
+    "content_verified_files": 526288,
+    "restored_gib_reported": 25.427,
+    "privileged_restore": true,
+    "ownership_modes_mtimes_passed": true,
+    "symlink_targets_passed": true,
+    "symlink_count": 2534,
+    "extended_attributes_tested": false,
+    "kdbx_manually_opened": true,
+    "extraction_seconds": 430,
+    "content_verification_seconds": 117.534,
+    "original_helper_elapsed_seconds": 4079.95010471344,
+    "notes": [
+      "The first unprivileged NAS restore passed content verification but failed ownership: 17 nodes recorded as 0:0 were restored as 1000:1000.",
+      "A fresh sudo restore preserved numeric ownership. The original workstation-restore.py eventually wrote its report after completing metadata and symlink-target checks; interruption of chat monitoring did not establish that the process had stopped.",
+      "Manual KDBX success was confirmed by the operator and restored to the report after the original helper overwrote that flag."
+    ]
+  },
+  "b2": {
+    "snapshot_id": "a1b818ce85f3fb93a3c3c4bd6c41485f1a44e02ae300a65aa1ca196a281b9623",
+    "scratch": "/home/charlie/restore-scratch/workstation-restore-2wr5ss4u",
+    "credential_source": "SOPS + age extraction on Ryze",
+    "password_manager_recovery_tested": false,
+    "restored_nodes": 618536,
+    "content_verified_files": 526288,
+    "restored_gib_reported": 25.427,
+    "privileged_restore": false,
+    "ownership_repaired_using_nas_metadata": true,
+    "ownership_modes_mtimes_revalidated_against_b2": true,
+    "symlink_presence_count": 2534,
+    "symlink_targets_passed": null,
+    "extended_attributes_tested": false,
+    "kdbx_manually_opened": true,
+    "extraction_seconds": 12254,
+    "content_verification_seconds": 5792.819,
+    "total_drill_elapsed_seconds": null,
+    "notes": [
+      "The unprivileged restore passed content verification but failed ownership. A privileged follow-up used NAS snapshot metadata to repair mismatched numeric owners only within B2 scratch.",
+      "A subsequent validator read the actual B2 snapshot and passed file type/size, ownership, modes, mtimes, and symlink-presence assertions. Its final report write failed because the earlier repair report was root-owned; the report was then finalized manually with the B2 snapshot ID.",
+      "The temporary validator checked symlink presence, not target strings, and did not test xattrs. Earlier claims that the complete B2 metadata gate had passed were too broad.",
+      "The scratch report's elapsed_seconds value of 36.23899483680725 came from the NAS-based repair pass and is not the B2 validation or total restore duration. It is deliberately not reused here.",
+      "No repository credentials, file contents, or private keys are included in this record."
+    ]
+  },
+  "remaining_recovery_checks": [
+    "Verify B2 symlink target strings against authenticated B2 tree metadata.",
+    "Select and verify stored Linux extended attributes independently for NAS and B2.",
+    "Record representative executable and hidden application-state inspection."
+  ],
+  "remaining_activation_evidence": [
+    "Review existing disposable append-only/quota evidence and complete outstanding live cross-host credential and NetworkPolicy denial checks.",
+    "Network retry, confirmed document promotion, and vault-lock independence.",
+    "Required warning and resolved Pushover delivery and per-host repository checks.",
+    "Reviewed client and CronJob activation followed by seven days and a successful weekly copy/prune cycle."
+  ]
+}
