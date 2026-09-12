@@ -21,6 +21,8 @@
     "flux_kustomizations_ready": true,
     "m5c_server_ready": true,
     "m5c_cronjobs_suspended": true,
+    "contract_v2_deployed_revision": "4d9a797d742708441374e16baadc13ecd7f2cb30",
+    "contract_v2_deployed": true,
     "macos_version": "26.6.2",
     "macos_build": "25G83",
     "python_executable": "/opt/homebrew/bin/python3",
