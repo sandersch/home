@@ -4,6 +4,14 @@
   "activation_complete": false,
   "observation_complete": false,
   "scope_exclusions": ["m5c activation", "vault-v3 migration"],
+  "nas_restore_passed": true,
+  "b2_restore_passed": true,
+  "kdbx_opened": true,
+  "append_only_passed": true,
+  "network_retry_passed": true,
+  "documents_promoted": true,
+  "vault_lock_independence_passed": true,
+  "metadata_restore_passed": true,
   "installer_required_booleans": [
     "nas_restore_passed",
     "b2_restore_passed",
@@ -20,18 +28,18 @@
     "kdbx_opened": {"passed": true, "reference": "ryze-recovery-20260912.json"},
     "metadata_restore_passed": {"passed": true, "reference": "ryze-recovery-20260912.json", "supplemental_nas_snapshot": "47705a5cc0824f9e6e179cabf0a8ec491ac3334f3e2e220ae24ca5b5ca929fd4", "supplemental_b2_snapshot": "a8b006b41e8a45d02c6b848c5c30ce94d98da38e4a291722afa20d8030be2674"},
     "append_only_passed": {"passed": true, "reference": "test-workstation-rest-server.sh", "image": "restic/rest-server:0.14.0@sha256:e117e428e511e3ffdeb6d0e578adf4b468803c77ad500993bb8f15038b2d9db3", "scope": "disposable fixture; not a production denial test"},
-    "network_retry_passed": {"passed": false},
-    "documents_promoted": {"passed": false},
-    "vault_lock_independence_passed": {"passed": false}
+    "network_retry_passed": {"passed": true, "reference": "ryze-network-retry.py; backup-failure.json recorded Restic exit status 1 with success markers and repository IDs unchanged"},
+    "documents_promoted": {"passed": true, "reference": "vault-ingest-promote.service", "timestamp_seconds": 1789248502},
+    "vault_lock_independence_passed": {"passed": true, "reference": "restic-vault-locked-activation-20260912, restic-appstate-vault-locked-activation-20260912, restic-vault-post-lock-activation-20260912"}
   },
   "operational_gates": {
-    "preflight": false,
+    "preflight": true,
     "recovery_closure": false,
     "append_only_and_quota": true,
-    "live_isolation": false,
-    "network_retry": false,
+    "live_isolation": true,
+    "network_retry": true,
     "vault_lock_independence_and_documents": false,
-    "repository_checks_and_notifications": false,
+    "repository_checks_and_notifications": true,
     "client_installed_with_evidence": false,
     "ryze_cronjobs_enabled_only": false,
     "seven_day_observation": false,
@@ -65,6 +73,7 @@
     "Content verification and manual KDBX results are referenced, not repeated.",
     "B2 credentials were recovered through SOPS + age; password-manager retrieval is not claimed.",
     "Fixture results remain distinct from live acceptance results.",
-    "Retained restore scratch cleanup is separately scoped."
+    "Retained restore scratch cleanup is separately scoped.",
+    "Synthetic Pushover warning and resolved notifications were delivered and confirmed on the operator phone on 2026-09-12."
   ]
 }
