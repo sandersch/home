@@ -40,14 +40,14 @@
     "network_retry": true,
     "vault_lock_independence_and_documents": false,
     "repository_checks_and_notifications": true,
-    "client_installed_with_evidence": false,
-    "ryze_cronjobs_enabled_only": false,
+    "client_installed_with_evidence": true,
+    "ryze_cronjobs_enabled_only": true,
     "seven_day_observation": false,
     "natural_weekly_copy_prune": false
   },
   "activation": {
-    "revision": null,
-    "started_at": null,
+    "revision": "173b486bc6bc22c32ff313f81ef127524062f582",
+    "started_at": "2026-09-12T16:35:00-05:00",
     "cronjobs": [
       "restic-ryze-validate",
       "restic-ryze-copy",
