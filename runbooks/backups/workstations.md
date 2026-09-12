@@ -11,7 +11,9 @@ Both workstation v1 contracts
 and ryze's v2 contract are released. `infrastructure/monitoring/workstations/`
 is in the active monitoring Kustomization. Ryze's four CronJobs are enabled; all M5C
 CronJobs remain suspended.
-ryze's repositories are initialized; m5c's are not. vault-v3 remains pending.
+Both hosts' NAS/B2 repositories are initialized. M5c has no accepted seed or
+restore evidence yet; its [activation record](evidence/m5c-activation-20260912.json)
+tracks the remaining gates. vault-v3 remains pending.
 
 | Host | NAS cap | B2 ceiling | Client schedule | Documents |
 | --- | ---: | ---: | --- | --- |
@@ -500,3 +502,24 @@ open.
 Retain the scratch artifacts until inspection and evidence review are complete.
 The committed JSON records measured results and limitations; it is not an activation
 approval file and must not be used to bypass the installer's required evidence fields.
+
+### 2026-09-12 M5c activation preparation
+
+Live preflight found M5c's server ready, all four M5c CronJobs suspended, and
+746 GiB available on the expected NAS ext4 volume. The Mac runs macOS 26.6.2 with
+FileVault enabled and 359 GiB available. Its existing Tailscale identity was
+reconnected with subnet-route acceptance disabled; the backup endpoint then
+returned HTTP 401 unauthenticated over verified HTTPS.
+
+The attended `restic-m5c-enroll-20260912` Job initialized the dedicated NAS and B2
+repositories and verified matching chunker parameters. Full repository IDs are
+recorded in the M5c activation record. Initialization does not establish backup
+freshness or enroll the host for freshness alerts.
+
+A native fixture was created in `~/workstation-recovery-fixture-20260912`, inside
+the included home scope, with FinderInfo, a nonempty ResourceFork, an executable,
+hidden state and a relative symlink. A fresh v2 measurement was started through
+launchd using `/opt/homebrew/bin/python3` and the current client staged in private
+state storage. The approved exclusions are unchanged. The fixture has not yet
+been backed up or restored. The Mac still needs the privileged installation of
+pinned Restic and the current client before seeding; no schedules were enabled.

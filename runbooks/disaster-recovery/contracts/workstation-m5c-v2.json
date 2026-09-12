@@ -1,0 +1,64 @@
+{
+  "churn_tolerance": {
+    "maximum_paths": 1000,
+    "protected_paths": [
+      "Documents",
+      "Library/CloudStorage/Dropbox/ccs.kdbx"
+    ]
+  },
+  "contract": "workstation-m5c-v2",
+  "enrollment_evidence": {
+    "capacity_reviewed": true,
+    "dropbox_materialized": true,
+    "fda_launchd_passed": true,
+    "host": "m5c",
+    "icloud_optimize_disabled": true,
+    "inventory_reviewed": true,
+    "notes": [
+      "Fresh v2 inventory completed through launchd with exit code 0 on 2026-09-12.",
+      "Measured Documents totals remain 12 files / 3,288,711 bytes.",
+      "The approved M5c exclusion hash is unchanged from v1.",
+      "The native recovery fixture is included in the measured home scope.",
+      "Mac and NAS capacity were rechecked before measurement."
+    ],
+    "photos_mail_no_unique_data": true,
+    "required_content_readable": true
+  },
+  "enrollment_status": "released",
+  "exclusion_sha256": "bd4ac5117e673e9b0d1f4ca8c02e884c23382d8d2ff042c96bef0bdc3662d24f",
+  "floors": {
+    "": {
+      "bytes": 20867359534,
+      "files": 210786
+    },
+    "Documents/": {
+      "bytes": 2630969,
+      "files": 10
+    }
+  },
+  "hostname": "m5c",
+  "kdbx_minimum_bytes": 102400,
+  "kdbx_path": "Library/CloudStorage/Dropbox/ccs.kdbx",
+  "manifest": "/Users/charlessanders/.workstation-backup-manifest.json",
+  "maximum_shrink_percent": 20,
+  "measured": {
+    "": {
+      "bytes": 26084199417,
+      "files": 263482
+    },
+    "Documents/": {
+      "bytes": 3288711,
+      "files": 12
+    }
+  },
+  "measured_at": "2026-09-12T23:51:36.174443+00:00",
+  "platform": "Darwin",
+  "required_content": [
+    "Documents",
+    "Dropbox/ccs.kdbx"
+  ],
+  "shrink_baseline_samples": 7,
+  "source_roots": [
+    "/Users/charlessanders"
+  ]
+}

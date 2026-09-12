@@ -1,0 +1,54 @@
+# Preserve Library/Application Support, projects and hidden application state.
+# Approved omission: entire unused iCloud Mobile Documents tree.
+Library/Mobile Documents
+# Approved omission: root-owned mode-0600 Control Center preferences; not recoverable.
+Library/Group Containers/group.com.apple.secure-control-center-preferences/Library/Preferences/group.com.apple.secure-control-center-preferences.av.plist
+# Generated CoreSpeech compilation cache; preserve other group-container state.
+Library/Group Containers/group.com.apple.CoreSpeech/Caches/onDeviceCompilationCaches
+# Attended inventory: root-owned mode-0600 Google updater statistics, not user data.
+Library/Google/GoogleSoftwareUpdate/Stats/Keystone.stats
+# Attended confirmation: this Google Drive tree is fully present and backed up on ryze.
+Library/CloudStorage/GoogleDrive-sanderscharlie@gmail.com
+# Shared Dropbox is backed up in full by ryze; Mac retains only the required KDBX.
+only-file:Library/CloudStorage/Dropbox/ccs.kdbx
+only-file:Dropbox/ccs.kdbx
+# Attended inventory: two UUID instances have an empty, mode-000 tombstone/a.
+# Match only UUID-named instances and this exact subtree, not other provider state.
+Library/Application Support/FileProvider/[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/wharf/tombstone/a
+.cache
+# Attended inventory: NordVPN Realm runtime FIFO, not database contents.
+Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.management/access_control.new_commit.cv
+Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.management/access_control.pick_writer.cv
+Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.note
+.local/state/workstation-backup
+.config/workstation-backup
+.config/vault-ingest
+Library/Caches
+Library/Logs
+Library/Mail
+Library/Containers/com.apple.mail
+Library/Developer/Xcode/DerivedData
+Library/Developer/CoreSimulator
+Library/Containers/com.docker.docker
+Library/Application Support/Steam
+Pictures/Photos Library.photoslibrary
+.Trash
+Downloads
+node_modules
+.venv
+venv
+__pycache__
+.tox
+.gradle
+target
+build
+dist
+.next
+.npm
+.cargo/registry
+.rustup/toolchains
+restore-scratch
+.restore-tests
+*.dmg
+*.pkg
+*.iso

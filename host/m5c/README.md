@@ -30,8 +30,10 @@ agent runs hourly while logged in, including on battery, with no scheduled wake.
 Enrollment requires the actual launchd Full Disk Access check, FileVault, disabled
 iCloud Optimize Storage, locally materialized Dropbox content, and confirmation
 that Photos/Mail have no unique data. The measured m5c v1 contract is released in
-the repository; credential enrollment, native restores and schedule activation
-remain pending. Follow the [attended runbook](../../runbooks/backups/workstations.md).
+the repository. Credentials and NAS/B2 repository initialization are complete;
+the v2 measurement, current client installation, seed, native restores and schedule
+activation remain pending. See the [activation record](../../runbooks/backups/evidence/m5c-activation-20260912.json)
+and follow the [attended runbook](../../runbooks/backups/workstations.md).
 
 The File Provider layout is supported: `~/Dropbox` may be an absolute or relative
 symlink to `~/Library/CloudStorage/Dropbox`. Inventory backs up that real directory
