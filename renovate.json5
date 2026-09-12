@@ -35,6 +35,12 @@
       "enabled": false
     },
     {
+      "description": "Flux resources expose version/tag references rather than digest-pinnable fields",
+      "matchManagers": ["flux"],
+      "matchUpdateTypes": ["pinDigest"],
+      "enabled": false
+    },
+    {
       "description": "Major dependency releases require explicit Dependency Dashboard approval",
       "matchManagers": ["kubernetes", "flux", "dockerfile", "custom.regex"],
       "matchUpdateTypes": ["major"],

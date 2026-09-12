@@ -73,9 +73,16 @@ Flux watches only `main`, so an open Renovate PR cannot change the cluster.
 `renovate.json5` enables the Kubernetes, Flux, Dockerfile, and annotated-shell regex
 managers. It explicitly scans repo-authored Kubernetes and Flux paths, manages Helm
 chart versions in Flux `HelmRelease` resources from their `HelmRepository` sources,
-manages the custom Restic Containerfile base, pins and updates digests, and consolidates duplicate
+manages the custom Restic Containerfile base, pins and updates supported image
+digests, and consolidates duplicate
 manifest/shell occurrences into one logical dependency. Standard shell annotations
 have this form:
+
+Flux-managed chart and source references are intentionally version/tag managed without
+digest pinning: Flux `HelmRelease` and `GitRepository` resources do not expose a
+digest-pinnable field for these dependencies. The package rule in `renovate.json5`
+skips only unsupported Flux `pinDigest` updates; container image digest pinning remains
+enabled for the Kubernetes, Dockerfile, and custom regex managers.
 
 ```bash
 # renovate: datasource=docker depName=busybox
