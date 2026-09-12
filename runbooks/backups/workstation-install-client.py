@@ -73,10 +73,11 @@ def main():
     if args.enable:
         evidence = read_json(args.evidence) if args.evidence else {}
         required = ['nas_restore_passed', 'b2_restore_passed', 'kdbx_opened', 'append_only_passed',
-                    'network_retry_passed', 'documents_promoted', 'vault_lock_independence_passed']
+                    'network_retry_passed', 'documents_promoted', 'vault_lock_independence_passed',
+                    'metadata_restore_passed']
         if args.host == 'm5c':
             required += ['fda_launchd_passed', 'icloud_optimize_disabled', 'photos_mail_no_unique_data',
-                         'filevault_enabled', 'dropbox_materialized', 'metadata_restore_passed']
+                         'filevault_enabled', 'dropbox_materialized']
         if evidence.get('host') != args.host or not all(evidence.get(k) is True for k in required):
             raise ValueError('activation evidence is incomplete; schedules remain disabled')
         if args.host == 'ryze':

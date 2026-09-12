@@ -404,11 +404,14 @@ def daily(args):
         except BlockingIOError:
             return
         failed = False
-        for task in ('backup', 'documents'):
+        selected = getattr(args, 'tasks', 'all')
+        tasks = ('backup', 'documents') if selected == 'all' else (selected,)
+        force = bool(getattr(args, 'force', False))
+        for task in tasks:
             marker = state / (task + '.json')
             previous = read_json(marker) if marker.exists() else {'time': 0}
             age = time.time() - previous['time']
-            if 0 <= age < 86400:
+            if not force and 0 <= age < 86400:
                 continue
             try:
                 sid = None
@@ -417,8 +420,14 @@ def daily(args):
                 else:
                     subprocess.run(['/usr/local/bin/vault-ingest', 'documents'], check=True)
                 atomic(marker, {'time': time.time(), 'snapshot_id': sid})
+                failure = state / (task + '-failure.json')
+                if failure.exists():
+                    failure.unlink()
             except (OSError, ValueError, subprocess.CalledProcessError) as error:
                 print(f'{task}: {error}', file=sys.stderr)
+                atomic(state / (task + '-failure.json'),
+                       {'task': task, 'failed_at': dt.datetime.now(dt.timezone.utc).isoformat(),
+                        'error': str(error)})
                 failed = True
         if failed:
             raise SystemExit(1)
@@ -437,6 +446,8 @@ def main():
     measure.add_argument('--output', required=True)
     run = sub.add_parser('daily')
     run.add_argument('--config', default=str(Path.home() / '.config/workstation-backup/config.json'))
+    run.add_argument('--tasks', choices=['all', 'backup', 'documents'], default='all')
+    run.add_argument('--force', action='store_true', help='bypass the selected task due check once')
     args = parser.parse_args()
     enroll(args) if args.action == 'measure' else daily(args)
 
