@@ -6,10 +6,11 @@ the complete metadata gate passed on 2026-09-12. The supplemental Linux fixture 
 backed up by the real Ryze client, validated, copied to B2, and independently restored
 from both destinations; its xattr, symlink-target, ownership, mode, timestamp, and
 representative-file results are recorded in the [recovery evidence](evidence/ryze-recovery-20260912.json).
-Remaining live activation gates are tracked in the [activation record](evidence/ryze-activation-20260912.json).
+The live activation gates and their evidence are tracked in the [activation record](evidence/ryze-activation-20260912.json).
 Both workstation v1 contracts
 and ryze's v2 contract are released. `infrastructure/monitoring/workstations/`
-is in the active monitoring Kustomization with all four CronJobs per host suspended.
+is in the active monitoring Kustomization. Ryze's four CronJobs are enabled; all M5C
+CronJobs remain suspended.
 ryze's repositories are initialized; m5c's are not. vault-v3 remains pending.
 
 | Host | NAS cap | B2 ceiling | Client schedule | Documents |
@@ -483,12 +484,18 @@ representative executable/hidden-state files. Full IDs, phase timings, reports, 
 Job timestamps are in the recovery evidence. The fixture is explicitly supplemental
 evidence and does not replace the retained historical content-verification results.
 
-Remaining activation evidence is the live cross-host and NetworkPolicy isolation,
-network retry, document promotion, vault-lock independence, repository checks,
-warning/resolved notification delivery, attended client installation, and reviewed
-CronJob activation. Use disposable repositories for destructive denial/quota tests.
-Only after those gates pass should the four Ryze schedules be enabled, followed by
-seven days and a successful weekly copy/prune cycle.
+### 2026-09-12 Ryze activation
+
+The live activation gates passed: cross-host credential denial, labelled and unlabelled
+NetworkPolicy probes, the isolated-network retry with an independent failure marker,
+Documents promotion, locked-vault and independent appstate backup behavior, attended
+NAS/B2 repository checks, and synthetic Pushover warning/resolved delivery. The
+required `/opt` snapshot was taken before the vault drill. The Ryze client was
+installed and enabled with the evidence-gated installer, and commit `173b486` enabled
+only `restic-ryze-validate`, `restic-ryze-copy`, `restic-ryze-prune`, and
+`restic-ryze-check`; M5C remains suspended. Commit `6e14f02` records the activation
+evidence. Seven-day observation, weekly copy/prune, and monthly check gates remain
+open.
 
 Retain the scratch artifacts until inspection and evidence review are complete.
 The committed JSON records measured results and limitations; it is not an activation
