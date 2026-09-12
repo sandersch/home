@@ -1,6 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "enabledManagers": ["kubernetes", "dockerfile", "custom.regex"],
+  "enabledManagers": ["kubernetes", "flux", "dockerfile", "custom.regex"],
   "ignorePaths": ["runbooks/version-management/fixtures/**"],
   "timezone": "America/Chicago",
   "schedule": ["* 0-5 * * 0"],
@@ -10,6 +10,9 @@
   "pinDigests": true,
   "kubernetes": {
     "managerFilePatterns": ["/(^|/)(apps|infrastructure)/.*\\.ya?ml$/"]
+  },
+  "flux": {
+    "managerFilePatterns": ["/(^|/)(apps|clusters|infrastructure)/.*\\.ya?ml$/"]
   },
   "dockerfile": {
     "managerFilePatterns": ["/^containers\\/restic-backup\\/Containerfile$/"]
@@ -26,14 +29,14 @@
   ],
   "packageRules": [
     {
-      "description": "This slice manages container images, not chart/source/API pins",
-      "matchManagers": ["kubernetes"],
-      "matchDatasources": ["helm", "git-refs", "kubernetes-api"],
+      "description": "Exclude non-Helm Kubernetes and Flux source/API pins; Helm chart versions are managed",
+      "matchManagers": ["kubernetes", "flux"],
+      "matchDatasources": ["git-refs", "kubernetes-api"],
       "enabled": false
     },
     {
-      "description": "Major image releases require explicit Dependency Dashboard approval",
-      "matchManagers": ["kubernetes", "dockerfile", "custom.regex"],
+      "description": "Major dependency releases require explicit Dependency Dashboard approval",
+      "matchManagers": ["kubernetes", "flux", "dockerfile", "custom.regex"],
       "matchUpdateTypes": ["major"],
       "dependencyDashboardApproval": true
     },
@@ -79,8 +82,8 @@
       "enabled": false
     },
     {
-      "description": "Every workload image merge is a production change through Flux",
-      "matchManagers": ["kubernetes", "dockerfile", "custom.regex"],
+      "description": "Every dependency merge is a production change through Flux",
+      "matchManagers": ["kubernetes", "flux", "dockerfile", "custom.regex"],
       "prBodyNotes": [
         ":warning: Merging workload image changes updates production through Flux. Follow the owning [Phase 4 validator](https://github.com/sandersch/home/tree/main/runbooks/phase4), [Phase 5 validator](https://github.com/sandersch/home/tree/main/runbooks/phase5), and the [version-management rollback procedure](https://github.com/sandersch/home/blob/main/docs/version-management.md#routine-update-and-rollback-workflow)."
       ]

@@ -2,8 +2,9 @@
 
 This workflow makes rebuilds deterministic without turning dependency discovery into
 an unattended production deployment. It covers repo-authored workload, init,
-validation, recovery, and container-build images. Helm-managed images, generated Flux
-manifests, GitHub Actions versions, and k3s are outside this container-image slice.
+validation, recovery, and container-build images. Helm chart versions are proposed
+through the Flux manager; Helm-managed images, generated Flux manifests, GitHub
+Actions versions, and k3s remain outside this container-image slice.
 
 > **Status (2026-08-23): container-image slice and attended k3s lifecycle implemented.**
 > The Phase 2 target pin and validated live baseline are `v1.36.3+k3s1`. Attended
@@ -69,9 +70,10 @@ The hosted Renovate GitHub App is the update proposer. Restrict its installation
 the private `sandersch/home` repository, then review and merge its onboarding PR.
 Flux watches only `main`, so an open Renovate PR cannot change the cluster.
 
-`renovate.json5` enables only the Kubernetes, Dockerfile, and annotated-shell regex
-managers. It explicitly scans repo-authored Kubernetes paths, manages the custom
-Restic Containerfile base, pins and updates digests, and consolidates duplicate
+`renovate.json5` enables the Kubernetes, Flux, Dockerfile, and annotated-shell regex
+managers. It explicitly scans repo-authored Kubernetes and Flux paths, manages Helm
+chart versions in Flux `HelmRelease` resources from their `HelmRepository` sources,
+manages the custom Restic Containerfile base, pins and updates digests, and consolidates duplicate
 manifest/shell occurrences into one logical dependency. Standard shell annotations
 have this form:
 
