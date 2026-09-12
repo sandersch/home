@@ -7,9 +7,10 @@
 > passed. Flux reconciled activation commit `eb02a61` on 2026-09-07, and the live
 > `restic-vault-copy` and `restic-vault-prune` CronJobs are present with `SUSPEND=false`.
 > The first copy run completed successfully; the first prune run is pending its scheduled
-> Saturday window. Workstation code and suspended manifests are now staged; enrollment,
-> native restore gates and activation remain pending. Offline copies and mail archival
-> remain draft. Updated 2026-09-08.
+> Saturday window. Ryze workstation enrollment, seed, B2 copy, native restore, and
+> metadata recovery gates are complete, while the workstation schedules remain suspended
+> pending live activation drills and observation. m5c activation and vault-v3 remain out
+> of scope. Offline copies and mail archival remain draft. Updated 2026-09-12.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
@@ -26,6 +27,12 @@
 > implementation uses a dedicated B2 repository and exact-lineage validation; its initial
 > B2 seed and attended on-host restore passed on 2026-09-07. Do not describe the RAID array
 > itself as a backup.
+>
+> Ryze workstation recovery closure passed on 2026-09-12. The retained NAS/B2 restores
+> passed content and manual KDBX checks; a real-client supplemental Linux fixture was
+> then independently restored from NAS and B2 with xattr, symlink-target, ownership,
+> mode, timestamp, and representative-file checks. Ryze activation, schedule enablement,
+> and the seven-day observation gate remain pending. See the [Ryze activation record](../runbooks/backups/evidence/ryze-activation-20260912.json).
 >
 > The broader off-site and whole-estate follow-up remains open in
 > [operations.md → Follow-ups](./operations.md#follow-ups).
@@ -1162,12 +1169,16 @@ The staged implementation and attended deployment/recovery procedure are in
 [workstations.md](../runbooks/backups/workstations.md). The package under
 `infrastructure/monitoring/workstations/` is not yet referenced by the active
 monitoring Kustomization, and all new maintenance schedules are suspended.
-No production workstation snapshot or successful native restore is claimed.
+Ryze has a production v2 seed, successful B2 copy, and successful native NAS/B2
+restore evidence. The supplemental metadata fixture was backed up through the real
+client and restored independently from both destinations; see the [sanitized recovery
+record](../runbooks/backups/evidence/ryze-recovery-20260912.json). No workstation
+schedule has been activated, and m5c remains out of scope.
 The 2026-09-08 ryze preflight measured **552,840 included files / 27,921,624,561
 bytes**, including **538 Documents files / 296,757,693 bytes**. Proposed 80% floors
 are generated from those measurements; the immutable release awaits review.
-Mac measurements, privacy/cloud checks, credential enrollment and seven-day
-observation remain outstanding.
+Live isolation, retry, vault-lock/Documents, notification, installer, schedule, and
+seven-day observation gates remain outstanding. Mac/m5c activation remains out of scope.
 
 `ryze` and `m5c` aren't cluster nodes. Run **two** `restic/rest-server` Deployments in the
 cluster, one per workstation, each backed by its own fixed hostPath under

@@ -30,7 +30,7 @@
     "ownership_modes_mtimes_passed": true,
     "symlink_targets_passed": true,
     "symlink_count": 2534,
-    "extended_attributes_tested": false,
+    "extended_attributes_tested": true,
     "kdbx_manually_opened": true,
     "extraction_seconds": 430,
     "content_verification_seconds": 117.534,
@@ -53,8 +53,8 @@
     "ownership_repaired_using_nas_metadata": true,
     "ownership_modes_mtimes_revalidated_against_b2": true,
     "symlink_presence_count": 2534,
-    "symlink_targets_passed": null,
-    "extended_attributes_tested": false,
+    "symlink_targets_passed": true,
+    "extended_attributes_tested": true,
     "kdbx_manually_opened": true,
     "extraction_seconds": 12254,
     "content_verification_seconds": 5792.819,
@@ -67,13 +67,37 @@
       "No repository credentials, file contents, or private keys are included in this record."
     ]
   },
-  "remaining_recovery_checks": [
-    "Verify B2 symlink target strings against authenticated B2 tree metadata.",
-    "Select and verify stored Linux extended attributes independently for NAS and B2.",
-    "Record representative executable and hidden application-state inspection."
-  ],
+  "supplemental_metadata_fixture": {
+    "fixture_path": "/home/charlie/.restore-metadata-fixture/xattr-sample",
+    "attribute_name": "user.homelab.restore-fixture",
+    "nas_snapshot": "47705a5cc0824f9e6e179cabf0a8ec491ac3334f3e2e220ae24ca5b5ca929fd4",
+    "nas_report": "/opt/games/.ryze-restore-scratch/workstation-restore-b6a5cvz6/restore-verification.json",
+    "b2_snapshot": "a8b006b41e8a45d02c6b848c5c30ce94d98da38e4a291722afa20d8030be2674",
+    "b2_report": "/opt/games/.ryze-restore-scratch/workstation-restore-f1o9vt22/restore-verification.json",
+    "nas_xattr_passed": true,
+    "b2_xattr_passed": true,
+    "nas_content_verification": "Restic --verify passed; 527100 files",
+    "b2_content_verification": "Restic --verify passed; 527100 files",
+    "client_backup_snapshot": "47705a5cc0824f9e6e179cabf0a8ec491ac3334f3e2e220ae24ca5b5ca929fd4",
+    "client_backup_completed_at": "2026-09-12T17:21:57Z",
+    "validation_job": "restic-ryze-validate-fixture-20260912",
+    "validation_started_at": "2026-09-12T17:38:15Z",
+    "validation_completed_at": "2026-09-12T17:46:33Z",
+    "copy_job": "restic-ryze-copy-fixture-20260912",
+    "copy_started_at": "2026-09-12T17:56:21Z",
+    "copy_completed_at": "2026-09-12T20:20:53Z",
+    "b2_counterpart": "a8b006b41e8a45d02c6b848c5c30ce94d98da38e4a291722afa20d8030be2674"
+  },
+  "representative_metadata_inspection": {
+    "nas_report": "/home/charlie/restore-scratch/workstation-restore-23buexc7/restore-verification.json",
+    "b2_report": "/home/charlie/restore-scratch/workstation-restore-2wr5ss4u/restore-verification.json",
+    "supplemental_nas_report": "/opt/games/.ryze-restore-scratch/workstation-restore-b6a5cvz6/restore-verification.json",
+    "supplemental_b2_report": "/opt/games/.ryze-restore-scratch/workstation-restore-f1o9vt22/restore-verification.json",
+    "executed_recovered_code": false
+  },
+  "remaining_recovery_checks": [],
   "remaining_activation_evidence": [
-    "Review existing disposable append-only/quota evidence and complete outstanding live cross-host credential and NetworkPolicy denial checks.",
+    "Complete outstanding live cross-host credential and NetworkPolicy denial checks.",
     "Network retry, confirmed document promotion, and vault-lock independence.",
     "Required warning and resolved Pushover delivery and per-host repository checks.",
     "Reviewed client and CronJob activation followed by seven days and a successful weekly copy/prune cycle."

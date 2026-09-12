@@ -1,9 +1,13 @@
 # Workstation enrollment and recovery
 
 Status: rest-servers deployed; ryze has an accepted v2 seed (generation 2) and a
-successful B2 copy. Native NAS/B2 content restores and both manual KDBX openings
-passed on 2026-09-12; remaining metadata and activation checks are listed in the
-[recovery evidence](evidence/ryze-recovery-20260912.json). Both workstation v1 contracts
+successful B2 copy. Native NAS/B2 content restores, both manual KDBX openings, and
+the complete metadata gate passed on 2026-09-12. The supplemental Linux fixture was
+backed up by the real Ryze client, validated, copied to B2, and independently restored
+from both destinations; its xattr, symlink-target, ownership, mode, timestamp, and
+representative-file results are recorded in the [recovery evidence](evidence/ryze-recovery-20260912.json).
+Remaining live activation gates are tracked in the [activation record](evidence/ryze-activation-20260912.json).
+Both workstation v1 contracts
 and ryze's v2 contract are released. `infrastructure/monitoring/workstations/`
 is in the active monitoring Kustomization with all four CronJobs per host suspended.
 ryze's repositories are initialized; m5c's are not. vault-v3 remains pending.
@@ -469,14 +473,22 @@ of minis. This does not establish password-manager credential retrieval. The vau
 separate break-glass-card document/photo drill must not be represented as a workstation
 result or automatically imposed as an additional workstation restore requirement.
 
-Next, close B2 symlink-target verification, native xattr samples for each repository,
-and representative executable/hidden-state inspection. Then reconcile the remaining
-activation evidence: disposable append-only/quota tests, live cross-host and
-NetworkPolicy isolation, network retry, document promotion, vault-lock independence,
-repository checks, and warning/resolved notification delivery. Use disposable
-repositories for destructive denial/quota tests. Only after the applicable gates pass
-should the attended client installer and reviewed CronJob activation proceed, followed
-by seven days and a successful weekly copy/prune cycle.
+The supplemental Linux fixture closed the metadata gap. The real Ryze client created
+NAS snapshot `47705a5c…929fd4`; the existing validation Job
+`restic-ryze-validate-fixture-20260912` completed successfully, and the existing copy
+Job `restic-ryze-copy-fixture-20260912` produced B2 snapshot
+`a8b006b4…0be267`. Fresh privileged restores from both destinations verified the
+fixture xattr `user.homelab.restore-fixture`, authenticated symlink targets, and
+representative executable/hidden-state files. Full IDs, phase timings, reports, and
+Job timestamps are in the recovery evidence. The fixture is explicitly supplemental
+evidence and does not replace the retained historical content-verification results.
+
+Remaining activation evidence is the live cross-host and NetworkPolicy isolation,
+network retry, document promotion, vault-lock independence, repository checks,
+warning/resolved notification delivery, attended client installation, and reviewed
+CronJob activation. Use disposable repositories for destructive denial/quota tests.
+Only after those gates pass should the four Ryze schedules be enabled, followed by
+seven days and a successful weekly copy/prune cycle.
 
 Retain the scratch artifacts until inspection and evidence review are complete.
 The committed JSON records measured results and limitations; it is not an activation
