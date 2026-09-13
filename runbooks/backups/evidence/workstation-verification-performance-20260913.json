@@ -1,0 +1,88 @@
+{
+  "recorded_date": "2026-09-13",
+  "purpose": "Bounded authenticated symlink-metadata verification comparison; not a restore or seed acceptance gate.",
+  "implementation_sha256": "a58f0ea94ed1253174bbe717b320ac2afcbdc4434816dc20a13b36dc1efb2450",
+  "restic_version": "0.19.1",
+  "methodology": {
+    "sample": "One symlink from each of 12 evenly spaced distinct parent directories in the exact snapshot listing.",
+    "repository_locks": "Normal read locks retained for every Restic invocation.",
+    "order": [
+      1,
+      4,
+      8
+    ],
+    "repetitions": 1,
+    "outputs_identical_within_each_sample": true,
+    "limitations": [
+      "Small dependency-shaped samples; not full-run throughput measurements.",
+      "Worker counts were tested sequentially, not randomized; backend cache state may differ.",
+      "The server benchmark ran while the original M5C client verification remained active.",
+      "RUSAGE_CHILDREN max RSS includes the preceding snapshot-listing process and is not aggregate worker memory."
+    ]
+  },
+  "workstation": {
+    "host": "ryze",
+    "snapshot_id": "fe9174643c8a50592264a1256557c9f2fcfafb3180a8c8248407cea5c0642829",
+    "symlinks": 12,
+    "directories": 47,
+    "unique_tree_reads": 47,
+    "result_sha256": "3da6be463d1cdc6279bef19b59ae51c3272dfc30ef16ef1a4f4e3a4562b7ca67",
+    "results": [
+      {
+        "workers": 1,
+        "elapsed_seconds": 47.323,
+        "child_cpu_seconds": 55.356
+      },
+      {
+        "workers": 4,
+        "elapsed_seconds": 21.16,
+        "child_cpu_seconds": 69.178
+      },
+      {
+        "workers": 8,
+        "elapsed_seconds": 21.384,
+        "child_cpu_seconds": 70.039
+      }
+    ],
+    "selected_workers": 4
+  },
+  "server": {
+    "job": "restic-m5c-verify-benchmark-20260913",
+    "snapshot_id": "2eee843af080d73bc2d9cbe52b1f56eeb39d3255d389c84b93f4499dabfd8501",
+    "symlinks": 12,
+    "directories": 44,
+    "unique_tree_reads": 44,
+    "limits": {
+      "cpu": "1",
+      "memory": "4Gi"
+    },
+    "results": [
+      {
+        "workers": 1,
+        "elapsed_seconds": 54.609,
+        "result_sha256": "5c729fac82d60e6a22d05471d0a4881d6fa192b3bcbda180525c471c6e9cd0ab",
+        "child_cpu_seconds": 40.688,
+        "child_maxrss": 1769328
+      },
+      {
+        "workers": 4,
+        "elapsed_seconds": 70.549,
+        "result_sha256": "5c729fac82d60e6a22d05471d0a4881d6fa192b3bcbda180525c471c6e9cd0ab",
+        "child_cpu_seconds": 67.131,
+        "child_maxrss": 1769328
+      },
+      {
+        "workers": 8,
+        "elapsed_seconds": 100.372,
+        "result_sha256": "5c729fac82d60e6a22d05471d0a4881d6fa192b3bcbda180525c471c6e9cd0ab",
+        "child_cpu_seconds": 96.835,
+        "child_maxrss": 1769328
+      }
+    ],
+    "selected_workers": 1,
+    "reason": "Four and eight readers regressed under the existing one-core limit. Keep tree-ID deduplication, indexed lookups and progress reporting with one server reader."
+  },
+  "schedules_changed": false,
+  "completion_receipts_published": false,
+  "snapshots_accepted": false
+}

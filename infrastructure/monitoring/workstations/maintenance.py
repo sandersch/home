@@ -200,7 +200,10 @@ class Manager:
         if snapshot['hostname'] != self.host or snapshot['paths'] != [home]:
             raise ValueError('source roots or logical hostname differ from contract')
         nodes = [json.loads(line) for line in self.run(destination, 'ls', '--json', sid, raw=True).splitlines()]
-        attach_link_targets(nodes, snapshot['tree'], lambda tree: self.run(destination, 'cat', 'blob', tree))
+        # Maintenance jobs have one CPU: measured 4/8-reader runs were slower
+        # than one. Keep the shared tree-ID deduplication/indexing improvements.
+        attach_link_targets(nodes, snapshot['tree'],
+                            lambda tree: self.run(destination, 'cat', 'blob', tree), workers=1)
         manifests = [n for n in nodes if n.get('path') == contract['manifest'] and n.get('type') == 'file']
         if len(manifests) != 1 or not 0 < manifests[0]['size'] <= 128 * 1024 * 1024:
             raise ValueError('missing or oversized measured manifest')

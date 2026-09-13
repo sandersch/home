@@ -237,14 +237,21 @@ upload Documents, then invoke server `validate` and `copy`. Record full NAS/B2 I
 and compare both repositories' config/chunker values. Repeat for m5c after ryze's
 NAS/B2 seed is validated.
 
-Symlink verification in the shared workstation/server wrapper uses four concurrent
-Restic tree readers. It fetches each authenticated tree ID once per verification,
+Symlink verification uses four concurrent Restic tree readers on workstations.
+Server maintenance uses one reader within its one-core limit: the attended
+comparison measured 54.6 seconds with one reader, 70.5 with four and 100.4 with
+eight on the same 44-tree sample. Both use the shared wrapper, which fetches
+each authenticated tree ID once per verification,
 including when multiple paths share a tree, and retains normal repository locks.
 The verifier reports elapsed time, completed symlinks/directories and tree reads
 at percentage milestones and at least every 30 seconds while waiting for reads.
 Failures prevent client completion receipts and server acceptance. The helper's
-keyword-only `workers` argument accepts 1–8 for bounded comparisons; ordinary
-client and maintenance calls use four, within the existing server resource limits.
+keyword-only `workers` argument accepts 1–8 for bounded comparisons. On Ryze,
+the same 47-tree sample took 47.3 seconds with one reader, 21.2 with four and
+21.4 with eight, supporting four as the client default. These small samples used
+normal locks and produced identical metadata; they are not full-backup timings.
+Exact IDs, timings and limitations are in the
+[verification performance record](evidence/workstation-verification-performance-20260913.json).
 
 For a wrapper-only update, wait for the client's existing backup lock to become
 available, retain the installed script as a rollback copy, and atomically replace
