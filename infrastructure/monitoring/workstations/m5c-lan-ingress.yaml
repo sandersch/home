@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: restic-m5c-lan
+  namespace: monitoring
+  annotations:
+    # M5c is the only permitted LAN source. Keep this endpoint temporary and
+    # remove it after workstation activation and recovery gates close.
+    nginx.ingress.kubernetes.io/whitelist-source-range: 10.137.30.7/32
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts: [restic-m5c.worm.run]
+  rules:
+  - host: restic-m5c.worm.run
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: restic-m5c
+            port: {number: 8000}

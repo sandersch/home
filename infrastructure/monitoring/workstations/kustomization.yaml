@@ -8,6 +8,7 @@ resources:
 - m5c.sops.yaml
 - ryze-server.yaml
 - m5c-server.yaml
+- m5c-lan-ingress.yaml
 - ryze-jobs.yaml
 - m5c-jobs.yaml
 - alerts.yaml
