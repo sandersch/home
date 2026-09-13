@@ -31,6 +31,10 @@ def digest(value):
     return hashlib.sha256(value).hexdigest()
 
 
+def timestamped(message):
+    return f'[{dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}] {message}'
+
+
 def atomic(path, value):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -117,11 +121,11 @@ def inventory(home, rules, progress_total=None, progress_label='inventory'):
         files_read += 1
         if progress_total:
             while next_percent <= 100 and files_read * 100 >= progress_total * next_percent:
-                print(f'{progress_label}: {next_percent}% '
-                      f'({files_read}/{progress_total} files)', file=sys.stderr, flush=True)
+                print(timestamped(f'{progress_label}: {next_percent}% '
+                                  f'({files_read}/{progress_total} files)'), file=sys.stderr, flush=True)
                 next_percent += 10
         elif files_read >= next_report:
-            print(f'{progress_label}: {files_read} files', file=sys.stderr, flush=True)
+            print(timestamped(f'{progress_label}: {files_read} files'), file=sys.stderr, flush=True)
             next_report += 10000
 
     def walk(directory):
@@ -341,7 +345,7 @@ def backup(config, state):
     if credentials.stat().st_mode & 0o077:
         raise ValueError('credentials must have mode 0600')
     env.update(read_json(credentials))
-    print(f'backup: repository {safe_repository(env["RESTIC_REPOSITORY"])}', flush=True)
+    print(timestamped(f'backup: repository {safe_repository(env["RESTIC_REPOSITORY"])}'), flush=True)
     progress_total = contract.get('measured', {}).get('', {}).get('files')
     records, omissions = inventory(home, patterns(excludes), progress_total=progress_total,
                                    progress_label='backup')
@@ -435,10 +439,11 @@ def attach_link_targets(nodes, root_tree, read_tree):
         node['linktarget'] = stored['linktarget']
         completed_links += 1
         if total_links <= 10:
-            print(f'verify: {completed_links}/{total_links} symlinks', file=sys.stderr, flush=True)
+            print(timestamped(f'verify: {completed_links}/{total_links} symlinks'), file=sys.stderr, flush=True)
         elif total_links:
             while next_percent <= 100 and completed_links * 100 >= total_links * next_percent:
-                print(f'verify: {next_percent}% ({completed_links}/{total_links} symlinks)',
+                print(timestamped(f'verify: {next_percent}% '
+                                  f'({completed_links}/{total_links} symlinks)'),
                       file=sys.stderr, flush=True)
                 next_percent += 10
 
