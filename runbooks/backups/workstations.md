@@ -237,6 +237,24 @@ upload Documents, then invoke server `validate` and `copy`. Record full NAS/B2 I
 and compare both repositories' config/chunker values. Repeat for m5c after ryze's
 NAS/B2 seed is validated.
 
+Symlink verification in the shared workstation/server wrapper uses four concurrent
+Restic tree readers. It fetches each authenticated tree ID once per verification,
+including when multiple paths share a tree, and retains normal repository locks.
+The verifier reports elapsed time, completed symlinks/directories and tree reads
+at percentage milestones and at least every 30 seconds while waiting for reads.
+Failures prevent client completion receipts and server acceptance. The helper's
+keyword-only `workers` argument accepts 1–8 for bounded comparisons; ordinary
+client and maintenance calls use four, within the existing server resource limits.
+
+For a wrapper-only update, wait for the client's existing backup lock to become
+available, retain the installed script as a rollback copy, and atomically replace
+only `/usr/local/lib/workstation-backup/workstation.py` while holding that lock.
+Verify its SHA256 against the canonical source. Preserve the installed credentials,
+contracts and schedule activation state. Updating the file does not change a
+running Python process. The cluster mirror is delivered by the `monitoring` Flux
+Kustomization; check the mounted ConfigMap script before starting new maintenance
+work. Existing jobs must finish before deploying a shared-script update.
+
 The SFTP promoter accepts only regular files/directories in a frozen archive,
 enforces a 50 GiB bound, serializes per host, atomically records completion, and
 never propagates client deletions. Identical successful deliveries refresh the

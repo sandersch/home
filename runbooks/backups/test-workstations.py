@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import time
 import unittest
 from types import SimpleNamespace
@@ -334,6 +335,18 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(next(iter(self.manager.state['holds'].values()))['reason'],
                          'client-validation-incomplete')
 
+    def test_tree_verification_failure_does_not_publish_receipt(self):
+        self.tolerate(5)
+        with patch.object(client, 'attach_link_targets', side_effect=ValueError('tree read failed')), \
+                patch.object(client, 'publish_receipt') as receipt:
+            with self.assertRaisesRegex(ValueError, 'tree read failed'):
+                self.client_backup(lambda args: args)
+            receipt.assert_not_called()
+        self.manager.validate()
+        self.assertFalse(self.manager.state['accepted'])
+        self.assertEqual(next(iter(self.manager.state['holds'].values()))['reason'],
+                         'client-validation-incomplete')
+
     def test_oversized_receipt_is_not_dumped_or_accepted(self):
         self.tolerate(5)
         sid = self.snapshot()
@@ -495,6 +508,138 @@ class RepositoryTests(unittest.TestCase):
         with patch('os.scandir', side_effect=PermissionError('fixture')):
             with self.assertRaises(PermissionError):
                 client.inventory(self.home, [])
+
+
+class TreeVerificationTests(unittest.TestCase):
+    def tree_id(self, number):
+        return f'{number:064x}'
+
+    def branching(self, count=8):
+        root = self.tree_id(0)
+        trees = {root: {'nodes': [
+            {'name': str(i), 'type': 'dir', 'subtree': self.tree_id(i + 1)}
+            for i in range(count)]}}
+        nodes = []
+        for i in range(count):
+            trees[self.tree_id(i + 1)] = {'nodes': [
+                {'name': 'link', 'type': 'symlink', 'linktarget': f'../target-{i}'},
+                {'name': 'other', 'type': 'symlink', 'linktarget': '/absolute'}]}
+            nodes.extend({'path': f'/{i}/{name}', 'type': 'symlink'} for name in ('link', 'other'))
+        return root, trees, nodes
+
+    def test_bounded_parallelism_matches_serial(self):
+        root, trees, nodes = self.branching()
+        serial = copy.deepcopy(nodes)
+        client.attach_link_targets(serial, root, trees.__getitem__, workers=1)
+        barrier = threading.Barrier(4, timeout=5)
+        lock = threading.Lock()
+        active = maximum = 0
+        calls = []
+        def read(tree):
+            nonlocal active, maximum
+            with lock:
+                calls.append(tree)
+                active += 1
+                maximum = max(maximum, active)
+            try:
+                if tree != root:
+                    barrier.wait()
+                return trees[tree]
+            finally:
+                with lock:
+                    active -= 1
+        client.attach_link_targets(nodes, root, read)
+        self.assertEqual(nodes, serial)
+        self.assertEqual(maximum, 4)
+        self.assertCountEqual(calls, trees)
+
+    def test_shared_and_inflight_trees_are_read_once(self):
+        root, trees, nodes = self.branching(2)
+        trees[root]['nodes'][1]['subtree'] = self.tree_id(1)
+        calls = []
+        def read(tree):
+            calls.append(tree)
+            return trees[tree]
+        output = io.StringIO()
+        with patch('sys.stderr', output):
+            client.attach_link_targets(nodes, root, read)
+        self.assertEqual(calls, [root, self.tree_id(1)])
+        self.assertEqual(nodes[0]['linktarget'], nodes[2]['linktarget'])
+        self.assertIn('4/4 symlinks, 3/3 directories, 2 tree reads', output.getvalue())
+
+    def test_deep_ancestry_with_one_worker(self):
+        depth = 100
+        trees = {self.tree_id(i): {'nodes': [
+            {'name': 'd', 'type': 'dir', 'subtree': self.tree_id(i + 1)}]}
+            for i in range(depth)}
+        trees[self.tree_id(depth)] = {'nodes': [
+            {'name': 'link', 'type': 'symlink', 'linktarget': '../destination'}]}
+        nodes = [{'path': '/d' * depth + '/link', 'type': 'symlink'}]
+        client.attach_link_targets(nodes, self.tree_id(0), trees.__getitem__, workers=1)
+        self.assertEqual(nodes[0]['linktarget'], '../destination')
+
+    def test_empty_input_and_worker_validation(self):
+        read = unittest.mock.Mock()
+        client.attach_link_targets([], self.tree_id(0), read)
+        read.assert_not_called()
+        for workers in (0, 9, True, 1.5):
+            with self.assertRaises(ValueError):
+                client.attach_link_targets([], self.tree_id(0), read, workers=workers)
+
+    def test_failure_stops_scheduling_and_does_not_publish_targets(self):
+        root, trees, nodes = self.branching()
+        calls = []
+        def read(tree):
+            calls.append(tree)
+            if tree != root:
+                raise subprocess.CalledProcessError(1, 'restic')
+            return trees[tree]
+        output = io.StringIO()
+        with patch('sys.stderr', output), self.assertRaises(subprocess.CalledProcessError):
+            client.attach_link_targets(nodes, root, read, workers=1)
+        self.assertEqual(calls, [root, self.tree_id(1)])
+        self.assertTrue(all('linktarget' not in node for node in nodes))
+        self.assertIn('verify: failed', output.getvalue())
+        self.assertNotIn('verify: complete', output.getvalue())
+
+    def test_malformed_metadata_fails_closed(self):
+        for invalid in (None, {}, {'nodes': None}, {'nodes': [None]},
+                        {'nodes': [{'name': '..'}]},
+                        {'nodes': [{'name': 'link'}, {'name': 'link'}]},
+                        {'nodes': []},
+                        {'nodes': [{'name': 'link', 'type': 'file', 'linktarget': 'x'}]},
+                        {'nodes': [{'name': 'link', 'type': 'symlink'}]}):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                client.attach_link_targets([{'path': '/link', 'type': 'symlink'}],
+                                           self.tree_id(0), lambda _: invalid)
+        for path in ('relative', '/a/../link', '//link', '/a//link', '/'):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                client.attach_link_targets([{'path': path, 'type': 'symlink'}],
+                                           self.tree_id(0), lambda _: {})
+        root, trees, nodes = self.branching(1)
+        for entry in ({'name': '0', 'type': 'file'},
+                      {'name': '0', 'type': 'dir', 'subtree': 'bad-id'}):
+            trees[root] = {'nodes': [entry]}
+            with self.assertRaises(ValueError):
+                client.attach_link_targets(nodes, root, trees.__getitem__)
+
+    def test_periodic_progress_before_first_symlink(self):
+        root, trees, nodes = self.branching(1)
+        clock = [0]
+        original_wait = client.wait
+        def wait(*args, **kwargs):
+            result = original_wait(*args, **kwargs)
+            clock[0] += 31
+            return result
+        output = io.StringIO()
+        with patch.object(client.time, 'monotonic', side_effect=lambda: clock[0]), \
+                patch.object(client, 'wait', side_effect=wait), patch('sys.stderr', output):
+            client.attach_link_targets(nodes, root, trees.__getitem__)
+        text = output.getvalue()
+        self.assertIn('verify: start', text)
+        self.assertIn('verify: 0%; 0/2 symlinks', text)
+        self.assertIn('verify: complete; 2/2 symlinks, 2/2 directories, 2 tree reads', text)
+        self.assertIn('elapsed', text)
 
 
 class ScopeTests(unittest.TestCase):

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Curated workstation scope, enrollment and daily client (Python 3.11+)."""
 import argparse
+from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import contextmanager
 import datetime as dt
 import errno
@@ -417,35 +419,121 @@ def snapshot_records(nodes, home, manifest):
     return records
 
 
-def attach_link_targets(nodes, root_tree, read_tree):
-    """Restic ls omits link targets; obtain them from authenticated tree blobs."""
-    cache = {}
-    links = [node for node in nodes if node.get('type') == 'symlink']
-    total_links = len(links)
-    completed_links = 0
+def attach_link_targets(nodes, root_tree, read_tree, *, workers=4):
+    """Read authenticated symlink metadata with bounded, deduplicated concurrency.
+
+    Only the coordinator resolves paths and updates state. Workers read individual
+    blobs; they never submit or wait for other workers (including at workers=1).
+    read_tree must support concurrent calls and retain normal repository locking.
+    """
+    if type(workers) is not int or not 1 <= workers <= 8:
+        raise ValueError('verification workers must be between 1 and 8')
+    links = {}
+    required = {'/'}
+    total_links = 0
+    for node in nodes:
+        if node.get('type') != 'symlink':
+            continue
+        path = node.get('path')
+        if (not isinstance(path, str) or not path.startswith('/') or
+                '..' in PurePosixPath(path).parts or str(PurePosixPath(path)) != path or path == '/'):
+            raise ValueError('symlink path must be canonical and absolute')
+        parent, _, name = path.rpartition('/')
+        parent = parent or '/'
+        if name in links.setdefault(parent, {}):
+            raise ValueError('duplicate snapshot symlink path')
+        links[parent][name] = node
+        total_links += 1
+        while parent not in required:
+            required.add(parent)
+            parent = parent.rpartition('/')[0] or '/'
+    children = {path: set() for path in required}
+    for path in required - {'/'}:
+        parent, _, name = path.rpartition('/')
+        children[parent or '/'].add(name)
+
+    started = time.monotonic()
+    last_report = started
     next_percent = 10
-    def tree_at(path):
-        if path not in cache:
-            if path == '/':
-                tree_id = root_tree
-            else:
-                parent, _, name = path.rpartition('/')
-                tree_id = next(n['subtree'] for n in tree_at(parent or '/')['nodes'] if n['name'] == name)
-            cache[path] = read_tree(tree_id)
-        return cache[path]
-    for node in links:
-        parent, _, name = node['path'].rpartition('/')
-        stored = next(n for n in tree_at(parent or '/')['nodes'] if n['name'] == name)
-        node['linktarget'] = stored['linktarget']
-        completed_links += 1
-        if total_links <= 10:
-            print(timestamped(f'verify: {completed_links}/{total_links} symlinks'), file=sys.stderr, flush=True)
-        elif total_links:
-            while next_percent <= 100 and completed_links * 100 >= total_links * next_percent:
-                print(timestamped(f'verify: {next_percent}% '
-                                  f'({completed_links}/{total_links} symlinks)'),
-                      file=sys.stderr, flush=True)
-                next_percent += 10
+    completed_links = resolved = reads = 0
+    targets = []
+    cache = {}
+    waiting = {}
+    queued = deque()
+    ready = deque([('/', root_tree)] if total_links else [])
+    pending = {}
+
+    def report(status):
+        nonlocal last_report
+        last_report = time.monotonic()
+        print(timestamped(f'verify: {status}; {completed_links}/{total_links} symlinks, '
+                          f'{resolved}/{len(children) if total_links else 0} directories, '
+                          f'{reads} tree reads, {workers} workers, '
+                          f'{last_report - started:.1f}s elapsed'), file=sys.stderr, flush=True)
+
+    def index_tree(value):
+        if not isinstance(value, dict) or not isinstance(value.get('nodes'), list):
+            raise ValueError('invalid authenticated tree')
+        entries = {}
+        for entry in value['nodes']:
+            name = entry.get('name') if isinstance(entry, dict) else None
+            if (not isinstance(name, str) or not name or name in ('.', '..') or
+                    '/' in name or name in entries):
+                raise ValueError('invalid or duplicate authenticated tree entry')
+            entries[name] = entry
+        return entries
+
+    report('start')
+    pool = ThreadPoolExecutor(max_workers=workers)
+    try:
+        while ready or queued or pending:
+            while ready:
+                path, tree_id = ready.popleft()
+                if not isinstance(tree_id, str) or not re.fullmatch('[0-9a-f]{64}', tree_id):
+                    raise ValueError('invalid authenticated subtree ID')
+                if tree_id not in cache:
+                    if tree_id not in waiting:
+                        waiting[tree_id] = []
+                        queued.append(tree_id)
+                    waiting[tree_id].append(path)
+                    continue
+                entries = cache[tree_id]
+                for name, node in links.get(path, {}).items():
+                    stored = entries.get(name, {})
+                    if stored.get('type') != 'symlink' or not isinstance(stored.get('linktarget'), str):
+                        raise ValueError('missing or invalid authenticated symlink target')
+                    targets.append((node, stored['linktarget']))
+                    completed_links += 1
+                for name in sorted(children[path]):
+                    stored = entries.get(name, {})
+                    if stored.get('type') != 'dir' or not stored.get('subtree'):
+                        raise ValueError('missing or invalid authenticated subtree')
+                    ready.append((path.rstrip('/') + '/' + name, stored['subtree']))
+                resolved += 1
+            while queued and len(pending) < workers:
+                tree_id = queued.popleft()
+                pending[pool.submit(read_tree, tree_id)] = tree_id
+            if pending:
+                done, _ = wait(pending, timeout=max(0, 30 - (time.monotonic() - last_report)),
+                               return_when=FIRST_COMPLETED)
+                for future in done:
+                    tree_id = pending.pop(future)
+                    cache[tree_id] = index_tree(future.result())
+                    reads += 1
+                    ready.extend((path, tree_id) for path in waiting.pop(tree_id))
+            percent = completed_links * 100 // total_links
+            if percent >= next_percent or time.monotonic() - last_report >= 30:
+                report(f'{percent}%')
+                next_percent = (percent // 10 + 1) * 10
+        # Publish targets only after the complete traversal succeeds.
+        for node, target in targets:
+            node['linktarget'] = target
+    except BaseException:
+        report('failed')
+        raise
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
+    report('complete')
 
 
 def daily(args):
