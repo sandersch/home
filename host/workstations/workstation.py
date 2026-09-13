@@ -416,6 +416,10 @@ def snapshot_records(nodes, home, manifest):
 def attach_link_targets(nodes, root_tree, read_tree):
     """Restic ls omits link targets; obtain them from authenticated tree blobs."""
     cache = {}
+    links = [node for node in nodes if node.get('type') == 'symlink']
+    total_links = len(links)
+    completed_links = 0
+    next_percent = 10
     def tree_at(path):
         if path not in cache:
             if path == '/':
@@ -425,11 +429,18 @@ def attach_link_targets(nodes, root_tree, read_tree):
                 tree_id = next(n['subtree'] for n in tree_at(parent or '/')['nodes'] if n['name'] == name)
             cache[path] = read_tree(tree_id)
         return cache[path]
-    for node in nodes:
-        if node.get('type') == 'symlink':
-            parent, _, name = node['path'].rpartition('/')
-            stored = next(n for n in tree_at(parent or '/')['nodes'] if n['name'] == name)
-            node['linktarget'] = stored['linktarget']
+    for node in links:
+        parent, _, name = node['path'].rpartition('/')
+        stored = next(n for n in tree_at(parent or '/')['nodes'] if n['name'] == name)
+        node['linktarget'] = stored['linktarget']
+        completed_links += 1
+        if total_links <= 10:
+            print(f'verify: {completed_links}/{total_links} symlinks', file=sys.stderr, flush=True)
+        elif total_links:
+            while next_percent <= 100 and completed_links * 100 >= total_links * next_percent:
+                print(f'verify: {next_percent}% ({completed_links}/{total_links} symlinks)',
+                      file=sys.stderr, flush=True)
+                next_percent += 10
 
 
 def daily(args):
