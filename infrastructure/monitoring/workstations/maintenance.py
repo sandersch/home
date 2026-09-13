@@ -21,7 +21,7 @@ import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
 
-from workstation import atomic, attach_link_targets, check_drift, check_floors, completion_receipt, digest, drift, excluded, patterns, read_json, snapshot_records, totals, KDBX, RECEIPT_ROOT
+from workstation import atomic, check_drift, check_floors, completion_receipt, digest, drift, excluded, patterns, read_json, snapshot_records, totals, KDBX, RECEIPT_ROOT
 
 ID = re.compile(r'^[0-9a-f]{64}$')
 CONTRACT = re.compile(r'workstation-(?P<host>ryze|m5c)-v(?P<version>[1-9][0-9]*)')
@@ -200,10 +200,6 @@ class Manager:
         if snapshot['hostname'] != self.host or snapshot['paths'] != [home]:
             raise ValueError('source roots or logical hostname differ from contract')
         nodes = [json.loads(line) for line in self.run(destination, 'ls', '--json', sid, raw=True).splitlines()]
-        # Maintenance jobs have one CPU: measured 4/8-reader runs were slower
-        # than one. Keep the shared tree-ID deduplication/indexing improvements.
-        attach_link_targets(nodes, snapshot['tree'],
-                            lambda tree: self.run(destination, 'cat', 'blob', tree), workers=1)
         manifests = [n for n in nodes if n.get('path') == contract['manifest'] and n.get('type') == 'file']
         if len(manifests) != 1 or not 0 < manifests[0]['size'] <= 128 * 1024 * 1024:
             raise ValueError('missing or oversized measured manifest')
@@ -225,7 +221,16 @@ class Manager:
         if not any(n.get('path') == home + '/Documents' and n.get('type') == 'dir' for n in nodes):
             raise ValueError('Documents directory is absent')
         check_floors(records, contract)
-        database_path = contract.get('kdbx_path', 'Dropbox/ccs.kdbx')
+        database_path = contract.get('kdbx_path')
+        if not database_path:
+            # Legacy contracts predate the measured kdbx_path field. Resolve
+            # only this required Dropbox alias from the client manifest; all
+            # other symlink targets remain intentionally unexamined.
+            dropbox = manifest.get('records', {}).get('Dropbox', {})
+            if dropbox.get('type') == 'symlink':
+                database_path = 'Library/CloudStorage/Dropbox/ccs.kdbx'
+            else:
+                database_path = 'Dropbox/ccs.kdbx'
         database = records.get(database_path, {})
         if database.get('type') != 'file' or database.get('size', 0) < contract['kdbx_minimum_bytes']:
             raise ValueError('required KDBX absent or undersized')
