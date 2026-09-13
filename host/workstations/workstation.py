@@ -109,16 +109,17 @@ def inventory(home, rules, progress_total=None, progress_label='inventory'):
     device = home.stat().st_dev
     records, omissions = {}, []
     files_read = 0
-    next_report = 0.1 if progress_total else 10000
+    next_percent = 10
+    next_report = 10000
 
     def report_file():
-        nonlocal files_read, next_report
+        nonlocal files_read, next_percent, next_report
         files_read += 1
         if progress_total:
-            while next_report <= 1 and files_read >= math.ceil(progress_total * next_report):
-                print(f'{progress_label}: {min(100, int(next_report * 100))}% '
+            while next_percent <= 100 and files_read * 100 >= progress_total * next_percent:
+                print(f'{progress_label}: {next_percent}% '
                       f'({files_read}/{progress_total} files)', file=sys.stderr, flush=True)
-                next_report += 0.1
+                next_percent += 10
         elif files_read >= next_report:
             print(f'{progress_label}: {files_read} files', file=sys.stderr, flush=True)
             next_report += 10000
