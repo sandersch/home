@@ -11,7 +11,7 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: prometheus-community
-      version: 87.17.0
+      version: 87.21.0
   install:
     createNamespace: false
     crds: CreateReplace
