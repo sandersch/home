@@ -41,7 +41,7 @@ spec:
         - {name: tools, mountPath: /tools}
       containers:
       - name: server
-        image: python:3.13.7-alpine3.22@sha256:527c28b29498575b851ad88e7522ac7201bbd9e920d2c11b00ff2b39b315f5f8
+        image: python:3.14.5-alpine3.22@sha256:1a5f0303fd8941565b5bbda3fac2345148a9fd8245d575c2971ccefcd77c78f6
         command: ["python3", "/scripts/server.py"]
         env:
         - {name: WORKSTATION_HOST, value: ryze}
