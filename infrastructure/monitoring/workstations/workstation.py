@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib.parse import urlsplit, urlunsplit
 
 MANIFEST = '.workstation-backup-manifest.json'
 RECEIPT_ROOT = '/.workstation-backup-validation'
@@ -101,12 +102,26 @@ def directory_entries(directory):
     yield listing
 
 
-def inventory(home, rules):
+def inventory(home, rules, progress_total=None, progress_label='inventory'):
     home = Path(home)
     if home.is_symlink() or not home.is_dir():
         raise ValueError('home must be a real local directory')
     device = home.stat().st_dev
     records, omissions = {}, []
+    files_read = 0
+    next_report = 0.1 if progress_total else 10000
+
+    def report_file():
+        nonlocal files_read, next_report
+        files_read += 1
+        if progress_total:
+            while next_report <= 1 and files_read >= math.ceil(progress_total * next_report):
+                print(f'{progress_label}: {min(100, int(next_report * 100))}% '
+                      f'({files_read}/{progress_total} files)', file=sys.stderr, flush=True)
+                next_report += 0.1
+        elif files_read >= next_report:
+            print(f'{progress_label}: {files_read} files', file=sys.stderr, flush=True)
+            next_report += 10000
 
     def walk(directory):
         with directory_entries(directory) as entries:
@@ -146,6 +161,7 @@ def inventory(home, rules):
                     if path.stat().st_size != info.st_size:
                         raise ValueError(f'file changed during inventory: {path}')
                     records[relative] = {'type': 'file', 'size': info.st_size}
+                    report_file()
                 elif stat.S_ISLNK(info.st_mode):
                     records[relative] = {'type': 'symlink', 'linktarget': os.readlink(path)}
                 elif stat.S_ISSOCK(info.st_mode):
@@ -207,6 +223,24 @@ def churn_tolerance(measured_files, kdbx_path):
             'protected_paths': ['Documents', kdbx_path]}
 
 
+def safe_repository(value):
+    """Return a repository URL with any embedded credentials removed."""
+    if value.startswith('rest:'):
+        prefix, value = 'rest:', value[5:]
+    else:
+        prefix = ''
+    try:
+        parsed = urlsplit(value)
+        if parsed.scheme and parsed.netloc:
+            host = parsed.hostname or ''
+            if parsed.port:
+                host += ':' + str(parsed.port)
+            return prefix + urlunsplit((parsed.scheme, host, parsed.path, parsed.query, parsed.fragment))
+    except ValueError:
+        pass
+    return prefix + '<redacted>'
+
+
 def drift(expected, actual):
     return sorted(p for p in expected.keys() | actual.keys() if expected.get(p) != actual.get(p))
 
@@ -265,7 +299,7 @@ def restic(*args, env=None, input_bytes=None):
 
 
 def enroll(args):
-    records, _ = inventory(args.home, patterns(args.excludes))
+    records, _ = inventory(args.home, patterns(args.excludes), progress_label='measure')
     measured = {p: totals(records, p) for p in ('', 'Documents/')}
     value = {'contract': f'workstation-{args.host}-v{args.contract_version}', 'hostname': args.host,
              'enrollment_status': 'measured-unreleased',
@@ -301,16 +335,19 @@ def backup(config, state):
     if not restic('version').decode().startswith('restic 0.19.1 '):
         raise ValueError('Restic 0.19.1 is required')
     since = time.time()
-    records, omissions = inventory(home, patterns(excludes))
-    check_floors(records, contract)
-    manifest = {'contract': contract['contract'], 'exclusion_sha256': contract['exclusion_sha256'],
-                'records': records, 'measured': totals(records)}
-    atomic(home / MANIFEST, manifest)
     env = os.environ.copy()
     credentials = Path(config['credentials'])
     if credentials.stat().st_mode & 0o077:
         raise ValueError('credentials must have mode 0600')
     env.update(read_json(credentials))
+    print(f'backup: repository {safe_repository(env["RESTIC_REPOSITORY"])}', flush=True)
+    progress_total = contract.get('measured', {}).get('', {}).get('files')
+    records, omissions = inventory(home, patterns(excludes), progress_total=progress_total,
+                                   progress_label='backup')
+    check_floors(records, contract)
+    manifest = {'contract': contract['contract'], 'exclusion_sha256': contract['exclusion_sha256'],
+                'records': records, 'measured': totals(records)}
+    atomic(home / MANIFEST, manifest)
     # Restic sees the same exclusions the inventory resolved. Literal paths are
     # escaped for Restic's glob matcher; line breaks fail closed.
     with tempfile.TemporaryDirectory(prefix='workstation-', dir=state) as temporary:
