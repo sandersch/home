@@ -143,7 +143,7 @@ spec:
             - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
             resources:
               requests: {cpu: 250m, memory: 512Mi}
-              limits: {cpu: "1", memory: 4Gi}
+              limits: {cpu: "1", memory: 8Gi}
             securityContext:
               allowPrivilegeEscalation: false
               readOnlyRootFilesystem: true
@@ -176,7 +176,7 @@ spec:
           - name: metrics
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
           - name: tmp
-            emptyDir: {medium: Memory, sizeLimit: 512Mi}
+            emptyDir: {medium: Memory, sizeLimit: 2Gi}
 ---
 apiVersion: batch/v1
 kind: CronJob
