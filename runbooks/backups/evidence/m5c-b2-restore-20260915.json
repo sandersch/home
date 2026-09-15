@@ -1,0 +1,28 @@
+{
+  "snapshot_id": "06cba4fb8781cb632e72b0cb5b8353f867b6e134e49b0028ead870417ffeeb2a",
+  "destination": "b2",
+  "hostname": "m5c",
+  "source_root": "/Users/charlessanders",
+  "content_verification": {
+    "passed": true,
+    "log": "/Users/charlessanders/.local/state/workstation-backup/restore-scratch-root/workstation-restore-m5c-b2-root/restic-content-restore.log"
+  },
+  "metadata_verification": {
+    "passed": true,
+    "restored_nodes": 361195,
+    "symlink_presence_count": 49074,
+    "selected_symlink_target_passed": "/Users/charlessanders/workstation-recovery-fixture-20260912/relative-link",
+    "finder_info_passed": true,
+    "resource_fork_passed": true,
+    "representatives_passed": true,
+    "verification_report": "/Users/charlessanders/.local/state/workstation-backup/restore-scratch-root/workstation-restore-m5c-b2-root/restore-verification.json"
+  },
+  "kdbx_opened": {
+    "passed": true,
+    "nas_copy": true,
+    "b2_copy": true,
+    "path": "Library/CloudStorage/Dropbox/ccs.kdbx"
+  },
+  "restore_xattr_exclusion": "com.apple.file-provider-domain-id",
+  "recorded_from": "Operator-provided successful m5c native B2 restore verification and manual opening of both restored password databases on 2026-09-15"
+}

@@ -2227,7 +2227,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | `vault` B2 authorization separation | 2026-09-07 | passed — the existing appstate B2 application key was denied access to the dedicated vault bucket. No credential material was recorded. |
 | Strongbox `ccs.kdbx` ingestion + four-source open | *not yet* | — |
 | `ryze` workstation local + B2 restore | *not yet* | — |
-| `m5c` workstation local + B2 restore | 2026-09-14 (partial) | NAS content and metadata verification passed for `52e7cfdf`: 361,195 nodes restored, 263,198 files content-verified, FinderInfo/ResourceFork, and selected symlink target. Independent B2 recovery and manual KDBX openings remain pending; see the [verification record](../runbooks/backups/workstations.md#2026-09-14-m5c-nas-restore-verification). |
+| `m5c` workstation local + B2 restore | 2026-09-15 (recovery gates passed) | NAS and B2 content/metadata verification passed; 361,195 nodes restored and both restored KDBX copies opened successfully. The FileProvider domain identifier xattr was excluded from both scratch restores; selected FinderInfo/ResourceFork checks passed. See the [recovery records](../runbooks/backups/workstations.md#2026-09-14-m5c-nas-restore-verification). |
 | Mail archive restore (local + B2) | *not yet* | — |
 | Frigate exports restore (local + B2) | *not yet* | — |
 | Offline drive rotation (drive A) | *not yet* | — |

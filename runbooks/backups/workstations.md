@@ -11,8 +11,8 @@ Both workstation v1 and v2 contracts are released. `infrastructure/monitoring/wo
 is in the active monitoring Kustomization. Ryze's four CronJobs are enabled; all M5C
 CronJobs remain suspended.
 Both hosts' NAS/B2 repositories are initialized. M5c has accepted NAS snapshots and
-a successful B2 copy. Native NAS content and metadata verification passed on
-2026-09-14; independent B2 recovery and both manual KDBX openings remain pending. Its
+a successful B2 copy. Native NAS and B2 content and metadata verification passed on
+2026-09-14/15, and both restored KDBX copies opened successfully. Its
 [activation record](evidence/m5c-activation-20260912.json) tracks the remaining gates.
 vault-v3 remains pending.
 
@@ -581,6 +581,6 @@ in the scratch tree. The earlier
 [metadata-only report](evidence/m5c-nas-restore-verification-20260914.json)
 is retained separately.
 
-Independent B2 content/metadata recovery and both manual KDBX openings remain
-pending. Documents promotion, vault-v3, operational drills, schedule activation,
-and observation also remain pending.
+The independent B2 restore and both manual KDBX openings passed; see the
+[B2 recovery evidence](evidence/m5c-b2-restore-20260915.json). Documents promotion,
+vault-v3, operational drills, schedule activation, and observation remain pending.

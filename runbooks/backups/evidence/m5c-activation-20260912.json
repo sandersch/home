@@ -4,14 +4,27 @@
   "activation_complete": false,
   "observation_complete": false,
   "nas_restore_passed": true,
-  "b2_restore_passed": false,
-  "kdbx_opened": false,
+  "b2_restore_passed": true,
+  "kdbx_opened": true,
   "append_only_passed": false,
   "network_retry_passed": false,
   "documents_promoted": false,
   "vault_lock_independence_passed": false,
   "metadata_restore_passed": true,
   "nas_metadata_restore_passed": true,
+  "b2_restore_verification": {
+    "evidence": "m5c-b2-restore-20260915.json",
+    "snapshot_id": "06cba4fb8781cb632e72b0cb5b8353f867b6e134e49b0028ead870417ffeeb2a",
+    "content_verification": true,
+    "metadata_verification": true,
+    "restore_xattr_exclusion": "com.apple.file-provider-domain-id"
+  },
+  "kdbx_verification": {
+    "passed": true,
+    "evidence": "m5c-b2-restore-20260915.json",
+    "nas_copy_opened": true,
+    "b2_copy_opened": true
+  },
   "nas_restore_verification": {
     "evidence": "m5c-nas-restore-20260915.json",
     "evidence_source": "Operator-provided successful privileged Mac-native NAS restore and verification",
@@ -132,7 +145,6 @@
     "measurement_plist_lint": true
   },
   "remaining": [
-    "Independently restore and verify B2 content and metadata; manually open both KDBX copies.",
     "M5c Documents promotion and attended vault-v3 transition with recovery checks.",
     "Operational failure/retry, sleep/wake, isolation, quota, repository-check and notification gates.",
     "Evidence-gated client enablement and reviewed M5c CronJob activation.",
