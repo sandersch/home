@@ -6,7 +6,7 @@ metadata:
 spec:
   schedule: "30 5 * * *"
   timeZone: America/Chicago
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -96,7 +96,7 @@ metadata:
 spec:
   schedule: "45 5 * * 1"
   timeZone: America/Chicago
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -186,7 +186,7 @@ metadata:
 spec:
   schedule: "30 0 * * 2"
   timeZone: America/Chicago
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3
@@ -287,7 +287,7 @@ metadata:
 spec:
   schedule: "30 2 15 * *"
   timeZone: America/Chicago
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 3

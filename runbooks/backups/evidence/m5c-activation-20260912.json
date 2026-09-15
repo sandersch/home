@@ -6,10 +6,81 @@
   "nas_restore_passed": true,
   "b2_restore_passed": true,
   "kdbx_opened": true,
-  "append_only_passed": false,
-  "network_retry_passed": false,
-  "documents_promoted": false,
-  "vault_lock_independence_passed": false,
+  "append_only_passed": true,
+  "network_retry_passed": true,
+  "documents_promoted": true,
+  "vault_lock_independence_passed": true,
+  "operational_tests_20260915": {
+    "append_only_and_quota": {
+      "passed": true,
+      "script": "runbooks/backups/test-workstation-rest-server.sh",
+      "scope": "Disposable local repositories only; production repositories were not deletion or quota targets.",
+      "snapshot_delete_http_status": 403,
+      "config_delete_http_status": 403,
+      "cross_credentials_http_status": 401,
+      "quota_http_status": 507,
+      "quota_bytes": 8388608,
+      "backup_after_prune_and_restart": true,
+      "repository_check_after_recount": true,
+      "fixtures_removed_by_script": true
+    },
+    "documents": {
+      "passed": true,
+      "promotion_timestamp_seconds": 1789439011,
+      "ssh_direct_attempt": "macOS denied Documents access; launchd could read and archive Documents.",
+      "initial_launchd_attempt": "SFTP failed because the enabled vault-ingest-sshd.socket was inactive.",
+      "recovery": "Started the existing socket; launchd upload succeeded. Temporary launchctl submit probes restarted repeatedly and rate-limited the promoter; both probes were unloaded, queued uploads promoted, and the path unit restored to active.",
+      "promoter": "/usr/local/sbin/vault-ingest-promote m5c"
+    },
+    "network_retry": {
+      "passed": true,
+      "failure_script": "m5c-network-activation-20260915.py",
+      "failed_exit": 1,
+      "failure_marker_present": true,
+      "backup_success_unchanged": true,
+      "documents_success_unchanged": true,
+      "snapshot_and_receipt_set_unchanged": true,
+      "failure": "DNS/network denial produced Restic exit_error; no repository artifacts were published."
+    },
+    "safety_snapshot": "/opt/.snapshots/pre-m5c-activation-20260915",
+    "vault_lock": {
+      "status": "in_progress",
+      "locked_at": "2026-09-15T02:28:48Z",
+      "vault_skip_job": "restic-vault-locked-m5c-20260915",
+      "vault_skip_passed": true,
+      "locked_metric": 1,
+      "bare_mountpoint_empty_and_immutable": true,
+      "appstate_job": "restic-appstate-locked-m5c-20260915",
+      "temporary_suspensions": ["monitoring Flux Kustomization", "restic-vault-backup", "restic-vault-copy", "restic-vault-prune", "restic-verify"]
+    },
+    "repository_check": {
+      "job": "restic-m5c-check-activation-20260915",
+      "status": "passed",
+      "b2_check_success_timestamp_seconds": 1789440819.1587677,
+      "stale_lock_recovery": {
+        "nas_locks_removed": 5,
+        "b2_locks_removed": 1,
+        "operation": "restic unlock (without --remove-all)",
+        "mac_pids_confirmed_absent": [38424, 35424, 34085, 16068],
+        "terminated_copy_pod": "restic-m5c-copy-20260913-cbn7j",
+        "copy_pod_status": "OOMKilled",
+        "scope": "Stale lock metadata only; no snapshots or backup data deleted."
+      }
+    },
+    "post_lock_recovery": {
+      "passed": true,
+      "vault_job": "restic-vault-post-lock-m5c-20260915",
+      "m5c_snapshot": "2820d7c247ffb56d7e5e09af10fa8b49197cfe991db6d1100ab009c75fe28101",
+      "m5c_backup_marker_updated": true,
+      "vault_locked_metric_recovered": true
+    },
+    "notifications": {
+      "script": "runbooks/phase5/12-test-pushover.sh",
+      "firing_and_resolution_submitted": true,
+      "phone_delivery_confirmed": true,
+      "operator_confirmation": "All four synthetic notifications arrived: warning and critical firing, plus both resolved notifications."
+    }
+  },
   "metadata_restore_passed": true,
   "nas_metadata_restore_passed": true,
   "b2_restore_verification": {
@@ -145,7 +216,7 @@
     "measurement_plist_lint": true
   },
   "remaining": [
-    "M5c Documents promotion and attended vault-v3 transition with recovery checks.",
+    "Attended vault-v3 transition with recovery checks; M5c Documents promotion passed independently.",
     "Operational failure/retry, sleep/wake, isolation, quota, repository-check and notification gates.",
     "Evidence-gated client enablement and reviewed M5c CronJob activation.",
     "Seven days of observation and a successful scheduled weekly copy/prune cycle."
@@ -156,6 +227,6 @@
     "Initialization does not enroll the host or establish backup freshness.",
     "The included native fixture's NAS metadata, FinderInfo, ResourceFork and selected relative symlink target passed operator-reported verification on 2026-09-14 local time (2026-09-15 UTC).",
     "Server-side validation and NAS-to-B2 copy completed successfully on 2026-09-13 local time; recurring CronJobs remain suspended.",
-    "NAS metadata verification is recorded separately from full-content recovery; B2 native recovery and the remaining activation gates are still pending."
+    "Native NAS and B2 content/metadata recovery and both manual KDBX openings passed; operational activation and observation are tracked separately."
   ]
 }
