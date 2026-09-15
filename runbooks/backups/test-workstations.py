@@ -33,6 +33,71 @@ REPOSITORIES = ROOT / 'runbooks/backups/fixtures/workstation-repositories'
 READ_ONLY = {'cat', 'dump', 'ls', 'snapshots'}
 
 
+class MaintenanceProgressTests(unittest.TestCase):
+    def test_heartbeat_and_failure_preserve_exception(self):
+        heartbeat_seen = server.threading.Event()
+
+        class Log(io.StringIO):
+            def write(self, value):
+                result = super().write(value)
+                if '"event": "progress"' in value:
+                    heartbeat_seen.set()
+                return result
+
+        log = Log()
+        with patch.object(server.sys, 'stderr', log), patch.object(server, 'PROGRESS_SECONDS', .01):
+            with self.assertRaisesRegex(ValueError, 'private failure'):
+                with server.phase('maintenance-lock-wait', host='ryze'):
+                    self.assertTrue(heartbeat_seen.wait(2))
+                    raise ValueError('private failure')
+        rows = [json.loads(line) for line in log.getvalue().splitlines()]
+        self.assertEqual(rows[0]['event'], 'start')
+        self.assertEqual(rows[-1]['event'], 'failed')
+        self.assertTrue(all(row['elapsed_seconds'] >= 0 for row in rows))
+        self.assertNotIn('private failure', log.getvalue())
+
+    def test_command_drains_large_output_and_logs_only_counts(self):
+        real_popen = subprocess.Popen
+
+        def unprivileged_popen(command, **kwargs):
+            # Exercise the real pipe reader without requiring uid switching.
+            for key in ('user', 'group', 'extra_groups'):
+                kwargs.pop(key)
+            return real_popen(command, **kwargs)
+
+        manager = object.__new__(server.Manager)
+        manager.host = 'ryze'
+        manager.credentials = {'nas': {'SECRET': 'never-log-this'}}
+        payload = b'private-file-name\n' * 100000
+
+        def fixture_command(command, **kwargs):
+            return unprivileged_popen(
+                [sys.executable, '-c', 'import sys; sys.stdout.buffer.write(b"private-file-name\\n" * 100000)'],
+                **kwargs)
+
+        log = io.StringIO()
+        with patch.object(server.subprocess, 'Popen', fixture_command), patch.object(server.sys, 'stderr', log):
+            result = manager.run('nas', 'ls', '--json', 'a' * 64, raw=True)
+        self.assertEqual(result, payload)
+        rows = [json.loads(line) for line in log.getvalue().splitlines()]
+        self.assertEqual(rows[-1]['phase'], 'snapshot-listing')
+        self.assertEqual(rows[-1]['event'], 'complete')
+        self.assertEqual(rows[-1]['stdout_bytes'], len(payload))
+        self.assertEqual(rows[-1]['stdout_lines'], 100000)
+        self.assertNotIn('private-file-name', log.getvalue())
+        self.assertNotIn('never-log-this', log.getvalue())
+
+        def failed_command(command, **kwargs):
+            return unprivileged_popen([sys.executable, '-c', 'raise SystemExit(3)'], **kwargs)
+
+        log = io.StringIO()
+        with patch.object(server.subprocess, 'Popen', failed_command), patch.object(server.sys, 'stderr', log):
+            with self.assertRaises(subprocess.CalledProcessError) as error:
+                manager.run('nas', 'ls', '--json', 'a' * 64, raw=True)
+        self.assertEqual(error.exception.returncode, 3)
+        self.assertEqual(json.loads(log.getvalue().splitlines()[-1])['event'], 'failed')
+
+
 class FixtureManager(server.Manager):
     def __init__(self, fixture):
         self.host = 'ryze'

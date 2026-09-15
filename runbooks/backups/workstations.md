@@ -231,6 +231,26 @@ Use the same Job template for attended `validate`, `copy`, and `check` operation
 Do not mount the vault into workstation Jobs. Prune Jobs alone receive the API
 token needed to patch/get the two named Deployments for quota recount.
 
+Maintenance logs timestamped JSON phase records to stderr: `start`, `progress`
+every 30 seconds, and `complete` or `failed`, with monotonic `elapsed_seconds`.
+Use `kubectl --context homelab-readonly logs -n monitoring job/JOB_NAME -c maintenance -f`.
+`maintenance-lock-wait` measures the shared per-host advisory lock wait separately
+from `maintenance-action`. Within the action, `snapshot-discovery`,
+`snapshot-listing`, `listing-decode`, `comparisons`, `required-content-read`,
+`client-completion-verification`, `transfer`, and `destination-verification`
+identify the work. `metrics-collection` covers the final repository queries and
+size collection. Phases can nest; elapsed times are inclusive, not additive.
+
+Restic phases include cumulative `stdout_bytes` and `stdout_lines`, without
+logging captured payloads, paths, credentials or command arguments. For `ls --json`,
+lines count emitted JSON records (including the snapshot header), not verified
+files. An unchanged counter means no new stdout, not proof of a stalled process:
+index loading, backend reads, transfer, and Restic's own repository-lock retry
+can be silent. Restic stderr remains visible, including its lock retry messages;
+that wait occurs inside the Restic phase, separately from `maintenance-lock-wait`.
+There is no transfer percentage unless Restic itself emits one. These logs do not
+change validation, cache policy, schedules, or the meaning of success metrics.
+
 Install the client using `workstation-install-client.py --host ... --contract ...
 --credentials ...` as the desktop user. This installs configuration and schedule
 files but does not enable them. Run the daily command manually to seed NAS and

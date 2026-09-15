@@ -5,6 +5,7 @@ No client tag or original field is used as authority. The atomic state is outsid
 repositories and all maintenance actions share one per-host advisory lock.
 """
 import argparse
+from contextlib import contextmanager
 import datetime as dt
 import fcntl
 import hashlib
@@ -16,6 +17,8 @@ import re
 import ssl
 import statistics
 import subprocess
+import sys
+import threading
 import time
 import urllib.request
 import urllib.parse
@@ -28,6 +31,64 @@ CONTRACT = re.compile(r'workstation-(?P<host>ryze|m5c)-v(?P<version>[1-9][0-9]*)
 RECEIPT = re.compile(re.escape(RECEIPT_ROOT) + r'/([0-9a-f]{64})\.json')
 RETENTION = ['--group-by', 'host', '--keep-within', '30d', '--keep-within-daily', '30d',
              '--keep-within-weekly', '84d', '--keep-within-monthly', '12m']
+
+
+PROGRESS_SECONDS = 30
+LOG_LOCK = threading.Lock()
+
+
+@contextmanager
+def phase(name, **labels):
+    """Log bounded, non-sensitive labels and heartbeats, even while blocked."""
+    started = time.monotonic()
+    counters = {}
+    stopped = threading.Event()
+
+    def report(event):
+        with LOG_LOCK:
+            print(json.dumps({'time': dt.datetime.now(dt.timezone.utc).isoformat(),
+                              'phase': name, 'event': event, **labels,
+                              'elapsed_seconds': round(time.monotonic() - started, 3),
+                              **counters}), file=sys.stderr, flush=True)
+
+    def heartbeat():
+        while not stopped.wait(PROGRESS_SECONDS):
+            report('progress')
+
+    report('start')
+    worker = threading.Thread(target=heartbeat, daemon=True)
+    worker.start()
+    outcome = 'complete'
+    try:
+        yield counters
+    except BaseException:
+        outcome = 'failed'
+        raise
+    finally:
+        stopped.set()
+        worker.join()
+        report(outcome)
+
+
+def captured_command(command, env, counters):
+    """Drain stdout continuously; log counts, never repository contents/argv."""
+    chunks = []
+    with subprocess.Popen(command, env=env, stdout=subprocess.PIPE,
+                          user=65534, group=65534, extra_groups=[]) as process:
+        try:
+            while chunk := os.read(process.stdout.fileno(), 64 * 1024):
+                chunks.append(chunk)
+                counters['stdout_bytes'] = counters.get('stdout_bytes', 0) + len(chunk)
+                counters['stdout_lines'] = counters.get('stdout_lines', 0) + chunk.count(b'\n')
+            code = process.wait()
+            if code:
+                raise subprocess.CalledProcessError(code, command)
+        except BaseException:
+            if process.poll() is None:
+                process.kill()
+            process.wait()
+            raise
+    return b''.join(chunks)
 
 
 def timestamp(value):
@@ -146,8 +207,15 @@ class Manager:
         command = ['/tools/restic', '--no-cache', '--retry-lock', '30m', *map(str, args)]
         # All repository objects retain the serving uid, including indexes made
         # by prune. Only the parent process can write root-owned control state.
-        output = subprocess.run(command, check=True, env=env, stdout=subprocess.PIPE,
-                                user=65534, group=65534, extra_groups=[]).stdout
+        operation = str(args[0])
+        name = {'ls': 'snapshot-listing', 'snapshots': 'snapshot-discovery',
+                'copy': 'transfer', 'dump': 'required-content-read',
+                'check': 'repository-check'}.get(operation, 'restic-' + operation)
+        # Exact IDs are safe identifiers. Never log paths, argv, env or payloads.
+        sid = next((str(arg) for arg in args[1:] if ID.fullmatch(str(arg))), None)
+        with phase(name, host=self.host, destination=destination, snapshot=sid) as counters:
+            counters.update(stdout_bytes=0, stdout_lines=0)
+            output = captured_command(command, env, counters)
         return output if raw else json.loads(output or b'null')
 
     def listing(self, destination):
@@ -199,11 +267,25 @@ class Manager:
         home, = contract['source_roots']
         if snapshot['hostname'] != self.host or snapshot['paths'] != [home]:
             raise ValueError('source roots or logical hostname differ from contract')
-        nodes = [json.loads(line) for line in self.run(destination, 'ls', '--json', sid, raw=True).splitlines()]
+        listing = self.run(destination, 'ls', '--json', sid, raw=True)
+        with phase('listing-decode', host=self.host, destination=destination, snapshot=sid) as counters:
+            nodes = [json.loads(line) for line in listing.splitlines()]
+            counters['entries'] = len(nodes)
+        del listing
         manifests = [n for n in nodes if n.get('path') == contract['manifest'] and n.get('type') == 'file']
         if len(manifests) != 1 or not 0 < manifests[0]['size'] <= 128 * 1024 * 1024:
             raise ValueError('missing or oversized measured manifest')
-        manifest = json.loads(self.run(destination, 'dump', sid, contract['manifest'], raw=True))
+        payload = self.run(destination, 'dump', sid, contract['manifest'], raw=True)
+        with phase('comparisons', host=self.host, destination=destination, snapshot=sid):
+            name, measured, database_path = self.compare_content(nodes, payload)
+        if not self.run(destination, 'dump', sid, home + '/' + database_path, raw=True).startswith(KDBX):
+            raise ValueError('KDBX signature mismatch')
+        return name, measured
+
+    def compare_content(self, nodes, payload):
+        contract = self.contract
+        home, = contract['source_roots']
+        manifest = json.loads(payload)
         # The manifest names its contract; only a released, pinned version with
         # the same exclusion identity can validate it.
         if manifest.get('contract') not in self.contracts:
@@ -236,9 +318,8 @@ class Manager:
             raise ValueError('required KDBX absent or undersized')
         if database['size'] > 100 * 1024 * 1024:
             raise ValueError('KDBX exceeds validation bound')
-        if not self.run(destination, 'dump', sid, home + '/' + database_path, raw=True).startswith(KDBX):
-            raise ValueError('KDBX signature mismatch')
-        return contract['contract'], {prefix: totals(records, prefix) for prefix in contract['floors']}
+        return (contract['contract'],
+                {prefix: totals(records, prefix) for prefix in contract['floors']}, database_path)
 
     def hold(self, sid, reason, destination='nas'):
         key = destination + ':' + sid
@@ -272,7 +353,8 @@ class Manager:
                 if stamp > time.time() + 600 or stamp < self.state['highwater'] - 600:
                     raise ValueError('snapshot-time-invalid')
                 name, measured = self.content('nas', row)
-                completion = self.client_completion(row, name)
+                with phase('client-completion-verification', host=self.host, snapshot=sid):
+                    completion = self.client_completion(row, name)
                 current = self.state.get('contract', f'workstation-{self.host}-v1')
                 if version(name) < version(current):
                     raise ValueError('contract-downgrade')
@@ -383,7 +465,9 @@ class Manager:
             self.hold(source['id'], str(error))
             raise
         try:
-            b2_content = self.content('b2', destination)
+            with phase('destination-verification', host=self.host, destination='b2',
+                       snapshot=destination['id']):
+                b2_content = self.content('b2', destination)
         except (ValueError, KeyError, subprocess.CalledProcessError) as error:
             self.hold(destination['id'], str(error), 'b2')
             raise
@@ -644,26 +728,33 @@ def main():
     control = Path('/repo/nas/.control') / ('workstation-' + args.host)
     control.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (control / 'lock').open('a') as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        with phase('maintenance-lock-wait', host=args.host, action=args.action):
+            fcntl.flock(lock, fcntl.LOCK_EX)
         manager = Manager(args.host)
         try:
-            if args.action in ('reject', 'accept-shrink'):
-                if not os.isatty(0):
-                    raise ValueError('hold resolution requires attended TTY')
-                if args.action == 'reject':
-                    manager.reject(args.id or '', args.reason or '', args.destination)
-                else:
-                    held = manager.state['holds'].get('nas:' + (args.id or ''))
-                    if not held and manager.state.get('resolutions', {}).get(args.id, {}).get('action') == 'accept-shrink':
-                        return
-                    if not held or held['reason'] != 'shrink':
-                        raise ValueError('exact ID is not held solely for shrink')
-                    manager.validate(accept_shrink=args.id)
-                    manager.clear()
-            else:
-                getattr(manager, args.action)()
+            with phase('maintenance-action', host=args.host, action=args.action):
+                perform_action(manager, args)
         finally:
-            manager.metrics()
+            with phase('metrics-collection', host=args.host, action=args.action):
+                manager.metrics()
+
+
+def perform_action(manager, args):
+    if args.action in ('reject', 'accept-shrink'):
+        if not os.isatty(0):
+            raise ValueError('hold resolution requires attended TTY')
+        if args.action == 'reject':
+            manager.reject(args.id or '', args.reason or '', args.destination)
+        else:
+            held = manager.state['holds'].get('nas:' + (args.id or ''))
+            if not held and manager.state.get('resolutions', {}).get(args.id, {}).get('action') == 'accept-shrink':
+                return
+            if not held or held['reason'] != 'shrink':
+                raise ValueError('exact ID is not held solely for shrink')
+            manager.validate(accept_shrink=args.id)
+            manager.clear()
+    else:
+        getattr(manager, args.action)()
 
 
 if __name__ == '__main__':
