@@ -1,0 +1,55 @@
+{
+  "snapshot_id": "52e7cfdfc5ff467c21fbcb1af9b5a62f12034e95690fe0ab4a3d8089e47d3c6c",
+  "destination": "nas",
+  "hostname": "m5c",
+  "source_root": "/Users/charlessanders",
+  "restored_nodes": 361195,
+  "metadata_paths": [
+    "/Users/charlessanders/workstation-recovery-fixture-20260912/metadata.txt"
+  ],
+  "xattrs": [
+    {
+      "path": "/Users/charlessanders/workstation-recovery-fixture-20260912/metadata.txt",
+      "name": "com.apple.FinderInfo",
+      "outcome": true
+    },
+    {
+      "path": "/Users/charlessanders/workstation-recovery-fixture-20260912/metadata.txt",
+      "name": "com.apple.ResourceFork",
+      "outcome": true
+    }
+  ],
+  "representatives": {
+    "executable": {
+      "path": "/Users/charlessanders/.asdf/installs/nodejs/lts/bin/node",
+      "sha256": "96df1150d8a9e72a34e7337f5032169aa7ff500c934d67bd2abcc40683fe006c",
+      "execute_bits": "0o111"
+    },
+    "hidden_application_state": {
+      "path": "/Users/charlessanders/.CFUserTextEncoding",
+      "sha256": "bd605d2eae2bc28178ba94d69e189242f971d699c5846addae706d7e52bc69fd",
+      "execute_bits": "0o0"
+    }
+  },
+  "symlink_presence_count": 49074,
+  "symlink_target_scope": "selected_paths",
+  "symlink_target_samples": [
+    {
+      "path": "/Users/charlessanders/workstation-recovery-fixture-20260912/relative-link",
+      "outcome": true
+    }
+  ],
+  "verification_only": true,
+  "content_verification_reference": null,
+  "phase_durations_seconds": {
+    "metadata": 11.946039915084839,
+    "symlink_targets": 1.012972116470337,
+    "xattrs": 0.04565906524658203,
+    "representatives": 3.2421061992645264
+  },
+  "started_at": "2026-09-15T00:20:57.319937+00:00",
+  "ended_at": "2026-09-15T00:21:13.567274+00:00",
+  "elapsed_seconds": 16.247337102890015,
+  "log": "/Users/charlessanders/.local/state/workstation-backup/restore-scratch-root/workstation-restore-metadata/restore-verification.log",
+  "scratch_parent": "/Users/charlessanders/.local/state/workstation-backup/restore-scratch-root"
+}

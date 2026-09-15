@@ -7,13 +7,15 @@ backed up by the real Ryze client, validated, copied to B2, and independently re
 from both destinations; its xattr, symlink-target, ownership, mode, timestamp, and
 representative-file results are recorded in the [recovery evidence](evidence/ryze-recovery-20260912.json).
 The live activation gates and their evidence are tracked in the [activation record](evidence/ryze-activation-20260912.json).
-Both workstation v1 contracts
-and ryze's v2 contract are released. `infrastructure/monitoring/workstations/`
+Both workstation v1 and v2 contracts are released. `infrastructure/monitoring/workstations/`
 is in the active monitoring Kustomization. Ryze's four CronJobs are enabled; all M5C
 CronJobs remain suspended.
-Both hosts' NAS/B2 repositories are initialized. M5c has no accepted seed or
-restore evidence yet; its [activation record](evidence/m5c-activation-20260912.json)
-tracks the remaining gates. vault-v3 remains pending.
+Both hosts' NAS/B2 repositories are initialized. M5c has accepted NAS snapshots and
+a successful B2 copy. Native NAS metadata and representative-file verification
+passed on 2026-09-14; full NAS content verification evidence, independent B2 recovery,
+and both manual KDBX openings remain pending. Its
+[activation record](evidence/m5c-activation-20260912.json) tracks the remaining gates.
+vault-v3 remains pending.
 
 | Host | NAS cap | B2 ceiling | Client schedule | Documents |
 | --- | ---: | ---: | --- | --- |
@@ -559,3 +561,27 @@ launchd using `/opt/homebrew/bin/python3` and the current client staged in priva
 state storage. The approved exclusions are unchanged. The fixture has not yet
 been backed up or restored. The Mac still needs the privileged installation of
 pinned Restic and the current client before seeding; no schedules were enabled.
+
+### 2026-09-14 M5c NAS restore verification
+
+Since preparation, the installed client passed a fresh launchd readability measurement,
+the server accepted two NAS snapshots, and the attended copy Job copied both to B2
+on 2026-09-13 local time. The activation record contains the snapshot mapping and
+installation evidence; client and maintenance schedules remain disabled.
+
+The operator reported successful native NAS restore verification for snapshot
+`52e7cfdfc5ff467c21fbcb1af9b5a62f12034e95690fe0ab4a3d8089e47d3c6c` on
+2026-09-14 at 19:21 CDT (2026-09-15 at 00:21 UTC). The
+[supplied verification report](evidence/m5c-nas-restore-verification-20260914.json)
+records 361,195 restored nodes checked for metadata, 49,074 symlinks present,
+the fixture's selected relative-link target matching, and successful FinderInfo
+and ResourceFork comparisons. The Node executable and hidden `.CFUserTextEncoding`
+representatives passed hash and execute-bit checks. Verification took 16.247 seconds;
+this is not the extraction duration.
+
+The report has `verification_only: true` and no `content_verification_reference`.
+NAS metadata verification is therefore recorded as passed, while full NAS content
+verification evidence, independent B2 content/metadata recovery, and both manual
+KDBX openings remain pending. The combined metadata and full restore activation
+gates remain open. Documents promotion, vault-v3, operational drills, schedule
+activation, and observation also remain pending.

@@ -1,6 +1,6 @@
 {
   "host": "m5c",
-  "recorded_date": "2026-09-12",
+  "recorded_date": "2026-09-14",
   "activation_complete": false,
   "observation_complete": false,
   "nas_restore_passed": false,
@@ -11,11 +11,61 @@
   "documents_promoted": false,
   "vault_lock_independence_passed": false,
   "metadata_restore_passed": false,
-  "fda_launchd_passed": false,
+  "nas_metadata_restore_passed": true,
+  "nas_restore_verification": {
+    "evidence": "m5c-nas-restore-verification-20260914.json",
+    "evidence_source": "Operator-provided successful Mac-native NAS verification report",
+    "recorded_local_date": "2026-09-14",
+    "verification_only": true,
+    "content_verification_reference": null,
+    "limitation": "NAS metadata and representative-file verification passed; full NAS content verification, independent B2 recovery, and manual KDBX openings remain unrecorded. The combined metadata and full restore gates remain open."
+  },
+  "fda_launchd_passed": true,
   "icloud_optimize_disabled": true,
   "photos_mail_no_unique_data": true,
   "filevault_enabled": true,
   "dropbox_materialized": true,
+  "client_installation": {
+    "passed": true,
+    "restic_version": "restic 0.19.1 compiled with go1.26.4 on darwin/arm64",
+    "python_executable": "/opt/homebrew/bin/python3",
+    "client_schedule_enabled": false
+  },
+  "launchd_measurement": {
+    "passed": true,
+    "label": "run.worm.workstation-measure-fresh",
+    "exit_code": 0,
+    "measured_at": "2026-09-14T02:05:29.675647+00:00",
+    "contract": "workstation-m5c-v2",
+    "files": 263799,
+    "bytes": 26071414522,
+    "documents_files": 12,
+    "documents_bytes": 3288711
+  },
+  "server_validation_passed": true,
+  "nas_b2_copy_passed": true,
+  "server_validation": {
+    "passed": true,
+    "job": "restic-m5c-copy-20260913-retry2",
+    "validation_timestamp_seconds": 1789343589.9730284,
+    "accepted_nas_snapshots": [
+      "52e7cfdfc5ff467c21fbcb1af9b5a62f12034e95690fe0ab4a3d8089e47d3c6c",
+      "fceaf984eb1b9cb8ff2a3ba495086e100e311627b51a6a8919a877d2f8faef6a"
+    ],
+    "holds": []
+  },
+  "nas_b2_copy": {
+    "passed": true,
+    "job": "restic-m5c-copy-20260913-retry2",
+    "completed_at": "2026-09-14T01:47:16Z",
+    "resource_limits": {"memory": "8Gi", "tmp": "2Gi"},
+    "snapshots": {
+      "52e7cfdfc5ff467c21fbcb1af9b5a62f12034e95690fe0ab4a3d8089e47d3c6c": "06cba4fb8781cb632e72b0cb5b8353f867b6e134e49b0028ead870417ffeeb2a",
+      "fceaf984eb1b9cb8ff2a3ba495086e100e311627b51a6a8919a877d2f8faef6a": "08e30916f2368d720c75fceaf0f5465a0f3b5123cd1f5749661ce2503b09a183"
+    },
+    "pending": [],
+    "holds": []
+  },
   "preflight": {
     "revision": "5a50e248dae736b8b7b3bfcf54590c8338a3daaa",
     "flux_kustomizations_ready": true,
@@ -47,7 +97,7 @@
     "repository_version": 2,
     "chunker_polynomial": "3c99cf07c21639",
     "chunker_parameters_match": true,
-    "seed_accepted": false,
+    "seed_accepted": true,
     "holds": {}
   },
   "native_fixture": {
@@ -56,8 +106,10 @@
     "attributes_created": ["com.apple.FinderInfo", "com.apple.ResourceFork"],
     "metadata_file_sha256": "005ca5025dc9f93c1d27a9ae3ac131a2aa2570f51029af519a259a4c5447c813",
     "other_files": ["executable.sh", ".application-state", "relative-link"],
-    "backed_up": false,
-    "restored": false
+    "backed_up": true,
+    "restored": true,
+    "restore_destination": "nas",
+    "restore_evidence": "m5c-nas-restore-verification-20260914.json"
   },
   "measurement": {
     "contract": "workstation-m5c-v2",
@@ -78,10 +130,7 @@
     "measurement_plist_lint": true
   },
   "remaining": [
-    "Deploy immutable v2 contract and current maintenance code through Flux.",
-    "Operator installation of pinned Restic and current client using Mac sudo.",
-    "Successful NAS seed, completion receipt, validation and B2 copy.",
-    "Independent native NAS/B2 content and metadata restores; manually open both KDBX copies.",
+    "Record full NAS content verification; independently restore and verify B2 content and metadata; manually open both KDBX copies.",
     "M5c Documents promotion and attended vault-v3 transition with recovery checks.",
     "Operational failure/retry, sleep/wake, isolation, quota, repository-check and notification gates.",
     "Evidence-gated client enablement and reviewed M5c CronJob activation.",
@@ -89,9 +138,10 @@
   ],
   "notes": [
     "Privacy/cloud booleans reference the attended September 10 evidence; FileVault was rechecked live September 12.",
-    "Fresh launchd readability remains pending; historical privacy evidence is not a new measurement result.",
+    "Fresh launchd readability passed on 2026-09-13 local time using the installed client and /opt/homebrew/bin/python3.",
     "Initialization does not enroll the host or establish backup freshness.",
-    "The fixture is in included home scope; preparation alone is not recovery evidence.",
-    "No client or maintenance schedule has been enabled."
+    "The included native fixture's NAS metadata, FinderInfo, ResourceFork and selected relative symlink target passed operator-reported verification on 2026-09-14 local time (2026-09-15 UTC).",
+    "Server-side validation and NAS-to-B2 copy completed successfully on 2026-09-13 local time; recurring CronJobs remain suspended.",
+    "NAS metadata verification is recorded separately from full-content recovery; B2 native recovery and the remaining activation gates are still pending."
   ]
 }
