@@ -23,6 +23,11 @@ sys.path[:0] = [str(ROOT / 'host/workstations'), str(ROOT / 'infrastructure/moni
 import workstation as client
 import maintenance as server
 
+restore_spec = importlib.util.spec_from_file_location('workstation_restore',
+    ROOT / 'runbooks/backups/workstation-restore.py')
+restore_helper = importlib.util.module_from_spec(restore_spec)
+restore_spec.loader.exec_module(restore_helper)
+
 RESTIC = os.environ.get('WORKSTATION_RESTIC', '/tmp/workstation-restic-tools/restic')
 REPOSITORIES = ROOT / 'runbooks/backups/fixtures/workstation-repositories'
 READ_ONLY = {'cat', 'dump', 'ls', 'snapshots'}
@@ -132,7 +137,8 @@ class RepositoryTests(unittest.TestCase):
         result = subprocess.run([sys.executable, str(ROOT / 'runbooks/backups/workstation-restore.py'),
             '--snapshot', target, '--destination', 'b2', '--credentials', str(credentials),
             '--scratch-parent', str(restored), '--restic', RESTIC,
-            '--metadata-path', str(self.home / '.hidden')], capture_output=True, text=True)
+            '--metadata-path', str(self.home / '.hidden'),
+            '--symlink-path', str(self.home / 'link')], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         restored_home = next(restored.glob('workstation-restore-*/home'))
         self.assertEqual((restored_home / '.hidden').read_text(), 'state')
@@ -495,6 +501,82 @@ class RepositoryTests(unittest.TestCase):
         with patch('os.scandir', side_effect=PermissionError('fixture')):
             with self.assertRaises(PermissionError):
                 client.inventory(self.home, [])
+
+
+class RestoreSymlinkTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix='restore-links-')
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.home = self.base / 'home'
+        self.home.mkdir()
+        self.source = Path('/source/home')
+        self.rows = [{'paths': [str(self.source)], 'hostname': 'fixture'}]
+        self.listing = []
+        self.targets = {'relative': '../missing', 'absolute': '/missing/target', 'ordinary': 'other'}
+        for name, target in self.targets.items():
+            path = self.home / name
+            path.symlink_to(target)
+            info = path.lstat()
+            self.listing.append({'path': str(self.source / name), 'type': 'symlink',
+                                 'uid': info.st_uid, 'gid': info.st_gid})
+        self.args = SimpleNamespace(source_root=None, hostname=None, snapshot='a' * 64,
+            symlink_path=[], metadata_path=[], destination='nas', verify_only=True,
+            content_reference=None)
+        self.calls = []
+
+    def restic(self, *values):
+        self.calls.append(values)
+        return json.dumps({'nodes': [{'name': name, 'linktarget': target}
+                                    for name, target in self.targets.items()]})
+
+    def verify(self):
+        with patch('sys.stdout', new=io.StringIO()):
+            return restore_helper.verify(self.args, self.rows, self.listing,
+                self.home, self.restic, self.base / 'verification.log')
+
+    def test_presence_only_does_not_fetch_trees(self):
+        report = self.verify()
+        self.assertEqual(self.calls, [])
+        self.assertEqual(report['symlink_presence_count'], 3)
+        self.assertEqual(report['symlink_target_samples'], [])
+        self.assertEqual(report['symlink_target_scope'], 'selected_paths')
+
+    def test_selected_relative_absolute_and_duplicate_share_tree(self):
+        self.args.symlink_path = [str(self.source / n) for n in ('relative', 'absolute', 'relative')]
+        report = self.verify()
+        self.assertEqual(len(report['symlink_target_samples']), 2)
+        self.assertEqual(self.calls, [('cat', 'tree', self.args.snapshot + ':' + str(self.source))])
+
+    def test_wrong_selected_target_fails_but_unselected_is_presence_only(self):
+        path = self.home / 'ordinary'
+        path.unlink()
+        path.symlink_to('wrong')
+        self.verify()
+        self.args.symlink_path = [str(self.source / 'ordinary')]
+        with self.assertRaisesRegex(ValueError, 'symlink target mismatch'):
+            self.verify()
+
+    def test_replacing_unselected_symlink_with_file_fails(self):
+        path = self.home / 'ordinary'
+        path.unlink()
+        path.write_text('wrong type')
+        with self.assertRaisesRegex(ValueError, 'symlink type mismatch'):
+            self.verify()
+
+    def test_missing_unselected_symlink_fails(self):
+        (self.home / 'ordinary').unlink()
+        with self.assertRaises(FileNotFoundError):
+            self.verify()
+
+    def test_invalid_samples_fail_without_tree_reads(self):
+        for selected in ('relative', '/source/home/../outside', '/source/home-other/link',
+                         '/source/home//relative', '/source/home', '/source/home/absent'):
+            with self.subTest(selected=selected):
+                self.args.symlink_path = [selected]
+                with self.assertRaises(ValueError):
+                    self.verify()
+        self.assertEqual(self.calls, [])
 
 
 class ScopeTests(unittest.TestCase):

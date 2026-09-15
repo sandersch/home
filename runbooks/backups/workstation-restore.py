@@ -44,7 +44,7 @@ def verify(args, rows, listing, restored, restic, log_path):
     def tree_at(path):
         path = str(path)
         if path not in tree_cache:
-            if not path.startswith(str(source_root)):
+            if not Path(path).is_relative_to(source_root):
                 raise ValueError('tree lookup escaped source root')
             # The snapshot-qualified form asks Restic to authenticate and
             # resolve the tree; cache it once per unique source path.
@@ -65,7 +65,7 @@ def verify(args, rows, listing, restored, restic, log_path):
             record(f'[{dt.datetime.now(dt.timezone.utc).isoformat()}] {name}: end ({phases[name]:.3f}s)')
         return finish
     finish = phase('metadata')
-    verified = 0
+    verified = 0; symlink_count = 0
     for node in listing:
         source = Path(node['path'])
         if source == source_root: continue
@@ -75,7 +75,9 @@ def verify(args, rows, listing, restored, restic, log_path):
             raise ValueError('snapshot path outside source root')
         path = restored / source.relative_to(source_root); info = path.lstat(); kind = node['type']
         if kind == 'file' and (not stat.S_ISREG(info.st_mode) or info.st_size != node['size']): raise ValueError('file mismatch: '+node['path'])
-        if kind == 'symlink' and (not stat.S_ISLNK(info.st_mode) or os.readlink(path) != stored(source)['linktarget']): raise ValueError('symlink target mismatch: '+node['path'])
+        if kind == 'symlink':
+            if not stat.S_ISLNK(info.st_mode): raise ValueError('symlink type mismatch: '+node['path'])
+            symlink_count += 1
         if kind == 'dir' and not stat.S_ISDIR(info.st_mode): raise ValueError('directory mismatch: '+node['path'])
         if kind not in ('file','dir','symlink'): raise ValueError('unsupported node type')
         if (info.st_uid,info.st_gid) != (node['uid'],node['gid']): raise ValueError('ownership mismatch: '+node['path'])
@@ -86,6 +88,20 @@ def verify(args, rows, listing, restored, restic, log_path):
             if stat.S_IMODE(info.st_mode) != mode: raise ValueError('mode mismatch: '+node['path'])
             if abs(info.st_mtime_ns - mtime_ns(node['mtime'])) >= 1000: raise ValueError('mtime mismatch: '+node['path'])
         verified += 1
+    finish(); finish = phase('symlink_targets'); symlink_samples = []
+    # Target strings require additional authenticated tree reads. Fetch these
+    # only for explicit recovery samples, never for every dependency symlink.
+    for selected in dict.fromkeys(args.symlink_path):
+        path = Path(selected)
+        if (not path.is_absolute() or str(path) != selected or '..' in path.parts
+                or path == source_root or not path.is_relative_to(source_root)):
+            raise ValueError('symlink sample must be a canonical absolute path within source root')
+        if not any(n.get('path') == selected and n.get('type') == 'symlink' for n in listing):
+            raise ValueError('symlink sample not present as a symlink: ' + selected)
+        expected = stored(path)['linktarget']
+        if os.readlink(restored / path.relative_to(source_root)) != expected:
+            raise ValueError('symlink target mismatch: ' + selected)
+        symlink_samples.append({'path': selected, 'outcome': True})
     finish(); finish = phase('xattrs'); xattrs = []
     for selected in args.metadata_path:
         path = Path(selected)
@@ -110,6 +126,8 @@ def verify(args, rows, listing, restored, restic, log_path):
     finish()
     return {'snapshot_id':args.snapshot,'destination':args.destination,'hostname':rows[0].get('hostname'),'source_root':str(source_root),
             'restored_nodes':verified,'metadata_paths':args.metadata_path,'xattrs':xattrs,'representatives':representatives,
+            'symlink_presence_count':symlink_count,'symlink_target_scope':'selected_paths',
+            'symlink_target_samples':symlink_samples,
             'verification_only':args.verify_only,'content_verification_reference':str(args.content_reference) if args.content_reference else None,
             'phase_durations_seconds':phases,'started_at':dt.datetime.fromtimestamp(started,dt.timezone.utc).isoformat(),
             'ended_at':dt.datetime.now(dt.timezone.utc).isoformat(),'elapsed_seconds':time.time()-started,
@@ -121,6 +139,8 @@ def main():
     parser.add_argument('--destination', choices=['nas','b2'], required=True); parser.add_argument('--scratch-parent', type=Path, required=True)
     parser.add_argument('--restored-home', type=Path); parser.add_argument('--verify-only', action='store_true')
     parser.add_argument('--hostname'); parser.add_argument('--source-root'); parser.add_argument('--metadata-path', action='append', default=[])
+    parser.add_argument('--symlink-path', action='append', default=[],
+                        help='absolute source symlink whose target must match; repeat for recovery samples (default: presence only)')
     parser.add_argument('--content-reference', type=Path); parser.add_argument('--restic', default='/usr/local/bin/restic'); args = parser.parse_args(); os.umask(0o077)
     if not re.fullmatch('[0-9a-f]{64}',args.snapshot): raise ValueError('a full exact snapshot ID is required')
     parent=args.scratch_parent

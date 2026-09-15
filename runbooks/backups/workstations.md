@@ -291,18 +291,37 @@ Run independent NAS and B2 restores for each host on its native OS:
 python3 runbooks/backups/workstation-restore.py --snapshot FULL_64_CHARACTER_ID \
   --destination nas --credentials PRIVATE_NAS_CREDENTIALS.json \
   --scratch-parent PRIVATE_EXISTING_DIRECTORY \
-  --metadata-path /absolute/source/path/to/metadata-fixture
+  --metadata-path /absolute/source/path/to/metadata-fixture \
+  --symlink-path /absolute/source/path/to/relative-link \
+  --symlink-path /absolute/source/path/to/absolute-link
 ```
 
 Supply only the chosen repository's Restic environment JSON. B2 recovery uses its
 escrowed credentials independently of minis. The helper creates a new private
-scratch directory, uses Restic content verification, checks trees, links, modes,
-ownership and modification times, and tests selected extended attributes. On the
-Mac, use a fixture with a Finder attribute and a nonempty `com.apple.ResourceFork`;
+scratch directory, uses Restic content verification, checks every expected entry's
+type (including symlink presence), modes, ownership and modification times, and
+tests selected extended attributes. Symlink target strings are compared only for
+the repeatable `--symlink-path` samples, using authenticated snapshot metadata.
+Select backed-up relative and absolute link fixtures and any important operational
+links (such as a Dropbox alias). Targets are compared as strings without following
+them; an absolute link need not resolve within scratch. With no samples, only
+symlink presence is checked. The report records the presence count, selected target
+scope and successful sample paths; it does not claim exhaustive target verification.
+This avoids a separate Restic process for every directory containing symlinks.
+An incorrect target on an unselected link can escape the custom comparison.
+On the Mac, use a fixture with a Finder attribute and a nonempty `com.apple.ResourceFork`;
 verify both on restore. Check hidden application state and an executable too.
 Manually open each restored KDBX and record the result. Keep actual full IDs,
 measurements, elapsed times and metadata names in the evidence file. Scratch is
 retained for attended inspection and explicit cleanup.
+
+To rerun metadata verification on an already extracted home, use the same exact
+snapshot and destination with `--verify-only --restored-home /path/to/scratch/home`
+and the selected metadata/symlink paths. This skips extraction and Restic content
+verification; retain the earlier successful content-verification evidence and
+reference it with `--content-reference /path/to/evidence`. That option records a
+reference, not a fresh content check. Updating the helper does not change an
+already-running process.
 
 Promise curated file recovery within seven days after a replacement OS is ready:
 contents, modes, modification times, symlinks and tested native metadata. This is
