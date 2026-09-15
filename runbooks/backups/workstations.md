@@ -8,12 +8,12 @@ from both destinations; its xattr, symlink-target, ownership, mode, timestamp, a
 representative-file results are recorded in the [recovery evidence](evidence/ryze-recovery-20260912.json).
 The live activation gates and their evidence are tracked in the [activation record](evidence/ryze-activation-20260912.json).
 Both workstation v1 and v2 contracts are released. `infrastructure/monitoring/workstations/`
-is in the active monitoring Kustomization. Ryze's four CronJobs are enabled; all M5C
-CronJobs remain suspended.
+is in the active monitoring Kustomization. Both hosts' four CronJobs are enabled.
 Both hosts' NAS/B2 repositories are initialized. M5c has accepted NAS snapshots and
 a successful B2 copy. Native NAS and B2 content and metadata verification passed on
 2026-09-14/15, and both restored KDBX copies opened successfully. Its
-[activation record](evidence/m5c-activation-20260912.json) tracks the remaining gates.
+[activation record](evidence/m5c-activation-20260912.json) records the completed
+pre-schedule gates, enabled client, and first scheduled validation/copy results.
 vault-v3 remains pending.
 
 | Host | NAS cap | B2 ceiling | Client schedule | Documents |
@@ -582,5 +582,21 @@ in the scratch tree. The earlier
 is retained separately.
 
 The independent B2 restore and both manual KDBX openings passed; see the
-[B2 recovery evidence](evidence/m5c-b2-restore-20260915.json). Documents promotion,
-vault-v3, operational drills, schedule activation, and observation remain pending.
+[B2 recovery evidence](evidence/m5c-b2-restore-20260915.json). The following
+activation entry supersedes the earlier pending statements.
+
+### 2026-09-15 M5c activation complete
+
+All evidence-gated pre-schedule checks passed: disposable append-only deletion
+denial and quota/recount, isolated-network failure and retry, Documents promotion,
+locked-vault skip with independent appstate backup and post-unlock recovery, NAS/B2
+repository checks, and synthetic Pushover warning/resolved delivery. The M5c client
+was enabled from the completed evidence file. Reviewed commit `b389906` set
+`restic-m5c-validate`, `restic-m5c-copy`, `restic-m5c-prune`, and `restic-m5c-check`
+to `suspend: false`; Flux applied that revision.
+
+The first scheduled M5c copy completed successfully after approximately 140 minutes.
+The first scheduled validation then completed successfully in 10 seconds after the
+copy released the repository lock. The validation metric reported success with no
+hold. Seven-day observation and one successful scheduled weekly copy/prune cycle
+remain open. The separate vault-v3 transition also remains pending.
