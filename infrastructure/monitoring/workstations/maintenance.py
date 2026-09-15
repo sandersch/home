@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import re
+import selectors
 import ssl
 import statistics
 import subprocess
@@ -71,15 +72,29 @@ def phase(name, **labels):
 
 
 def captured_command(command, env, counters):
-    """Drain stdout continuously; log counts, never repository contents/argv."""
+    """Drain both streams continuously; log counts, never contents or argv."""
     chunks = []
-    with subprocess.Popen(command, env=env, stdout=subprocess.PIPE,
+    with subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           user=65534, group=65534, extra_groups=[]) as process:
+        streams = selectors.DefaultSelector()
+        streams.register(process.stdout, selectors.EVENT_READ, 'stdout')
+        streams.register(process.stderr, selectors.EVENT_READ, 'stderr')
         try:
-            while chunk := os.read(process.stdout.fileno(), 64 * 1024):
-                chunks.append(chunk)
-                counters['stdout_bytes'] = counters.get('stdout_bytes', 0) + len(chunk)
-                counters['stdout_lines'] = counters.get('stdout_lines', 0) + chunk.count(b'\n')
+            while streams.get_map():
+                for key, _ in streams.select():
+                    chunk = os.read(key.fileobj.fileno(), 64 * 1024)
+                    if not chunk:
+                        streams.unregister(key.fileobj)
+                        continue
+                    stream = key.data
+                    counters[f'{stream}_bytes'] = counters.get(f'{stream}_bytes', 0) + len(chunk)
+                    counters[f'{stream}_lines'] = counters.get(f'{stream}_lines', 0) + chunk.count(b'\n')
+                    if stream == 'stdout':
+                        chunks.append(chunk)
+                    else:
+                        with LOG_LOCK:
+                            sys.stderr.write(chunk.decode('utf-8', errors='replace'))
+                            sys.stderr.flush()
             code = process.wait()
             if code:
                 raise subprocess.CalledProcessError(code, command)
@@ -88,6 +103,8 @@ def captured_command(command, env, counters):
                 process.kill()
             process.wait()
             raise
+        finally:
+            streams.close()
     return b''.join(chunks)
 
 
@@ -204,17 +221,20 @@ class Manager:
         env.update(self.credentials[destination])
         if extra_env:
             env.update(extra_env)
-        command = ['/tools/restic', '--no-cache', '--retry-lock', '30m', *map(str, args)]
+        operation = str(args[0])
+        command = ['/tools/restic', '--no-cache', '--retry-lock', '30m']
+        if operation == 'check' and env.get('WORKSTATION_RESTIC_VERBOSE') == '1':
+            command.append('--verbose')
+        command.extend(map(str, args))
         # All repository objects retain the serving uid, including indexes made
         # by prune. Only the parent process can write root-owned control state.
-        operation = str(args[0])
         name = {'ls': 'snapshot-listing', 'snapshots': 'snapshot-discovery',
                 'copy': 'transfer', 'dump': 'required-content-read',
                 'check': 'repository-check'}.get(operation, 'restic-' + operation)
         # Exact IDs are safe identifiers. Never log paths, argv, env or payloads.
         sid = next((str(arg) for arg in args[1:] if ID.fullmatch(str(arg))), None)
         with phase(name, host=self.host, destination=destination, snapshot=sid) as counters:
-            counters.update(stdout_bytes=0, stdout_lines=0)
+            counters.update(stdout_bytes=0, stdout_lines=0, stderr_bytes=0, stderr_lines=0)
             output = captured_command(command, env, counters)
         return output if raw else json.loads(output or b'null')
 

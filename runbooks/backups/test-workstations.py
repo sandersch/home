@@ -142,6 +142,8 @@ class MaintenanceProgressTests(unittest.TestCase):
         self.assertEqual(rows[-1]['event'], 'complete')
         self.assertEqual(rows[-1]['stdout_bytes'], len(payload))
         self.assertEqual(rows[-1]['stdout_lines'], 100000)
+        self.assertEqual(rows[-1]['stderr_bytes'], 0)
+        self.assertEqual(rows[-1]['stderr_lines'], 0)
         self.assertNotIn('private-file-name', log.getvalue())
         self.assertNotIn('never-log-this', log.getvalue())
 
@@ -154,6 +156,52 @@ class MaintenanceProgressTests(unittest.TestCase):
                 manager.run('nas', 'ls', '--json', 'a' * 64, raw=True)
         self.assertEqual(error.exception.returncode, 3)
         self.assertEqual(json.loads(log.getvalue().splitlines()[-1])['event'], 'failed')
+
+    def test_command_counts_and_forwards_stderr(self):
+        real_popen = subprocess.Popen
+
+        def unprivileged_popen(command, **kwargs):
+            for key in ('user', 'group', 'extra_groups'):
+                kwargs.pop(key)
+            return real_popen(command, **kwargs)
+
+        manager = object.__new__(server.Manager)
+        manager.host = 'ryze'
+        manager.credentials = {'nas': {}}
+        stderr = b'backend retry\nprogress\n'
+
+        def fixture_command(command, **kwargs):
+            return unprivileged_popen(
+                [sys.executable, '-c', 'import sys; sys.stderr.buffer.write(' + repr(stderr) + ')'],
+                **kwargs)
+
+        log = io.StringIO()
+        with patch.object(server.subprocess, 'Popen', fixture_command), patch.object(server.sys, 'stderr', log):
+            result = manager.run('nas', 'check', raw=True)
+        self.assertEqual(result, b'')
+        rows = [json.loads(line) for line in log.getvalue().splitlines() if line.startswith('{')]
+        self.assertEqual(rows[-1]['stderr_bytes'], len(stderr))
+        self.assertEqual(rows[-1]['stderr_lines'], 2)
+        self.assertIn(stderr.decode(), log.getvalue())
+
+    def test_verbose_check_is_opt_in(self):
+        real_popen = subprocess.Popen
+        commands = []
+
+        def fixture_command(command, **kwargs):
+            commands.append(command)
+            for key in ('user', 'group', 'extra_groups'):
+                kwargs.pop(key)
+            return real_popen([sys.executable, '-c', ''], **kwargs)
+
+        manager = object.__new__(server.Manager)
+        manager.host = 'ryze'
+        manager.credentials = {'nas': {}}
+        log = io.StringIO()
+        with patch.dict(os.environ, {'WORKSTATION_RESTIC_VERBOSE': '1'}), \
+             patch.object(server.subprocess, 'Popen', fixture_command), patch.object(server.sys, 'stderr', log):
+            manager.run('nas', 'check', raw=True)
+        self.assertEqual(commands[0][4], '--verbose')
 
 
 class FixtureManager(server.Manager):

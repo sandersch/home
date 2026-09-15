@@ -241,8 +241,11 @@ from `maintenance-action`. Within the action, `snapshot-discovery`,
 identify the work. `metrics-collection` covers the final repository queries and
 size collection. Phases can nest; elapsed times are inclusive, not additive.
 
-Restic phases include cumulative `stdout_bytes` and `stdout_lines`, without
-logging captured payloads, paths, credentials or command arguments. For `ls --json`,
+Restic phases include cumulative `stdout_bytes`, `stdout_lines`, `stderr_bytes`,
+and `stderr_lines`, without logging captured payloads, paths, credentials or
+command arguments. Stderr remains visible in the Job log while its counters are
+updated, so backend retry and progress messages can be correlated with the
+heartbeat. For `ls --json`,
 lines count emitted JSON records (including the snapshot header), not verified
 files. An unchanged counter means no new stdout, not proof of a stalled process:
 index loading, backend reads, transfer, and Restic's own repository-lock retry
@@ -250,6 +253,10 @@ can be silent. Restic stderr remains visible, including its lock retry messages;
 that wait occurs inside the Restic phase, separately from `maintenance-lock-wait`.
 There is no transfer percentage unless Restic itself emits one. These logs do not
 change validation, cache policy, schedules, or the meaning of success metrics.
+
+For attended diagnostics, set `WORKSTATION_RESTIC_VERBOSE=1` on a temporary
+`check` Job. The client adds Restic's `--verbose` flag only to repository checks;
+the recurring CronJobs do not set this variable.
 
 Install the client using `workstation-install-client.py --host ... --contract ...
 --credentials ...` as the desktop user. This installs configuration and schedule
