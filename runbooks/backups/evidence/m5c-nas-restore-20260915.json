@@ -1,0 +1,36 @@
+{
+  "snapshot_id": "52e7cfdfc5ff467c21fbcb1af9b5a62f12034e95690fe0ab4a3d8089e47d3c6c",
+  "destination": "nas",
+  "hostname": "m5c",
+  "source_root": "/Users/charlessanders",
+  "restore_privileged": true,
+  "restored_nodes": 361195,
+  "restored_size_gib": 24.245,
+  "content_verification": {
+    "passed": true,
+    "verified_files": 263198,
+    "elapsed_seconds": 12.537,
+    "log": "m5c-nas-restore-20260915-restic-content-restore.log"
+  },
+  "metadata_verification": {
+    "passed": true,
+    "evidence": "m5c-nas-restore-20260915.json",
+    "restored_nodes_checked": 361195,
+    "symlink_presence_count": 49074,
+    "selected_symlink_target_passed": "/Users/charlessanders/workstation-recovery-fixture-20260912/relative-link",
+    "finder_info_passed": true,
+    "resource_fork_passed": true,
+    "representatives_passed": [
+      "/Users/charlessanders/.asdf/installs/nodejs/lts/bin/node",
+      "/Users/charlessanders/.CFUserTextEncoding"
+    ],
+    "elapsed_seconds": 15.75211501121521
+  },
+  "restore_xattr_exclusion": "com.apple.file-provider-domain-id",
+  "notes": [
+    "The restore was rerun as root so numeric ownership could be preserved.",
+    "The FileProvider domain identifier xattr was excluded because macOS rejected restoring it into the scratch tree; the selected FinderInfo and ResourceFork checks passed.",
+    "The earlier m5c-nas-restore-verification-20260914.json remains the metadata-only verification record."
+  ],
+  "recorded_from": "Operator-provided successful m5c native NAS restore and verification output on 2026-09-14 local time / 2026-09-15 UTC"
+}

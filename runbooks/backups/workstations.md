@@ -11,9 +11,8 @@ Both workstation v1 and v2 contracts are released. `infrastructure/monitoring/wo
 is in the active monitoring Kustomization. Ryze's four CronJobs are enabled; all M5C
 CronJobs remain suspended.
 Both hosts' NAS/B2 repositories are initialized. M5c has accepted NAS snapshots and
-a successful B2 copy. Native NAS metadata and representative-file verification
-passed on 2026-09-14; full NAS content verification evidence, independent B2 recovery,
-and both manual KDBX openings remain pending. Its
+a successful B2 copy. Native NAS content and metadata verification passed on
+2026-09-14; independent B2 recovery and both manual KDBX openings remain pending. Its
 [activation record](evidence/m5c-activation-20260912.json) tracks the remaining gates.
 vault-v3 remains pending.
 
@@ -569,19 +568,19 @@ the server accepted two NAS snapshots, and the attended copy Job copied both to 
 on 2026-09-13 local time. The activation record contains the snapshot mapping and
 installation evidence; client and maintenance schedules remain disabled.
 
-The operator reported successful native NAS restore verification for snapshot
+The operator reported successful native NAS restore and verification for snapshot
 `52e7cfdfc5ff467c21fbcb1af9b5a62f12034e95690fe0ab4a3d8089e47d3c6c` on
 2026-09-14 at 19:21 CDT (2026-09-15 at 00:21 UTC). The
-[supplied verification report](evidence/m5c-nas-restore-verification-20260914.json)
-records 361,195 restored nodes checked for metadata, 49,074 symlinks present,
-the fixture's selected relative-link target matching, and successful FinderInfo
-and ResourceFork comparisons. The Node executable and hidden `.CFUserTextEncoding`
-representatives passed hash and execute-bit checks. Verification took 16.247 seconds;
-this is not the extraction duration.
+[full restore evidence](evidence/m5c-nas-restore-20260915.json) records 361,195
+restored nodes, 24.245 GiB restored, and successful Restic content verification
+for 263,198 files. The privileged restore then passed metadata checks for all
+361,195 nodes, 49,074 symlinks, the selected relative-link target, FinderInfo,
+ResourceFork, the Node executable, and hidden `.CFUserTextEncoding` state. The
+restore excluded only `com.apple.file-provider-domain-id`, which macOS rejected
+in the scratch tree. The earlier
+[metadata-only report](evidence/m5c-nas-restore-verification-20260914.json)
+is retained separately.
 
-The report has `verification_only: true` and no `content_verification_reference`.
-NAS metadata verification is therefore recorded as passed, while full NAS content
-verification evidence, independent B2 content/metadata recovery, and both manual
-KDBX openings remain pending. The combined metadata and full restore activation
-gates remain open. Documents promotion, vault-v3, operational drills, schedule
-activation, and observation also remain pending.
+Independent B2 content/metadata recovery and both manual KDBX openings remain
+pending. Documents promotion, vault-v3, operational drills, schedule activation,
+and observation also remain pending.
