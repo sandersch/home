@@ -6,6 +6,7 @@ import datetime as dt
 import errno
 import fcntl
 import fnmatch
+from functools import wraps
 import hashlib
 import json
 import math
@@ -17,6 +18,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from urllib.parse import urlsplit, urlunsplit
 
@@ -25,6 +27,51 @@ RECEIPT_ROOT = '/.workstation-backup-validation'
 KDBX = bytes.fromhex('03d9a29a67fb4bb5')
 # ctime comes from a coarse kernel clock; allow for it when explaining churn.
 CLOCK_SLACK = 2
+PROGRESS_SECONDS = 30
+LOG_LOCK = threading.Lock()
+
+
+@contextmanager
+def phase(name):
+    """Keep reporting during blocked I/O; never include paths or payloads."""
+    started = time.monotonic()
+    counters = {}
+    stopped = threading.Event()
+    def report(event):
+        elapsed = time.monotonic() - started
+        with LOG_LOCK:
+            print(json.dumps({'time': dt.datetime.now(dt.timezone.utc).isoformat(),
+                              'phase': name, 'event': event,
+                              'elapsed_seconds': round(elapsed, 3), **counters,
+                              **({'bytes_per_second': round(counters['bytes_read'] / elapsed)}
+                                 if elapsed and 'bytes_read' in counters else {})}),
+                  file=sys.stderr, flush=True)
+    def heartbeat():
+        while not stopped.wait(PROGRESS_SECONDS):
+            report('progress')
+    report('start')
+    worker = threading.Thread(target=heartbeat, daemon=True)
+    worker.start()
+    outcome = 'complete'
+    try:
+        yield counters
+    except BaseException:
+        outcome = 'failed'
+        raise
+    finally:
+        stopped.set()
+        worker.join()
+        report(outcome)
+
+
+def timed(name):
+    def decorate(function):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            with phase(name):
+                return function(*args, **kwargs)
+        return wrapped
+    return decorate
 
 
 def digest(value):
@@ -107,26 +154,19 @@ def directory_entries(directory):
 
 
 def inventory(home, rules, progress_total=None, progress_label='inventory'):
+    with phase('inventory' if progress_label == 'inventory' else progress_label + '-inventory') as counters:
+        counters.update(files_completed=0, bytes_read=0, directories_completed=0)
+        if progress_total:
+            counters['enrollment_files'] = progress_total
+        return _inventory(home, rules, counters)
+
+
+def _inventory(home, rules, counters):
     home = Path(home)
     if home.is_symlink() or not home.is_dir():
         raise ValueError('home must be a real local directory')
     device = home.stat().st_dev
     records, omissions = {}, []
-    files_read = 0
-    next_percent = 10
-    next_report = 10000
-
-    def report_file():
-        nonlocal files_read, next_percent, next_report
-        files_read += 1
-        if progress_total:
-            while next_percent <= 100 and files_read * 100 >= progress_total * next_percent:
-                print(timestamped(f'{progress_label}: {next_percent}% '
-                                  f'({files_read}/{progress_total} files)'), file=sys.stderr, flush=True)
-                next_percent += 10
-        elif files_read >= next_report:
-            print(timestamped(f'{progress_label}: {files_read} files'), file=sys.stderr, flush=True)
-            next_report += 10000
 
     def walk(directory):
         with directory_entries(directory) as entries:
@@ -152,13 +192,14 @@ def inventory(home, rules, progress_total=None, progress_label='inventory'):
                             continue
                     records[relative] = {'type': 'dir'}
                     walk(path)
+                    counters['directories_completed'] += 1
                 elif stat.S_ISREG(info.st_mode):
                     # Reading all bytes also detects privacy failures and cloud placeholders
                     # that cannot be materialized. Never advance on an unreadable source.
                     try:
                         with path.open('rb') as stream:
-                            while stream.read(1024 * 1024):
-                                pass
+                            while chunk := stream.read(1024 * 1024):
+                                counters['bytes_read'] += len(chunk)
                     except OSError as error:
                         raise OSError(error.errno,
                                       f'inventory read failed: {error.strerror or str(error)}',
@@ -166,7 +207,7 @@ def inventory(home, rules, progress_total=None, progress_label='inventory'):
                     if path.stat().st_size != info.st_size:
                         raise ValueError(f'file changed during inventory: {path}')
                     records[relative] = {'type': 'file', 'size': info.st_size}
-                    report_file()
+                    counters['files_completed'] += 1
                 elif stat.S_ISLNK(info.st_mode):
                     records[relative] = {'type': 'symlink', 'linktarget': os.readlink(path)}
                 elif stat.S_ISSOCK(info.st_mode):
@@ -305,7 +346,46 @@ def publish_receipt(sid, tree, contract, env):
 
 def restic(*args, env=None, input_bytes=None):
     command = [os.environ.get('WORKSTATION_RESTIC', '/usr/local/bin/restic'), *map(str, args)]
-    return subprocess.run(command, env=env, input=input_bytes, check=True, stdout=subprocess.PIPE).stdout
+    operation = next((str(arg) for arg in args if arg in ('version', 'backup', 'ls')), 'command')
+    with phase('restic-' + operation) as counters:
+        counters.update(stdout_bytes=0, stdout_lines=0)
+        chunks, pending = [], b''
+        with subprocess.Popen(command, env=env, stdin=subprocess.PIPE if input_bytes is not None else None,
+                              stdout=subprocess.PIPE) as process:
+            try:
+                # Only the small completion receipt uses stdin.
+                if input_bytes is not None:
+                    process.stdin.write(input_bytes)
+                    process.stdin.close()
+                while chunk := os.read(process.stdout.fileno(), 64 * 1024):
+                    chunks.append(chunk)
+                    counters['stdout_bytes'] += len(chunk)
+                    counters['stdout_lines'] += chunk.count(b'\n')
+                    if operation == 'backup':
+                        pending += chunk
+                        lines = pending.split(b'\n')
+                        pending = lines.pop()
+                        for line in lines:
+                            try:
+                                row = json.loads(line)
+                            except (ValueError, UnicodeError):
+                                continue
+                            if row.get('message_type') in ('status', 'summary'):
+                                for key in ('percent_done', 'total_files', 'files_done', 'total_bytes',
+                                            'bytes_done', 'total_files_processed', 'total_bytes_processed',
+                                            'data_added', 'total_duration'):
+                                    value = row.get(key)
+                                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                                        counters[key] = value
+                code = process.wait()
+                if code:
+                    raise subprocess.CalledProcessError(code, command)
+            except BaseException:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
+                raise
+        return b''.join(chunks)
 
 
 def enroll(args):
@@ -332,6 +412,7 @@ def enroll(args):
     print(json.dumps(measured))
 
 
+@timed('backup-total')
 def backup(config, state):
     contract = read_json(config['contract'])
     if contract.get('enrollment_status') != 'released':
@@ -357,7 +438,8 @@ def backup(config, state):
     check_floors(records, contract)
     manifest = {'contract': contract['contract'], 'exclusion_sha256': contract['exclusion_sha256'],
                 'records': records, 'measured': totals(records)}
-    atomic(home / MANIFEST, manifest)
+    with phase('manifest-write'):
+        atomic(home / MANIFEST, manifest)
     # Restic sees the same exclusions the inventory resolved. Literal paths are
     # escaped for Restic's glob matcher; line breaks fail closed.
     with tempfile.TemporaryDirectory(prefix='workstation-', dir=state) as temporary:
@@ -374,22 +456,28 @@ def backup(config, state):
     summary = next(v for v in summaries if v.get('message_type') == 'summary')
     sid = summary['snapshot_id']
     # Restic exit 3 is raised above. Detect files added/removed during the scan too.
-    nodes = [json.loads(line) for line in restic('ls', '--json', sid, env=env).splitlines()]
-    actual = snapshot_records(nodes, str(home), str(home / MANIFEST))
-    paths = drift(records, actual)
+    raw = restic('ls', '--json', sid, env=env)
+    with phase('listing-decode'):
+        nodes = [json.loads(line) for line in raw.splitlines()]
+    with phase('comparisons') as counters:
+        actual = snapshot_records(nodes, str(home), str(home / MANIFEST))
+        paths = drift(records, actual)
+        counters.update(nodes_compared=len(actual), changed_paths=len(paths))
     try:
         check_drift(paths, contract)
     except ValueError as error:
         raise ValueError(f'snapshot {sid} differs from inventory ({error}); success not advanced') from error
     # The server re-checks these bounds but cannot see the live filesystem.
-    missing = unexplained(paths, home, since)
+    with phase('churn-verification'):
+        missing = unexplained(paths, home, since)
     if missing:
         raise ValueError(f'snapshot {sid} differs from inventory at {len(missing)} paths not changed '
                          f'during backup, first {missing[0]!r}; success not advanced')
     if paths:
         print(f'backup: snapshot {sid} accepted {len(paths)} paths changed during backup', file=sys.stderr)
     if contract.get('churn_tolerance'):
-        publish_receipt(sid, nodes[0]['tree'], contract, env)
+        with phase('completion-receipt'):
+            publish_receipt(sid, nodes[0]['tree'], contract, env)
     return sid
 
 
@@ -429,6 +517,7 @@ def daily(args):
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
+            print(timestamped('daily: skipped; another run holds the client lock'), file=sys.stderr, flush=True)
             return
         failed = False
         selected = getattr(args, 'tasks', 'all')
@@ -439,6 +528,7 @@ def daily(args):
             previous = read_json(marker) if marker.exists() else {'time': 0}
             age = time.time() - previous['time']
             if not force and 0 <= age < 86400:
+                print(timestamped(f'{task}: skipped; not due'), file=sys.stderr, flush=True)
                 continue
             try:
                 sid = None

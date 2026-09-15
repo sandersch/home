@@ -33,6 +33,64 @@ REPOSITORIES = ROOT / 'runbooks/backups/fixtures/workstation-repositories'
 READ_ONLY = {'cat', 'dump', 'ls', 'snapshots'}
 
 
+class ClientRestoreProgressTests(unittest.TestCase):
+    def test_heartbeat_and_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            for module in (client, restore_helper):
+                seen = module.threading.Event()
+                class Log(io.StringIO):
+                    def write(self, value):
+                        result = super().write(value)
+                        if '"event": "progress"' in value: seen.set()
+                        return result
+                log = Log()
+                with self.subTest(module=module.__name__), patch.object(module, 'PROGRESS_SECONDS', .01), patch.object(module.sys, 'stderr', log):
+                    context = (client.phase('test') if module is client else
+                               restore_helper.progress('test', Path(temporary) / 'progress.log'))
+                    with self.assertRaisesRegex(ValueError, 'private error'):
+                        with context:
+                            self.assertTrue(seen.wait(2))
+                            raise ValueError('private error')
+                rows = [json.loads(line) for line in log.getvalue().splitlines()]
+                self.assertEqual(rows[0]['event'], 'start')
+                self.assertEqual(rows[-1]['event'], 'failed')
+                self.assertNotIn('private error', log.getvalue())
+
+    def test_client_pipe_progress_receipt_and_exit_status(self):
+        real_popen = subprocess.Popen
+        payload = (json.dumps({'message_type': 'status', 'files_done': 17,
+                              'bytes_done': 1234, 'current_files': ['private-name']}) + '\n').encode()
+        payload += (json.dumps({'message_type': 'summary', 'total_files_processed': 17}) + '\n').encode()
+        record_pair = payload
+        payload *= 2000  # More than a pipe buffer, including split records.
+        def command(argv, **kwargs):
+            return real_popen([sys.executable, '-c',
+                'import sys; assert sys.stdin.buffer.read() == b"receipt"; '
+                'sys.stdout.buffer.write(' + repr(record_pair) + ' * 2000)'], **kwargs)
+        log = io.StringIO()
+        with patch.object(client.subprocess, 'Popen', command), patch.object(client.sys, 'stderr', log):
+            output = client.restic('backup', '--json', input_bytes=b'receipt')
+        self.assertEqual(output, payload)
+        final = json.loads(log.getvalue().splitlines()[-1])
+        self.assertEqual(final['bytes_done'], 1234)
+        self.assertEqual(final['total_files_processed'], 17)
+        self.assertEqual(final['stdout_bytes'], len(payload))
+        self.assertNotIn('private-name', log.getvalue())
+        def failed(argv, **kwargs):
+            return real_popen([sys.executable, '-c', 'raise SystemExit(3)'], **kwargs)
+        with patch.object(client.subprocess, 'Popen', failed), patch.object(client.sys, 'stderr', io.StringIO()):
+            with self.assertRaises(subprocess.CalledProcessError) as error:
+                client.restic('backup', '--json')
+        self.assertEqual(error.exception.returncode, 3)
+
+    def test_restore_capture_preserves_payload(self):
+        counters = {}; payload = b'private-path\n' * 100000
+        output = restore_helper.captured([sys.executable, '-c',
+            'import sys; sys.stdout.buffer.write(b"private-path\\n" * 100000)'], os.environ.copy(), counters)
+        self.assertEqual(output, payload)
+        self.assertEqual(counters, {'stdout_bytes': len(payload), 'stdout_lines': 100000})
+
+
 class MaintenanceProgressTests(unittest.TestCase):
     def test_heartbeat_and_failure_preserve_exception(self):
         heartbeat_seen = server.threading.Event()
@@ -206,6 +264,12 @@ class RepositoryTests(unittest.TestCase):
             '--symlink-path', str(self.home / 'link')], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         restored_home = next(restored.glob('workstation-restore-*/home'))
+        report = json.loads((restored_home.parent / 'restore-evidence.json').read_text())
+        durations = report['phase_durations_seconds']
+        for phase_name in ('snapshot-discovery', 'restore-content-verification', 'snapshot-listing', 'listing-decode', 'metadata'):
+            self.assertIn(phase_name, durations)
+        self.assertGreaterEqual(report['elapsed_seconds'], sum(durations[name] for name in
+            ('snapshot-discovery', 'restore-content-verification', 'snapshot-listing', 'listing-decode', 'metadata')))
         self.assertEqual((restored_home / '.hidden').read_text(), 'state')
         self.assertEqual(os.readlink(restored_home / 'link'), 'Documents/report')
         self.assertEqual((restored_home / 'Documents/report').stat().st_mode & 0o777, 0o750)

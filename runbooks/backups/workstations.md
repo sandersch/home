@@ -258,6 +258,28 @@ upload Documents, then invoke server `validate` and `copy`. Record full NAS/B2 I
 and compare both repositories' config/chunker values. Repeat for m5c after ryze's
 NAS/B2 seed is validated.
 
+The client logs JSON phase start/progress/complete/failed records to stderr with
+30-second heartbeats and monotonic elapsed time. `backup-total` includes inventory,
+manifest writing, Restic backup, snapshot listing/decoding, comparisons, churn
+verification, and completion-receipt publication. Inventory reports completed
+files/directories, bytes read (including partial files), and average bytes/second.
+`enrollment_files` is a historical reference, not a current total or percentage.
+Every backup still reads every included file before invoking Restic. Restic phases
+report stdout byte/line counts; backup phases also expose allowlisted numeric
+status/summary fields when Restic emits them. Paths and captured payloads are not
+included in these progress records. Lock-busy and not-due skips are explicit.
+
+The restore helper writes phase records to stderr and `restore-verification.log`.
+Its report's `elapsed_seconds` now covers snapshot discovery, restore with content
+verification (unless `--verify-only`), snapshot listing/decoding, and all metadata
+checks. Metadata progress reports nodes examined and verified; the listing total
+also includes ancestor/root entries that are skipped. Selected metadata tree reads
+report requests/cache hits, and each repository read has a heartbeat. Repeated
+tree-read durations accumulate. Phase times can overlap and must not all be added
+together. Restic restore output remains visible directly; heartbeats establish
+that the wrapper is running, not that data is moving. A failed phase logs `failed`
+without turning an incomplete operation into success.
+
 Snapshot validation checks every expected path and its type, including that every
 expected symlink is present as a symlink. It does not globally compare symlink
 target strings: Restic already stores those targets in its authenticated tree,
