@@ -114,8 +114,10 @@ assert 'restic-vault-copy.prom' in resolver_wrapper
 assert 'vault B2 is enabled but /etc/homelab/vault-b2.conf is absent or unreadable' in resolver_wrapper
 assert 'cannot prove destination absence; refusing rejection' in resolver_wrapper
 assert '| tee "$destination_listing" >/dev/null' in resolver_wrapper
-assert copy_job['spec']['suspend'] is False
-assert prune_job['spec']['suspend'] is False
+# Suspension is an attended operational control, including during contract rollout.
+# Validate explicit booleans without requiring CI to enable destructive retention.
+for job in (backup_job, copy_job, prune_job, verify_job):
+    assert type(job['spec']['suspend']) is bool, job['metadata']['name']
 copy_container = copy_job['spec']['jobTemplate']['spec']['template']['spec']['containers'][0]
 assert copy_container['resources']['limits']['memory'] == '4Gi'
 copy_tmp = next(v for v in copy_job['spec']['jobTemplate']['spec']['template']['spec']['volumes'] if v['name'] == 'tmp')
@@ -151,25 +153,28 @@ assert '107374182400' not in copy_script
 # Execute the deployed selection assignments under the same shell error policy.
 # Large listings used to SIGPIPE jq when head closed the pipe after its first line.
 selection = '\n'.join(line for line in restore_script.splitlines()
-                      if line.startswith(('document=', 'photo=', '[ -n "$document" ]')))
-assert len(selection.splitlines()) == 3
+                      if line.startswith(('document=', 'm5c_document=', 'photo=', '[ -n "$document" ]')))
+assert len(selection.splitlines()) == 4
 with tempfile.TemporaryDirectory() as directory:
     listing = pathlib.Path(directory) / 'listing.jsonl'
     nodes = [{'message_type': 'node', 'type': 'file',
               'path': f'/data/vault/{category}/file {number:05d}.dat'}
-             for category in ('documents', 'photos') for number in range(10000)]
+             for category in ('documents/ryze', 'documents/m5c', 'photos') for number in range(10000)]
     def select_files(records):
         listing.write_text(''.join(json.dumps(record) + '\n' for record in records))
         return subprocess.run(
             ['bash', '-c', 'set -Eeuo pipefail\ndie() { exit 1; }\nlisting="$1"\n' +
-             selection + '\nprintf "%s\\n" "$document" "$photo"', 'restore-selection', str(listing)],
+             selection + '\nprintf "%s\\n" "$document" "$m5c_document" "$photo"', 'restore-selection', str(listing)],
             text=True, capture_output=True)
     result = select_files(nodes)
     assert result.returncode == 0, (result.returncode, result.stderr)
-    assert result.stdout.splitlines() == ['/data/vault/documents/file 00000.dat',
+    assert result.stdout.splitlines() == ['/data/vault/documents/ryze/file 00000.dat',
+                                          '/data/vault/documents/m5c/file 00000.dat',
                                           '/data/vault/photos/file 00000.dat']
-    assert select_files(nodes[:10000]).returncode != 0, 'missing photo was accepted'
-    assert select_files(nodes[10000:]).returncode != 0, 'missing document was accepted'
+    for category in ('documents/ryze', 'documents/m5c', 'photos'):
+        remaining = [node for node in nodes
+                     if not node['path'].startswith(f'/data/vault/{category}/')]
+        assert select_files(remaining).returncode != 0, f'missing {category} was accepted'
     assert select_files([]).returncode != 0, 'empty listing was accepted'
 print('PASS: restore selection handles large listings and rejects missing content')
 print('Phase 4 B2 manifest and guard assertions passed')

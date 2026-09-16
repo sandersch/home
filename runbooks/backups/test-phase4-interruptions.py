@@ -83,12 +83,12 @@ kubectl() { [ "$KUBE" != failure ] || return 1; [ "$KUBE" != absent ] || return 
     # Execute the complete restore script with command fixtures and real scratch writes.
     for folder in ['bin', 'data/vault/.backup-credentials', 'etc/homelab', 'work']:
         (work / folder).mkdir(parents=True, exist_ok=True)
-    (work / 'etc/homelab/vault.conf').write_text('VAULT_FS_UUID=fixture\n')
+    (work / 'etc/homelab/vault.conf').write_text('VAULT_FS_UUID=fixture\nVAULT_CONTRACT_VERSION=3\n')
     (work / 'etc/homelab/vault-b2.conf').write_text('VAULT_B2_REPOSITORY=fixture-b2\n')
-    (work / 'data/vault/.vault-sentinel').write_text('vault-contract-version=2\nfilesystem-uuid=fixture\n')
+    (work / 'data/vault/.vault-sentinel').write_text('vault-contract-version=3\nfilesystem-uuid=fixture\n')
     for name in ['b2-password', 'b2-key-id', 'b2-application-key']:
         (work / 'data/vault/.backup-credentials' / name).write_text('fixture')
-    listing = [{'message_type': 'node', 'type': 'file', 'path': f'{directory}/data/vault/{category}/{name}'} for category, name in [('documents', 'letter.txt'), ('photos', 'picture.jpg')]]
+    listing = [{'message_type': 'node', 'type': 'file', 'path': f'{directory}/data/vault/{category}/{name}'} for category, name in [('documents/ryze', 'letter.txt'), ('documents/m5c', 'letter.txt'), ('photos', 'picture.jpg')]]
     (work / 'listing').write_text(''.join(json.dumps(n) + '\n' for n in listing))
     (work / 'mountinfo').write_text(f'1 0 0:1 / {directory}/data/vault rw - ext4 /dev/mapper/vault rw\n')
     restic = work / 'bin/restic'
@@ -121,6 +121,11 @@ esac
         operations = (work / 'operations').read_text().splitlines()
         assert operations[0] == 'check'
         if mode == 'corrupt': assert operations == ['check']
+        if mode == 'healthy':
+            assert operations == ['check', 'dump', 'dump', 'dump', 'dump']
+            artifacts = list((work / 'data/vault/.restore-tests').glob('*/document-*.txt'))
+            assert {path.name for path in artifacts} == {'document-letter.txt', 'document-m5c-letter.txt'}
+            assert all(path.read_text().strip() == 'document' for path in artifacts)
     assert list((work / 'data/vault/.restore-tests').glob('*/photo-picture.jpg'))
     assert 'homelab_restic_restore_drill_timestamp_seconds' not in restore
     wrapper = (root / 'runbooks/backups/14-validate-vault-b2-restore.sh').read_text()
@@ -145,7 +150,7 @@ esac
     cronjob = yaml.safe_load((root / 'infrastructure/monitoring/restic-vault-copy-cronjob.yaml').read_text())
     job = {'metadata': {'ownerReferences': [{'name': 'copy'}]}, 'spec': cronjob['spec']['jobTemplate']['spec']}
     rendered = subprocess.run(['yq', '-y', job_filter], input=json.dumps(job), text=True, capture_output=True,
-        env=dict(os.environ, RESTORE_SNAPSHOT=sid, RESTORE_DOCUMENT_PATH='/data/vault/documents/letter.txt', RESTORE_PHOTO_PATH='/data/vault/photos/picture.jpg'), check=True)
+        env=dict(os.environ, RESTORE_SNAPSHOT=sid, RESTORE_DOCUMENT_PATH='/data/vault/documents/ryze/letter.txt', RESTORE_PHOTO_PATH='/data/vault/photos/picture.jpg'), check=True)
     result = yaml.safe_load(rendered.stdout)
     assert 'ownerReferences' not in result['metadata']
     assert result['spec']['activeDeadlineSeconds'] == 86400
