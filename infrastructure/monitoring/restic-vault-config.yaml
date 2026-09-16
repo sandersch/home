@@ -135,7 +135,7 @@ data:
     [ -r "$host_config" ] || die "$host_config is missing"
     # shellcheck disable=SC1090
     source "$host_config"
-    configured_contract_version="${VAULT_CONTRACT_VERSION:?VAULT_CONTRACT_VERSION is required}"
+    configured_contract_version="${VAULT_CONTRACT_VERSION:-2}"
     [ -z "${JOB_VAULT_CONTRACT_VERSION:-}" ] || [ "$JOB_VAULT_CONTRACT_VERSION" = "$configured_contract_version" ] \
       || die "Job contract version disagrees with host configuration"
     VAULT_CONTRACT_VERSION="$configured_contract_version"
@@ -445,7 +445,7 @@ data:
     # shellcheck disable=SC1091
     source /host-config/vault.conf
     : "${VAULT_FS_UUID:?VAULT_FS_UUID is required}"
-    configured_contract_version="${VAULT_CONTRACT_VERSION:?VAULT_CONTRACT_VERSION is required}"
+    configured_contract_version="${VAULT_CONTRACT_VERSION:-2}"
     [ -z "${JOB_VAULT_CONTRACT_VERSION:-}" ] || [ "$JOB_VAULT_CONTRACT_VERSION" = "$configured_contract_version" ] \
       || die "Job contract version disagrees with host configuration"
     VAULT_CONTRACT_VERSION="$configured_contract_version"
@@ -616,7 +616,7 @@ data:
     [ -r /host-config/vault.conf ] || die "vault host identity is missing"
     # shellcheck disable=SC1091
     source /host-config/vault.conf
-    configured_contract_version="${VAULT_CONTRACT_VERSION:?VAULT_CONTRACT_VERSION is required}"
+    configured_contract_version="${VAULT_CONTRACT_VERSION:-2}"
     [ -z "${JOB_VAULT_CONTRACT_VERSION:-}" ] || [ "$JOB_VAULT_CONTRACT_VERSION" = "$configured_contract_version" ] \
       || die "Job contract version disagrees with host configuration"
     VAULT_CONTRACT_VERSION="$configured_contract_version"
