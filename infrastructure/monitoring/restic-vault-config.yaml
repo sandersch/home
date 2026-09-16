@@ -421,6 +421,37 @@ data:
     write_metrics 0 "$(date +%s)" "$repo_kib" "$hold_count"
     log "validated vault snapshot $snapshot_id"
 
+  validate-vault-transition-restore.sh: |
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    die() { printf '[%s] ERROR: %s\n' "$(date -Iseconds)" "$*" >&2; exit 1; }
+    restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"; restic() { command restic --retry-lock "$restic_lock_retry" "$@"; }
+    : "${RESTORE_SNAPSHOT:?RESTORE_SNAPSHOT is required}"
+    [[ "$RESTORE_SNAPSHOT" =~ ^[0-9a-f]{64}$ ]] || die "invalid snapshot ID"
+    control=/repo/nas/.control/vault
+    hold="$control/holds/$RESTORE_SNAPSHOT.json"
+    [ -f "$hold" ] || die "exact transition hold is absent"
+    [ "$(jq -er '.reason' "$hold")" = transition ] || die "snapshot is not a transition hold"
+    root="/data/vault/.restore-tests/$RESTORE_SNAPSHOT"
+    [ ! -e "$root" ] || die "restore tree already exists"
+    mkdir -p /work/restic-cache "$root" "$root/.restore-evidence"; export RESTIC_CACHE_DIR=/work/restic-cache
+    restic check --read-data
+    /scripts/validate-vault-snapshot.sh "$RESTORE_SNAPSHOT" >"/work/validated-manifest.json"
+    restic restore "$RESTORE_SNAPSHOT" --target "$root"
+    cmp -s /work/validated-manifest.json "$root/work/backup-manifest.json" || die "manifest mismatch"
+    cmp -s /data/vault/credentials/strongbox/ccs.kdbx "$root/data/vault/credentials/strongbox/ccs.kdbx" || die "KDBX mismatch"
+    inventory() { (cd "$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum); }
+    for client in ryze m5c; do
+      inventory "/data/vault/documents/$client" >"/work/source-$client.sha256"
+      inventory "$root/data/vault/documents/$client" >"/work/restored-$client.sha256"
+      cmp -s "/work/source-$client.sha256" "/work/restored-$client.sha256" || die "$client Documents mismatch"
+      cp "/work/source-$client.sha256" "/work/restored-$client.sha256" "$root/.restore-evidence/"
+    done
+    inventory /data/vault/photos >"/work/source-photos.sha256"; inventory "$root/data/vault/photos" >"/work/restored-photos.sha256"
+    cmp -s /work/source-photos.sha256 /work/restored-photos.sha256 || die "photo inventory mismatch"
+    cp /work/source-photos.sha256 /work/restored-photos.sha256 "$root/.restore-evidence/"
+    printf 'transition restore validated: %s\n' "$RESTORE_SNAPSHOT"
+
   validate-vault-restore.sh: |
     #!/usr/bin/env bash
     set -Eeuo pipefail
