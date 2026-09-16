@@ -41,7 +41,7 @@ spec:
                 - /guards/assert-backups-mount.sh && exec /scripts/backup-vault.sh
               env:
                 - name: JOB_VAULT_CONTRACT_VERSION
-                  value: "2"
+                  value: "3"
                 - name: RESTIC_LOCK_RETRY
                   value: 90m
                 - name: RESTIC_REPOSITORY

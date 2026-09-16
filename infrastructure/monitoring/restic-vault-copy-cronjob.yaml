@@ -38,7 +38,7 @@ spec:
               command: ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/copy-vault.sh"]
               env:
                 - name: JOB_VAULT_CONTRACT_VERSION
-                  value: "2"
+                  value: "3"
                 - name: RESTIC_LOCK_RETRY
                   value: 3h
               resources:

@@ -39,7 +39,7 @@ spec:
                 - /scripts/verify.sh
               env:
                 - name: JOB_VAULT_CONTRACT_VERSION
-                  value: "2"
+                  value: "3"
                 - name: RESTIC_LOCK_RETRY
                   value: 3h
                 - name: APPSTATE_NAS_PASSWORD
