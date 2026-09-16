@@ -403,6 +403,10 @@ data:
     [ "$mount_record" = 'ext4 /dev/mapper/vault' ] || die "vault is not mounted"
     # shellcheck disable=SC1091
     source /etc/homelab/vault.conf
+    configured_contract_version="${VAULT_CONTRACT_VERSION:?VAULT_CONTRACT_VERSION is required}"
+    [ -z "${JOB_VAULT_CONTRACT_VERSION:-}" ] || [ "$JOB_VAULT_CONTRACT_VERSION" = "$configured_contract_version" ] \
+      || die "Job contract version disagrees with host configuration"
+    VAULT_CONTRACT_VERSION="$configured_contract_version"
     grep -qxF "filesystem-uuid=$VAULT_FS_UUID" /data/vault/.vault-sentinel || die "vault UUID mismatch"
     [ -r /etc/homelab/vault-b2.conf ] || die "B2 repository configuration is absent"
     # shellcheck disable=SC1091

@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import fcntl
 
 
 def main():
@@ -14,11 +15,25 @@ def main():
     root = Path(__file__).resolve().parents[2]
     vault = Path('/mnt/vault')
     source = vault / 'documents/m5c'
+    lock_path = Path('/run/vault-ingest-promote/release-v3.lock')
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lock = lock_path.open('w')
+    fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
     subprocess.run(['mountpoint', '-q', str(vault)], check=True)
     if subprocess.check_output(['findmnt', '-n', '-o', 'SOURCE', '--target', str(vault)]).strip() != b'/dev/mapper/vault':
         raise ValueError('unexpected vault mount')
+    sentinel = vault / '.vault-sentinel'
+    if (not sentinel.is_file() or sentinel.is_symlink() or
+            sentinel.stat().st_uid != 0 or sentinel.stat().st_gid != 0 or
+            (sentinel.stat().st_mode & 0o777) != 0o444):
+        raise ValueError('vault sentinel metadata is invalid')
+    if f'filesystem-uuid={os.environ.get("VAULT_FS_UUID", "d926696b-2f04-45cb-805c-40af30dc156d")}' not in sentinel.read_text().splitlines():
+        raise ValueError('vault sentinel filesystem UUID is invalid')
+    if 'vault-contract-version=2' not in sentinel.read_text().splitlines():
+        raise ValueError('release requires the active v2 sentinel')
     completion = vault / '.restore-tests/ingestion-m5c.complete'
-    if not completion.is_file() or completion.is_symlink() or completion.stat().st_uid != 0:
+    if (not completion.is_file() or completion.is_symlink() or completion.stat().st_uid != 0 or
+            completion.stat().st_gid != 0 or (completion.stat().st_mode & 0o777) != 0o600):
         raise ValueError('trusted m5c promotion completion marker is absent')
     files = size = 0
     def fail(error):

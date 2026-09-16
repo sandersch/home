@@ -2222,6 +2222,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 |---|---|---|
 | `appstate` local + B2 restore | 2026-08-22 | passed (contract v2; local `731326fa`, B2 `fe10c1ff`) |
 | `vault` local restore | 2026-09-06 | passed — snapshot `878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe` restored into an isolated tree; SHA-256 matched all 15,206 imported photos. |
+| `vault` v2 → v3 transition | 2026-09-15 | v3 contract and immutable M5c floor (10 files / 2,630,969 bytes) published; production remains on v2 pending attended NAS/B2 candidate acceptance and baseline generation advance. |
 | `vault` B2 restore (attended on `minis`) | 2026-09-07 | passed — snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349`; full `check --read-data` read 8 snapshots / 1,135 packs with no errors, then the restored KDBX, document, and photo were manually verified. Artifacts were retained on encrypted vault scratch when this evidence was recorded. |
 | `vault` B2 restore, break-glass only | 2026-09-07 | passed — restored from `ryze` using only the sealed break-glass card; no access to `minis`, its mounted vault, credential files, or decrypted repository secrets. Snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349` was readable and representative restored content was successfully validated. |
 | `vault` B2 authorization separation | 2026-09-07 | passed — the existing appstate B2 application key was denied access to the dedicated vault bucket. No credential material was recorded. |

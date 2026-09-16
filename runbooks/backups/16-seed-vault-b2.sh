@@ -14,7 +14,9 @@ require_backup_yq
 sudo /usr/local/sbin/vault-unlock
 assert_direct_mount_layout "$BACKUPS_MOUNT" "$BACKUPS_SOURCE" "$BACKUPS_UUID"
 sudo test -f /mnt/vault/.vault-sentinel || die "vault sentinel is absent"
-sudo grep -qxF 'vault-contract-version=2' /mnt/vault/.vault-sentinel \
+vault_contract_version="$(sudo awk -F= '/^export VAULT_CONTRACT_VERSION=/{print $2}' /etc/homelab/vault.conf)"
+[ -n "$vault_contract_version" ] || die "VAULT_CONTRACT_VERSION is absent from host configuration"
+sudo grep -qxF "vault-contract-version=$vault_contract_version" /mnt/vault/.vault-sentinel \
   || die "vault sentinel contract mismatch"
 
 suspend="$(kubectl -n monitoring get cronjob restic-vault-copy -o jsonpath='{.spec.suspend}')" \

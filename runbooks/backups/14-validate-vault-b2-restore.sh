@@ -14,7 +14,9 @@ require_backup_yq
 [ -t 0 ] || die "semantic restore validation requires an attended TTY"
 sudo /usr/local/sbin/vault-unlock
 sudo test -f /mnt/vault/.vault-sentinel || die "unlock /mnt/vault first"
-sudo grep -qxF 'vault-contract-version=2' /mnt/vault/.vault-sentinel \
+vault_contract_version="$(sudo awk -F= '/^export VAULT_CONTRACT_VERSION=/{print $2}' /etc/homelab/vault.conf)"
+[ -n "$vault_contract_version" ] || die "VAULT_CONTRACT_VERSION is absent from host configuration"
+sudo grep -qxF "vault-contract-version=$vault_contract_version" /mnt/vault/.vault-sentinel \
   || die "vault sentinel contract mismatch"
 job="restic-vault-b2-restore-${RESTORE_SNAPSHOT:0:12}"
 kubectl -n monitoring get job "$job" >/dev/null 2>&1 \

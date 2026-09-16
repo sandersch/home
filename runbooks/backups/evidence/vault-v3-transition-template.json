@@ -1,0 +1,15 @@
+{
+  "from_version": 2,
+  "to_version": 3,
+  "contract_sha256": "",
+  "nas_snapshot_id": "",
+  "b2_snapshot_id": "",
+  "prior_baseline_generation": 0,
+  "accepted_baseline_generation": 0,
+  "operator": "",
+  "reason": "",
+  "semantic_checks": {"kdbx": false, "ryze_documents": false, "m5c_documents": false, "photo": false},
+  "schedules_resumed_at": null,
+  "next_scheduled_prune": null,
+  "notes": "Populate only from attended production evidence."
+}

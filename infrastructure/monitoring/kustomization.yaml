@@ -24,5 +24,7 @@ configMapGenerator:
   - vault-v1.excludes=contracts/vault-v1.excludes
   - vault-v2.json=contracts/vault-v2.json
   - vault-v2.excludes=contracts/vault-v2.excludes
+  - vault-v3.json=contracts/vault-v3.json
+  - vault-v3.excludes=contracts/vault-v3.excludes
 generatorOptions:
   disableNameSuffixHash: true

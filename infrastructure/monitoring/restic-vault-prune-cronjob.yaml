@@ -39,6 +39,8 @@ spec:
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/prune-vault.sh"]
               env:
+                - name: JOB_VAULT_CONTRACT_VERSION
+                  value: "2"
                 - name: RESTIC_LOCK_RETRY
                   value: 3h
               resources:

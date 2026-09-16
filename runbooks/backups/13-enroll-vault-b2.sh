@@ -16,7 +16,9 @@ sudo test -f /etc/homelab/vault-b2.conf \
   || die "install /etc/homelab/vault-b2.conf with VAULT_B2_REPOSITORY first"
 sudo test -f /mnt/vault/.vault-sentinel \
   || die "unlock and mount /mnt/vault before enrollment"
-sudo grep -qxF 'vault-contract-version=2' /mnt/vault/.vault-sentinel \
+vault_contract_version="$(sudo awk -F= '/^export VAULT_CONTRACT_VERSION=/{print $2}' /etc/homelab/vault.conf)"
+[ -n "$vault_contract_version" ] || die "VAULT_CONTRACT_VERSION is absent from host configuration"
+sudo grep -qxF "vault-contract-version=$vault_contract_version" /mnt/vault/.vault-sentinel \
   || die "vault sentinel contract mismatch"
 sudo test -f /mnt/backups/vault/config || die "vault NAS repository is not initialized"
 

@@ -20,8 +20,9 @@ controllers/configs are committed, and manifests exist for the media stack, Frig
 Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
 integration have passed live validation. Z-Wave controller connectivity, device
 inclusion, and the Home Assistant integration passed live validation on 2026-08-16.
-Restic backup-contract version 3 is current and passed fresh local and B2 backup/restore
-drills on 2026-08-22. It requires the current application-aware SQLite exports, a readable
+ Restic backup-contract version 3 is staged alongside the active v2 contract; the attended
+ transition is pending NAS/B2 candidate acceptance and baseline generation advance. The
+ existing v2 pipeline passed fresh local and B2 backup/restore drills on 2026-08-22. It requires the current application-aware SQLite exports, a readable
 Home Assistant archive, a successful RomM import/check, and a transactionally consistent
 k3s SQLite datastore artifact; both validated snapshots contained the expected k3s schema
 and data and no server-token artifact. The initial observability stack (Prometheus, Grafana,

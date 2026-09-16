@@ -126,8 +126,6 @@ data:
 
     vault_path=/data/vault
     host_config=/host-config/vault.conf
-    contract=/contracts/vault-v${VAULT_CONTRACT_VERSION:-2}.json
-    exclusions=/contracts/vault-v${VAULT_CONTRACT_VERSION:-2}.excludes
     control=/repo/nas/.control/vault
     metrics=/metrics/restic-vault.prom
 
@@ -137,6 +135,12 @@ data:
     [ -r "$host_config" ] || die "$host_config is missing"
     # shellcheck disable=SC1090
     source "$host_config"
+    configured_contract_version="${VAULT_CONTRACT_VERSION:?VAULT_CONTRACT_VERSION is required}"
+    [ -z "${JOB_VAULT_CONTRACT_VERSION:-}" ] || [ "$JOB_VAULT_CONTRACT_VERSION" = "$configured_contract_version" ] \
+      || die "Job contract version disagrees with host configuration"
+    VAULT_CONTRACT_VERSION="$configured_contract_version"
+    contract=/contracts/vault-v${VAULT_CONTRACT_VERSION}.json
+    exclusions=/contracts/vault-v${VAULT_CONTRACT_VERSION}.excludes
     : "${VAULT_FS_UUID:?VAULT_FS_UUID is required}"
     : "${RESTIC_REPOSITORY:?RESTIC_REPOSITORY is required}"
     : "${RESTIC_PASSWORD_FILE:?RESTIC_PASSWORD_FILE is required}"
@@ -388,6 +392,11 @@ data:
     baseline_generation="$(jq -er '.generation' "$control/baseline.json")"
     baseline_files="$(jq -er '[.samples[].files] | max' "$control/baseline.json")"
     baseline_bytes="$(jq -er '[.samples[].bytes] | max' "$control/baseline.json")"
+    baseline_contract="$(jq -er '.contract // "vault-v2"' "$control/baseline.json")"
+    if [ "$baseline_contract" != "vault-v${VAULT_CONTRACT_VERSION}" ]; then
+      hold_candidate transition "$baseline_generation" "$baseline_files" "$baseline_bytes" \
+        "contract transition requires attended acceptance"
+    fi
     maximum_shrink_percent="$(jq -er '.maximum_shrink_percent' "$contract")"
     if [ "$total_files" -lt $((baseline_files * (100 - maximum_shrink_percent) / 100)) ] \
       || [ "$total_bytes" -lt $((baseline_bytes * (100 - maximum_shrink_percent) / 100)) ]; then
@@ -436,6 +445,10 @@ data:
     # shellcheck disable=SC1091
     source /host-config/vault.conf
     : "${VAULT_FS_UUID:?VAULT_FS_UUID is required}"
+    configured_contract_version="${VAULT_CONTRACT_VERSION:?VAULT_CONTRACT_VERSION is required}"
+    [ -z "${JOB_VAULT_CONTRACT_VERSION:-}" ] || [ "$JOB_VAULT_CONTRACT_VERSION" = "$configured_contract_version" ] \
+      || die "Job contract version disagrees with host configuration"
+    VAULT_CONTRACT_VERSION="$configured_contract_version"
     mount_record="$(awk '
       $5 == "/data/vault" {
         separator = 0
@@ -491,6 +504,17 @@ data:
     ) >"$restore_manifest"
     cmp -s "$source_manifest" "$restore_manifest" \
       || die "restored ryze documents differ from the source"
+    mkdir -p "$restore_root/.restore-evidence"
+    cp "$source_manifest" "$restore_manifest" "$restore_root/.restore-evidence/"
+    if [ "$VAULT_CONTRACT_VERSION" -ge 3 ]; then
+      source_manifest=/work/source-documents-m5c.sha256
+      restore_manifest=/work/restored-documents-m5c.sha256
+      (cd /data/vault/documents/m5c && find . -type f -print0 | sort -z | xargs -0 sha256sum) >"$source_manifest"
+      (cd "$restored_vault/documents/m5c" && find . -type f -print0 | sort -z | xargs -0 sha256sum) >"$restore_manifest"
+      cmp -s "$source_manifest" "$restore_manifest" \
+        || die "restored m5c documents differ from the source"
+      cp "$source_manifest" "$restore_manifest" "$restore_root/.restore-evidence/"
+    fi
 
     total_files="$(jq -er '.total_files' "$restored_manifest")"
     total_bytes="$(jq -er '.total_bytes' "$restored_manifest")"
@@ -499,9 +523,11 @@ data:
     jq -n \
       --arg snapshot_id "$RESTORE_SNAPSHOT" \
       --arg created_at "$validated_at" \
+      --arg contract "vault-v${VAULT_CONTRACT_VERSION}" \
+      --arg contract_sha256 "$(sha256sum /contracts/vault-v${VAULT_CONTRACT_VERSION}.json | awk '{print $1}')" \
       --argjson files "$total_files" \
       --argjson bytes "$total_bytes" \
-      '{generation:1,anchor_snapshot_id:$snapshot_id,created_at:$created_at,samples:[{snapshot_id:$snapshot_id,created_at:$created_at,files:$files,bytes:$bytes}]}' \
+      '{generation:1,anchor_snapshot_id:$snapshot_id,contract:$contract,contract_sha256:$contract_sha256,created_at:$created_at,samples:[{snapshot_id:$snapshot_id,created_at:$created_at,files:$files,bytes:$bytes}]}' \
       >"$baseline_tmp"
     mv "$baseline_tmp" "$control/baseline.json"
     printf '%s\n' "$(jq -cn --arg lineage "$lineage" --arg snapshot_id "$RESTORE_SNAPSHOT" --arg validated_at "$validated_at" '{lineage:$lineage,snapshot_id:$snapshot_id,validated_at:$validated_at}')" \
@@ -580,7 +606,6 @@ data:
     [ "$HOLD_ACTION" != accept ] || [ -n "${HOLD_REASON:-}" ] \
       || die "accept requires a nonempty HOLD_REASON"
 
-    contract=/contracts/vault-v${VAULT_CONTRACT_VERSION:-2}.json
     control=/repo/nas/.control/vault
     hold="$control/holds/$HOLD_SNAPSHOT.json"
     state="$control/resolutions/$HOLD_SNAPSHOT.json"
@@ -591,6 +616,11 @@ data:
     [ -r /host-config/vault.conf ] || die "vault host identity is missing"
     # shellcheck disable=SC1091
     source /host-config/vault.conf
+    configured_contract_version="${VAULT_CONTRACT_VERSION:?VAULT_CONTRACT_VERSION is required}"
+    [ -z "${JOB_VAULT_CONTRACT_VERSION:-}" ] || [ "$JOB_VAULT_CONTRACT_VERSION" = "$configured_contract_version" ] \
+      || die "Job contract version disagrees with host configuration"
+    VAULT_CONTRACT_VERSION="$configured_contract_version"
+    contract=/contracts/vault-v${VAULT_CONTRACT_VERSION}.json
     mount_record="$(awk '
       $5 == "/data/vault" {
         separator = 0
@@ -669,7 +699,8 @@ data:
 
     validate_candidate() {
       [ "$snapshot_present" = true ] || die "cannot accept a missing snapshot"
-      [ "$hold_reason" = shrink ] || die "only a shrink-only hold may be accepted"
+      [ "$hold_reason" = shrink ] || [ "$hold_reason" = transition ] \
+        || die "hold is neither a shrink nor contract transition"
       restic check
       candidate_manifest="$(/scripts/validate-vault-snapshot.sh "$HOLD_SNAPSHOT")" \
         || die "held snapshot failed captured-content validation"
@@ -709,6 +740,12 @@ data:
     validate_candidate
     baseline="$control/baseline.json"
     [ -f "$baseline" ] || die "vault baseline is absent"
+    [ "$(jq -er '.contract' "$baseline")" = vault-v2 ] \
+      || die "legacy baseline contract evidence is missing; establish it from retained v2 samples"
+    [ "$(jq -er '.contract_sha256' "$baseline")" = "$(sha256sum /contracts/vault-v2.json | awk '{print $1}')" ] \
+      || die "legacy baseline contract hash evidence is inconsistent"
+    [ "$(jq -er '.samples | length' "$baseline")" -ge 1 ] \
+      || die "legacy baseline has no retained validated samples"
     current_generation="$(jq -er '.generation' "$baseline")"
     next_generation=$((hold_generation + 1))
     if [ "$current_generation" -eq "$next_generation" ]; then
