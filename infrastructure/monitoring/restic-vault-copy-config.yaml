@@ -101,6 +101,13 @@ data:
     destination_control=/repo/nas/.control/vault-b2
     metrics=/metrics/restic-vault-copy.prom
     work=/work
+    [ -r /etc/homelab/vault.conf ] || die "vault host identity is missing"
+    # shellcheck disable=SC1091
+    source /etc/homelab/vault.conf
+    configured_contract_version="${VAULT_CONTRACT_VERSION:-2}"
+    [ -z "${JOB_VAULT_CONTRACT_VERSION:-}" ] || [ "$JOB_VAULT_CONTRACT_VERSION" = "$configured_contract_version" ] \
+      || die "Job contract version disagrees with host configuration"
+    VAULT_CONTRACT_VERSION="$configured_contract_version"
 
     write_metrics() {
       local locked="$1" newest="${2:-0}" copied="${3:-0}" missing="${4:-0}" size="${5:-0}"
