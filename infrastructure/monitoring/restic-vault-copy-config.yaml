@@ -441,12 +441,14 @@ data:
     restic dump "$RESTORE_SNAPSHOT" /data/vault/credentials/strongbox/ccs.kdbx >"$kdbx"
     [ "$(od -An -tx1 -N8 "$kdbx" | tr -d ' \n')" = 03d9a29a67fb4bb5 ] \
       || die "B2 restore returned an invalid KDBX"
-    document="$(jq -nr --arg requested "${RESTORE_DOCUMENT_PATH:-}" 'first(inputs | select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/documents/")) and ($requested == "" or .path == $requested)) | .path)' "$listing")"
+    document="$(jq -nr --arg requested "${RESTORE_DOCUMENT_PATH:-}" 'first(inputs | select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/documents/ryze/")) and ($requested == "" or .path == $requested)) | .path)' "$listing")"
+    m5c_document="$(jq -nr 'first(inputs | select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/documents/m5c/"))) | .path)' "$listing")"
     photo="$(jq -nr --arg requested "${RESTORE_PHOTO_PATH:-}" 'first(inputs | select(.message_type == "node" and .type == "file" and (.path | startswith("/data/vault/photos/")) and ($requested == "" or .path == $requested)) | .path)' "$listing")"
-    [ -n "$document" ] && [ -n "$photo" ] || die "B2 snapshot has no representative document or photo"
+    [ -n "$document" ] && [ -n "$m5c_document" ] && [ -n "$photo" ] || die "B2 v3 snapshot lacks Ryze, M5c, or photo content"
     restic dump "$RESTORE_SNAPSHOT" "$document" >"$restore_root/document-$(basename "$document")"
+    restic dump "$RESTORE_SNAPSHOT" "$m5c_document" >"$restore_root/document-m5c-$(basename "$m5c_document")"
     restic dump "$RESTORE_SNAPSHOT" "$photo" >"$restore_root/photo-$(basename "$photo")"
-    [ -s "$restore_root/document-$(basename "$document")" ] && [ -s "$restore_root/photo-$(basename "$photo")" ] \
+    [ -s "$restore_root/document-$(basename "$document")" ] && [ -s "$restore_root/document-m5c-$(basename "$m5c_document")" ] && [ -s "$restore_root/photo-$(basename "$photo")" ] \
       || die "B2 representative restore produced an empty file"
     printf '%s\n' "$RESTORE_SNAPSHOT" "$document" "$photo" >"$restore_root/restore-evidence.txt"
     log "B2 data check and representative extraction passed; inspect host ${restore_root/\/data\/vault/\/mnt\/vault} before recording semantic success"
