@@ -1,0 +1,44 @@
+{
+  "recorded_at": "2026-09-16T04:55:32Z",
+  "contract": {
+    "version": 3,
+    "sha256": "d0fbb1d0c82ec71dfea110a4687538bb62b36e0f1aa7dfd15355a73ecb1d44c7",
+    "baseline_generation": 2,
+    "host_config_version": 3
+  },
+  "validated_snapshots": {
+    "nas": "721c45b552fd82c9fbdf126e60c88e2e9a6c0801f288705b3f2722bf328591c8",
+    "b2": "3da46e304dde1368e690ae114e0a4de9217ea4172019d38b13da9cd16efab33d"
+  },
+  "b2_full_tree_comparison": {
+    "status": "passed",
+    "snapshot": "3da46e304dde1368e690ae114e0a4de9217ea4172019d38b13da9cd16efab33d",
+    "ryze_documents_files": 538,
+    "m5c_documents_files": 12,
+    "photos_files": 15206,
+    "notes": "Restored under /mnt/vault/.restore-tests; Restic reported nonfatal timestamp warnings from container filesystem permissions. File inventories matched live source trees."
+  },
+  "promotion": {
+    "retry_timer": "enabled and active",
+    "metrics": {
+      "ryze_strongbox": 1789534151,
+      "ryze_documents": 1789534206,
+      "m5c_documents": 1789527459
+    },
+    "completion_markers": [
+      "/mnt/vault/.restore-tests/ingestion-ryze.complete",
+      "/mnt/vault/.restore-tests/ingestion-m5c.complete"
+    ],
+    "notes": "Fresh Ryze Documents, Ryze Strongbox, and M5c Documents deliveries were processed by vault-ingest-promote.service."
+  },
+  "schedules": {
+    "restic-vault-backup": "resumed",
+    "restic-vault-copy": "resumed",
+    "restic-verify": "resumed",
+    "restic-vault-prune": "suspended pending eligibility checks"
+  },
+  "observation": {
+    "status": "not_started",
+    "reason": "Schedule resume manifests require commit and Flux reconciliation before the 24-hour observation window."
+  }
+}
