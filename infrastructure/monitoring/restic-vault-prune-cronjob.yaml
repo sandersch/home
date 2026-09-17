@@ -10,7 +10,7 @@ spec:
   # Sunday's 02:15 vault backup and 04:45 B2 copy windows.
   schedule: "30 23 * * 6"
   timeZone: America/Chicago
-  suspend: true
+  suspend: false
   concurrencyPolicy: Forbid
   failedJobsHistoryLimit: 3
   successfulJobsHistoryLimit: 1
