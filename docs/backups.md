@@ -7,17 +7,20 @@
 > passed. Flux reconciled activation commit `eb02a61` on 2026-09-07, and the live
 > `restic-vault-copy` and `restic-vault-prune` CronJobs are present with `SUSPEND=false`.
 > The first copy run completed successfully; the first prune run is pending its scheduled
-> Saturday window. Ryze workstation enrollment, seed, B2 copy, native restore, and
-> metadata recovery gates are complete, while the workstation schedules remain suspended
-> pending live activation drills and observation. m5c activation and vault-v3 remain out
-> of scope. Offline copies and mail archival remain draft. Updated 2026-09-12.
+> Saturday window. Both workstation clients are active: Ryze was enabled on 2026-09-12
+> and m5c on 2026-09-15. Their maintenance CronJobs have `SUSPEND=false`; recent
+> validations succeeded, and the attended Ryze one-off prune completed successfully.
+> Neither host has completed the required seven-day observation gate; the natural weekly
+> copy/prune and monthly-check gates remain open. Offline copies and mail archival remain
+> draft. Updated 2026-09-16.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
 > verifier, a restricted `ryze` ingestion path, versioned contracts, alerts, and restore
 > runbooks. The local vault, `appstate`, and vault B2 copy pipelines run today; vault B2
-> prune is enabled and awaiting its first scheduled run. Workstation backup and offline
-> copies are not active; see the staged workstation runbook below. The `appstate` pipeline is
+> prune is enabled and awaiting its first scheduled run. Workstation backup is active for
+> Ryze and m5c, with the seven-day observation gates still open. Offline copies are not
+> active; see the workstation runbook below. The `appstate` pipeline is
 > described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
 > datastore, and validated hot dumps.
@@ -31,8 +34,9 @@
 > Ryze workstation recovery closure passed on 2026-09-12. The retained NAS/B2 restores
 > passed content and manual KDBX checks; a real-client supplemental Linux fixture was
 > then independently restored from NAS and B2 with xattr, symlink-target, ownership,
-> mode, timestamp, and representative-file checks. Ryze activation, schedule enablement,
-> and the seven-day observation gate remain pending. See the [Ryze activation record](../runbooks/backups/evidence/ryze-activation-20260912.json).
+> mode, timestamp, and representative-file checks. Ryze activation and schedule enablement
+> passed on 2026-09-12; its seven-day observation gate remains open. See the [Ryze activation
+> record](../runbooks/backups/evidence/ryze-activation-20260912.json).
 >
 > The broader off-site and whole-estate follow-up remains open in
 > [operations.md → Follow-ups](./operations.md#follow-ups).
@@ -1167,18 +1171,19 @@ fixture verification; that code change is not yet deployed.
 
 The staged implementation and attended deployment/recovery procedure are in
 [workstations.md](../runbooks/backups/workstations.md). The package under
-`infrastructure/monitoring/workstations/` is not yet referenced by the active
-monitoring Kustomization, and all new maintenance schedules are suspended.
+`infrastructure/monitoring/workstations/` is referenced by the active monitoring
+Kustomization, and both workstation maintenance schedules are enabled.
 Ryze has a production v2 seed, successful B2 copy, and successful native NAS/B2
 restore evidence. The supplemental metadata fixture was backed up through the real
 client and restored independently from both destinations; see the [sanitized recovery
-record](../runbooks/backups/evidence/ryze-recovery-20260912.json). No workstation
-schedule has been activated, and m5c remains out of scope.
+record](../runbooks/backups/evidence/ryze-recovery-20260912.json). M5c has completed
+its attended activation and first scheduled copy, prune, and validation.
 The 2026-09-08 ryze preflight measured **552,840 included files / 27,921,624,561
-bytes**, including **538 Documents files / 296,757,693 bytes**. Proposed 80% floors
-are generated from those measurements; the immutable release awaits review.
-Live isolation, retry, vault-lock/Documents, notification, installer, schedule, and
-seven-day observation gates remain outstanding. Mac/m5c activation remains out of scope.
+bytes**, including **538 Documents files / 296,757,693 bytes**. The reviewed v2 contract
+and its measured 80% floors are deployed; observation is now the remaining gate.
+Live isolation, retry, vault-lock/Documents, notification, installer, and schedule gates
+are closed for both hosts. The seven-day observation, natural weekly copy/prune, and
+monthly-check gates remain outstanding.
 
 `ryze` and `m5c` aren't cluster nodes. Run **two** `restic/rest-server` Deployments in the
 cluster, one per workstation, each backed by its own fixed hostPath under

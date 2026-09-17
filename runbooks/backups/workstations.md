@@ -449,6 +449,14 @@ Both SOPS workstation credentials decrypt successfully and use separate B2 keys
 and independent repository passwords. No initial backup or restore is claimed by
 these preparation checks; all eight maintenance CronJobs remain suspended.
 
+That statement describes the 2026-09-10 preparation point. Current status as of
+2026-09-16: Ryze schedules were enabled on 2026-09-12 and m5c schedules on 2026-09-15;
+all eight maintenance CronJobs report `SUSPEND=false`. Both hosts have successful recent
+validation jobs. M5c completed its first scheduled copy, prune, and validation. Ryze's
+scheduled copy and validation succeeded, and its previously missing prune was run manually
+on 2026-09-16; both NAS and B2 phases completed successfully. The seven-day observation,
+natural weekly copy/prune, and monthly-check gates remain open for both hosts.
+
 Mac attended inventory completed through launchd with exit code 0 at
 2026-09-10T04:36:02Z: 261,860 files / 25,872,475,952 bytes, including 12 Documents
 files / 3,288,711 bytes. The operator confirmed the Documents totals are expected.
