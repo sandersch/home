@@ -38,7 +38,16 @@
     "restic-vault-prune": "suspended pending eligibility checks"
   },
   "observation": {
-    "status": "not_started",
-    "reason": "Schedule resume manifests require commit and Flux reconciliation before the 24-hour observation window."
+    "status": "passed",
+    "started_at": "2026-09-16T04:55:32Z",
+    "completed_at": "2026-09-17T04:55:32Z",
+    "successful_jobs": [
+      "restic-vault-backup-29825955",
+      "restic-vault-copy-29825865",
+      "restic-vault-backup-29826675",
+      "restic-vault-backup-29827395",
+      "restic-vault-copy-29827305"
+    ],
+    "notes": "No failed or stuck vault Jobs observed; promotion freshness, vault capacity, Flux, Prometheus, and Alertmanager remained healthy."
   }
 }
