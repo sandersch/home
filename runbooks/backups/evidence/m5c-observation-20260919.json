@@ -1,0 +1,48 @@
+{
+  "host": "m5c",
+  "recorded_date": "2026-09-19",
+  "observation_start_claimed_by_operator": "2026-08-13",
+  "observation_status": "continuous-health-gate-passed",
+  "operator_confirmations": {
+    "continuous_daily_validation": true,
+    "no_active_prometheus_or_alertmanager_alerts": true
+  },
+  "prometheus_instant_snapshot": {
+    "source": "Operator-provided Prometheus instant queries against node-exporter textfile metrics",
+    "nas_freshness_age_seconds": 127193.66250991821,
+    "nas_freshness_limit_seconds": 604800,
+    "b2_freshness_age_seconds": 384739.17210412025,
+    "b2_freshness_limit_seconds": 691200,
+    "documents_promotion_age_seconds": 33963.8029999733,
+    "documents_promotion_limit_seconds": 604800,
+    "validation_hold": 0,
+    "size_collection_success": {
+      "nas": 1,
+      "b2": 1
+    },
+    "repository_bytes": {
+      "nas": 19798743090,
+      "b2": 16613790204
+    },
+    "capacity_fractions": {
+      "nas": 0.184,
+      "b2": 0.332
+    },
+    "all_current_checks_passed": true
+  },
+  "remaining_gates": {
+    "scheduled_weekly_copy_prune_cycle": {
+      "passed": false,
+      "next_copy": "2026-09-21T05:45:00-05:00",
+      "next_prune": "2026-09-22T00:30:00-05:00"
+    },
+    "monthly_check": {
+      "passed": false,
+      "next_scheduled_check": "2026-10-15T02:30:00-05:00"
+    }
+  },
+  "notes": [
+    "This record closes the continuous-health observation sub-gate but does not mark the overall workstation rollout complete.",
+    "The Prometheus query response did not include an explicit query timestamp; recorded_date is the evidence capture date."
+  ]
+}

@@ -450,12 +450,16 @@ and independent repository passwords. No initial backup or restore is claimed by
 these preparation checks; all eight maintenance CronJobs remain suspended.
 
 That statement describes the 2026-09-10 preparation point. Current status as of
-2026-09-16: Ryze schedules were enabled on 2026-09-12 and m5c schedules on 2026-09-15;
+2026-09-19: Ryze schedules were enabled on 2026-09-12 and m5c schedules on 2026-09-15;
 all eight maintenance CronJobs report `SUSPEND=false`. Both hosts have successful recent
 validation jobs. M5c completed its first scheduled copy, prune, and validation. Ryze's
 scheduled copy and validation succeeded, and its previously missing prune was run manually
-on 2026-09-16; both NAS and B2 phases completed successfully. The seven-day observation,
-natural weekly copy/prune, and monthly-check gates remain open for both hosts.
+on 2026-09-16; both NAS and B2 phases completed successfully. For m5c, the operator
+confirmed successful daily validation throughout the week and no active Prometheus or
+Alertmanager alerts. The live NAS/B2 freshness, Documents-promotion freshness, hold, and
+repository-size snapshot passed all current thresholds; see the [m5c observation evidence](evidence/m5c-observation-20260919.json).
+The remaining m5c gate is one normal scheduled weekly copy/prune cycle; the monthly-check
+gate remains separate and open.
 
 Mac attended inventory completed through launchd with exit code 0 at
 2026-09-10T04:36:02Z: 261,860 files / 25,872,475,952 bytes, including 12 Documents
