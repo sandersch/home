@@ -1,34 +1,37 @@
 # Backup policy
 
-> **Status:** The local encrypted-vault photo pipeline is deployed and validated. The vault
-> v3 contract is active with baseline generation 2; full NAS/B2 recovery and the 24-hour
-> post-activation observation gate passed. Phase 4
+> **Status:** The local encrypted-vault pipeline is deployed and validated under contract
+> v3, baseline generation 2. The attended NAS/B2 recovery, full-tree B2 comparison, fresh
+> Ryze and M5c ingestion promotion, 24-hour post-activation observation, guarded manual
+> NAS/B2 prune, and first scheduled prune all passed. Phase 4
 > B2 replication and guarded vault retention are implemented in git; live B2 enrollment,
 > initial seed, attended on-host B2 restore, separate off-host break-glass restore, and
 > appstate-key denial from the vault bucket, and enrolled repository verification have
 > passed. Flux reconciled activation commit `eb02a61` on 2026-09-07, and the live
 > `restic-vault-copy` and `restic-vault-prune` CronJobs are present with `SUSPEND=false`.
-> The guarded manual prune passed for both NAS and B2; the first scheduled prune is due
-> Saturday 2026-09-19 at 23:30 America/Chicago. Both workstation clients are active: Ryze was enabled on 2026-09-12
+> The guarded manual prune passed for both NAS and B2. The first scheduled prune,
+> `restic-vault-prune-29831310`, completed successfully on 2026-09-20 at 04:30 UTC
+> (2026-09-19 at 23:30 America/Chicago), pruning both NAS and B2. Both workstation clients are active: Ryze was enabled on 2026-09-12
 > and m5c on 2026-09-15. Their maintenance CronJobs have `SUSPEND=false`; recent
 > validations succeeded, and the attended Ryze one-off prune completed successfully.
 > The v3 promotion evidence, fresh Ryze/M5c deliveries, and 24-hour observation are
-> recorded in `runbooks/backups/evidence/vault-v3-promotion-20260916.json`. Offline copies
-> and mail archival remain draft. Updated 2026-09-17.
+> recorded in `runbooks/backups/evidence/vault-v3-promotion-20260916.json`; the scheduled
+> prune completion is recorded in the drill table below. Offline copies and mail archival
+> remain draft. Updated 2026-09-20.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
 > verifier, a restricted `ryze` ingestion path, versioned contracts, alerts, and restore
 > runbooks. The local vault, `appstate`, and vault B2 copy pipelines run today; vault B2
-> prune is enabled and awaiting its first scheduled run. Workstation backup is active for
+> prune is enabled and its first scheduled run succeeded. Workstation backup is active for
 > Ryze and m5c, with their activation and v3 promotion observation gates passed. Offline copies are not
 > active; see the workstation runbook below. The `appstate` pipeline is
 > described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
 > datastore, and validated hot dumps.
 >
-> The encrypted vault now has a deployed local Restic pipeline. The v2 contract includes
-> the imported photos; its attended full photo restore passed on 2026-09-06. The Phase 4
+> The encrypted vault now has a deployed local Restic pipeline. The active v3 contract
+> includes the imported photos; its attended full photo restore passed on 2026-09-06. The Phase 4
 > implementation uses a dedicated B2 repository and exact-lineage validation; its initial
 > B2 seed and attended on-host restore passed on 2026-09-07. Do not describe the RAID array
 > itself as a backup.
@@ -72,7 +75,8 @@ vault pipeline:
 - `restic-nas-backup` — nightly `15 3 * * *`, repo `/repo/nas/opt` on `/mnt/backups`
 - `restic-b2-backup` — weekly `30 4 * * 0`, independent read, Backblaze B2 via the S3 backend
 - `restic-vault-backup` — every four hours, local repository `/repo/nas/vault` on `/mnt/backups`;
-  contract v2 requires the imported photos
+  active contract v3 requires the imported photos and the promoted Ryze/M5c Documents and
+  Strongbox ingestion content
 - `restic-vault-copy` — daily CronJob at `04:45`, enabled by the reviewed activation commit;
   copies validated NAS lineages to the dedicated B2 repository and validates each destination snapshot. A
   destination snapshot that lacks ledger evidence is held under
@@ -1896,14 +1900,16 @@ for non-vault secrets, the `homelab-low` priority class, and the `assert_fresh_f
 contract-version pattern. Vault Job manifests change `/work` and `/tmp` to
 `emptyDir.medium: Memory` and point `RESTIC_CACHE_DIR` there (§ 1b).
 
-## Phasing (vault v3 active; scheduled-prune evidence remains)
+## Phasing (vault v3 rollout complete)
 
 The vault foundation, restricted ingestion path, local Restic enrollment, photo migration,
 and the Phase 4 repository copy/prune implementation (steps 1–4) are complete in the
 repository. Live B2 enrollment, seed, restores, authorization separation, and repository
 verification passed on 2026-09-07. The v2-to-v3 transition then passed attended NAS/B2
-recovery, promotion, observation, and guarded manual retention. The remaining evidence
-item is the first successful scheduled prune after Flux enabled the CronJob.
+recovery, promotion, observation, guarded manual retention, and the first scheduled prune.
+The scheduled prune Job `restic-vault-prune-29831310` completed 1/1 at
+2026-09-20 04:30 UTC. Its logs show the mount guard passing, NAS and B2 retention both
+finishing, and the terminal message `vault NAS and B2 retention complete`.
 
 Ordered so the highest-value, least-reversible data is protected first.
 
@@ -2228,7 +2234,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 |---|---|---|
 | `appstate` local + B2 restore | 2026-08-22 | passed (contract v2; local `731326fa`, B2 `fe10c1ff`) |
 | `vault` local restore | 2026-09-06 | passed — snapshot `878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe` restored into an isolated tree; SHA-256 matched all 15,206 imported photos. |
-| `vault` v2 → v3 transition | 2026-09-17 | v3 active, baseline generation 2; NAS/B2 recovery, full-tree B2 hashes, fresh Ryze/M5c promotion, 24-hour observation, and guarded manual NAS/B2 prune passed. First scheduled prune remains pending. See `runbooks/backups/evidence/vault-v3-promotion-20260916.json`. |
+| `vault` v2 → v3 transition | 2026-09-20 | complete: v3 active, baseline generation 2; NAS/B2 recovery, full-tree B2 comparison, fresh Ryze/M5c promotion, 24-hour observation, guarded manual NAS/B2 prune, and first scheduled NAS/B2 prune passed. Scheduled Job `restic-vault-prune-29831310` completed at 2026-09-20 04:30 UTC. See `runbooks/backups/evidence/vault-v3-promotion-20260916.json` and the scheduled Job logs. |
 | `vault` B2 restore (attended on `minis`) | 2026-09-07 | passed — snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349`; full `check --read-data` read 8 snapshots / 1,135 packs with no errors, then the restored KDBX, document, and photo were manually verified. Artifacts were retained on encrypted vault scratch when this evidence was recorded. |
 | `vault` B2 restore, break-glass only | 2026-09-07 | passed — restored from `ryze` using only the sealed break-glass card; no access to `minis`, its mounted vault, credential files, or decrypted repository secrets. Snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349` was readable and representative restored content was successfully validated. |
 | `vault` B2 authorization separation | 2026-09-07 | passed — the existing appstate B2 application key was denied access to the dedicated vault bucket. No credential material was recorded. |

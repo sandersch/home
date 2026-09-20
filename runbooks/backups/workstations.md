@@ -13,8 +13,11 @@ Both hosts' NAS/B2 repositories are initialized. M5c has accepted NAS snapshots 
 a successful B2 copy. Native NAS and B2 content and metadata verification passed on
 2026-09-14/15, and both restored KDBX copies opened successfully. Its
 [activation record](evidence/m5c-activation-20260912.json) records the completed
-pre-schedule gates, enabled client, and first scheduled validation/copy results.
-vault-v3 remains pending.
+pre-schedule gates, enabled client, and first scheduled validation/copy results. The
+vault v3 contract rollout completed on 2026-09-20; NAS/B2 recovery, fresh ingestion
+promotion, the 24-hour observation, guarded manual retention, and the first scheduled
+NAS/B2 prune all passed. See the [promotion evidence](evidence/vault-v3-promotion-20260916.json)
+and [backup policy status](../../docs/backups.md#phasing-vault-v3-rollout-complete).
 
 | Host | NAS cap | B2 ceiling | Client schedule | Documents |
 | --- | ---: | ---: | --- | --- |
@@ -312,6 +315,11 @@ tests pass. Ryze remains the only Strongbox uploader.
 
 ## Vault v3 activation
 
+**Completed 2026-09-20.** The active vault contract is v3 at baseline generation 2;
+NAS/B2 recovery, fresh ingestion promotion, 24-hour observation, guarded manual retention,
+and the first scheduled NAS/B2 prune passed. The steps below preserve the attended
+transition procedure for audit and future reference.
+
 After inspecting the promoted Mac document seed, run
 `sudo python3 runbooks/backups/workstation-release-vault-v3.py` on minis. This
 preserves v1/v2 and releases v3 with measured 80% Mac document floors. It does not
@@ -321,7 +329,8 @@ Coordinate a suspended vault backup/copy/prune window with no running vault Jobs
 Add v3 JSON and exclusions to the vault contract ConfigMap, set
 `VAULT_CONTRACT_VERSION=3` in the vault Job environments and host vault.conf, and
 atomically replace the mounted sentinel with version 3 while retaining its UUID
-and root:root 0444 metadata. The default remains version 2 until this gate.
+and root:root 0444 metadata. During the transition, the active version remains v2 until
+this gate passes; the live system has since completed the gate and runs v3.
 Before replacing the sentinel, reinstall `vault-unlock` and `vault-ingest-promote`
 from the repository and confirm with `cmp` that each installed copy matches. A stale
 promoter rejects every upload with `vault sentinel contract mismatch`, which surfaces
@@ -660,4 +669,5 @@ The first scheduled M5c copy completed successfully after approximately 140 minu
 The first scheduled validation then completed successfully in 10 seconds after the
 copy released the repository lock. The validation metric reported success with no
 hold. Seven-day observation and one successful scheduled weekly copy/prune cycle
-remain open. The separate vault-v3 transition also remains pending.
+remain open. The separate vault-v3 transition completed on 2026-09-20; its first
+scheduled NAS/B2 prune succeeded as recorded in [backup policy](../../docs/backups.md#phasing-vault-v3-rollout-complete).
