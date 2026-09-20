@@ -1,8 +1,8 @@
 {
   "host": "m5c",
   "recorded_date": "2026-09-19",
-  "observation_start_claimed_by_operator": "2026-08-13",
-  "observation_status": "continuous-health-gate-passed",
+  "observation_start_claimed_by_operator": "2026-09-15",
+  "observation_status": "continuous-health-confirmed-seven-day-observation-open",
   "operator_confirmations": {
     "continuous_daily_validation": true,
     "no_active_prometheus_or_alertmanager_alerts": true
@@ -39,10 +39,15 @@
     "monthly_check": {
       "passed": false,
       "next_scheduled_check": "2026-10-15T02:30:00-05:00"
+    },
+    "seven_day_observation": {
+      "passed": false,
+      "earliest_completion_date": "2026-09-22"
     }
   },
   "notes": [
-    "This record closes the continuous-health observation sub-gate but does not mark the overall workstation rollout complete.",
-    "The Prometheus query response did not include an explicit query timestamp; recorded_date is the evidence capture date."
+    "Continuous health was confirmed through September 19, four calendar days after activation; the seven-day observation gate remains open.",
+    "The Prometheus query response did not include an explicit query timestamp; recorded_date is the evidence capture date.",
+    "Operator corrected the observation start to September 15 on September 20, replacing the erroneous August 13 date. Weekly and monthly gates remain open."
   ]
 }

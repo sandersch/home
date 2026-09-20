@@ -1,9 +1,10 @@
 # Backup-system rollout
 
-The new [workstation workflow](./workstations.md) covers staged ryze/m5c clients,
-append-only servers, replication, guarded retention, documents and recovery.
-It is not deployed or enrolled yet. The completed rollout described below is the
-existing vault foundation.
+The [workstation workflow](./workstations.md) covers active ryze/m5c clients,
+append-only servers, replication, guarded retention, documents and recovery. Both hosts
+passed native NAS/B2 recovery and enabled their client and maintenance schedules;
+remaining observation and scheduled maintenance gates are recorded there. The vault v3
+rollout completed on 2026-09-20. The installation sequence below covers the vault foundation.
 
 This attended workflow implemented the vault foundation in `docs/backups.md`. It runs on
 `minis`, uses canonical host files under `host/minis/`, and treats the appstate and local

@@ -5,11 +5,13 @@ practices, and deferred work. Built out in [Phase 5](./build-plan.md#phase-5--ob
 
 ## Backups
 
-Workstation backups for ryze/m5c are staged, not active. Follow
+Workstation backups for ryze/m5c are active, with client schedules enabled on
+2026-09-12 and 2026-09-15 respectively. Both hosts passed native NAS/B2 recovery;
+all eight maintenance CronJobs are enabled. Follow
 [workstation enrollment and recovery](../runbooks/backups/workstations.md) for
-measured contracts, SOPS credentials, suspended deployment, native NAS/B2 restore
-gates and activation. Monthly per-host checks and quarterly/annual restores join
-the operating calendar only after enrollment. The new maintenance jobs are
+remaining observation, scheduled weekly copy/prune, and monthly-check gates. Monthly
+per-host checks and quarterly/annual restores are part of the operating calendar.
+The maintenance jobs are
 independent of the locked vault; document alerts defer while it is locked. All
 workstation alerts stay quiet until a host's first seed snapshot is validated or held.
 
@@ -21,7 +23,8 @@ Several categories of data have different protection needs:
 | GitOps repo (all manifests) | git | GitHub | every commit |
 | App state (`/opt`, incl. SQLite DBs) | independent Restic CronJobs | direct backup LV + Backblaze B2 | nightly + weekly |
 | k3s SQLite datastore | online SQLite backup inside the same Restic CronJobs | direct backup LV + Backblaze B2 | nightly + weekly |
-| Vault (documents, credentials, imported photos) | encrypted vault Restic CronJob, contract v2 | direct backup LV | every four hours |
+| Vault (documents, credentials, imported photos) | encrypted vault Restic CronJob, contract v3, plus validated copy | direct backup LV + Backblaze B2 | every four hours + daily copy |
+| Curated ryze/m5c homes | append-only Restic push plus validated copy | direct backup LV + per-host Backblaze B2 repositories | daily + weekly copy |
 | Frigate recordings | — (not backed up) | direct bulk array | — |
 | Media library | — (not backed up) | direct bulk array | — |
 
@@ -32,8 +35,10 @@ limit. Initial vault B2 enrollment, seed, attended on-host restore validation, a
 independent card-only restore from `ryze`, appstate-key denial from the vault bucket, and
 the enrolled repository verifier passed on 2026-09-07. Flux applied activation commit
 `eb02a61`; the recurring B2 copy and prune CronJobs are live with `SUSPEND=false`, and
-the first copy run completed successfully. The first prune run remains pending its
-scheduled Saturday window.
+the first copy run completed successfully. Vault v3 promotion, baseline generation 2,
+NAS/B2 recovery, 24-hour observation, and guarded manual retention passed. The first
+scheduled NAS/B2 prune completed on 2026-09-20 at 04:30 UTC (September 19 at 23:30
+America/Chicago), closing the vault rollout. See [backup status](./backups.md).
 
 What is **already covered** and needs no backup job: cluster/GitOps config (it's in
 git — rebuild = reinstall k3s + re-bootstrap Flux), and recordings/media (regenerable

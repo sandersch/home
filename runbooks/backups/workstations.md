@@ -18,6 +18,10 @@ vault v3 contract rollout completed on 2026-09-20; NAS/B2 recovery, fresh ingest
 promotion, the 24-hour observation, guarded manual retention, and the first scheduled
 NAS/B2 prune all passed. See the [promotion evidence](evidence/vault-v3-promotion-20260916.json)
 and [backup policy status](../../docs/backups.md#phasing-vault-v3-rollout-complete).
+Ryze’s seven-day observation and natural scheduled weekly copy/prune closure remain
+unrecorded. M5c’s September 19 record confirms continuous health since September 15;
+its seven-day observation and normal scheduled weekly copy/prune gates remain open. Monthly-check gates remain separate and
+open. See [Checks and evidence](#checks-and-evidence) for the latest recorded status.
 
 | Host | NAS cap | B2 ceiling | Client schedule | Documents |
 | --- | ---: | ---: | --- | --- |
@@ -467,8 +471,11 @@ on 2026-09-16; both NAS and B2 phases completed successfully. For m5c, the opera
 confirmed successful daily validation throughout the week and no active Prometheus or
 Alertmanager alerts. The live NAS/B2 freshness, Documents-promotion freshness, hold, and
 repository-size snapshot passed all current thresholds; see the [m5c observation evidence](evidence/m5c-observation-20260919.json).
-The remaining m5c gate is one normal scheduled weekly copy/prune cycle; the monthly-check
-gate remains separate and open.
+M5c’s remaining gates are seven days of observation and one normal scheduled weekly
+copy/prune cycle; the monthly-check gate remains separate and open. On September 20,
+the operator corrected the observation start from August 13 to September 15, matching
+client activation. The September 19 health result therefore covers four calendar days;
+the seven-day gate can close no earlier than September 22, with confirming evidence.
 
 Mac attended inventory completed through launchd with exit code 0 at
 2026-09-10T04:36:02Z: 261,860 files / 25,872,475,952 bytes, including 12 Documents
@@ -571,8 +578,9 @@ symlink targets; its full elapsed time was approximately 68 minutes.
 B2 scratch ownership was repaired using NAS snapshot metadata, then file
 types/sizes, numeric owners, modes, timestamps, and 2,534 symlink entries were
 checked against the actual B2 snapshot. This follow-up checked **symlink presence
-only**, so B2 target-string verification remains pending. Neither restore selected
-an extended-attribute sample. Earlier session summaries calling both complete
+only**, so those retained-tree checks did not establish B2 target-string verification. Neither
+original restore selected an extended-attribute sample. The supplemental fixture below
+subsequently closed both metadata gaps. Earlier session summaries calling both complete
 overstated the metadata coverage. The B2 scratch report also inherited a 36-second
 NAS repair duration; the committed record explicitly excludes it as a B2 timing.
 B2 extraction took 3h24m14s and content verification 1h36m32.819s; no reliable total
@@ -602,7 +610,7 @@ NAS/B2 repository checks, and synthetic Pushover warning/resolved delivery. The
 required `/opt` snapshot was taken before the vault drill. The Ryze client was
 installed and enabled with the evidence-gated installer, and commit `173b486` enabled
 only `restic-ryze-validate`, `restic-ryze-copy`, `restic-ryze-prune`, and
-`restic-ryze-check`; M5C remains suspended. Commit `6e14f02` records the activation
+`restic-ryze-check`; M5c remained suspended at that point (it activated September 15). Commit `6e14f02` records the activation
 evidence. Seven-day observation, weekly copy/prune, and monthly check gates remain
 open.
 

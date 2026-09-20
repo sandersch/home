@@ -24,8 +24,9 @@
 > verifier, a restricted `ryze` ingestion path, versioned contracts, alerts, and restore
 > runbooks. The local vault, `appstate`, and vault B2 copy pipelines run today; vault B2
 > prune is enabled and its first scheduled run succeeded. Workstation backup is active for
-> Ryze and m5c, with their activation and v3 promotion observation gates passed. Offline copies are not
-> active; see the workstation runbook below. The `appstate` pipeline is
+> Ryze and m5c. The vault v3 promotion observation passed; separate workstation
+> observation and scheduled maintenance gates remain open as described in § 4. Offline
+> copies and mail archival are not active. The `appstate` pipeline is
 > described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
 > datastore, and validated hot dumps.
@@ -98,7 +99,8 @@ vault pipeline:
 
 That anti-false-success contract is the most valuable pattern in the repo and everything
 proposed below reuses it. Vault B2 replication has passed its attended gates; the remaining
-gaps are the proposed workstation and offline tiers, plus mail archival.
+gaps are workstation operational acceptance gates, offline copies, mail archival, and
+Frigate export ingestion.
 
 ## The data policy (proposed)
 
@@ -113,8 +115,8 @@ One table is the contract. Every proposed manifest points back to it.
 
 The migrated photos currently have their source on the encrypted vault filesystem, a
 validated local Restic copy on `/mnt/backups`, and a seeded/validated B2 copy. The offline
-drive remains the undeployed 3-2-1 target; workstation and mail destinations are also not
-deployed yet.
+drive remains the undeployed 3-2-1 target. Both workstation NAS/B2 destinations are
+active; mail archival remains undeployed.
 
 The vault cadence starts only after data reaches `/mnt/vault`; it is not an ingestion
 guarantee. The Strongbox database has its own source-to-vault contract (§ 1c):
@@ -204,7 +206,7 @@ the new repos use `--keep-within-*` instead is specific to them (§ 4).
 exclude list or adding a vault subdirectory changes `paths`, which creates a **new group**
 whose retention starts over while the old group ages out under a policy nothing is feeding
 any more. Every `forget` invocation in this design therefore passes `--group-by host`
-explicitly. `appstate` keeps the default — its source paths are fixed by contract v2, so
+explicitly. `appstate` keeps the default — its source paths are fixed by the appstate contract, so
 the failure mode cannot arise there.
 
 ### Recovery-time objectives (proposed)
@@ -396,9 +398,9 @@ Not exported over NFS. `host/minis/etc/exports` continues to export only `/mnt/m
 
 ### 1a. NFS access to photos ends with the move
 
-`/mnt/media/Pictures` is reachable today from workstations through the `/mnt/media`
-export. **That access is discontinued, deliberately.** Photos become a host-local archive
-that is backed up, not a share that is browsed.
+Before the photo migration, `/mnt/media/Pictures` was reachable from workstations through
+the `/mnt/media` export. **That access ended with the move.** The migrated photos are now
+a host-local archive under `/mnt/vault/photos`, with validated NAS and B2 backups.
 
 This has to be stated rather than assumed, because the obvious shim does not work: a
 symlink at `/mnt/media/Pictures` pointing at `/mnt/vault/photos` is resolved in the *NFS
@@ -597,9 +599,9 @@ exclusion is not allowed to rely only on operator memory or a broad wildcard.
 
 The cost accepted in exchange: after an unattended reboot, new or changed tier-0 data is
 not ingested or backed up until a human unlocks the vault. Vault backup, copy, and vault-only
-prune work skip; once deployed, the separate per-host workstation maintenance jobs continue.
+prune work skip; the separate per-host workstation maintenance jobs continue.
 The host, k3s, camera recording, and existing `appstate` pipeline remain
-unattended, and the workstation pipeline must do the same after it is built. This is no
+unattended, and the active workstation pipeline has the same independence. This is no
 additional availability loss over manual vault unlock itself, and `VaultLocked` (§ 9)
 bounds the window operationally.
 
@@ -659,8 +661,8 @@ LV. Everywhere below, `vaultlv` means the LV and the LUKS container on it, and
 
 Nothing else on the host references `/mnt/vault`, and `/mnt/backups` is a separate,
 unencrypted LV — so k3s, the existing `appstate` pipeline, and camera recording all come up
-and keep running exactly as they do today, locked vault or not. The proposed workstation
-repositories have the same independence once deployed.
+and keep running exactly as they do today, locked vault or not. The active workstation
+repositories have the same independence.
 
 **2. Writes must fail closed.** This does *not* come for free, and it is the sharp edge of
 the design — it is also made sharper, not duller, by dropping the automount. A mountpoint is
@@ -753,19 +755,19 @@ execution surface. Every four hours it:
    atomically renames it into place; and
 4. updates a separate success heartbeat even when the database content hash is unchanged.
 
-Phase 1 selects `10.137.20.5:2222` on `minis`, reachable only through `lan0` from
-`ryze` at `10.137.30.6`. The dedicated ingestion-only `sshd` listener uses
-`AllowUsers vault-ingest-ryze` and key-authenticated `internal-sftp`. `UsePAM yes` is
+Phase 1 selected `10.137.20.5:2222` on `minis`, initially reachable only through `lan0`
+from `ryze` at `10.137.30.6`. Workstation enrollment added the m5c identity and source.
+The dedicated ingestion-only `sshd` listener now uses
+`AllowUsers vault-ingest-ryze vault-ingest-m5c` and key-authenticated `internal-sftp`. `UsePAM yes` is
 intentional: `useradd` leaves the no-password system identity locked, and OpenSSH rejects
 locked identities before public-key authentication when PAM is disabled. Password and
 keyboard-interactive authentication remain explicitly disabled, and the install runbook
-asserts the effective settings before starting the listener. The `m5c` identity,
-inbox, and firewall source are deliberately deferred to the workstation phase. Each
-eventual client has its own root-owned,
+asserts the effective settings before starting the listener. Each
+enrolled client has its own root-owned,
 non-writable `ChrootDirectory` below `/mnt/vault/inbox/<host>` and may write only its child
 `upload/` directory; shell, forwarding, tunnelling, agent forwarding, cross-host inbox
 access, and direct access to canonical vault directories are disabled. The host
-host firewall policy admits each identity only from its selected trusted source. The
+firewall policy admits each identity only from its selected trusted source. The
 ordinary management `sshd` configuration and reachability do not change, and there is no
 public listener. While the vault is locked,
 the chroot is absent and upload fails safely rather than writing to the root filesystem.
@@ -781,9 +783,9 @@ is mounted; `VaultLocked` owns the locked state. Both workstation
 backup contracts also include the exact `~/Dropbox/ccs.kdbx` path, so the daily workstation
 repositories remain an independent recovery route when vault ingestion is unavailable.
 
-Ordinary documents use the same transport. Phase 1 makes one attended archival seed of
-`ryze`'s existing `~/Documents` tree; recurring document uploads and `m5c` are deferred to
-the workstation phase. No extra `VaultDrop` staging directory is required. This is archival
+Ordinary documents use the same transport. Phase 1 made one attended archival seed of
+`ryze`'s existing `~/Documents` tree; both hosts now have recurring daily document uploads
+and host-specific promotion paths. No extra `VaultDrop` staging directory is required. This is archival
 ingestion, not a bidirectional document share:
 promotion first copies the client-writable archive and checksum into a root-only staging
 directory, then validates names, types, ownership, checksum, and the 50 GiB archive-size
@@ -1100,7 +1102,7 @@ backup followed by a copy rather than waiting for their next schedules; the host
 `vault-unlock` helper itself needs no Kubernetes credential. The ordinary 36-hour copy
 alert remains the backstop.
 
-The same rule applies to retention. Once deployed, the per-host workstation prune jobs
+The same rule applies to retention. The per-host workstation prune jobs
 continue with their SOPS-managed credentials while the vault is locked. The separate
 vault prune job skips its repositories because their password files are unavailable.
 It must not copy vault credentials into a Kubernetes Secret or a
@@ -1155,11 +1157,11 @@ retention**: `restic-nas-config.yaml` runs `restic forget … --prune` at the en
 backup, immediately after a run that has already hard-failed unless every contract artifact
 was freshly produced.
 
-The two controls are **orthogonal, not ranked**. Contract v2 asserts that a fixed set of
+The two controls are **orthogonal, not ranked**. The appstate contract asserts that a fixed set of
 required artifacts exists, is fresh, and is internally consistent; the shrink guard asserts
 that the snapshot as a whole did not lose bulk it had last time. Neither implies the other.
 A large partial deletion elsewhere under `/opt` — outside the eight exports, the k3s dump,
-the Home Assistant archive, and the RomM dump — passes contract v2 untouched and would be
+the Home Assistant archive, and the RomM dump — passes those artifact checks untouched and would be
 pruned inline with nothing to stop it. That is a real gap, and it is not closed here.
 
 Keeping `appstate` on inline pruning is therefore an explicit compatibility choice, with
@@ -1173,9 +1175,9 @@ porting back.
 
 Executable retention uses `84d` for twelve weeks: Restic 0.19.1 rejects `12w`.
 The existing vault prune command received the same correction during workstation
-fixture verification; that code change is not yet deployed.
+fixture verification; the first scheduled vault NAS/B2 prune passed on 2026-09-20.
 
-The staged implementation and attended deployment/recovery procedure are in
+The implementation and attended deployment/recovery procedure are in
 [workstations.md](../runbooks/backups/workstations.md). The package under
 `infrastructure/monitoring/workstations/` is referenced by the active monitoring
 Kustomization, and both workstation maintenance schedules are enabled.
@@ -1186,10 +1188,14 @@ record](../runbooks/backups/evidence/ryze-recovery-20260912.json). M5c has compl
 its attended activation and first scheduled copy, prune, and validation.
 The 2026-09-08 ryze preflight measured **552,840 included files / 27,921,624,561
 bytes**, including **538 Documents files / 296,757,693 bytes**. The reviewed v2 contract
-and its measured 80% floors are deployed; observation is now the remaining gate.
-Live isolation, retry, vault-lock/Documents, notification, installer, and schedule gates
-are closed for both hosts. The seven-day observation, natural weekly copy/prune, and
-monthly-check gates remain outstanding.
+and its measured 80% floors are deployed. Live isolation, retry, vault-lock/Documents,
+notification, installer, and schedule gates are closed for both hosts. Ryze’s seven-day
+observation and natural weekly copy/prune closure remain unrecorded; its attended prune
+passed on September 16. M5c’s September 19 evidence confirms continuous health since its
+corrected September 15 activation/observation start. Its seven-day gate remains open until
+at least September 22, alongside the normal scheduled weekly copy/prune cycle (next copy
+September 21, prune September 22). Monthly-check gates remain separate and open. See the
+[workstation evidence](../runbooks/backups/workstations.md#checks-and-evidence).
 
 `ryze` and `m5c` aren't cluster nodes. Run **two** `restic/rest-server` Deployments in the
 cluster, one per workstation, each backed by its own fixed hostPath under
@@ -1469,8 +1475,8 @@ worth a line in `runbooks/disaster-recovery/README.md`.
 
 ### 8. Break-glass — the part that makes the rest real
 
-The existing `appstate` repository passwords live in SOPS in this repo. The proposed
-workstation operational secrets will also live in SOPS when that pipeline is built; the age
+The existing `appstate` repository passwords live in SOPS in this repo. The
+workstation operational secrets also live in SOPS; the age
 key that decrypts the existing and future values lives in `age.key` and in the password
 manager. The **vault** repositories are the deliberate exception: their NAS and B2
 passwords and dedicated B2 application key live only under the encrypted
@@ -1935,7 +1941,8 @@ Ordered so the highest-value, least-reversible data is protected first.
 3. **Photos** — move `/mnt/media/Pictures` into the vault (NFS photo access ends here,
    § 1a — announce it before the move, not after), then Takeout bootstrap, de-dup against
    the local pre-2018 archive, verify counts, fold into vault.
-4. **Off-site** — **implemented in the repository; activate only after the attended gates**:
+4. **Off-site** — **active; attended gates and first scheduled prune passed**. The
+   enrollment procedure is:
    create a dedicated private B2 bucket outside the authorization scope
    of the root-resident `appstate` key or the proposed workstation keys, verify the existing
    `appstate` key is not authorized for the new bucket, impose the same restriction when the
@@ -1955,7 +1962,8 @@ Ordered so the highest-value, least-reversible data is protected first.
    repository verifier before activation. Enrollment records durable non-secret intent in
    `/etc/homelab/vault-b2.enrolled`; this keeps rejection fail-closed after credential loss
    while permitting local rejection during suspended, never-enrolled staging.
-5. **Workstations** — **two** rest-server Deployments, each with `--append-only` and a
+5. **Workstations** — **active; remaining operational gates are listed in § 4**. The
+   enrollment procedure uses **two** rest-server Deployments, each with `--append-only` and a
    per-client repo path, htpasswd credential, and repo password (§ 4). Do **not** pass
    `--private-repos`: one shared process would make `--max-size` a server-wide limit and
    quietly collapse the 150/100 GiB per-workstation caps in
@@ -2238,8 +2246,8 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | `vault` B2 restore (attended on `minis`) | 2026-09-07 | passed — snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349`; full `check --read-data` read 8 snapshots / 1,135 packs with no errors, then the restored KDBX, document, and photo were manually verified. Artifacts were retained on encrypted vault scratch when this evidence was recorded. |
 | `vault` B2 restore, break-glass only | 2026-09-07 | passed — restored from `ryze` using only the sealed break-glass card; no access to `minis`, its mounted vault, credential files, or decrypted repository secrets. Snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349` was readable and representative restored content was successfully validated. |
 | `vault` B2 authorization separation | 2026-09-07 | passed — the existing appstate B2 application key was denied access to the dedicated vault bucket. No credential material was recorded. |
-| Strongbox `ccs.kdbx` ingestion + four-source open | *not yet* | — |
-| `ryze` workstation local + B2 restore | *not yet* | — |
+| Strongbox `ccs.kdbx` ingestion + four-source open | component evidence recorded | Vault ingestion/promotion and NAS/B2 recovery are recorded; Ryze NAS/B2 KDBX opens passed September 12 and m5c NAS/B2 opens passed September 15. The combined end-to-end drill remains unrecorded; these component results do not close every assertion in the verification procedure. |
+| `ryze` workstation local + B2 restore | 2026-09-12 | passed — native NAS/B2 content verification and manual KDBX opens; supplemental real-client Linux fixture independently restored from both destinations closed xattr, symlink-target, ownership, mode, timestamp, and representative-file gates. See the [recovery evidence](../runbooks/backups/evidence/ryze-recovery-20260912.json). |
 | `m5c` workstation local + B2 restore | 2026-09-15 (recovery gates passed) | NAS and B2 content/metadata verification passed; 361,195 nodes restored and both restored KDBX copies opened successfully. The FileProvider domain identifier xattr was excluded from both scratch restores; selected FinderInfo/ResourceFork checks passed. See the [recovery records](../runbooks/backups/workstations.md#2026-09-14-m5c-nas-restore-verification). |
 | Mail archive restore (local + B2) | *not yet* | — |
 | Frigate exports restore (local + B2) | *not yet* | — |

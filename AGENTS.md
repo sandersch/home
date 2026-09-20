@@ -20,9 +20,11 @@ controllers/configs are committed, and manifests exist for the media stack, Frig
 Home Assistant, and MQTT. Core media, Frigate, and the Home Assistant MQTT/Frigate
 integration have passed live validation. Z-Wave controller connectivity, device
 inclusion, and the Home Assistant integration passed live validation on 2026-08-16.
- Restic backup-contract version 3 is staged alongside the active v2 contract; the attended
- transition is pending NAS/B2 candidate acceptance and baseline generation advance. The
- existing v2 pipeline passed fresh local and B2 backup/restore drills on 2026-08-22. It requires the current application-aware SQLite exports, a readable
+The vault contract v3 rollout (baseline generation 2) completed on 2026-09-20, including
+NAS/B2 recovery, ingestion promotion, 24-hour observation, guarded manual retention, and
+the first scheduled prune. Separately, the appstate manifests use backup contract v3;
+the recorded 2026-08-22 local/B2 backup and restore drills used contract v2. Appstate
+requires the current application-aware SQLite exports, a readable
 Home Assistant archive, a successful RomM import/check, and a transactionally consistent
 k3s SQLite datastore artifact; both validated snapshots contained the expected k3s schema
 and data and no server-token artifact. The initial observability stack (Prometheus, Grafana,
@@ -107,12 +109,13 @@ for Plex, and Immich.
 **The encrypted-vault backup and its B2 off-site copy are implemented and validated.**
 [docs/backups.md](./docs/backups.md) records the 2026-09-07 activation: Flux applied
 `eb02a61`, the vault B2 copy and prune CronJobs are live with `SUSPEND=false`, and the
-first copy run completed successfully. Workstation clients and suspended server/maintenance
-manifests are staged with [attended enrollment and recovery](./runbooks/backups/workstations.md);
-contracts, credential enrollment, native restores and activation remain pending.
-Offline copies and mail archival remain draft. Until those tiers are built and drilled, only the vault and
-`appstate` pipelines, `/opt`, the k3s datastore, and required hot dumps are backed up;
-everything else on the bulk array has a single copy.
+first copy run completed successfully. Ryze and m5c workstation clients and maintenance
+schedules are active, with native NAS/B2
+recovery gates passed; remaining observation and scheduled maintenance gates are tracked in
+[attended enrollment and recovery](./runbooks/backups/workstations.md). The vault v3 rollout
+and first scheduled NAS/B2 prune completed on 2026-09-20. Offline copies and mail archival
+remain draft. The vault, curated workstation homes, and appstate (`/opt`, the k3s datastore,
+and required hot dumps) are backed up; other bulk-array data has a single copy.
 
 ## Repository structure
 
@@ -128,7 +131,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   ├── network.md
 │   ├── migration-runbook.md
 │   ├── direct-attached-storage-migration.md
-│   ├── backups.md             #   Vault local + B2 live; workstation/offline tiers remain draft
+│   ├── backups.md             #   Vault + workstation NAS/B2 live; offline/mail remain draft
 │   └── operations.md
 ├── runbooks/                  # Phases 0–5 plus attended bastion/DR/migration/NFS workflows
 ├── host/                      # canonical bare-metal host and switch config
@@ -218,5 +221,5 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 5. [docs/architecture.md](./docs/architecture.md) — the design and its rationale.
 6. [docs/migration-runbook.md](./docs/migration-runbook.md) — historical Plex + *arr migration path.
 7. [docs/operations.md](./docs/operations.md) — backups, monitoring, tuning, follow-ups.
-8. [docs/backups.md](./docs/backups.md) — vault/appstate backup status and the remaining
-   draft workstation, offline-drive, and mail tiers.
+8. [docs/backups.md](./docs/backups.md) — vault/appstate backup status,
+   remaining workstation gates and draft offline-drive and mail tiers.
