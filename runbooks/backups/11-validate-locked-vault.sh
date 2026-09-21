@@ -5,7 +5,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 require_not_root
 require_sudo
-require_tools cryptsetup jq kubectl lsattr mountpoint sha256sum systemctl
+require_tools cryptsetup jq kubectl lsattr mountpoint systemctl
 [ "$(hostname -s)" = minis ] || die "run this step on minis"
 [ -t 0 ] || die "the locked-vault drill requires an attended TTY"
 
@@ -94,36 +94,12 @@ kubectl -n monitoring wait --for=condition=complete \
 kubectl -n monitoring logs job/restic-appstate-vault-locked-drill --all-containers=true
 
 step "Unlock and prove the next vault backup resumes normally"
-cat <<'EOF'
-With the vault still locked, confirm Frigate is recording normally and save one
-representative export from the Frigate UI. It must land in /mnt/frigate/exports.
-EOF
-confirm "Did Frigate continue recording and create an export while the vault was locked?" \
-  || die "Frigate locked-state recording/export gate failed"
-read -r -p 'Enter the basename of that new export: ' locked_export
-[[ "$locked_export" != */* && "$locked_export" != *\\* && -n "$locked_export" ]] \
-  || die "export name must be a single filename"
-source_export="/mnt/frigate/exports/$locked_export"
-sudo test -f "$source_export" && sudo test ! -L "$source_export" \
-  || die "the named Frigate export is missing or not a regular file"
-locked_export_hash="$(sudo sha256sum "$source_export" | awk '{print $1}')"
 sudo /usr/local/sbin/vault-unlock
-sudo test ! -e "/mnt/vault/frigate-exports/$locked_export" \
-  || die "the selected export was already present in the vault; choose a fresh locked-state export"
 create_drill_job restic-vault-post-lock-drill restic-vault-backup
 kubectl -n monitoring wait --for=condition=complete \
   job/restic-vault-post-lock-drill --timeout=7200s \
   || { kubectl -n monitoring logs job/restic-vault-post-lock-drill --all-containers=true || true; die "post-unlock vault backup failed"; }
 kubectl -n monitoring logs job/restic-vault-post-lock-drill --all-containers=true
-archived_export="/mnt/vault/frigate-exports/$locked_export"
-sudo test -f "$archived_export" && sudo test ! -L "$archived_export" \
-  || die "post-unlock backup did not archive $locked_export"
-[ "$(sudo sha256sum "$archived_export" | awk '{print $1}')" = "$locked_export_hash" ] \
-  || die "archived bytes differ from Frigate's locked-state export"
-sudo jq -e --arg name "$locked_export" --arg hash "$locked_export_hash" '
-  any(.files[]; .name == $name and .sha256 == $hash) and .deferred == 0 and .failed == 0
-' /mnt/vault/frigate-exports/.ingestion-inventory.json >/dev/null \
-  || die "post-unlock archive inventory does not prove the exact export was ingested"
 sudo grep -qx 'homelab_vault_backup_locked 0' \
   /var/lib/node-exporter/textfile/restic-vault.prom \
   || die "post-unlock vault metric did not recover"

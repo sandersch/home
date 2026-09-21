@@ -151,14 +151,6 @@ restore validation against each, and validates NUT telemetry. Set
 `RECOVERY_TEST_PUSHOVER=1` to include synthetic Pushover firing/recovery notifications.
 The final attended gate requires external monitoring and Dead Man's Snitch health.
 
-After the vault ingestion change is deployed, use
-`../backups/19-validate-frigate-exports.sh` with the exact local and B2 snapshot IDs to
-verify archived exports against their in-snapshot inventory. A restored `frigate.db` may
-reference recording segments that are absent because `/mnt/frigate` recordings are
-intentionally outside the backup policy; Frigate can log those missing references. Saved
-exports are a separate archival set and must pass the inventory, hash, and media-decode
-checks independently.
-
 Keep the staged tree through an observation window. It is intentionally not deleted
 by the runbook. After the new local and B2 restores have passed and the recovered
 services remain healthy, archive the active recovery record:

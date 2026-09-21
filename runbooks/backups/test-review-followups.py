@@ -48,7 +48,7 @@ with tempfile.TemporaryDirectory(prefix='backup-review-') as directory:
     (work / 'etc/homelab/vault.conf').write_text('VAULT_FS_UUID=fixture\n')
     (work / 'etc/homelab/vault-b2.conf').write_text('VAULT_B2_REPOSITORY=vault-b2\n')
     sentinel = work / 'data/vault/.vault-sentinel'
-    sentinel.write_text('vault-contract-version=3\nfilesystem-uuid=fixture\n')
+    sentinel.write_text('vault-contract-version=2\nfilesystem-uuid=fixture\n')
     for key in ['nas-password', 'b2-password', 'b2-key-id', 'b2-application-key']:
         (work / 'data/vault/.backup-credentials' / key).write_text('fixture')
     restic = work / 'bin/restic'
@@ -67,7 +67,7 @@ with tempfile.TemporaryDirectory(prefix='backup-review-') as directory:
         (work / 'calls').write_text('')
         for old in (work / 'metrics').glob('*.prom'):
             old.unlink()
-        sentinel.write_text('vault-contract-version=3\nfilesystem-uuid=' +
+        sentinel.write_text('vault-contract-version=2\nfilesystem-uuid=' +
                             ('fixture' if valid else 'wrong') + '\n')
         source = '/dev/mapper/vg0-root' if locked else '/dev/mapper/vault'
         mount_root = '/mnt/vault' if locked else '/'

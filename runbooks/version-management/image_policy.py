@@ -306,25 +306,6 @@ def scan(root: Path) -> tuple[list[ImageReference], list[str]]:
                     f"does not match VERSION {version!r}"
                 )
 
-    frigate_version_file = root / "containers/frigate-ingest/VERSION"
-    if frigate_version_file.exists():
-        version = frigate_version_file.read_text(encoding="utf-8").strip()
-        custom = [
-            reference
-            for reference in references
-            if reference.repository == "ghcr.io/sandersch/frigate-ingest"
-        ]
-        if not custom:
-            errors.append(
-                "containers/frigate-ingest/VERSION exists but no immutable Frigate ingestion image reference was found"
-            )
-        for reference in custom:
-            if reference.tag != version:
-                errors.append(
-                    f"{reference.path}:{reference.line}: Frigate ingestion tag {reference.tag!r} "
-                    f"does not match VERSION {version!r}"
-                )
-
     return references, sorted(set(errors))
 
 

@@ -23,8 +23,6 @@ kubectl -n monitoring create job "$job" \
 # The attended restore must recover root:root ownership while the Pod runs with
 # primary group nogroup. Keep CHOWN scoped to this Job, not recurring backups.
 yq -y -i '
-  .spec.template.spec.initContainers = [] |
-  .spec.template.spec.volumes |= map(select(.name != "ingestion-script" and .name != "frigate-exports")) |
   .spec.template.spec.containers[0].command =
     ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/validate-vault-restore.sh"] |
   .spec.template.spec.containers[0].env +=

@@ -103,8 +103,6 @@ HOLD_ACTION="$HOLD_ACTION" \
 HOLD_OPERATOR="$(id -un)@$(hostname -s)" \
 HOLD_REASON="$resolution_reason" \
 yq -y -i '
-  .spec.template.spec.initContainers = [] |
-  .spec.template.spec.volumes |= map(select(.name != "ingestion-script" and .name != "frigate-exports")) |
   .spec.template.spec.containers[0].command =
     ["/bin/bash", "-c", "/guards/assert-backups-mount.sh && exec /scripts/resolve-validation-hold.sh"] |
   .spec.template.spec.containers[0].env += [

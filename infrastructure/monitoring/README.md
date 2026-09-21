@@ -29,18 +29,17 @@ Committed now:
   application-aware exports are fresh and valid, and unless a validated online backup
   of the live k3s SQLite datastore is present. Prowlarr is a best-effort discovered
   export with bounded retries. The k3s server token is not mounted or backed up.
-- Vault resources: released `vault-v1`, `vault-v2`, and active `vault-v3` contracts (v2 requires imported
+- Vault resources: released `vault-v1` and `vault-v2` contracts (v2 requires imported
   photos), fail-closed shared backup-mount guard, four-hour local vault backup, monthly
-  verifier, B2 replication and prune, restore/enrollment, full photo restore, exact-ID
-  hold-resolution scripts, textfile metrics, and gated alerts. The Frigate export ingestion
-  implementation, copier image build/publish workflow, host ACL setup, and exact local/B2
-  restore validation are maintained alongside the backup runbooks; production activation
-  remains behind the attended image, permission, restore, and observation gates in
+  verifier,
+  restore/enrollment, full photo restore, and exact-ID hold-resolution scripts, textfile
+  metrics, and gated alerts. Activation and the attended photo restore are documented in
   `runbooks/backups/`.
 
 The imported photo snapshot `878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe`
-completed on 2026-09-06. A full restore and SHA-256 comparison passed for all 15,206 photos.
-The vault v3 rollout and first scheduled NAS/B2 prune completed on 2026-09-20.
+completed on 2026-09-06. A full restore and SHA-256 comparison passed for all 15,206 photos;
+the vault CronJob uses the v2 contract, a 512 MiB temporary tmpfs, and a 2 GiB memory limit.
+Vault B2 replication remains outside the deployed scope.
 
 The B2 repository initialization, manual backup, repository check, and local-volume-independent
 restore validation passed on 2026-07-18. The nightly local and first naturally scheduled
