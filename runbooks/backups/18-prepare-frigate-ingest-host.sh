@@ -63,9 +63,6 @@ fi
 # Grant traversal/read to current tree and default read/traverse on future entries.
 sudo setfacl -R -m "g:$gid:r-X" "$source_dir"
 sudo find "$source_dir" -type d -exec setfacl -m "d:g:$gid:r-X" {} +
-# A legacy photos directory is mode 0755, so add a UID-specific deny at its
-# root; it blocks traversal without changing the ownership or modes of its data.
-sudo setfacl -m "u:$uid:---" "$vault_root/photos"
 # The vault mount root is 0700. Grant traversal only so the copier can reach
 # the sentinel and the explicitly writable archive directory below it.
 sudo setfacl -m "u:$uid:--x" "$vault_root"
@@ -74,6 +71,14 @@ sudo chown root:"$gid" "$destination"
 sudo chmod 2770 "$destination"
 sudo setfacl -b "$destination"
 sudo chmod 2770 "$destination"
+# Several legacy vault directories, including photos and games, are readable
+# by other local users. Add a named-user deny to every other top-level entry,
+# preserving all existing owners, modes, groups, and unrelated ACL entries.
+while IFS= read -r -d '' path; do
+  case "$path" in "$destination"|"$vault_root/.vault-sentinel") continue ;; esac
+  [ ! -L "$path" ] || die "unexpected symlink in vault root: $path"
+  sudo setfacl -m "u:$uid:---" "$path"
+done < <(sudo find "$vault_root" -mindepth 1 -maxdepth 1 -print0)
 
 sudo -u '#2207' test -r "$source_dir" || die "ingest identity cannot read source directory"
 sudo -u '#2207' test -r "$vault_root/.backup-credentials/nas-password" \

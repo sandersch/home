@@ -64,6 +64,12 @@ grep -q 'test ! -r "\$vault_root"' \
 grep -q 'test ! -w "\$path"' \
   "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
   || { echo "host setup must verify ingestion cannot write other vault content" >&2; exit 1; }
+grep -q 'setfacl -m "u:\$uid:---" "\$path"' \
+  "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
+  || { echo "host setup must block access to every other top-level vault entry" >&2; exit 1; }
+grep -q '\[ ! -L "\$path" \]' \
+  "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
+  || { echo "host setup must reject vault-root symlinks before applying ACLs" >&2; exit 1; }
 shellcheck --severity=warning "$repo_root/containers/frigate-ingest/run-ingest.sh" \
   "$repo_root/containers/frigate-ingest/validate-restore.sh" \
   "$repo_root/infrastructure/monitoring/frigate-ingest-run.sh" \
