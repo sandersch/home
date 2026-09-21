@@ -86,6 +86,7 @@ done
 while IFS= read -r path; do
   case "$path" in "$destination"|"$vault_root/.vault-sentinel") continue ;; esac
   sudo -u '#2207' test ! -r "$path" || die "ingest identity can read other vault content: $path"
+  sudo -u '#2207' test ! -w "$path" || die "ingest identity can write other vault content: $path"
 done < <(sudo find "$vault_root" -mindepth 1 -maxdepth 1 -print)
 sudo -u '#2207' test -w "$destination" || die "ingest identity cannot write destination"
 sudo -u '#2207' test ! -r "$vault_root" || die "ingest identity can list the vault root"

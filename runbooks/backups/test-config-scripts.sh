@@ -61,6 +61,9 @@ grep -q 'setfacl -m "u:\$uid:--x" "\$vault_root"' \
 grep -q 'test ! -r "\$vault_root"' \
   "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
   || { echo "host setup must verify ingestion cannot list the vault root" >&2; exit 1; }
+grep -q 'test ! -w "\$path"' \
+  "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
+  || { echo "host setup must verify ingestion cannot write other vault content" >&2; exit 1; }
 shellcheck --severity=warning "$repo_root/containers/frigate-ingest/run-ingest.sh" \
   "$repo_root/containers/frigate-ingest/validate-restore.sh" \
   "$repo_root/infrastructure/monitoring/frigate-ingest-run.sh" \
