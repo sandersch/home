@@ -31,6 +31,36 @@ spec:
             runAsGroup: 65534
             seccompProfile:
               type: RuntimeDefault
+          initContainers:
+            - name: ingest-frigate-exports
+              # Replace this bootstrap digest with the immutable digest from the release workflow before deployment.
+              image: ghcr.io/sandersch/frigate-ingest:1.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/ingest/run-ingest.sh"]
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  cpu: 1
+                  memory: 1Gi
+              securityContext:
+                runAsUser: 2207
+                runAsGroup: 2207
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: ingestion-script
+                  mountPath: /ingest
+                  readOnly: true
+                - name: vault
+                  mountPath: /data/vault
+                - name: frigate-exports
+                  mountPath: /data/frigate-exports
+                  readOnly: true
           containers:
             - name: restic
               image: ghcr.io/sandersch/restic-backup:0.19.1-1@sha256:58cddae970e91cb4f8f18db69d9d7d526d1e1d803193a65afb2f7f3a43aa9097
@@ -89,6 +119,10 @@ spec:
                 - name: tmp
                   mountPath: /tmp
           volumes:
+            - name: ingestion-script
+              configMap:
+                name: frigate-ingest-config
+                defaultMode: 365
             - name: script
               configMap:
                 name: restic-vault-config
@@ -107,6 +141,10 @@ spec:
             - name: vault
               hostPath:
                 path: /mnt/vault
+                type: Directory
+            - name: frigate-exports
+              hostPath:
+                path: /mnt/frigate/exports
                 type: Directory
             - name: backups
               hostPath:
