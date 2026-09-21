@@ -28,7 +28,7 @@ jobs:
           push: false
           tags: ghcr.io/sandersch/frigate-ingest:${{ github.sha }}
           platforms: linux/amd64
-          provenance: true
+          provenance: false
           load: true
       - name: Run copier failure tests as the runtime UID
         run: docker run --rm -e PYTHONPATH=/usr/local/bin --entrypoint python3 ghcr.io/sandersch/frigate-ingest:${{ github.sha }} /tests/test_ingest.py
