@@ -33,8 +33,7 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: ingest-frigate-exports
-              # Replace this bootstrap digest with the immutable digest from the release workflow before deployment.
-              image: ghcr.io/sandersch/frigate-ingest:1.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+              image: ghcr.io/sandersch/frigate-ingest:1.0.0@sha256:a707a968439b3bbf55c0ef8c48c5b69d3fe439c7e7bf1b6394b42ba751d9af9b
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/ingest/run-ingest.sh"]
               resources:
