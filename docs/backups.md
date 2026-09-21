@@ -234,9 +234,9 @@ and one ext4 filesystem, given a unique label and recorded filesystem UUID, and 
 by the attended rotation runbook with `noauto,nodev,nosuid,noexec`. The filesystems do not
 add LUKS: Restic already encrypts repository contents and metadata, and another passphrase
 would add a recovery dependency without changing the offline threat model. Each physical
-drive holds two separate persistent repositories, `vault` and `appstate`; it is never one
-mixed repository.
-All four repositories are only ever copied *into*: `forget` and `prune` never run against
+drive holds three separate persistent repositories: `vault`, `appstate`, and the static
+`legacy-rsnapshot` archive; it is never one mixed repository.
+All six repositories are only ever copied *into*: `forget` and `prune` never run against
 offline media, and a repository is retired by re-initializing it (`--from-repo`, § 3), not
 by pruning it. The two drives alternate quarterly, so the newest offline copy is
 at most **90 days old** when rotations happen on time, and **180 days** if the most recent
@@ -262,9 +262,10 @@ other drive may be brought home. The reasoning, and why offline media are delibe
 excluded from prune's replication gate, is in § 2.
 
 Once per year, the rotation runbook performs the confidence-building work omitted from the
-quarterly path: on the SSD in rotation it runs `restic check --read-data` for both
-repositories and restores `ccs.kdbx`, one representative document, and the `appstate`
-backup manifest to scratch. The selected SSD alternates by year so each physical drive
+quarterly path: on the SSD in rotation it runs `restic check --read-data` for all three
+repositories and restores `ccs.kdbx`, one representative document, the `appstate`
+backup manifest, and representative legacy history to scratch. The selected SSD alternates
+by year so each physical drive
 receives the full check at least every two years. Filesystem repair and deeper device
 diagnostics are response actions for an unclean mount, I/O error, or failed repository
 operation, not routine quarterly ceremony. A drive is replaced after persistent errors;
@@ -290,8 +291,10 @@ observable rather than aspirational:
 | `workstations/ryze` (B2) | 100 GB | alert only |
 | `workstations/m5c` (B2) | 50 GB | alert only |
 
-That totals 750 GiB locally against 1 TiB, with the margin arriving from retiring the legacy
-rsnapshot tree in phase 6. Only the workstation caps are hard limits — they are the
+That totals 750 GiB locally against 1 TiB, before accounting for the permanent
+legacy-rsnapshot archive. Phase 6 measured the archive; removal of the original tree still
+requires a separate review before crediting any net space gain. Only the workstation caps are
+hard limits — they are the
 ones facing an untrusted client. The rest are alerts, because a cluster-side job hitting a
 hard cap would fail a backup to protect disk space, which is the wrong trade for data the
 cluster itself produces. A separate filesystem-level alert fires when `/mnt/backups` has
@@ -302,18 +305,26 @@ measurements; the sum of soft ceilings is not itself an enforcement mechanism.
 Expected steady-state occupancy is far lower — `appstate` is ~20 GB of source today, and
 even the pessimistic 50 GB / 20 GB workstation budgets are well under their caps — so the
 ceilings are headroom against growth rather than a prediction. What makes them safe to
-grant is retiring the legacy rsnapshot tree, and the figure this draft budgets needs
-correcting: `~177 GiB` is the **whole-filesystem** usage recorded in the migration worklog,
-not a measurement of the tree. The only direct measurement (2026-08-30) puts
-`/mnt/backups/snapshots/` at **119 GiB**; the remaining ~58 GiB is other content on the LV.
-Plan on the measured 119 GiB and have phase 6 account for the difference rather than
-budgeting the larger number. The ceiling sum leaves 258 GiB against the 1,008 GiB
-filesystem; while the measured 119 GiB legacy tree still exists, the conservative temporary
-margin is 139 GiB. The remaining ~58 GiB already on the LV must be classified during phase
-6 so current repository data is not counted twice and unrelated content is not omitted.
-Re-derive all three numbers from fresh `du` and `df` output before granting the caps. The
-150/100 GiB workstation split is intentional; raising both to a round 200 GiB would consume
-another 150 GiB and erase most of the pre-cleanup margin.
+grant must be re-evaluated using fresh source, archive and filesystem measurements.
+Historical context only: `~177 GiB` was whole-filesystem usage in the migration worklog;
+`119 GiB` was the direct rsnapshot-tree measurement on 2026-08-30, with roughly 58 GiB
+of other LV content. Neither is a current free-space or reclaimable-space figure.
+The permanent archive consumes part of any eventual original-tree reclamation. Archive
+acceptance and the measured source/repository comparison are complete; both copies remain
+until a separate deletion review. Measure the net change after any approved cleanup before
+revising the ceiling margin. The 150/100 GiB workstation split is intentional;
+raising both to 200 GiB would consume another 150 GiB.
+
+On 2026-09-20, the operator confirmed reviewing the disk images in `/mnt/backups`,
+determining they were no longer necessary, and deleting them. No reclaimed-byte total or
+fresh filesystem usage was recorded, so the historical figures above are not updated by
+this cleanup. The accepted legacy rsnapshot archive uses snapshot
+`208d5fcdbb4d4e045dedd296290dc8c36aff08ec7a33d67907d88d7c8f57da94`; the original tree is
+retained pending a separate attended deletion review (see the
+[archive runbook](../runbooks/backups/legacy-rsnapshot.md)). The repository occupies
+27,512,586,240 bytes against 127,204,077,568 allocated source bytes; this size comparison
+does not claim a net reclaimable total while verification scratch and control inventories
+remain on the filesystem.
 
 **The B2 ceilings are split rather than shared, because a shared one hides which dataset
 is growing.** Under the earlier single `vault` + `appstate` 150 GB ceiling, the vault —
@@ -1127,7 +1138,11 @@ source its destinations inherit from. The vault B2 repository and the `vault` re
 on each offline drive are initialized `--from-repo <vault-NAS> --copy-chunker-params`.
 Separately, the `appstate` repository on each drive is initialized
 `--from-repo <appstate-NAS> --copy-chunker-params`. A physical drive is only a carrier; it
-does not collapse the two datasets into one repository or one password.
+does not collapse the datasets into one repository or one password.
+The `legacy-rsnapshot` repository on each SSD is initialized from its local source with
+`--copy-chunker-params` and an independent password. Copy the accepted exact snapshot during
+each drive’s enrollment and independently verify its data and representative restore.
+Include it in annual offline checks; this static archive needs no quarterly recopy.
 
 Workstation off-site storage follows the same one-source/one-destination rule. `ryze` and
 `m5c` each have a distinct B2 repository, repository password, validation ledger, and
@@ -1514,8 +1529,9 @@ policy. The break-glass drill must still prove account recovery settings and a s
 are usable without `minis` or either workstation, because a URL on paper is not a recovery
 procedure if the account is inaccessible.
 
-The vault NAS repo, vault B2 repo, and all four offline repositories use **distinct repo
-passwords**. The two repositories on one physical drive do not share a password.
+The vault NAS repo, vault B2 repo, and all six offline repositories use **distinct repo
+passwords**. The three repositories on one physical drive do not share a password.
+The local `legacy-rsnapshot` archive also has its own password-manager credential.
 The dedicated vault B2 application key cannot access `appstate` or future workstation
 data. Conversely, the existing `appstate` B2 credential and future workstation B2
 credentials cannot access the vault's private bucket. A leaked cluster secret therefore
@@ -1974,11 +1990,20 @@ Ordered so the highest-value, least-reversible data is protected first.
    isolated SFTP identity and inbox, host-namespaced promotion path, heartbeat, and seven-day
    ingestion alert.
 6. **Housekeeping** — firmware into vault, Frigate exports sync job (§ 7 — a sync, not a
-   volume mount), disk-image GC policy,
-   retire the legacy rsnapshot tree on `/mnt/backups` (validate it holds nothing unique
-   first). Budget **119 GiB** of reclaimable space from the 2026-08-30 `du -hsx
-   /mnt/backups/snapshots/`, not the ~177 GiB whole-LV figure recorded in the migration
-   worklog; account for the ~58 GiB difference in this pass.
+   volume mount), and a GC policy for any future disk images. **Existing disk-image
+   cleanup complete:** on 2026-09-20, the operator confirmed reviewing the images in
+   `/mnt/backups`, determining they were no longer necessary, and deleting them. The
+   dedicated encrypted `legacy-rsnapshot` archive was accepted on 2026-09-20; its full
+   verification and measured source/repository sizes are recorded in the
+   [attended runbook](../runbooks/backups/legacy-rsnapshot.md). The original tree remains
+   pending a separate deletion review. Do not budget the historical 119 GiB as a current
+   reclaimable total. Keep the archive indefinitely,
+   with annual attended full-data checks/restores and its password in the external manager.
+   This static repository is exempt from automated check enrollment: no unattended credential,
+   CronJob, freshness metric, retention or pruning. Historical Unix socket entries are omitted
+   by Restic with operator acceptance on 2026-09-20; their metadata remains in the private
+   inventory. Until independently validated SSD copies exist, array loss destroys this
+   local archive. B2 replication is outside this implementation.
 7. **Mail archive** — fail preflight if host UID or GID 2000 is already assigned, build and
    immutably pin the dedicated mail image, verify the mounted vault root and create the mail
    paths with the exact ownership and modes in § 1b, write the Gmail app password with a
@@ -1988,13 +2013,16 @@ Ordered so the highest-value, least-reversible data is protected first.
 8. **Offline drives** — init **both** drives `--from-repo <NAS> --copy-chunker-params`
    (with their own distinct password, § 8) on the two existing 2 TB portable USB SSDs, record
    their labels and filesystem UUIDs, and install the single-command attended rotation
-   runbook. Seed and validate each drive in separate attended sessions before normal
+   runbook. Include a separate `legacy-rsnapshot` repository on each drive, copy its accepted
+   exact snapshot, and independently check data and restored history. Seed and validate each
+   drive in separate attended sessions before normal
    alternation begins, so both per-drive rotation timestamps have a real initial checkpoint
    and the 210d rule does not start from an invented success. Return one drive off-site
    before retrieving the other, as required above. Then use the lightweight quarterly and
    substantive annual procedures above.
 
-Enrollment of any NAS or B2 repository is incomplete until the recurring verification job
+Except for the static, annually attended `legacy-rsnapshot` archive described in phase 6,
+enrollment of any NAS or B2 repository is incomplete until the recurring verification job
 and metrics below include it. Add the local vault repo in phase 1, its B2 destination in
 phase 4, and both destinations for each workstation in phase 5; the existing `appstate`
 pair joins when the checker is first installed. Install the `/mnt/backups` mountpoint guard
@@ -2234,7 +2262,8 @@ Backups are only worth what a restore proves, so every phase ends with one.
   not a restore drill: the one-command runbook verifies drive identity, copies and lists the
   two `offline-checkpoint-<YYYY>-Q<n>` snapshots, records their IDs, and unmounts cleanly.
   Once annually, alternate the selected SSD and add full `--read-data` checks plus scratch
-  restores of `ccs.kdbx`, one document, and the `appstate` manifest. The contents of a
+  restores of `ccs.kdbx`, one document, the `appstate` manifest, and representative
+  `legacy-rsnapshot` history. The contents of a
   disconnected drive therefore remain recorded without making an elaborate quarterly test
   a precondition for maintaining the offline copy.
 
@@ -2249,6 +2278,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | Strongbox `ccs.kdbx` ingestion + four-source open | component evidence recorded | Vault ingestion/promotion and NAS/B2 recovery are recorded; Ryze NAS/B2 KDBX opens passed September 12 and m5c NAS/B2 opens passed September 15. The combined end-to-end drill remains unrecorded; these component results do not close every assertion in the verification procedure. |
 | `ryze` workstation local + B2 restore | 2026-09-12 | passed — native NAS/B2 content verification and manual KDBX opens; supplemental real-client Linux fixture independently restored from both destinations closed xattr, symlink-target, ownership, mode, timestamp, and representative-file gates. See the [recovery evidence](../runbooks/backups/evidence/ryze-recovery-20260912.json). |
 | `m5c` workstation local + B2 restore | 2026-09-15 (recovery gates passed) | NAS and B2 content/metadata verification passed; 361,195 nodes restored and both restored KDBX copies opened successfully. The FileProvider domain identifier xattr was excluded from both scratch restores; selected FinderInfo/ResourceFork checks passed. See the [recovery records](../runbooks/backups/workstations.md#2026-09-14-m5c-nas-restore-verification). |
+| Legacy rsnapshot archive acceptance | 2026-09-20 | passed — snapshot `208d5fcdbb4d4e045dedd296290dc8c36aff08ec7a33d67907d88d7c8f57da94`; full data check, source/path/metadata and symlink checks, restored sample hashes, and manual inspection passed. Repository 27,512,586,240 B; source allocation 127,204,077,568 B. Original tree retained for separate deletion review. |
 | Mail archive restore (local + B2) | *not yet* | — |
 | Frigate exports restore (local + B2) | *not yet* | — |
 | Offline drive rotation (drive A) | *not yet* | — |
@@ -2275,5 +2305,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 - **Immutable off-site.** The cluster retains delete authority on B2, consistent with the
   tradeoff already accepted in `runbooks/phase5/README.md`. The offline drive is the
   compensating control.
-- **Disk images** — local only, age-based GC, never replicated. Useful in the window around
-  a planned upgrade and of rapidly decaying value afterward.
+- **Disk images** — the operator confirmed on 2026-09-20 that the images in
+  `/mnt/backups` were reviewed, deemed no longer necessary, and deleted. Any future images
+  remain local only, never replicated; an age-based GC policy remains to be defined.
+  They are useful in the window around a planned upgrade and lose value afterward.

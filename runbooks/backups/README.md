@@ -1,5 +1,13 @@
 # Backup-system rollout
 
+The [legacy rsnapshot archive](./legacy-rsnapshot.md) was accepted on 2026-09-20. Its
+exact snapshot ID and validation evidence are recorded in the runbook and
+[sanitized evidence](./evidence/legacy-rsnapshot-20260920.json). The original tree remains
+in place pending a separate attended deletion review. The 513 historical Unix sockets were
+omitted with operator acceptance; their paths and metadata remain in the private inventory.
+The archive has annual attended checks, no automated retention, and no off-array copy yet;
+independent SSD copies are planned.
+
 The [workstation workflow](./workstations.md) covers active ryze/m5c clients,
 append-only servers, replication, guarded retention, documents and recovery. Both hosts
 passed native NAS/B2 recovery and enabled their client and maintenance schedules;

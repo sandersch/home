@@ -1,0 +1,83 @@
+{
+  "date": "2026-09-20",
+  "status": "accepted",
+  "host": "minis",
+  "source": "/mnt/backups/snapshots",
+  "repository": "/mnt/backups/legacy-rsnapshot",
+  "repository_created": true,
+  "source_deleted": false,
+  "repository_id": "133fae911ab920b8952dc982c347cf70eacf23c528db2c5b201d8901d204911c",
+  "snapshot_id": "208d5fcdbb4d4e045dedd296290dc8c36aff08ec7a33d67907d88d7c8f57da94",
+  "accepted_at": "2026-09-20T21:15:07-05:00",
+  "operator_confirmations": {
+    "source_retired_including_remote_writers": true,
+    "low_io_window": true,
+    "restic_unix_socket_omission_accepted": true,
+    "password_manager_copy_saved": true,
+    "manual_historical_inspection": true
+  },
+  "restic": {
+    "version": "0.19.1",
+    "release_archive": "restic_0.19.1_linux_amd64.bz2",
+    "release_archive_sha256": "f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c",
+    "installed_path": "/usr/local/lib/legacy-rsnapshot/restic"
+  },
+  "helper": {
+    "installed_path": "/usr/local/lib/legacy-rsnapshot/legacy-rsnapshot.py",
+    "sha256": "2bdc268564f65e8dc34a537443c35b0d3b0ef4f26e2f261fdf70cef0a649ff09"
+  },
+  "source_inventory": {
+    "entries": 13456631,
+    "types": {
+      "dir": 1418796,
+      "file": 11518400,
+      "symlink": 518456,
+      "socket": 513,
+      "fifo": 315,
+      "chardev": 121,
+      "block_device": 30
+    },
+    "unique_inode_logical_bytes": 119519918733,
+    "allocated_bytes": 127204077568
+  },
+  "space": {
+    "filesystem_capacity_bytes": 1082050662400,
+    "available_before_archive_bytes": 780600221696,
+    "required_available_bytes": 251628968720,
+    "repository_allocated_bytes": 27512586240,
+    "source_allocated_bytes": 127204077568,
+    "source_minus_repository_bytes": 99691491328,
+    "available_after_archive_and_verification_scratch_bytes": 586808545280,
+    "deletion_credit_claimed": false
+  },
+  "timing": {
+    "archive_started": "2026-09-20T14:23:52-05:00",
+    "archive_completed": "2026-09-20T18:17:06-05:00",
+    "archive_elapsed_seconds": 13994.642,
+    "verification_accepted_at": "2026-09-20T21:15:07-05:00"
+  },
+  "validation": {
+    "fixture_tests_run": 13,
+    "fixture_tests_skipped": 1,
+    "fixture_suite_result": "passed",
+    "production_backup_exit_code": 0,
+    "production_full_data_check": "passed",
+    "exact_snapshot_scope_check": "passed",
+    "archived_paths_metadata_and_symlink_targets": "passed",
+    "restore_metadata_hash_and_hardlink_sample_checks": "passed",
+    "fresh_source_inventory_comparison": "passed",
+    "manual_historical_inspection": "passed",
+    "socket_entries_omitted": 513,
+    "root_path_alias_reconciled": true,
+    "git_diff_check": "passed"
+  },
+  "pending": [
+    "Separate attended review before any deletion of /mnt/backups/snapshots",
+    "Independent validation of a separate legacy-rsnapshot repository on each future offline SSD"
+  ],
+  "limitations": [
+    "Historical Unix sockets are not archived by Restic; their paths and metadata remain in the private local inventory.",
+    "No B2 or offline replication exists for this archive; array loss would destroy the local copy.",
+    "The measured source-minus-repository difference is a size comparison, not a deletion estimate; retained verification scratch and control inventories occupy additional space."
+  ]
+}
