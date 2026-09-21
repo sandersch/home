@@ -1467,11 +1467,53 @@ filesystems is safe. Exports then inherit vault cadence, off-site replication, a
 offline copy.
 
 The ingestion is archival, not a mirror: it never uses `--delete`, so removing a saved clip
-from Frigate does not silently remove the vault copy. It considers only regular non-symlink
-files whose size and modification time remain stable across the copy, writes a temporary
-destination, validates the resulting image or video container, and renames it atomically.
-A file still being written is deferred to the next run. A same-name destination with
-different content is a hard failure requiring attended resolution rather than an overwrite.
+from Frigate does not silently remove the vault copy. The attended host setup grants a
+dedicated UID/GID 2207 read/traverse access to existing and future export files, and grants
+it write access only to `/mnt/vault/frigate-exports`. The mount root grants traversal only;
+each other top-level vault entry receives a named-UID deny, preserving its existing
+ownership, modes, and unrelated ACLs. This also blocks legacy world-readable `photos` and
+`games`; backup and mail credentials remain unreadable. The init container runs as
+`2207:2207`, drops every capability, and has no privilege escalation.
+
+The guard checks the vault's mount identity before reading its sentinel or touching the
+archive. The expected locked root mount exits successfully without looking at the export
+source; other mount identities and invalid v3 sentinels fail. Once unlocked, it verifies
+the Frigate source is the expected read-only ext4 bind mount and distinguishes an empty
+directory from missing or inaccessible storage. The copier accepts only regular,
+non-symlink single-component names. It opens sources without following symlinks, checks
+device/inode/size/mtime before and after copying, stages each copy on the destination
+filesystem, validates videos with `ffprobe` (video stream and positive duration) and images
+by decoding them with `ffmpeg`, then publishes with an atomic no-overwrite hard link.
+Identical destination content is an idempotent success; different content at the same name
+fails for attended resolution. Files removed from Frigate remain in the vault.
+
+Every run writes `.ingestion-inventory.json` atomically inside the archived directory. It
+records the time, per-file names, sizes, modification times and SHA-256 values, plus copied,
+unchanged, deferred and failed counts. A changing file is deferred and makes the init
+container fail, so no snapshot can succeed while an export remains deferred. Any copy or
+inventory error also prevents the Restic container from starting. Temporary files use a
+private reserved prefix on the destination filesystem. If a process is interrupted, its
+Job cannot reach the backup container; the next attempt removes only regular stale files
+with that prefix before ingestion. A temporary file therefore cannot enter a successful
+snapshot. A restore-only Job must remove the init container and the Frigate source volume.
+
+Run `runbooks/backups/18-prepare-frigate-ingest-host.sh` on `minis` after checking the
+source layout and mounting the vault. It reports file names, owners, modes, sizes, and
+filesystem identities before applying ACLs, then verifies source read, destination write,
+and denial of every other top-level vault entry as UID 2207. The 2026-09-21 permission
+gate passed; see [`frigate-ingestion-permissions-20260921.json`](../runbooks/backups/evidence/frigate-ingestion-permissions-20260921.json).
+Run the attended restore comparison in
+`runbooks/backups/19-validate-frigate-exports.sh` for the exact local and B2 snapshot IDs;
+it restores each snapshot into a unique temporary tree, compares every file count, size,
+and hash with the inventory captured in that same snapshot, then validates every media
+file. Retain the printed report with the rollout evidence. Persistent changes, permission
+errors, collisions, and malformed files fail the four-hour backup and remain visible as
+failed CronJob runs rather than being hidden by an otherwise successful vault snapshot.
+The 2026-09-20 source preflight found an MP4 export at mode `0644`, owned by `root:charlie`,
+in the expected ext4 Frigate LV; the live sentinel and host config are v3. The host has no
+`ffprobe`, so the actual media stream/duration check remains part of the post-publication
+ingestion and restore gates rather than being claimed from the filename alone. See
+[`frigate-ingestion-preflight-20260920.json`](../runbooks/backups/evidence/frigate-ingestion-preflight-20260920.json).
 
 This trades a hard dependency for eventual consistency: an export is unprotected between
 being written and the next successful vault run — nominally 4h, unbounded while the vault

@@ -140,6 +140,25 @@ credential boundary without contacting B2 or the cluster.
 `test-review-followups.py` (included in `test-phase4-b2.sh`) exercises missing
 metric fields, empty-source retention, and B2 checks with an unavailable NAS mount,
 a locked vault, or an invalid sentinel using disposable fixtures.
+
+For Frigate exports, inspect and prepare the live host permissions with
+`18-prepare-frigate-ingest-host.sh`. After an immutable ingestion image is published and
+its digest is reviewed into the CronJob, Flux reconciliation enables the init container.
+`19-validate-frigate-exports.sh` verifies the exact local and B2 snapshot IDs against each
+snapshot's own `.ingestion-inventory.json`, including file counts, sizes, SHA-256 values,
+and decoding every media file. Do not run a manual repository backup while the four-hour
+CronJob is enabled or active: suspend it in Git and reconcile, wait for scheduled Jobs to
+finish, then use `21-run-frigate-vault-backup.sh` and restore the schedule afterward. The
+manual runner also takes a host lock and rejects active backup Jobs.
+Record the image digest, host identity checks, exact local/B2 snapshot IDs, validation
+outputs, locked-vault export proof, and 24-hour scheduled-run observation in
+`evidence/frigate-ingestion-rollout-template.json`.
+
+Copier failures and changing-file deferrals fail the init container, so the Restic
+container cannot create a successful snapshot. A killed copier may leave only its private
+temporary filename in the archive directory; the next guarded ingestion removes stale
+regular temporary files before it can proceed to Restic. Restore-only jobs cloned from
+the backup CronJob must remove the init container and Frigate source volume.
 `test-prune-alerts.py` runs the deployed prune rules through `promtool`, covering
 first-run failure, recovery, initial enrollment grace, repeated scheduling, and
 mounted/enabled gates. It also verifies that copy metrics preserve the enrollment

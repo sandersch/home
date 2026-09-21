@@ -17,6 +17,10 @@ resources:
 - restic-verify-config.yaml
 - restic-verify-cronjob.yaml
 configMapGenerator:
+- name: frigate-ingest-config
+  namespace: monitoring
+  files:
+  - run-ingest.sh=frigate-ingest-run.sh
 - name: restic-vault-contract
   namespace: monitoring
   files:
