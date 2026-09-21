@@ -18,12 +18,12 @@ source_uuid=0b69665d-53ac-4380-815d-6969713940d6
 vault_device=/dev/mapper/vault
 
 sudo mountpoint -q /mnt/frigate || die "/mnt/frigate is not mounted"
-[ "$(sudo findmnt -n -o SOURCE,FSTYPE -T "$source_dir")" = "$source_device ext4" ] \
+[ "$(sudo findmnt --real -n -o SOURCE,FSTYPE -T "$source_dir")" = "$source_device ext4" ] \
   || die "Frigate exports are not on the expected ext4 LV"
-[ "$(sudo findmnt -n -o UUID -T "$source_dir")" = "$source_uuid" ] \
+[ "$(sudo findmnt --real -n -o UUID -T "$source_dir")" = "$source_uuid" ] \
   || die "Frigate export filesystem UUID does not match the inspected source LV"
 sudo mountpoint -q "$vault_root" || die "vault must be unlocked and mounted"
-[ "$(sudo findmnt -n -o SOURCE,FSTYPE -T "$vault_root")" = "$vault_device ext4" ] \
+[ "$(sudo findmnt --real -n -o SOURCE,FSTYPE -T "$vault_root")" = "$vault_device ext4" ] \
   || die "vault is not the expected ext4 LV"
 sudo test -d "$source_dir" && sudo test ! -L "$source_dir" \
   || die "Frigate export directory is missing or a symlink"
