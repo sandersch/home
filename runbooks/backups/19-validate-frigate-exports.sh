@@ -30,6 +30,8 @@ run_validation() {
   manifest="$(mktemp)"
   trap 'rm -f "$manifest"' RETURN
   kubectl -n monitoring create job "$job" --from="cronjob/$base" --dry-run=client -o yaml >"$manifest"
+  # Restore ownership and metadata for UID/GID 2207; scope these grants to restore Jobs.
+  yq -y -i '.spec.template.spec.containers[0].securityContext.capabilities.add += ["CHOWN", "FOWNER"]' "$manifest"
   if [ "$kind" = local ]; then
     command='/usr/local/bin/validate-frigate-restore'
     SNAPSHOT="$snapshot" IMAGE="$FRIGATE_INGEST_IMAGE" yq -y -i '
