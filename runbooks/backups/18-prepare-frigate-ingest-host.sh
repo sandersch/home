@@ -4,7 +4,7 @@ set -Eeuo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_not_root
 require_sudo
-require_tools find cut findmnt getfacl getent groupadd grep setfacl stat useradd
+require_tools find cut findmnt getfacl getent groupadd grep chmod chown install mktemp rm setfacl stat useradd
 [ -t 0 ] || die "Frigate ingestion permissions require an attended TTY"
 [ "$(hostname -s)" = minis ] || die "run this setup on minis"
 
@@ -81,10 +81,25 @@ while IFS= read -r -d '' path; do
 done < <(sudo find "$vault_root" -mindepth 1 -maxdepth 1 -print0)
 
 sudo -u '#2207' test -r "$source_dir" || die "ingest identity cannot read source directory"
-sudo -u '#2207' test -r "$vault_root/.backup-credentials/nas-password" \
-  && die "ingest identity can read NAS backup credentials"
-sudo -u '#2207' test -r "$vault_root/.mail-credentials/gmail-app-password" \
-  && die "ingest identity can read mail credentials"
+for secret in nas-password b2-key-id b2-application-key b2-password; do
+  sudo -u '#2207' test ! -r "$vault_root/.backup-credentials/$secret" \
+    || die "ingest identity can read backup credential $secret"
+done
+if [ -e "$vault_root/.mail-credentials/gmail-app-password" ]; then
+  sudo -u '#2207' test ! -r "$vault_root/.mail-credentials/gmail-app-password" \
+    || die "ingest identity can read mail credentials"
+fi
+# The mail credential file may not be provisioned yet. Exercise its documented
+# root:2000 0750/0440 boundary with a disposable empty fixture as UID 2207.
+mail_fixture="$(mktemp -d)"
+trap 'sudo rm -rf -- "$mail_fixture"' EXIT
+sudo chown 0:2000 "$mail_fixture"
+sudo chmod 0750 "$mail_fixture"
+sudo install -o root -g 2000 -m 0440 /dev/null "$mail_fixture/gmail-app-password"
+sudo -u '#2207' test ! -r "$mail_fixture/gmail-app-password" \
+  || die "ingest identity can read the mail credential permission fixture"
+sudo rm -rf -- "$mail_fixture"
+trap - EXIT
 for private in credentials documents photos mail firmware inbox .backup-credentials .mail-credentials .restore-tests; do
   if sudo -u '#2207' test -r "$vault_root/$private"; then die "ingest identity can read vault path $private"; fi
 done

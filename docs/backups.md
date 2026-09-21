@@ -1469,10 +1469,11 @@ offline copy.
 The ingestion is archival, not a mirror: it never uses `--delete`, so removing a saved clip
 from Frigate does not silently remove the vault copy. The attended host setup grants a
 dedicated UID/GID 2207 read/traverse access to existing and future export files, and grants
-it write access only to `/mnt/vault/frigate-exports`. In particular, it adds a UID ACL
-deny to the existing world-readable `photos` directory; root-only backup and mail
-credentials remain unreadable. The init container runs as `2207:2207`, drops every
-capability, and has no privilege escalation.
+it write access only to `/mnt/vault/frigate-exports`. The mount root grants traversal only;
+each other top-level vault entry receives a named-UID deny, preserving its existing
+ownership, modes, and unrelated ACLs. This also blocks legacy world-readable `photos` and
+`games`; backup and mail credentials remain unreadable. The init container runs as
+`2207:2207`, drops every capability, and has no privilege escalation.
 
 The guard checks the vault's mount identity before reading its sentinel or touching the
 archive. The expected locked root mount exits successfully without looking at the export
@@ -1498,7 +1499,10 @@ snapshot. A restore-only Job must remove the init container and the Frigate sour
 
 Run `runbooks/backups/18-prepare-frigate-ingest-host.sh` on `minis` after checking the
 source layout and mounting the vault. It reports file names, owners, modes, sizes, and
-filesystem identities before applying ACLs. Run the attended restore comparison in
+filesystem identities before applying ACLs, then verifies source read, destination write,
+and denial of every other top-level vault entry as UID 2207. The 2026-09-21 permission
+gate passed; see [`frigate-ingestion-permissions-20260921.json`](../runbooks/backups/evidence/frigate-ingestion-permissions-20260921.json).
+Run the attended restore comparison in
 `runbooks/backups/19-validate-frigate-exports.sh` for the exact local and B2 snapshot IDs;
 it restores each snapshot into a unique temporary tree, compares every file count, size,
 and hash with the inventory captured in that same snapshot, then validates every media
