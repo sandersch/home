@@ -38,7 +38,7 @@ sudo grep -qxF "filesystem-uuid=$vault_uuid" "$vault_root/.vault-sentinel" \
   || die "vault sentinel UUID does not match the mounted filesystem"
 
 echo "Source inventory (type owner:group mode size path):"
-sudo find "$source_dir" -maxdepth 1 -printf '%y %u:%g %m %s %p\\n'
+sudo find "$source_dir" -maxdepth 1 -printf '%y %u:%g %m %s %p\n'
 echo "Mounts:"
 sudo findmnt -T "$source_dir" -o TARGET,SOURCE,FSTYPE,UUID
 sudo findmnt -T "$vault_root" -o TARGET,SOURCE,FSTYPE,UUID
