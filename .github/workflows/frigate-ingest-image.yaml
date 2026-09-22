@@ -33,6 +33,9 @@ jobs:
       - name: Run copier failure tests as the runtime UID
         run: docker run --rm -e PYTHONPATH=/usr/local/bin --entrypoint python3 ghcr.io/sandersch/frigate-ingest:${{ github.sha }} /tests/test_ingest.py
 
+      - name: Exercise local and B2 restore entrypoints
+        run: docker run --rm --user 0:65534 --entrypoint /bin/sh ghcr.io/sandersch/frigate-ingest:${{ github.sha }} /tests/test_restore.sh
+
   publish:
     if: github.event_name == 'workflow_dispatch'
     needs: build

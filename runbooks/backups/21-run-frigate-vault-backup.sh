@@ -15,9 +15,23 @@ cronjob="$(kubectl -n monitoring get cronjob restic-vault-backup -o json)" \
   || die "cannot inspect the vault backup CronJob"
 jq -e '.spec.suspend == true' <<<"$cronjob" >/dev/null \
   || die "suspend restic-vault-backup in Git and reconcile before this manual run"
-active="$(kubectl -n monitoring get jobs -l app.kubernetes.io/name=restic-vault-backup -o json \
-  | jq -r '[.items[] | select((.status.active // 0) > 0) | .metadata.name] | join(" ")')"
-[ -z "$active" ] || die "vault backup Jobs are still active: $active"
+# Scheduled Jobs need not inherit CronJob/Pod labels. Also recognize manual
+# Jobs from earlier versions of this runbook by their stable name prefix.
+assert_no_outstanding_backups() {
+  local outstanding
+  outstanding="$(kubectl -n monitoring get jobs -o json | jq -r '
+    [.items[]
+     | select(any(.metadata.ownerReferences[]?;
+         .kind == "CronJob" and .name == "restic-vault-backup")
+       or (.metadata.name | startswith("restic-vault-manual-"))
+       or .metadata.labels["app.kubernetes.io/name"] == "restic-vault-backup")
+     | select(any(.status.conditions[]?;
+         (.type == "Complete" or .type == "Failed") and .status == "True") | not)
+     | .metadata.name] | join(" ")')" \
+    || die "cannot inspect outstanding vault backup Jobs"
+  [ -z "$outstanding" ] || die "vault backup Jobs are still outstanding: $outstanding"
+}
+assert_no_outstanding_backups
 
 job="restic-vault-manual-$(date -u +%Y%m%d%H%M%S)"
 kubectl -n monitoring get job "$job" >/dev/null 2>&1 \
@@ -34,6 +48,7 @@ EOF
 read -r -p 'Type RUN-VAULT-BACKUP to continue: ' confirmation
 [ "$confirmation" = RUN-VAULT-BACKUP ] || die "confirmation did not match"
 sudo /usr/local/sbin/vault-unlock
+assert_no_outstanding_backups
 kubectl apply -f "$manifest" >/dev/null
 kubectl -n monitoring wait --for=condition=complete "job/$job" --timeout=7200s \
   || { kubectl -n monitoring logs "job/$job" --all-containers=true || true; die "$job failed"; }

@@ -1,10 +1,11 @@
 FROM restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
 
 USER root
-RUN apk add --no-cache ffmpeg python3
+RUN apk add --no-cache bash ffmpeg jq python3
 COPY ingest.py /usr/local/bin/frigate-ingest
 COPY ingest.py /usr/local/bin/ingest.py
 COPY test_ingest.py /tests/test_ingest.py
+COPY test_restore.sh /tests/test_restore.sh
 COPY run-ingest.sh /tests/run-ingest.sh
 COPY verify_restore.py /usr/local/bin/verify-frigate-restore
 COPY verify_restore.py /usr/local/bin/verify_restore.py
