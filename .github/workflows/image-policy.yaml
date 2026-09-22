@@ -36,6 +36,7 @@ jobs:
           runbooks/backups/test-config-scripts.sh
           runbooks/backups/test-phase4-b2.sh
           runbooks/backups/test-review-regressions.sh
+          python3 runbooks/backups/test-frigate-manual-guard.py
 
       - name: Test vault prune alerts
         env:
