@@ -450,7 +450,7 @@ class Manager:
             if sid not in self.state['pending']:
                 self.state['pending'].append(sid)
                 self.save()
-            # An interrupted copy can be recovered by actual tree/content identity,
+            # An interrupted copy can be recovered by authenticated tree identity,
             # never by an untrusted `original` claim supplied by the client.
             candidates = [r for r in destination.values() if self.same_snapshot(row, r)]
             if not candidates:
@@ -464,7 +464,17 @@ class Manager:
                     self.hold(candidate['id'], 'ambiguous copy counterpart; inspect and reject before retry', 'b2')
                 raise ValueError('copy counterpart cannot be identified uniquely')
             target = candidates[0]
-            self.validate_pair(row, target)
+            # Acceptance already checked the immutable source contents. The tree
+            # hash binds all descendants and file-content references; rescanning
+            # both inventories adds no new contract evidence. Repository checks
+            # and restore drills independently establish destination readability.
+            with phase('destination-identity', host=self.host, destination='b2',
+                       snapshot=target['id']):
+                try:
+                    self.accepted_identity(sid, target)
+                except (ValueError, KeyError) as error:
+                    self.hold(target['id'], str(error), 'b2')
+                    raise
             self.state['copies'][sid] = target['id']
             self.state['pending'].remove(sid)
             self.save()

@@ -244,7 +244,7 @@ Use `kubectl --context homelab-readonly logs -n monitoring job/JOB_NAME -c maint
 `maintenance-lock-wait` measures the shared per-host advisory lock wait separately
 from `maintenance-action`. Within the action, `snapshot-discovery`,
 `snapshot-listing`, `listing-decode`, `comparisons`, `required-content-read`,
-`client-completion-verification`, `transfer`, and `destination-verification`
+`client-completion-verification`, `transfer`, and `destination-identity`
 identify the work. `metrics-collection` covers the final repository queries and
 size collection. Phases can nest; elapsed times are inclusive, not additive.
 
@@ -260,6 +260,21 @@ can be silent. Restic stderr remains visible, including its lock retry messages;
 that wait occurs inside the Restic phase, separately from `maintenance-lock-wait`.
 There is no transfer percentage unless Restic itself emits one. These logs do not
 change validation, cache policy, schedules, or the meaning of success metrics.
+
+Routine workstation copying validates new NAS sources before transfer, then matches
+each destination's tree hash, hostname, source paths, and timestamp to the accepted
+source. It records exact NAS/B2 IDs only after a unique matching counterpart is
+present. Interrupted copies recover through the same identity match; client-supplied
+`original` fields are never authority. Already accepted sources and copied destinations
+do not need another full inventory/manifest scan during copying.
+
+Copy success means every accepted source has a matching destination snapshot; it
+does not certify that every referenced B2 object is currently readable. The separate
+monthly `check` jobs run structural verification and a rotating `--read-data-subset`
+on both repositories, while attended restore drills exercise recovery. NAS retention
+still performs full source/destination contract validation before deleting a source
+snapshot (`destination-verification` in prune logs). This preserves the stronger
+deletion gate while removing repeated full inventories from routine copy runs.
 
 For attended diagnostics, set `WORKSTATION_RESTIC_VERBOSE=1` on a temporary
 `check` Job. The client adds Restic's `--verbose` flag only to repository checks;

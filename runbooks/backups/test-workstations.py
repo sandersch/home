@@ -625,13 +625,46 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(self.manager.state['generation'], 2)
         self.assertEqual(len(self.manager.state['baseline']), 1)
 
-    def test_interrupted_copy_recovers_from_content(self):
+    def test_copy_accepted_snapshot_without_inventory_rescan(self):
+        sid = self.snapshot()
+        self.manager.validate()
+        self.manager.commands.clear()
+        with patch.object(self.manager, 'content', side_effect=AssertionError('unexpected rescan')):
+            self.manager.copy()
+        target = self.manager.state['copies'][sid]
+        self.assertTrue(self.manager.same_snapshot(self.manager.listing('nas')[sid],
+                                                   self.manager.listing('b2')[target]))
+        self.assertTrue(self.manager.state['copy_success'])
+        self.assertFalse(any(args[0] in ('ls', 'dump') for _, args in self.manager.commands))
+
+    def test_failed_transfer_stays_pending_until_identity_recovery(self):
+        sid = self.snapshot()
+        self.manager.validate()
+        original_run = self.manager.run
+        def interrupt_transfer(destination, *args, **kwargs):
+            result = original_run(destination, *args, **kwargs)
+            if args[0] == 'copy':
+                raise subprocess.CalledProcessError(1, args)
+            return result
+        with patch.object(self.manager, 'run', side_effect=interrupt_transfer):
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.manager.copy()
+        self.assertEqual(self.manager.state['pending'], [sid])
+        self.assertEqual(self.manager.state['copies'], {})
+        self.assertEqual(self.manager.state['copy_success'], 0)
+        with patch.object(self.manager, 'content', side_effect=AssertionError('unexpected rescan')):
+            self.manager.copy()
+        self.assertEqual(self.manager.state['pending'], [])
+        self.assertIn(sid, self.manager.state['copies'])
+
+    def test_interrupted_copy_recovers_from_identity_without_rescan(self):
         sid = self.snapshot()
         self.manager.validate()
         self.manager.state['pending'] = [sid]
         self.manager.run('b2', 'copy', '--from-repo', self.base / 'nas', sid, raw=True,
                          extra_env={'RESTIC_FROM_PASSWORD': 'disposable-test-password'})
-        self.manager.copy()
+        with patch.object(self.manager, 'content', side_effect=AssertionError('unexpected rescan')):
+            self.manager.copy()
         self.assertEqual(self.manager.state['pending'], [])
         self.assertIn(sid, self.manager.state['copies'])
 
