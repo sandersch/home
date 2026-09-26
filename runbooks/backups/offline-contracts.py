@@ -242,8 +242,10 @@ def verify_appstate(restic, snapshot, scratch):
     # An isolated local server imports untrusted restored SQL without network access.
     # SQL is untrusted: keep the server unprivileged and give it a private mount,
     # PID, IPC, and network namespace with only this disposable tree writable.
-    sandbox = scratch / 'mariadb-sandbox'
-    sandbox.mkdir(mode=0o711)
+    # Keep the bind source under /tmp so mysql can traverse its ancestors even
+    # when the restored snapshot's scratch directory is intentionally mode 0700.
+    sandbox = Path(tempfile.mkdtemp(prefix='offline-mariadb-', dir='/tmp'))
+    sandbox.chmod(0o711)
     dbdir = sandbox / 'data'
     dbdir.mkdir(mode=0o700)
     sql_files = sandbox / 'sql-files'
@@ -253,16 +255,22 @@ def verify_appstate(restic, snapshot, scratch):
                    check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for path in (dbdir, sql_files):
         shutil.chown(path, user='mysql', group='mysql')
+    mysql_uid = pwd.getpwnam('mysql').pw_uid
+    mysql_gid = grp.getgrnam('mysql').gr_gid
+    def mysql_identity():
+        os.setgroups([])
+        os.setgid(mysql_gid)
+        os.setuid(mysql_uid)
+    shutil.chown(sandbox, user='mysql', group='mysql')
     with (scratch / 'mariadb.log').open('w') as log:
         server = subprocess.Popen(['bwrap', '--die-with-parent', '--unshare-all', '--ro-bind', '/', '/',
-                   '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/sandbox',
-                   '--bind', str(sandbox), '/sandbox', '--chdir', '/sandbox',
-                   '--uid', str(pwd.getpwnam('mysql').pw_uid),
-                   '--gid', str(grp.getgrnam('mysql').gr_gid), 'mariadbd', '--no-defaults',
-                   '--datadir=/sandbox/data', '--socket=/sandbox/mariadb.sock',
-                   '--pid-file=/sandbox/mariadb.pid', '--skip-networking', '--local-infile=0',
-                   '--tmpdir=/sandbox/sql-files', '--secure-file-priv=/sandbox/sql-files'],
-                   stdout=log, stderr=log)
+                   '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/tmp/sandbox',
+                   '--bind', str(sandbox), '/tmp/sandbox', '--chdir', '/tmp/sandbox',
+                   '--uid', '0', '--gid', '0', 'mariadbd', '--no-defaults',
+                   '--datadir=/tmp/sandbox/data', '--socket=/tmp/sandbox/mariadb.sock',
+                   '--pid-file=/tmp/sandbox/mariadb.pid', '--skip-networking', '--local-infile=0',
+                   '--tmpdir=/tmp/sandbox/sql-files', '--secure-file-priv=/tmp/sandbox/sql-files'],
+                   stdout=log, stderr=log, preexec_fn=mysql_identity)
         try:
             ready = False
             for _ in range(100):
@@ -275,13 +283,14 @@ def verify_appstate(restic, snapshot, scratch):
                 time.sleep(.1)
             require(ready, 'isolated MariaDB startup timed out after 10 seconds; inspect private mariadb.log')
             with out.open('rb') as sql:
-                subprocess.run(['mariadb', '--no-defaults', '--socket=' + str(socket), '--user=root'],
-                               stdin=sql, stdout=log, stderr=log, check=True)
-            count = subprocess.check_output(['mariadb', '--no-defaults', '--socket=' + str(socket), '--user=root',
-                '--batch', '--skip-column-names', '--execute=SELECT COUNT(*) FROM information_schema.tables WHERE table_schema="romm"'], text=True)
+                subprocess.run(['mariadb', '--no-defaults', '--socket=' + str(socket), '--user=mysql'],
+                               stdin=sql, stdout=log, stderr=log, check=True, preexec_fn=mysql_identity)
+            count = subprocess.check_output(['mariadb', '--no-defaults', '--socket=' + str(socket), '--user=mysql',
+                '--batch', '--skip-column-names', '--execute=SELECT COUNT(*) FROM information_schema.tables WHERE table_schema="romm"'], text=True,
+                preexec_fn=mysql_identity)
             require(int(count) > 0, 'RomM import empty')
-            subprocess.run(['mariadb-check', '--no-defaults', '--socket=' + str(socket), '--user=root', '--databases', 'romm'],
-                           check=True, stdout=log, stderr=log)
+            subprocess.run(['mariadb-check', '--no-defaults', '--socket=' + str(socket), '--user=mysql', '--databases', 'romm'],
+                           check=True, stdout=log, stderr=log, preexec_fn=mysql_identity)
         finally:
             server.terminate()
             try:
@@ -289,6 +298,7 @@ def verify_appstate(restic, snapshot, scratch):
             except subprocess.TimeoutExpired:
                 server.kill()
                 server.wait()
+            shutil.rmtree(sandbox)
 
 
 def verify_all(dest, op, record, work):
