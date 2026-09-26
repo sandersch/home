@@ -164,8 +164,8 @@ from successful records; missing state emits zero and failures preserve prior su
 After both genuine enrollment successes, verify the metric file is collected by
 node-exporter, then add `../offline` to
 `infrastructure/monitoring/configs/kustomization.yaml` in a reviewed GitOps commit.
-The staged rules warn if the newest drive exceeds 120 days or all metrics are absent,
-and if either drive exceeds 210 days or its series is absent. Do not synthesize
+The staged rules warn if the newest drive exceeds 210 days or all metrics are absent,
+and if either drive exceeds 300 days or its series is absent. Do not synthesize
 initial timestamps. Alert activation is deliberately pending physical acceptance.
 
 ## Independent recovery on Linux

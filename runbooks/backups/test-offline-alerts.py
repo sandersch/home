@@ -12,10 +12,10 @@ groups = yaml.safe_load((ROOT / 'infrastructure/monitoring/offline/alerts.yaml')
 rules = {rule['alert']: rule for group in groups for rule in group['rules']}
 metric = 'homelab_restic_offline_rotation_timestamp_seconds'
 cases = [
-    ('90/180 days is normal', {'A': 90, 'B': 180}, False, []),
-    ('globally stale', {'A': 121, 'B': 180}, True, []),
-    ('one overdue', {'A': 90, 'B': 211}, False, ['B']),
-    ('both overdue', {'A': 211, 'B': 220}, True, ['A', 'B']),
+    ('inside quarterly window', {'A': 90, 'B': 180}, False, []),
+    ('global warning after slack', {'A': 211, 'B': 250}, True, []),
+    ('one drive overdue after slack', {'A': 90, 'B': 301}, False, ['B']),
+    ('both drives overdue', {'A': 301, 'B': 310}, True, ['A', 'B']),
     ('surface absent', {}, True, ['A', 'B']),
     ('A absent', {'B': 90}, False, ['A']),
     ('B absent', {'A': 90}, False, ['B']),

@@ -160,10 +160,10 @@ file?"
 |---|---|---|---|---|---|
 | `vault` (NAS) | `--keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 24m` | 4h | 8h (`ResticVaultBackupOverdue`) | 24 months | weekly prune job (§ 2) |
 | `vault` (B2) | `--keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 24m` | 24h | 36h (`ResticVaultCopyOverdue`) | 24 months | weekly prune job, against the B2 repo |
-| `vault` (offline) | **none — `forget` never runs**, see below | 90d | 120d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
+| `vault` (offline) | **none — `forget` never runs**, see below | 90d | 210d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
 | `appstate` (NAS) | `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` — **existing, unchanged** | 24h | 30h (`ResticLocalBackupOverdue`) | ~12 months | inline in `restic-nas-backup` (§ 3) |
 | `appstate` (B2) | `--keep-weekly 8 --keep-monthly 12` — **existing, unchanged** | 7d | 8d (`ResticB2BackupOverdue`) | ~12 months | inline in `restic-b2-backup` |
-| `appstate` (offline) | none — `forget` never runs | 90d | 120d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
+| `appstate` (offline) | none — `forget` never runs | 90d | 210d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
 | each workstation (NAS) | `--keep-within 30d --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 12m` | 24h | 7d (`ResticWorkstationBackupStale`) | every snapshot for 30d; selected history for 12 months | weekly prune job, over each hostPath (§ 4) |
 | `workstations/ryze` (B2) | `--keep-within 30d --keep-within-weekly 84d --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the `ryze` B2 repo |
 | `workstations/m5c` (B2) | `--keep-within 30d --keep-within-weekly 84d --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the `m5c` B2 repo |
@@ -243,13 +243,11 @@ All six repositories are only ever copied *into*: `forget` and `prune` never run
 offline media, and a repository is retired by re-initializing it (`--from-repo`, § 3), not
 by pruning it. The two drives alternate quarterly, so the newest offline copy is
 at most **90 days old** when rotations happen on time, and **180 days** if the most recent
-drive is lost, destroyed, or unreadable. A skipped rotation extends both figures without
-limit, which is what the alerts exist to catch. `ResticOfflineDriveStale` evaluates the
-newest successful rotation across **either** drive and fires at 120d, so it catches a missed
-quarterly rotation without paging merely because the other drive is waiting its normal
-turn. A separate per-drive `ResticOfflineDriveRotationOverdue` fires at 210d: each physical
-drive is normally updated every 180d, and the extra 30d allows scheduling slack while still
-detecting that one SSD was skipped or repeatedly left out of rotation (§ 9). At ~35 GB
+drive is lost, destroyed, or unreadable. A rotation may happen any time during its assigned
+quarter, so alerts allow the full quarter window plus 30 days of scheduling slack.
+`ResticOfflineDriveStale` evaluates the newest successful rotation across **either** drive
+and fires at 210d. `ResticOfflineDriveRotationOverdue` fires at 300d per drive, allowing two
+quarters for that physical SSD's next turn plus 30 days of slack (§ 9). At ~35 GB
 growing 5 GB/yr with no pruning, either 2 TB drive has ample headroom for the intended
 retention; capacity is measured during rotation rather than projected from a fixed
 replacement date.
@@ -1599,8 +1597,8 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticWorkstationBackupStale` | newest `ryze`/`m5c` snapshot older than 7d (warning) |
 | `BackupsVolumeFillingUp` | `/mnt/backups` below 20% free (warning) / 10% free (critical) |
 | `ResticPruneOverdue` | no prune in 10d (warning) |
-| `ResticOfflineDriveStale` | newest successful offline rotation across either drive older than 120d (warning) |
-| `ResticOfflineDriveRotationOverdue` | last successful rotation of an individual drive older than 210d (warning) — per drive |
+| `ResticOfflineDriveStale` | newest successful offline rotation across either drive older than 210d (warning) |
+| `ResticOfflineDriveRotationOverdue` | last successful rotation of an individual drive older than 300d (warning) — per drive |
 | `ResticReplicationLag` | prune reports unreplicated or unvalidated NAS candidates awaiting B2 (warning) |
 | `ResticRepoNearCeiling` | repo size above 80% of its ceiling (warning) |
 | `ResticRepositoryCheckOverdue` | no successful monthly structural + rotating data check in 40d (warning) — per NAS/B2 repo; vault destinations arm only while mounted |
@@ -2262,8 +2260,8 @@ Backups are only worth what a restore proves, so every phase ends with one.
   400-day per-repository annual restore states. With the vault locked, prove its check/drill
   age does not duplicate `VaultLocked`, then unlock and prove stale state becomes actionable.
   Exercise the offline metrics separately: two per-drive timestamps 90d and 180d old must
-  fire neither offline alert; aging the newest of both beyond 120d must fire
-  `ResticOfflineDriveStale`; and aging only one labeled drive beyond 210d must fire
+  fire neither offline alert; aging the newest of both beyond 210d must fire
+  `ResticOfflineDriveStale`; and aging only one labeled drive beyond 300d must fire
   `ResticOfflineDriveRotationOverdue` for that drive without firing the global stale rule
   while the other drive remains current.
   `runbooks/phase5/12-test-pushover.sh` is the existing precedent.
