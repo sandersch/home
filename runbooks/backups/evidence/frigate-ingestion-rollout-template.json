@@ -1,0 +1,54 @@
+{
+  "status": "pending-attended-rollout",
+  "date_utc": null,
+  "repository_revision": null,
+  "image": null,
+  "source": {
+    "mount_source": null,
+    "filesystem": null,
+    "uuid": null,
+    "sample_files": []
+  },
+  "permissions": {
+    "uid": 2207,
+    "gid": 2207,
+    "setup_run_utc": null,
+    "read_write_checks_as_container_identity": null,
+    "private_path_denials": null
+  },
+  "first_cycle": {
+    "flux_revision": null,
+    "backup_job": null,
+    "copied": null,
+    "unchanged": null,
+    "deferred": null,
+    "failed": null,
+    "local_snapshot": null,
+    "b2_snapshot": null,
+    "restore_validation_job_local": null,
+    "restore_validation_job_b2": null,
+    "inventory_sha256_local": null,
+    "inventory_sha256_b2": null
+  },
+  "locked_vault_drill": {
+    "frigate_recording_continued": null,
+    "locked_export_name": null,
+    "locked_export_sha256": null,
+    "post_unlock_job": null,
+    "archived_sha256": null,
+    "inventory_match": null
+  },
+  "observation": {
+    "start_utc": null,
+    "end_utc": null,
+    "scheduled_job_names": [],
+    "all_runs_succeeded": null,
+    "failed_or_deferred_run_details": []
+  },
+  "rollback": {
+    "performed": false,
+    "ingestion_removed_revision": null,
+    "source_exports_preserved": null,
+    "archived_exports_preserved": null
+  }
+}

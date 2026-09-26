@@ -46,6 +46,55 @@ for relative in "${host_scripts[@]}"; do
   shellcheck --severity=warning "$repo_root/$relative"
 done
 
+for script in "$repo_root/containers/frigate-ingest/run-ingest.sh" \
+  "$repo_root/containers/frigate-ingest/validate-restore.sh" \
+  "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
+  "$repo_root/runbooks/backups/19-validate-frigate-exports.sh" \
+  "$repo_root/runbooks/backups/21-run-frigate-vault-backup.sh" \
+  "$repo_root/runbooks/backups/05-init-and-backup-vault.sh" \
+  "$repo_root/runbooks/backups/11-validate-locked-vault.sh"; do
+  bash -n "$script"
+done
+grep -q 'setfacl -m "u:\$uid:--x" "\$vault_root"' \
+  "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
+  || { echo "ingest identity needs traversal-only access to the 0700 vault mount root" >&2; exit 1; }
+grep -q 'test ! -r "\$vault_root"' \
+  "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
+  || { echo "host setup must verify ingestion cannot list the vault root" >&2; exit 1; }
+grep -q 'test ! -w "\$path"' \
+  "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
+  || { echo "host setup must verify ingestion cannot write other vault content" >&2; exit 1; }
+grep -q 'setfacl -m "u:\$uid:---" "\$path"' \
+  "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
+  || { echo "host setup must block access to every other top-level vault entry" >&2; exit 1; }
+grep -q '\[ ! -L "\$path" \]' \
+  "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
+  || { echo "host setup must reject vault-root symlinks before applying ACLs" >&2; exit 1; }
+shellcheck --severity=warning "$repo_root/containers/frigate-ingest/run-ingest.sh" \
+  "$repo_root/containers/frigate-ingest/validate-restore.sh" \
+  "$repo_root/infrastructure/monitoring/frigate-ingest-run.sh" \
+  "$repo_root/runbooks/backups/18-prepare-frigate-ingest-host.sh" \
+  "$repo_root/runbooks/backups/19-validate-frigate-exports.sh" \
+  "$repo_root/runbooks/backups/21-run-frigate-vault-backup.sh" \
+  "$repo_root/runbooks/backups/05-init-and-backup-vault.sh" \
+  "$repo_root/runbooks/backups/11-validate-locked-vault.sh"
+cmp -s "$repo_root/containers/frigate-ingest/run-ingest.sh" \
+  "$repo_root/infrastructure/monitoring/frigate-ingest-run.sh" \
+  || { echo "tested Frigate guard and generated ConfigMap source differ" >&2; exit 1; }
+for restore_script in 06-validate-vault-restore.sh 10-resolve-validation-hold.sh 12-validate-vault-photos.sh 19-validate-frigate-exports.sh; do
+  grep -q '\.spec\.template\.spec\.initContainers = \[\]' \
+    "$repo_root/runbooks/backups/$restore_script" \
+    || { echo "$restore_script must remove the Frigate ingestion init container" >&2; exit 1; }
+  grep -q 'frigate-exports' "$repo_root/runbooks/backups/$restore_script" \
+    || { echo "$restore_script must remove the Frigate source volume" >&2; exit 1; }
+done
+for manual_backup in 05-init-and-backup-vault.sh 21-run-frigate-vault-backup.sh; do
+  grep -q 'restic-vault-manual-backup.lock' "$repo_root/runbooks/backups/$manual_backup" \
+    || { echo "$manual_backup must share the host lock with other manual vault backup jobs" >&2; exit 1; }
+  grep -q 'spec.suspend == true' "$repo_root/runbooks/backups/$manual_backup" \
+    || { echo "$manual_backup must require the scheduled vault CronJob to be suspended" >&2; exit 1; }
+done
+
 ingest_sshd="$repo_root/host/minis/etc/ssh/sshd_config_vault_ingest"
 grep -qx 'UsePAM yes' "$ingest_sshd" \
   || { echo "vault ingestion must use PAM account checks for its locked system identity" >&2; exit 1; }

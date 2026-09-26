@@ -1,0 +1,36 @@
+{
+  "observed_utc_date": "2026-09-20",
+  "host": "minis",
+  "source_directory": {
+    "path": "/mnt/frigate/exports",
+    "owner": "charlie:charlie",
+    "mode_octal": "2755",
+    "filesystem": "ext4",
+    "device": "/dev/mapper/hoardvg-frigate",
+    "uuid": "0b69665d-53ac-4380-815d-6969713940d6",
+    "sample_files": [
+      {
+        "name": "amcrest_105_50_20260920_210358-20260920_220358_5m8fb7.mp4",
+        "owner": "root:charlie",
+        "mode_octal": "0644",
+        "size_bytes": 49796339,
+        "container_from_filename": "MP4",
+        "stream_probe": "pending ingestion image rollout; ffprobe is not installed on minis"
+      }
+    ]
+  },
+  "vault_destination": {
+    "path": "/mnt/vault/frigate-exports",
+    "owner": "root:root",
+    "mode_octal": "0700"
+  },
+  "vault_filesystem": {
+    "device": "/dev/mapper/vault",
+    "uuid": "d926696b-2f04-45cb-805c-40af30dc156d",
+    "live_sentinel_contract": 3,
+    "live_host_config_contract": 3,
+    "checked_in_host_config_before_change": 2,
+    "checked_in_host_config_after_change": 3
+  },
+  "permission_changes_applied": false
+}

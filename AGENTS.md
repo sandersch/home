@@ -116,6 +116,11 @@ recovery gates passed; remaining observation and scheduled maintenance gates are
 and first scheduled NAS/B2 prune completed on 2026-09-20. Offline copies and mail archival
 remain draft. The vault, curated workstation homes, and appstate (`/opt`, the k3s datastore,
 and required hot dumps) are backed up; other bulk-array data has a single copy.
+Frigate saved-export ingestion into the existing v3 vault is implemented on review branch
+`feat/frigate-vault-ingestion`; image `1.0.0` is published at an immutable digest, and the
+attended UID/GID 2207 source and vault ACL checks passed on minis on 2026-09-21. Flux
+reconciliation, a real local/B2 backup and restore cycle, the locked-vault drill, and
+24-hour observation remain pending. Frigate recordings remain excluded.
 
 ## Repository structure
 
