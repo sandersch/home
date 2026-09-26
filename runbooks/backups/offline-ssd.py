@@ -510,11 +510,11 @@ def operate(args):
         remaining = 0
         for dataset, frozen in op['selected'].items():
             checkpoint = None if dataset == 'legacy-rsnapshot' else tag
-            current = source_snapshot(source[dataset].snapshots(), frozen, checkpoint)
-            if dataset != 'legacy-rsnapshot':
-                contracts.validate(source[dataset], dataset, current, fresh=True)
             existing = [s for s in dest[dataset].snapshots() if matches(s, frozen, checkpoint)]
             if not existing:
+                current = source_snapshot(source[dataset].snapshots(), frozen, checkpoint)
+                if dataset != 'legacy-rsnapshot':
+                    contracts.validate(source[dataset], dataset, current, fresh=True)
                 remaining += json.loads(source[dataset]('stats', current['id'], '--mode', 'restore-size', '--json'))['total_size']
             else:
                 require(len(existing) == 1, 'ambiguous destination checkpoint')

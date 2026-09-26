@@ -126,8 +126,11 @@ An interruption between `init` and recording the ID intentionally blocks automat
 adoption. Provisioning similarly records intent before formatting. Preserve the
 records and disk; investigate exact identity and partial state in a separately
 reviewed attended recovery. Do not reformat or manually invent enrollment IDs.
-A missing source checkpoint, ambiguous lineage, new validation hold, stale frozen
-snapshot, lost mount, or wrong identity is a stop condition requiring operator action.
+A missing source checkpoint or stale source blocks only a copy that is not yet
+present on the SSD. On resume, an exact matching destination copy is revalidated
+against its frozen lineage and dataset contract without requiring the NAS source
+to remain fresh or present. Ambiguous lineage, a new vault validation hold, lost
+mount, or wrong identity remains a stop condition requiring operator action.
 
 A completed same-quarter rerun reports existing evidence without updating its time.
 A crash after normal unmount but before the durable completion write requires

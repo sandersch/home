@@ -521,6 +521,28 @@ class OperationTests(unittest.TestCase):
         m.operate(self.args)
         self.assertTrue(self.pending()['annual_verified_at'])
 
+    def test_resume_with_existing_copies_does_not_require_fresh_source(self):
+        contracts = m.module('fixture', 'fixture')
+        contracts.verify_all = Mock(side_effect=RuntimeError('annual check failed'))
+        with self.assertRaisesRegex(RuntimeError, 'annual'):
+            m.operate(self.args)
+        self.assertEqual(len(self.pending()['copies']), 3)
+
+        # Simulate a long interruption after copying: retention may age the NAS
+        # checkpoints, while the destination copies remain present and exact.
+        for dataset in m.DATASETS:
+            self.snapshots['src', dataset][0]['time'] = '2000-01-01T00:00:00Z'
+        fresh_checks = []
+        def validate(_restic, _dataset, _snapshot, fresh):
+            fresh_checks.append(fresh)
+            if fresh:
+                raise RuntimeError('source snapshot stale')
+        contracts.validate = validate
+        contracts.verify_all = lambda *a: {'full_data_check': 'passed'}
+        m.operate(self.args)
+        self.assertTrue(self.pending()['success_at'])
+        self.assertNotIn(True, fresh_checks)
+
     def test_interrupted_initialization_is_not_adopted(self):
         self.inject_command = ('vault', 'init')
         with self.assertRaisesRegex(RuntimeError, 'injected'):
