@@ -55,6 +55,17 @@ class PolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'not allowed'):
                 r(command)
 
+    def test_restic_failure_includes_redacted_bounded_stderr(self):
+        with tempfile.TemporaryDirectory() as temp:
+            password = Path(temp) / 'password'
+            password.write_text('secret value\n')
+            result = types.SimpleNamespace(returncode=1,
+                stderr=('repository locked for secret value ' + 'x' * 4000).encode())
+            message = m.restic_failure(result, ('check', '--read-data'), [password])
+            self.assertIn('repository locked for [redacted]', message)
+            self.assertNotIn('secret value', message)
+            self.assertLessEqual(len(message), 3100)
+
     def test_lineage_requires_metadata_and_unique_match(self):
         s = dict(id='a' * 64, hostname='minis', paths=['/opt'], tree='d' * 64, time='2026-10-01T00:00:00Z', tags=['nas'])
         frozen = m.freeze(s)

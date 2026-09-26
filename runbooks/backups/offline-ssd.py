@@ -162,6 +162,21 @@ def capacity(usage, logical):
             'selected_logical_bytes': logical, 'reserve_bytes': reserve}
 
 
+def restic_failure(result, args, passwords):
+    detail = result.stderr.decode(errors='replace').strip()
+    for password_file in passwords:
+        try:
+            secret = password_file.read_text().rstrip('\r\n')
+        except OSError:
+            continue
+        if secret:
+            detail = detail.replace(secret, '[redacted]')
+    detail = ''.join(c if c in '\n\t' or ord(c) >= 32 else ' ' for c in detail)
+    detail = detail[-3000:].strip()
+    message = f'Restic {args[0]} failed ({result.returncode})'
+    return message + (f':\n{detail}' if detail else '')
+
+
 def tree_nodes(tree):
     yield tree
     for child in tree.get('children', []):
@@ -318,7 +333,8 @@ class Restic:
             # Avoid buffering large dumps/listings in RAM when a caller supplies a file.
             result = subprocess.run([*argv, *map(str, args)], env=env, pass_fds=fds,
                                     stdout=output or subprocess.PIPE, stderr=subprocess.PIPE)
-            require(result.returncode == 0, f'Restic {args[0]} failed ({result.returncode}); inspect locks/media and retry')
+            require(result.returncode == 0,
+                    restic_failure(result, args, [self.password] + ([self.source.password] if self.source else [])))
             return result.stdout.decode() if output is None else None
         finally:
             for fd in fds:
