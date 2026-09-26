@@ -185,3 +185,16 @@ data, and server-token-absence checks in addition to the application recovery co
 | `06-resume-monitoring.sh` | Reconcile the second resume commit and create/validate fresh backups |
 | `07-close-recovery.sh` | Archive the completed state record after the observation window |
 | `run-restore.sh` | Run the attended offline steps `00`, `02`, `03`, and `04` |
+
+## Offline SSD stage handoff
+
+For a retrieved SSD, use [independent Linux recovery](../backups/offline-ssd.md#independent-recovery-on-linux)
+to restore and verify an exact appstate ID and save its `offline-snapshot.json`.
+After rebuilding the host and satisfying this runbook's normal GitOps, mount and
+empty-`/opt` guards, place that private stage at
+`RECOVERY_STAGE_ROOT/homelab-recovery/RECOVERY_SNAPSHOT` and set `RECOVERY_SOURCE=offline`.
+Skip the repository-listing step: `02-restore-opt.sh` validates the saved exact-ID
+metadata and contract before attended stage adoption. Offline recovery refuses an
+empty stage and never fetches from NAS/B2. Continue with the existing export overlay,
+RomM import, validation and activation gates. Initial SSD recovery requires neither
+minis nor its NAS control records.

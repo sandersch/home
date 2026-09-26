@@ -16,8 +16,10 @@
 > validations succeeded, and the attended Ryze one-off prune completed successfully.
 > The v3 promotion evidence, fresh Ryze/M5c deliveries, and 24-hour observation are
 > recorded in `runbooks/backups/evidence/vault-v3-promotion-20260916.json`; the scheduled
-> prune completion is recorded in the drill table below. Offline copies and mail archival
-> remain draft. Updated 2026-09-26.
+> prune completion is recorded in the drill table below. Offline SSD tooling and staged
+> monitoring are implemented; both physical enrollments and alert activation remain pending.
+> Follow [the attended SSD runbook](../runbooks/backups/offline-ssd.md). Mail archival remains
+> draft. Updated 2026-09-26.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
@@ -256,8 +258,8 @@ The drive not being updated remains off-site throughout the attended rotation. T
 retrieves only the drive whose turn it is and runs one attended command. The runbook verifies
 the recorded device and filesystem UUIDs, mounts the expected ext4 filesystem, copies a
 **tagged checkpoint** containing the newest validated `vault` and `appstate` snapshots,
-confirms both checkpoints are listable from the drive, records the snapshot IDs and success
-metric, runs `sync`, and unmounts cleanly. It does not require a quarterly filesystem repair,
+confirms both checkpoints are listable from the drive, records the snapshot IDs, runs `sync`, unmounts cleanly, and only then records success
+and publishes the metric. It does not require a quarterly filesystem repair,
 SMART test, full repository read, or test restore. The drive returns off-site before the
 other drive may be brought home. The reasoning, and why offline media are deliberately
 excluded from prune's replication gate, is in § 2.
@@ -265,8 +267,11 @@ excluded from prune's replication gate, is in § 2.
 Once per year, the rotation runbook performs the confidence-building work omitted from the
 quarterly path: on the SSD in rotation it runs `restic check --read-data` for all three
 repositories and restores `ccs.kdbx`, one representative document, the `appstate`
-backup manifest, and representative legacy history to scratch. The selected SSD alternates
-by year so each physical drive
+contract artifacts (version, required exports and export timestamp), and representative
+legacy history to scratch. Appstate has no standalone JSON manifest. A is scheduled in
+Q4 of even years, B in Q3 of odd years; missed verification runs at that drive’s next
+attended rotation. Normal rotation begins with A in Q4 2026 after both enrollments, then
+uses A in Q2/Q4 and B in Q1/Q3. Each physical drive
 receives the full check at least every two years. Filesystem repair and deeper device
 diagnostics are response actions for an unclean mount, I/O error, or failed repository
 operation, not routine quarterly ceremony. A drive is replaced after persistent errors;
@@ -385,8 +390,10 @@ a failure case.
 The local vault foundation, migrated photo archive, and vault B2 replication described in
 §§ 1–3 are implemented and validated. The sections below retain the design rationale and
 the remaining proposed extensions; imperative language in the completed phases is historical
-rebuild guidance. Workstation repositories, offline copies, and the mail archive remain
-unimplemented.
+rebuild guidance. Workstation repositories are live. Offline SSD tooling is implemented
+in [the attended runbook](../runbooks/backups/offline-ssd.md); physical enrollment,
+independent recovery acceptance and monitoring activation are still pending for A and B.
+The mail archive remains unimplemented.
 
 ### 1. A dedicated home for irreplaceable data: `/mnt/vault`
 
@@ -2266,7 +2273,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
   not a restore drill: the one-command runbook verifies drive identity, copies and lists the
   two `offline-checkpoint-<YYYY>-Q<n>` snapshots, records their IDs, and unmounts cleanly.
   Once annually, alternate the selected SSD and add full `--read-data` checks plus scratch
-  restores of `ccs.kdbx`, one document, the `appstate` manifest, and representative
+  restores of `ccs.kdbx`, one document, the `appstate` contract artifacts, and representative
   `legacy-rsnapshot` history. The contents of a
   disconnected drive therefore remain recorded without making an elaborate quarterly test
   a precondition for maintaining the offline copy.

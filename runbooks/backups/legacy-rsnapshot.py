@@ -403,11 +403,12 @@ def samples(records):
     return sorted(selected)
 
 
-def restored_sample_checks(records, actual, scratch):
+def restored_sample_checks(records, actual, scratch, *, accepted=None):
     selected = samples(records)
     groups = {}
     hashes = {}
-    previous = json.loads((CONTROL / 'accepted.json').read_text()) if (CONTROL / 'accepted.json').exists() else {}
+    previous = accepted if accepted is not None else (
+        json.loads((CONTROL / 'accepted.json').read_text()) if (CONTROL / 'accepted.json').exists() else {})
     for path in selected:
         actual_path = ('.' if path == '' and '.' in actual else
                        '' if path == '.' and '' in actual else path)
@@ -418,13 +419,38 @@ def restored_sample_checks(records, actual, scratch):
             def sha(file):
                 with file.open('rb') as stream:
                     return hashlib.file_digest(stream, 'sha256').hexdigest()
-            expected = sha(SOURCE / path) if SOURCE.exists() else previous.get('sample_hashes', {}).get(path)
+            expected = (sha(SOURCE / path) if accepted is None and SOURCE.exists()
+                        else previous.get('sample_hashes', {}).get(path))
             hashes[path] = sha(scratch / path)
             require(expected == hashes[path], f'restored hash mismatch: {path}')
             key = (before['device'], before['inode'])
             restored_key = (after['device'], after['inode'])
             require(groups.setdefault(key, restored_key) == restored_key, 'hardlink topology mismatch')
     return selected, hashes
+
+
+def verify_destination(restic, sid, records, accepted, run):
+    """Validate a copy using accepted evidence alone; never update NAS acceptance."""
+    compare_listing(records, archived_inventory(restic('ls', '--json', sid), SOURCE))
+    compare_symlinks(restic, sid, records)
+    selected = samples(records)
+    includes = run / 'includes.txt'
+    with includes.open('w') as out:
+        for relative in selected:
+            require('\n' not in relative and '\r' not in relative, 'unrepresentable sample name')
+            out.write('/' + ''.join('\\' + c if c in '\\*?[' else c for c in relative) + '\n')
+    # Include directory descendants as well as ancestor metadata in the estimate.
+    directories = {p for p in selected if records[p]['type'] == 'dir'}
+    chosen = set(selected)
+    estimate = sum(r['size'] + 4096 for p, r in records.items()
+                   if p in chosen or any(str(parent) in directories for parent in Path(p).parents))
+    usage = os.statvfs(run)
+    require(usage.f_bavail * usage.f_frsize > estimate * 1.2 + usage.f_blocks * usage.f_frsize * .1,
+            'insufficient legacy restore capacity')
+    scratch = run / 'tree'
+    scratch.mkdir(mode=0o700)
+    restic('restore', sid + ':' + str(SOURCE), '--target', scratch, '--include-file', includes)
+    return restored_sample_checks(records, inventory(scratch), scratch, accepted=accepted)
 
 
 def accept_verification(records, actual, sid, run, scratch, candidate):
@@ -624,25 +650,7 @@ def verify(restic, sid, run, records=None):
     restic('restore', sid + ':' + str(SOURCE), '--target', scratch, '--include-file', includes)
     restored = scratch
     actual = inventory(restored)
-    groups = {}
-    hashes = {}
-    previous = json.loads((CONTROL / 'accepted.json').read_text()) if (CONTROL / 'accepted.json').exists() else {}
-    for path in selected:
-        actual_path = ('.' if path == '' and '.' in actual else
-                       '' if path == '.' and '' in actual else path)
-        before, after = records[path], actual[actual_path]
-        keys = ('type', 'mode', 'uid', 'gid', 'size', 'mtime_ns', 'xattrs', 'linktarget', 'rdev')
-        require(all(before.get(k) == after.get(k) for k in keys), f'restored metadata mismatch: {path}')
-        if before['type'] == 'file':
-            def sha(file):
-                with file.open('rb') as stream:
-                    return hashlib.file_digest(stream, 'sha256').hexdigest()
-            expected = sha(SOURCE / path) if SOURCE.exists() else previous.get('sample_hashes', {}).get(path)
-            hashes[path] = sha(restored / path)
-            require(expected == hashes[path], f'restored hash mismatch: {path}')
-            key = (before['device'], before['inode'])
-            restored_key = (after['device'], after['inode'])
-            require(groups.setdefault(key, restored_key) == restored_key, 'hardlink topology mismatch')
+    selected, hashes = restored_sample_checks(records, actual, restored)
     if SOURCE.exists():
         require(inventory(SOURCE) == records, 'source changed since archive')
     report = dict(snapshot_id=sid, repository_id=candidate['repository_id'], restic_version='0.19.1',

@@ -34,6 +34,13 @@ if ! sudo test -d "$stage"; then
 fi
 
 stage_first_entry="$(sudo find "$stage" -mindepth 1 -maxdepth 1 -print -quit)"
+if [ "$RECOVERY_SOURCE" = offline ] && [ "$(state_value restic_restore)" != complete ]; then
+  assert_offline_stage_metadata "$stage"
+  assert_hot_dump_contract "$hot_dumps"
+  confirm "Adopt the independently restored and verified offline snapshot $RECOVERY_SNAPSHOT at $stage?" \
+    || die "offline stage adoption aborted"
+  set_state_value restic_restore complete
+fi
 if [ -n "$stage_first_entry" ] && [ "$(state_value restic_restore)" != complete ]; then
   [ -z "$(state_value activation)" ] \
     || die "cannot reset Restic staging after /opt activation has started"

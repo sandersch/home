@@ -1,0 +1,33 @@
+# Staged: add ../offline to configs/kustomization.yaml only after both enrollments.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: restic-offline
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+  - name: homelab-restic-offline
+    rules:
+    - alert: ResticOfflineDriveStale
+      expr: |
+        (time() - max(homelab_restic_offline_rotation_timestamp_seconds{drive=~"A|B"}) > 120 * 86400)
+        or absent(homelab_restic_offline_rotation_timestamp_seconds{drive=~"A|B"})
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: No successful offline SSD rotation within 120 days
+        description: Retrieve the scheduled SSD and run the attended offline rotation. Never prune offline repositories.
+    - alert: ResticOfflineDriveRotationOverdue
+      expr: |
+        (time() - max by (drive) (homelab_restic_offline_rotation_timestamp_seconds{drive=~"A|B"}) > 210 * 86400)
+        or absent(homelab_restic_offline_rotation_timestamp_seconds{drive="A"})
+        or absent(homelab_restic_offline_rotation_timestamp_seconds{drive="B"})
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: An offline SSD rotation is overdue
+        description: Check each physical SSD's recorded success and arrange its attended rotation; missing drive metrics also alert.
