@@ -404,7 +404,7 @@ requests, then pod priority, then usage relative to requests.)
 | Radarr | 150m / 1 | 384Mi / 768Mi | `homelab-standard`; download pod |
 | Sonarr | 100m / 1 | 512Mi / 768Mi | `homelab-standard`; download pod |
 | Seerr | 50m / 1 | 512Mi / 768Mi | `homelab-standard` |
-| RomM | 100m / 500m | 384Mi / 768Mi | `homelab-standard` |
+| RomM | 100m / 500m | 384Mi / 1024Mi | `homelab-standard` |
 | MariaDB (RomM sidecar) | 100m / 500m | 256Mi / 768Mi | `homelab-standard` |
 | Valkey (RomM sidecar) | 50m / 250m | 64Mi / 256Mi | `homelab-standard` |
 | Monitoring stack | 0.5 / 2 | 1Gi / 3Gi | `homelab-standard` |
