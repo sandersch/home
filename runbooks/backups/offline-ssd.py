@@ -577,7 +577,7 @@ def operate(args):
                 s = source[dataset]
                 current = source_snapshot(s.snapshots(), frozen, checkpoint)
                 if checkpoint:
-                    if 'offline-checkpoint' not in (current.get('tags') or []):
+                    if checkpoint not in (current.get('tags') or []):
                         # This operation froze the snapshot only after initial
                         # freshness validation. A retry must be able to add its
                         # retention tag after that window has elapsed.

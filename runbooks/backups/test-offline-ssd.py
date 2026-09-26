@@ -512,6 +512,34 @@ class OperationTests(unittest.TestCase):
                 finally:
                     test.doCleanups()
 
+    def test_prior_quarter_checkpoint_retags_and_resumes_after_tag_interruption(self):
+        contracts = m.module('fixture', 'fixture')
+        old_tag = 'offline-checkpoint-2026-Q3'
+        checkpoint = 'offline-checkpoint-2026-Q4'
+        def select(restic, dataset):
+            snapshot = restic.snapshots()[0]
+            snapshot['tags'].extend(['offline-checkpoint', old_tag])
+            return m.freeze(snapshot)
+        contracts.select = select
+        self.inject_command = ('vault', 'tag')
+        with patch.object(m, 'quarter', return_value='2026-Q4'):
+            with self.assertRaisesRegex(RuntimeError, 'injected'):
+                m.operate(self.args)
+        self.assert_no_success()
+        self.assertIn(checkpoint, self.snapshots['src', 'vault'][0]['tags'])
+        # Resume in a later quarter using the persisted operation's checkpoint.
+        with patch.object(m, 'quarter', return_value='2027-Q1'):
+            m.operate(self.args)
+        self.assertTrue(self.pending()['success_at'])
+        for dataset in m.DATASETS[:2]:
+            copied = self.snapshots['dst', dataset]
+            self.assertEqual(len(copied), 1)
+            self.assertTrue({'offline-checkpoint', old_tag, checkpoint} <= set(copied[0]['tags']))
+            self.assertNotIn('offline-checkpoint-2027-Q1', copied[0]['tags'])
+            tag_calls = [args for key, args in self.calls
+                         if key == ('src', dataset) and args[0] == 'tag']
+            self.assertEqual(len(tag_calls), 1)
+
     def test_sync_unmount_and_evidence_interruptions(self):
         for event in ('sync', 'umount'):
             test = OperationTests(); test.setUp()
