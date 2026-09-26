@@ -36,6 +36,7 @@ jobs:
           runbooks/backups/test-config-scripts.sh
           runbooks/backups/test-phase4-b2.sh
           runbooks/backups/test-review-regressions.sh
+          bash runbooks/backups/test-offline-dr.sh
 
       - name: Test vault prune alerts
         env:
@@ -46,6 +47,7 @@ jobs:
         run: |
           python3 runbooks/backups/test-prune-alerts.py
           python3 runbooks/backups/test-workstation-alerts.py
+          python3 runbooks/backups/test-offline-alerts.py
 
       - name: Test workstation repositories and append-only server
         env:
@@ -54,8 +56,18 @@ jobs:
         run: |
           python3 runbooks/backups/workstation-install-restic.py --directory "$RUNNER_TEMP/restic"
           export WORKSTATION_RESTIC="$RUNNER_TEMP/restic/restic"
+          export PATH="$RUNNER_TEMP/restic:$PATH"
+          python3 runbooks/backups/test-offline-ssd.py
+          python3 runbooks/backups/test-legacy-rsnapshot.py
+          sudo unshare --mount --propagation private python3 runbooks/backups/test-offline-loopback.py
           python3 runbooks/backups/test-workstations.py
           bash runbooks/backups/test-workstation-rest-server.sh
+
+      - name: Test isolated offline appstate verification
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y mariadb-server
+          sudo python3 runbooks/backups/test-offline-appstate.py
 
       - name: Check changed shell scripts
         env:
@@ -73,3 +85,4 @@ jobs:
       - run: kustomize build apps >/dev/null
       - run: kustomize build infrastructure/monitoring >/dev/null
       - run: kustomize build infrastructure/monitoring/workstations >/dev/null
+      - run: kustomize build infrastructure/monitoring/offline >/dev/null

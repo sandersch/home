@@ -87,9 +87,24 @@ assert_hot_dump_contract() {
 
 require_recovery_source() {
   case "${RECOVERY_SOURCE:-}" in
-    nas|b2) ;;
-    *) die "set RECOVERY_SOURCE=nas or RECOVERY_SOURCE=b2" ;;
+    nas|b2|offline) ;;
+    *) die "set RECOVERY_SOURCE=nas, b2, or offline (pre-restored stage only)" ;;
   esac
+}
+
+assert_offline_stage_metadata() {
+  local stage="$1" metadata="$1/offline-snapshot.json"
+  [ "$RECOVERY_SOURCE" = offline ] || die "offline stage adoption requires RECOVERY_SOURCE=offline"
+  sudo test -d "$stage/data/opt" && sudo test -d "$stage/work/hot-dumps" \
+    || die "offline stage must contain data/opt and work/hot-dumps"
+  [ "$(sudo readlink -f -- "$metadata")" = "$metadata" ] \
+    || die "offline metadata path is substituted"
+  sudo test -f "$metadata" || die "offline snapshot metadata is missing"
+  sudo jq -e --arg id "$RECOVERY_SNAPSHOT" '
+    length == 1 and .[0].id == $id and .[0].hostname == "minis" and
+    (.[0].paths | sort) == ["/data/opt", "/work/hot-dumps"] and
+    (.[0].tags | index("opt") != null and index("nas") != null)
+  ' "$metadata" >/dev/null || die "offline snapshot metadata does not match the selected appstate snapshot"
 }
 
 require_recovery_snapshot() {
@@ -355,6 +370,7 @@ apply_restic_recovery_secret() {
   case "$RECOVERY_SOURCE" in
     nas) apply_sops_secret infrastructure/monitoring/restic-nas.sops.yaml monitoring ;;
     b2) apply_sops_secret infrastructure/monitoring/restic-b2.sops.yaml monitoring ;;
+    offline) die "offline recovery must use a pre-restored stage; no repository-fetch Job is allowed" ;;
   esac
 }
 
