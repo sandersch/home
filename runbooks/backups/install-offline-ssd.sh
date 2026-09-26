@@ -6,7 +6,7 @@ root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 [[ "$(hostname -s)" = minis ]] || { echo 'Installer is for minis' >&2; exit 1; }
 for tool in python3 findmnt lsblk wipefs sfdisk mkfs.ext4 chattr lsattr ionice nice cryptsetup \
             mount mountpoint umount swapon udevadm sync du \
-            mariadb mariadbd mariadb-install-db mariadb-check; do
+            mariadb mariadbd mariadb-install-db mariadb-check bwrap; do
   command -v "$tool" >/dev/null
 done
 python3 -c 'import yaml'

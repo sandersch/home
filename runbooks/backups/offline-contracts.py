@@ -238,17 +238,28 @@ def verify_appstate(restic, snapshot, scratch):
     dump_file(restic, sid, prefix + 'romm/romm.sql', out)
     require(any(line.startswith('CREATE TABLE ') for line in out.open()), 'RomM dump has no tables')
     # An isolated local server imports untrusted restored SQL without network access.
-    dbdir = scratch / 'mariadb'
-    subprocess.run(['mariadb-install-db', '--no-defaults', '--datadir=' + str(dbdir), '--user=root'],
-                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    socket = scratch / 'mariadb.sock'
-    sql_files = scratch / 'sql-files'
+    # SQL is untrusted: keep the server unprivileged and give it a private mount,
+    # PID, IPC, and network namespace with only this disposable tree writable.
+    sandbox = scratch / 'mariadb-sandbox'
+    sandbox.mkdir(mode=0o711)
+    dbdir = sandbox / 'data'
+    dbdir.mkdir(mode=0o700)
+    sql_files = sandbox / 'sql-files'
     sql_files.mkdir(mode=0o700)
+    socket = sandbox / 'mariadb.sock'
+    subprocess.run(['mariadb-install-db', '--no-defaults', '--datadir=' + str(dbdir), '--user=mysql'],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for path in (dbdir, sql_files):
+        shutil.chown(path, user='mysql', group='mysql')
     with (scratch / 'mariadb.log').open('w') as log:
-        server = subprocess.Popen(['mariadbd', '--no-defaults', '--user=root', '--datadir=' + str(dbdir),
-                   '--socket=' + str(socket), '--pid-file=' + str(scratch / 'mariadb.pid'),
-                   '--skip-networking', '--local-infile=0', '--tmpdir=' + str(sql_files),
-                   '--secure-file-priv=' + str(sql_files)], stdout=log, stderr=log)
+        server = subprocess.Popen(['bwrap', '--die-with-parent', '--unshare-all', '--ro-bind', '/', '/',
+                   '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/sandbox',
+                   '--bind', str(sandbox), '/sandbox', '--chdir', '/sandbox',
+                   '--setuid', 'mysql', '--setgid', 'mysql', 'mariadbd', '--no-defaults',
+                   '--datadir=/sandbox/data', '--socket=/sandbox/mariadb.sock',
+                   '--pid-file=/sandbox/mariadb.pid', '--skip-networking', '--local-infile=0',
+                   '--tmpdir=/sandbox/sql-files', '--secure-file-priv=/sandbox/sql-files'],
+                   stdout=log, stderr=log)
         try:
             ready = False
             for _ in range(100):
