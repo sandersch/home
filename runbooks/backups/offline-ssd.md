@@ -9,7 +9,8 @@ There is no SSD timer, automount, fstab entry, `forget`, `prune`, or automatic u
 ## Install and inspect
 
 Install host prerequisites (`python3-yaml`, util-linux, e2fsprogs, cryptsetup,
-MariaDB server/client tools with client `--sandbox` support), then run from a reviewed checkout on minis:
+`bubblewrap`, and MariaDB server/client tools with client `--sandbox` support),
+then run from a reviewed checkout on minis:
 
 ```sh
 sudo runbooks/backups/install-offline-ssd.sh
