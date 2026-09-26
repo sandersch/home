@@ -188,13 +188,14 @@ onto the SSD. Use a fresh private (0700) directory for each restore:
 umask 077
 # These are example target paths on the recovery machine, prepared and verified by the operator.
 restic --no-lock --no-cache -r /mnt/recovered-ssd/vault restore FULL_VAULT_ID --target /encrypted-recovery/vault-stage
-restic --no-lock --no-cache -r /mnt/recovered-ssd/appstate restore FULL_APPSTATE_ID --verify --target /private-recovery/appstate-stage
+restic --no-lock --no-cache -r /mnt/recovered-ssd/appstate restore FULL_APPSTATE_ID --verify --target /private-recovery/appstate-stage --exclude /data/opt/romm/db
 restic --no-lock --no-cache -r /mnt/recovered-ssd/appstate snapshots --json FULL_APPSTATE_ID > /private-recovery/appstate-stage/offline-snapshot.json
 restic --no-lock --no-cache -r /mnt/recovered-ssd/legacy-rsnapshot restore FULL_LEGACY_ID --target /private-recovery/legacy-stage
 ```
 
 Verify KDBX opens and representative documents/history are readable. Appstate restores
-`data/opt` and `work/hot-dumps`. Preserve those together. Hand the staged tree into the
+`data/opt` (excluding the live-captured `data/opt/romm/db`) and `work/hot-dumps`, including
+the logical RomM dump. Preserve those together. Hand the staged tree into the
 [disaster-recovery procedure](../disaster-recovery/README.md): validate the hot-dump
 contract, overlay SQLite exports, import/check RomM, validate the HA archive, and use
 the consistent `work/hot-dumps/k3s/state.db.sqlite-backup` for the attended k3s rebuild.
