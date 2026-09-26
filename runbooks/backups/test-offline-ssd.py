@@ -23,6 +23,17 @@ c.configure(m.legacy, lambda: None, m.canonical, m.require, HERE)
 
 
 class PolicyTests(unittest.TestCase):
+    def test_new_ssd_password_must_be_entered_twice(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(m.getpass, 'getpass',
+                side_effect=['typo', 'intended']):
+            with self.assertRaisesRegex(RuntimeError, 'did not match'):
+                m.password(Path(temp), 'SSD A vault', confirm=True)
+            self.assertFalse((Path(temp) / 'SSD-A-vault').exists())
+        with tempfile.TemporaryDirectory() as temp, patch.object(m.getpass, 'getpass',
+                side_effect=['correct horse', 'correct horse']):
+            path = m.password(Path(temp), 'SSD A vault', confirm=True)
+            self.assertEqual(path.read_text(), 'correct horse\n')
+
     def test_annual_schedule_and_missed_runs(self):
         def date(y, mo, day=1):
             return dt.datetime(y, mo, day, tzinfo=m.ZoneInfo('America/Chicago'))
@@ -421,17 +432,21 @@ class OperationTests(unittest.TestCase):
                 raise RuntimeError('injected write interruption')
             m.legacy.save(path, value)
         def run(*args, **kwargs):
-            if args[0] in ('sync', 'umount') and self.inject_command == args[0] and not self.failed:
+            if self.inject_command == args[0] and not self.failed:
                 self.failed = True
                 raise RuntimeError('injected interruption')
             return '1 path' if args[0] == 'du' else ''
-        def password(work, label):
+        def password(work, label, **kwargs):
             path = work / label
             path.write_text(label)
             return path
+        complete_verification = {'repositories': {d: {'full_data_check': 'passed'} for d in m.DATASETS},
+            'vault_restore_and_strongbox': 'passed', 'appstate_exports_and_romm_import': 'passed',
+            'legacy_evidence_and_manual_inspection': 'passed'}
         contracts = types.SimpleNamespace(
             configure=lambda *a: None, select=lambda r, d: m.freeze(r.snapshots()[0]), validate=lambda *a, **k: None,
-            eligibility=lambda *a: None, verify_all=lambda *a: None,
+            eligibility=lambda *a: None, vault_scratch=lambda: self.root,
+            verify_all=lambda *a: complete_verification,
             legacy_acceptance=lambda: {'snapshot_id': '3' * 64, 'repository_id': 'a' + '2' * 63})
         for name, value in dict(CONTROL=self.control, MOUNTS=self.root, Restic=FakeRestic,
             confirm=lambda *a: None, attach=lambda *a: None, ram_workspace=workspace,
@@ -517,9 +532,23 @@ class OperationTests(unittest.TestCase):
             m.operate(self.args)
         self.assert_no_success()
         self.assertEqual(len(self.pending()['copies']), 3)
-        contracts.verify_all = lambda *a: {'full_data_check': 'passed'}
+        contracts.verify_all = lambda *a: {'repositories': {d: {'full_data_check': 'passed'} for d in m.DATASETS},
+            'vault_restore_and_strongbox': 'passed', 'appstate_exports_and_romm_import': 'passed',
+            'legacy_evidence_and_manual_inspection': 'passed'}
         m.operate(self.args)
         self.assertTrue(self.pending()['annual_verified_at'])
+
+    def test_resume_skips_persisted_full_verification(self):
+        contracts = m.module('fixture', 'fixture')
+        complete = contracts.verify_all
+        contracts.verify_all = Mock(side_effect=complete)
+        self.inject_command = 'du'
+        with self.assertRaisesRegex(RuntimeError, 'injected'):
+            m.operate(self.args)
+        self.assertTrue(m.verification_complete(self.pending()))
+        self.inject_command = None
+        m.operate(self.args)
+        contracts.verify_all.assert_called_once()
 
     def test_resume_with_existing_copies_does_not_require_fresh_source(self):
         contracts = m.module('fixture', 'fixture')

@@ -137,6 +137,17 @@ def source_snapshot(snapshots, frozen, tag):
     return resolve(snapshots, frozen)
 
 
+def verification_complete(op):
+    verification = op.get('verification') or {}
+    repositories = verification.get('repositories') or {}
+    return (set(repositories) == set(DATASETS)
+            and all(isinstance(result, dict) and result.get('full_data_check') == 'passed'
+                    for result in repositories.values())
+            and verification.get('vault_restore_and_strongbox') == 'passed'
+            and verification.get('appstate_exports_and_romm_import') == 'passed'
+            and verification.get('legacy_evidence_and_manual_inspection') == 'passed')
+
+
 def freeze(snapshot):
     require(re.fullmatch('[0-9a-f]{64}', snapshot['id']) is not None, 'full snapshot ID required')
     return {**{k: snapshot[k] for k in ('id', 'time', 'hostname', 'paths', 'tree')},
@@ -323,9 +334,12 @@ class Restic:
         return result
 
 
-def password(work, label):
+def password(work, label, *, confirm=False):
     value = getpass.getpass(f'{label} password: ')
     require(bool(value), 'empty password refused')
+    if confirm:
+        repeated = getpass.getpass(f'{label} password again: ')
+        require(value == repeated, 'password entries did not match')
     path = work / label.replace(' ', '-')
     path.write_text(value + '\n')
     path.chmod(0o600)
@@ -465,7 +479,8 @@ def operate(args):
             saved = record['repositories'].get(dataset)
             if saved and dataset in source:
                 require(saved['source_id'] == source[dataset].expected, 'NAS repository substituted')
-            dest[dataset] = Restic(dataset, password(work, f'SSD {args.drive} {dataset}'), work,
+            dest[dataset] = Restic(dataset, password(work, f'SSD {args.drive} {dataset}',
+                                   confirm=(kind == 'enroll')), work,
                                    record, saved['destination_id'] if saved else None, source.get(dataset))
         secrets = [d.password.read_text() for d in dest.values()]
         require(len(set(secrets)) == 3 and not set(secrets) & {s.password.read_text() for s in source.values()},
@@ -492,6 +507,9 @@ def operate(args):
         require(len({d.expected for d in dest.values()}) == 3, 'destination repository IDs must be distinct')
         contracts = module('offline_contracts', 'offline-contracts.py')
         contracts.configure(legacy, backup_guard, canonical, require, HERE)
+        # Fail before any multi-hour copy/read work if the encrypted restore
+        # scratch filesystem is not available.
+        contracts.vault_scratch()
         if not op['selected']:
             for dataset in DATASETS[:2]:
                 op['selected'][dataset] = contracts.select(source[dataset], dataset)
@@ -545,7 +563,7 @@ def operate(args):
                 'destination_id': copied['id'], 'lineage': frozen['lineage'], 'tag': checkpoint,
                 'snapshot_time': copied['time']}
             save(path, op)
-        if kind == 'enroll' or len(required) == 3:
+        if (kind == 'enroll' or len(required) == 3) and not verification_complete(op):
             op['verification'] = contracts.verify_all(dest, op, record, work)
             op['annual_verified_at'] = time.time()
             save(path, op)

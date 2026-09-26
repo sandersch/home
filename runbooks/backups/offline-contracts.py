@@ -261,6 +261,9 @@ def verify_appstate(restic, snapshot, scratch):
 
 def verify_all(dest, op, record, work):
     started = time.monotonic()
+    # Check the encrypted scratch mount before starting potentially multi-hour
+    # repository reads or attended restore verification.
+    scratch = vault_scratch()
     checks = {}
     for name, restic in dest.items():
         check_started = time.monotonic()
@@ -268,7 +271,6 @@ def verify_all(dest, op, record, work):
         checks[name] = {'full_data_check': 'passed', 'check_seconds': time.monotonic() - check_started}
     vault_repo = dest['vault']
     sid = op['copies']['vault']['destination_id']
-    scratch = vault_scratch()
     # Pin the encrypted filesystem while dumping and prevent a concurrent normal unmount.
     fd = os.open(scratch, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:

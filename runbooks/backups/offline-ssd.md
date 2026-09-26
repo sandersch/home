@@ -53,8 +53,9 @@ later retry. Never unlock a repository just to make this workflow proceed.
    sudo offline-ssd enroll --drive A
    ```
 
-   Enter the three NAS repository passwords and three **new distinct** SSD passwords
-   silently. The second enrollment also asks for the other SSD's passwords from the
+   Enter the three NAS repository passwords silently. Enter each of the three **new
+   distinct** SSD passwords twice; a mismatch stops before any destination repository
+   is initialized. The second enrollment also asks for the other SSD's passwords from the
    password manager to check all six differ. Store all six destination passwords in
    the external password manager **and both separately stored break-glass cards**.
    Store neither card with either drive. Never enter the Strongbox master password
@@ -89,6 +90,10 @@ B in Q1/Q3, with quarters determined in America/Chicago:
 sudo offline-ssd rotate --drive A
 ```
 
+Before each rotation, unlock the encrypted vault using its existing attended
+procedure and confirm it is mounted. The command checks that encrypted restore
+scratch mount before beginning any checkpoint copy or other long-running work.
+
 The command validates hardware, partition, filesystem and repository identities,
 rejects substitutions, nested mounts and read-only filesystems, and freezes exact
 source IDs and canonical lineages before changing source tags. Vault needs released
@@ -110,7 +115,10 @@ years**. A missed verification runs at that drive's next attended rotation. Each
 SSD is checked every two years, with one scheduled full verification across the pair
 per year. Initial verification is always mandatory. A failed annual check blocks
 combined operation success. The annual verification timestamp is separate from the
-quarterly success timestamp.
+quarterly success timestamp. Once the complete verification result is durably
+recorded, a retry reuses it instead of repeating full repository reads, restores,
+and attended inspection prompts. If interrupted before that result is saved, those
+gates run again because their completion was not recorded.
 
 ## Interruptions and evidence
 
