@@ -15,6 +15,10 @@ import time
 
 VAULT_CONTROL = Path('/mnt/backups/.control/vault')
 
+
+class SnapshotNotEligible(RuntimeError):
+    """Snapshot is outside the validated set and may be skipped during selection."""
+
 def configure(legacy_module, guard, path_guard, assertion, here):
     global legacy, backup_guard, canonical, require, HERE
     legacy, backup_guard, canonical, require, HERE = legacy_module, guard, path_guard, assertion, here
@@ -39,8 +43,8 @@ def eligibility(snapshot):
     lineage = snapshot.get('lineage') or snapshot.get('original') or snapshot['id']
     ledger = root / 'validated.jsonl'
     canonical(ledger)
-    require(any(json.loads(line).get('lineage') == lineage for line in ledger.read_text().splitlines()),
-            'vault lineage lacks validation-ledger evidence')
+    if not any(json.loads(line).get('lineage') == lineage for line in ledger.read_text().splitlines()):
+        raise SnapshotNotEligible('vault lineage lacks validation-ledger evidence')
     for base in (root, root.parent / 'vault-b2'):
         for name in ('holds', 'resolutions'):
             directory = base / name
@@ -150,7 +154,7 @@ def select(restic, dataset):
                 continue
             try:
                 eligibility(snapshot)
-            except RuntimeError:
+            except SnapshotNotEligible:
                 continue
         elif snapshot['hostname'] != 'minis' or not {'opt', 'nas'} <= set(snapshot.get('tags', [])):
             continue
