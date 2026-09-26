@@ -237,11 +237,16 @@ def verify_appstate(restic, snapshot, scratch):
                    '--skip-networking', '--local-infile=0', '--tmpdir=' + str(sql_files),
                    '--secure-file-priv=' + str(sql_files)], stdout=log, stderr=log)
         try:
+            ready = False
             for _ in range(100):
                 if socket.exists():
+                    ready = True
                     break
-                require(server.poll() is None, 'isolated MariaDB failed to start')
+                status = server.poll()
+                require(status is None,
+                        f'isolated MariaDB exited during startup (status {status}); inspect private mariadb.log')
                 time.sleep(.1)
+            require(ready, 'isolated MariaDB startup timed out after 10 seconds; inspect private mariadb.log')
             with out.open('rb') as sql:
                 subprocess.run(['mariadb', '--no-defaults', '--socket=' + str(socket), '--user=root'],
                                stdin=sql, stdout=log, stderr=log, check=True)
