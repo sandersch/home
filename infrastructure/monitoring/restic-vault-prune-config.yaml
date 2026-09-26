@@ -55,8 +55,11 @@ data:
     }
     collect_candidates() {
       local repo="$1" password_file="$2" output="$3" raw="${3}.json"
+      local keep_tags=()
+      # Copied B2 tags must not retain history forever; NAS pins are authoritative.
+      [ "$repo" != "$source_repo" ] || keep_tags=(--keep-tag offline-checkpoint)
       if ! RESTIC_PASSWORD_FILE="$password_file" restic -r "$repo" forget --dry-run --json --group-by host \
-        --keep-tag offline-checkpoint \
+        "${keep_tags[@]}" \
         --keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 24m \
         >"$raw"; then
         die "restic forget dry-run failed for $repo"
@@ -84,6 +87,39 @@ data:
       ' "$raw" >"$output"; then
         die "could not parse restic forget JSON for $repo"
       fi
+    }
+    release_offline_pins() {
+      local records=/repo/nas/.control/offline record snapshot_id lineage
+      local operations=() releasable=/work/offline-releasable
+      shopt -s nullglob
+      operations=("$records"/[AB]-*.json)
+      shopt -u nullglob
+      [ "${#operations[@]}" -gt 0 ] || return 0
+      for record in "${operations[@]}"; do
+        [ -f "$record" ] && [ ! -L "$record" ] || die "invalid offline operation record"
+      done
+      # Every reference must have durable clean-unmount evidence and a matching
+      # destination copy. Unknown or unfinished references keep the pin in place.
+      jq -s -r '
+        if all(.[]; (.selected | type == "object")) then . else error("invalid offline operation") end
+        | [.[] | select(.selected.vault != null)
+           | {lineage: .selected.vault.lineage,
+              released: (.stage == "complete" and .clean_unmount == true
+                         and (.success_at | type == "number")
+                         and .copies.vault.lineage == .selected.vault.lineage
+                         and (.copies.vault.destination_id | type == "string"))}]
+        | group_by(.lineage)[] | select(all(.[]; .released)) | .[0].lineage
+      ' "${operations[@]}" >"$releasable" || die "cannot read offline completion evidence"
+      RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+        restic -r "$source_repo" snapshots --json >/work/offline-source.json
+      jq -r '.[] | select((.tags // []) | index("offline-checkpoint"))
+             | [.id, (.original // .id)] | @tsv' /work/offline-source.json >/work/offline-pins
+      while IFS=$'\t' read -r snapshot_id lineage; do
+        if grep -qxF "$lineage" "$releasable"; then
+          RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+            restic -r "$source_repo" tag --remove offline-checkpoint "$snapshot_id"
+        fi
+      done </work/offline-pins
     }
     mount_record="$(awk '$5 == "/data/vault" { separator=0; for (field=7; field<=NF; field++) if ($field == "-") { separator=field; break }; if (separator>0) print $(separator+1) "\t" $(separator+2) }' /proc/self/mountinfo | tail -n1)"
     IFS=$'\t' read -r vault_fs vault_source <<<"$mount_record"
@@ -135,6 +171,13 @@ data:
     export AWS_ACCESS_KEY_ID="$b2_key_id"
     export AWS_SECRET_ACCESS_KEY="$b2_application_key"
     export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
+    # Serialize with attended offline operations across host/container namespaces.
+    # Hold through both retention passes; a busy operator makes this run retry later.
+    umask 0077
+    [ ! -L /repo/nas/.control/offline-retention.lock ] || die "invalid offline retention lock"
+    exec 9>>/repo/nas/.control/offline-retention.lock
+    flock -n 9 || { write_metrics 1 0 offline-active; log "offline operation active; skipping retention"; exit 0; }
+    release_offline_pins
     source_listing=/work/source.json
     destination_listing=/work/destination.json
     RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
@@ -226,6 +269,16 @@ data:
     export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
     collect_candidates "$VAULT_B2_REPOSITORY" /data/vault/.backup-credentials/b2-password /work/destination-candidates
     mapfile -t destination_candidates < /work/destination-candidates
+    # Re-read after NAS forget. Protect all surviving NAS lineages even when
+    # B2 was copied before the temporary pin was added, or retains a stale tag.
+    RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+      restic -r "$source_repo" snapshots --json >/work/source-after-retention.json
+    jq -r --slurpfile source /work/source-after-retention.json \
+      --slurpfile destination "$destination_listing" '
+      . as $id | ($destination[0][] | select(.id == $id) | (.original // .id)) as $lineage
+      | select(all($source[0][]; (.original // .id) != $lineage))
+    ' --raw-input /work/destination-candidates >/work/destination-safe-candidates
+    mapfile -t destination_candidates < /work/destination-safe-candidates
     destination_unvalidated=0
     for snapshot_id in "${destination_candidates[@]}"; do
       [ -n "$snapshot_id" ] || continue

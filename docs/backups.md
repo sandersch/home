@@ -203,6 +203,12 @@ source snapshot while an attended offline SSD copy is pending. The offline tool 
 tag together with its quarter-specific checkpoint tag before copying. Thus overnight
 interruptions do not turn a frozen selection into a missing source, and resume validates
 its lineage and content contract without repeating the original freshness window.
+The next vault retention run removes the generic NAS pin only when every recorded
+operation referencing that lineage has durable completion, clean unmount, and matching
+SSD copy evidence. Unknown or unfinished operations keep the pin. Quarter-specific
+tags remain. Cleanup is idempotent after an interrupted retag and shares a lock with
+attended offline operations. B2 ignores copied generic pins and excludes every lineage
+still present on NAS after NAS retention, regardless of tag differences.
 
 The `appstate` rows are not a proposal — they record what
 `restic-nas-config.yaml` and `restic-b2-cronjob.yaml` already set, so the table describes

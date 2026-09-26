@@ -147,7 +147,12 @@ the frozen lineage, vault eligibility, and full dataset contract without applyin
 the selection-time age limit. An exact matching destination copy is likewise
 revalidated without requiring the NAS source to remain fresh or present. The
 quarterly checkpoint tag is accompanied by `offline-checkpoint`, which NAS vault
-retention keeps until an attended operation has copied it. Ambiguous lineage, a new
+retention keeps until all recorded operations referencing that lineage have completed
+with matching SSD copy evidence and a clean unmount. The next scheduled vault retention
+run releases the generic NAS tag; quarter-specific tags remain. Interrupted cleanup
+retries safely. B2 ignores inherited generic tags and keeps any lineage still on NAS.
+Vault retention and attended operations share a lock; a busy lock stops the competing
+run so it can be retried later. Ambiguous lineage, a new
 vault validation hold, lost mount, or wrong identity remains a stop condition
 requiring operator action.
 

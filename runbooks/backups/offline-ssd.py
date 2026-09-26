@@ -50,10 +50,10 @@ def backup_guard():
     legacy.mount_guard()
 
 
-def secure(path, mode=0o700):
+def secure(path, mode=0o700, *, group=True):
     canonical(path)
     s = path.stat()
-    require(s.st_uid == 0 and s.st_gid == 0 and stat.S_IMODE(s.st_mode) == mode,
+    require(s.st_uid == 0 and (not group or s.st_gid == 0) and stat.S_IMODE(s.st_mode) == mode,
             f'expected root:root {mode:o}: {path}')
 
 
@@ -455,6 +455,20 @@ def complete(op, path, record):
 
 
 def operate(args):
+    # Shared with vault retention while selecting and copying frozen lineages.
+    lock_path = CONTROL.parent / 'offline-retention.lock'
+    backup_guard()
+    canonical(lock_path)
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'w') as lock:
+        # The prune container uses GID 65534; mode 0600 gives only root access.
+        secure(lock_path, 0o600, group=False)
+        require(stat.S_ISREG(os.fstat(lock.fileno()).st_mode), 'unsafe offline retention lock')
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _operate(args)
+
+
+def _operate(args):
     record_path = CONTROL / f'{args.drive}.json'
     record = read(record_path)
     require(record['stage'] in ('provisioned', 'enrolling', 'enrolled'), 'incomplete provisioning requires manual recovery')

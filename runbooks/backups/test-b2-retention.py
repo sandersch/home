@@ -30,7 +30,11 @@ def run_case(name, mode='', holds=False, files=1000, size=10000, expected=None):
             (work / folder).mkdir()
         source = [{'id': latest, 'time': time}, {'id': old, 'time': older}]
         destination = [{'id': copied_latest, 'original': latest, 'time': time},
-                       {'id': copied_old, 'original': old, 'time': older}]
+                       {'id': copied_old, 'original': old, 'time': older,
+                        'tags': ['offline-checkpoint']}]
+        if mode == 'source-kept':
+            source[1]['tags'] = ['offline-checkpoint']
+            destination[1]['tags'] = []
         (work / 'source.json').write_text(json.dumps(source))
         (work / 'destination.json').write_text(json.dumps(destination))
         for folder in ['source-control', 'destination-control']:
@@ -62,10 +66,19 @@ set -Eeuo pipefail
 repository="$2"
 shift 2
 case "$1" in
-  snapshots) echo '[]' ;;
+  snapshots)
+    if [ "$MODE" = source-kept ] && [ "$repository" != fixture-b2 ]; then
+      cat "$FIXTURE/source.json"
+    else echo '[]'; fi ;;
   forget)
     if [[ " $* " == *" --dry-run "* ]]; then
       if [[ "$MODE" = empty-candidates || "$MODE" = cleanup-failure ]]; then echo '[{"remove":[]}]'; exit 0; fi
+      if [ "$repository" = fixture-b2 ]; then
+        [[ " $* " != *" --keep-tag "* ]] || exit 98
+      else
+        [[ " $* " == *" --keep-tag offline-checkpoint "* ]] || exit 98
+        if [ "$MODE" = source-kept ]; then echo '[{"remove":[]}]'; exit 0; fi
+      fi
       candidate="$OLD_NAS"
       [ "$repository" != fixture-b2 ] || candidate="$OLD_B2"
       printf '[{"remove":[{"id":"%s"}]}]\n' "$candidate"
@@ -117,7 +130,7 @@ minimum_retained_percent=80
             assert 'forget fixture-b2' not in operations and 'prune fixture-b2' not in operations, (name, operations)
             if mode != 'late-hold':
                 assert 'forget ' not in operations, (name, operations)
-        elif mode == 'empty-candidates':
+        elif mode in ('empty-candidates', 'source-kept'):
             assert 'forget ' not in operations, operations
             assert f'prune {work / "nas"}' in operations and 'prune fixture-b2' in operations, operations
         else:
@@ -140,3 +153,61 @@ run_case('invalid destination hold path blocks retention', mode='invalid-hold-di
 run_case("retry completes cleanup after candidates were already forgotten", mode="empty-candidates")
 
 run_case("failed cleanup without candidates cannot advance success", mode="cleanup-failure")
+
+run_case('NAS survivor blocks B2 removal despite different tags', mode='source-kept')
+
+# Exercise the actual pin-release function, including a crash after Restic commits
+# a retag. No credentials or production paths are used.
+with tempfile.TemporaryDirectory(prefix='offline-pin-release-') as directory:
+    work = Path(directory)
+    records = work / 'records'
+    records.mkdir()
+    snapshot = {'id': old, 'original': latest,
+                'tags': ['vault', 'offline-checkpoint', 'offline-checkpoint-2026-Q4']}
+    listing = work / 'listing.json'
+    listing.write_text(json.dumps([snapshot]))
+    operation = {'selected': {'vault': {'lineage': latest}}, 'stage': 'complete',
+                 'success_at': 1, 'clean_unmount': True,
+                 'copies': {'vault': {'lineage': latest, 'destination_id': copied_old}}}
+    completed = records / 'A-enroll-2026-Q4.json'
+    completed.write_text(json.dumps(operation))
+    pending = records / 'B-enroll-2026-Q4.json'
+    pending.write_text(json.dumps({**operation, 'stage': 'selected'}))
+    body = functions.replace('/repo/nas/.control/offline', str(records)).replace('/work/', directory + '/')
+    stub = r'''set -Eeuo pipefail
+source_repo=fixture
+log() { :; }
+die() { echo "$*" >&2; exit 1; }
+restic() {
+  shift 2
+  case "$1" in
+    snapshots) cat "$FIXTURE/listing.json" ;;
+    tag)
+      jq 'map(.tags -= ["offline-checkpoint"] | .id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")' "$FIXTURE/listing.json" >"$FIXTURE/new.json"
+      mv "$FIXTURE/new.json" "$FIXTURE/listing.json"
+      echo tag >>"$FIXTURE/actions"
+      [ "${FAIL:-0}" = 0 ] ;;
+    *) return 99 ;;
+  esac
+}
+'''
+    def release(fail=False):
+        return subprocess.run(['bash', '-c', stub + body + '\nrelease_offline_pins'],
+                              env=dict(os.environ, FIXTURE=directory, FAIL=str(int(fail))),
+                              text=True, capture_output=True)
+    assert release().returncode == 0
+    assert not (work / 'actions').exists(), 'pending shared lineage lost its pin'
+    pending.unlink()
+    assert release(fail=True).returncode != 0
+    assert release().returncode == 0, 'cleanup retry failed after snapshot ID changed'
+    assert (work / 'actions').read_text().splitlines() == ['tag']
+    tags = json.loads(listing.read_text())[0]['tags']
+    assert tags == ['vault', 'offline-checkpoint-2026-Q4']
+    # No completion evidence means no automatic release.
+    completed.unlink()
+    listing.write_text(json.dumps([snapshot]))
+    assert release().returncode == 0
+    assert 'offline-checkpoint' in json.loads(listing.read_text())[0]['tags']
+    completed.write_text('{broken')
+    assert release().returncode != 0, 'malformed evidence did not fail closed'
+    print('PASS: durable completion releases only unshared pins; interrupted cleanup retries safely')

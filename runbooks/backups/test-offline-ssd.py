@@ -465,7 +465,7 @@ class OperationTests(unittest.TestCase):
             legacy_acceptance=lambda: {'snapshot_id': '3' * 64, 'repository_id': 'a' + '2' * 63})
         for name, value in dict(CONTROL=self.control, MOUNTS=self.root, Restic=FakeRestic,
             confirm=lambda *a: None, attach=lambda *a: None, ram_workspace=workspace,
-            password=password, secure=lambda *a: None, backup_guard=lambda: None,
+            password=password, secure=lambda *a, **k: None, backup_guard=lambda: None,
             mount_guard=lambda *a: self.mount, save=save, publish=lambda: None,
             run=run, module=lambda *a: contracts).items():
             p = patch.object(m, name, value)
@@ -494,6 +494,14 @@ class OperationTests(unittest.TestCase):
         m.operate(self.args)
         self.assertEqual(len(self.calls), calls)
         self.assertEqual(self.pending()['success_at'], previous['success_at'])
+
+    def test_retention_lock_blocks_operation_before_repository_access(self):
+        with (self.control.parent / 'offline-retention.lock').open('w') as lock:
+            m.fcntl.flock(lock, m.fcntl.LOCK_EX | m.fcntl.LOCK_NB)
+            with self.assertRaises(BlockingIOError):
+                m.operate(self.args)
+        self.assertEqual(self.calls, [])
+        self.assertEqual(self.pending(), {})
 
     def test_copy_and_tag_interruptions_resume_existing_checkpoints(self):
         for dataset, command in [('vault', 'tag'), ('vault', 'copy'), ('appstate', 'copy'), ('legacy-rsnapshot', 'copy')]:
