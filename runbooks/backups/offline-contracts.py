@@ -268,10 +268,16 @@ def verify_appstate(restic, snapshot, scratch):
     shutil.chown(sandbox, user='mysql', group='mysql')
     log_path = scratch / 'mariadb.log'
     with log_path.open('w') as log:
-        server = subprocess.Popen(['bwrap', '--die-with-parent', '--unshare-all', '--ro-bind', '/', '/',
+        # No user namespace: it would leave the host mysql UID unmapped, so the
+        # data directory is inaccessible. mariadbd starts as root with only the
+        # capabilities needed to enter the datadir and drop to mysql; setuid
+        # clears them before any restored SQL is read.
+        server = subprocess.Popen(['bwrap', '--die-with-parent', '--unshare-ipc', '--unshare-pid',
+                   '--unshare-net', '--unshare-uts', '--unshare-cgroup-try', '--ro-bind', '/', '/',
                    '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/tmp/sandbox',
                    '--bind', str(sandbox), '/tmp/sandbox', '--chdir', '/tmp/sandbox',
-                   '--uid', '0', '--gid', '0', 'mariadbd', '--no-defaults', '--user=mysql',
+                   '--cap-add', 'CAP_DAC_OVERRIDE', '--cap-add', 'CAP_SETUID', '--cap-add', 'CAP_SETGID',
+                   'mariadbd', '--no-defaults', '--user=mysql',
                    '--datadir=/tmp/sandbox/data', '--socket=/tmp/sandbox/mariadb.sock',
                    '--pid-file=/tmp/sandbox/mariadb.pid', '--skip-networking', '--local-infile=0',
                    '--tmpdir=/tmp/sandbox/sql-files', '--secure-file-priv=/tmp/sandbox/sql-files'],
