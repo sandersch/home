@@ -17,7 +17,7 @@
 > The v3 promotion evidence, fresh Ryze/M5c deliveries, and 24-hour observation are
 > recorded in `runbooks/backups/evidence/vault-v3-promotion-20260916.json`; the scheduled
 > prune completion is recorded in the drill table below. Offline copies and mail archival
-> remain draft. Updated 2026-09-20.
+> remain draft. Updated 2026-09-26.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
@@ -25,7 +25,8 @@
 > runbooks. The local vault, `appstate`, and vault B2 copy pipelines run today; vault B2
 > prune is enabled and its first scheduled run succeeded. Workstation backup is active for
 > Ryze and m5c. The vault v3 promotion observation passed; separate workstation
-> observation and scheduled maintenance gates remain open as described in § 4. Offline
+> acceptance passed for M5c on September 26; Ryze observation/weekly-cycle and both
+> natural monthly-check gates remain open as described in § 4. Offline
 > copies and mail archival are not active. The `appstate` pipeline is
 > described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
@@ -1204,12 +1205,15 @@ its attended activation and first scheduled copy, prune, and validation.
 The 2026-09-08 ryze preflight measured **552,840 included files / 27,921,624,561
 bytes**, including **538 Documents files / 296,757,693 bytes**. The reviewed v2 contract
 and its measured 80% floors are deployed. Live isolation, retry, vault-lock/Documents,
-notification, installer, and schedule gates are closed for both hosts. Ryze’s seven-day
-observation and natural weekly copy/prune closure remain unrecorded; its attended prune
-passed on September 16. M5c’s September 19 evidence confirms continuous health since its
-corrected September 15 activation/observation start. Its seven-day gate remains open until
-at least September 22, alongside the normal scheduled weekly copy/prune cycle (next copy
-September 21, prune September 22). Monthly-check gates remain separate and open. See the
+notification, installer, and schedule gates are closed for both hosts. The September 26
+[operational acceptance audit](../runbooks/backups/evidence/workstation-acceptance-20260926.json)
+closes M5c’s seven-day observation and natural weekly copy/prune gates: its September 21
+copy and September 22 prune completed successfully. Ryze’s scheduled copy/prune failed
+and required September 23 manual retries; current health passes, but its seven-day
+operational observation and natural weekly-cycle gates remain open. Check the next
+scheduled copy/prune on September 28/29 and seven days after recovery. Both hosts have
+September 16 NAS/B2 check-success metrics; natural monthly-check acceptance remains
+separate and open, with the next runs October 15. See the
 [workstation evidence](../runbooks/backups/workstations.md#checks-and-evidence).
 
 `ryze` and `m5c` aren't cluster nodes. Run **two** `restic/rest-server` Deployments in the

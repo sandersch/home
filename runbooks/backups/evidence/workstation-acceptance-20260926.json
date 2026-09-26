@@ -1,0 +1,1658 @@
+{
+  "recorded_date": "2026-09-26",
+  "scope": "Read-only cluster and Prometheus audit; no production mutation or new backup/restore run.",
+  "repository_revision": "5b194756f65bfe732e51cd138e591226cba05c6e",
+  "sources": {
+    "current": "Prometheus /api/v1/query workstation and ingestion metrics; Kubernetes homelab-readonly CronJobs, Jobs and Deployments",
+    "history": "Prometheus raw seven-day range vectors at native 30-second scrape resolution; kube_job_owner, kube_job_status_succeeded, kube_job_failed, kube_job_status_completion_time and firing ALERTS",
+    "limits": "Retained Jobs are mostly manual replacements. Historical scheduled outcomes are reconstructed from Prometheus, not inferred from CronJob lastSuccessfulTime. No client-local logs or phone delivery checked."
+  },
+  "hosts": {
+    "ryze": {
+      "operational_acceptance_passed": false,
+      "seven_day_observation_passed": false,
+      "natural_weekly_copy_prune_passed": false,
+      "natural_monthly_check_passed": false,
+      "current_metrics": [
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "kind": "documents",
+          "stage": "promotion",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790410072.0
+        },
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "kind": "strongbox",
+          "stage": "promotion",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790442445.0
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "destination": "b2",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 100000000000.0
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "destination": "nas",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 161061273600.0
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "destination": "b2",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1789520207.9125335
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "destination": "nas",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1789517338.1403081
+        },
+        {
+          "metric": "homelab_workstation_copy_success_timestamp_seconds",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790134625.760911
+        },
+        {
+          "metric": "homelab_workstation_enrolled",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1.0
+        },
+        {
+          "metric": "homelab_workstation_enrollment_timestamp_seconds",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1789166064.725831
+        },
+        {
+          "metric": "homelab_workstation_prune_success_timestamp_seconds",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790140619.5993032
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "destination": "b2",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 11431447906.0
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "destination": "nas",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 11950746467.0
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "destination": "b2",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1.0
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "destination": "nas",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1.0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_time_invalid",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 0.0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "destination": "b2",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790053427.072235
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "destination": "nas",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790410022.133221
+        },
+        {
+          "metric": "homelab_workstation_validation_hold",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 0.0
+        },
+        {
+          "metric": "homelab_workstation_validation_success_timestamp_seconds",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790418710.4810104
+        }
+      ],
+      "seven_day_metrics": [
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "kind": "documents",
+          "stage": "promotion",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789783626.0,
+          "maximum": 1790410072.0,
+          "value_changes": 7,
+          "maximum_age_seconds": 90163.61199998856
+        },
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "kind": "strongbox",
+          "stage": "promotion",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789837604.0,
+          "maximum": 1790442445.0,
+          "value_changes": 42,
+          "maximum_age_seconds": 14863.611999988556
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "destination": "b2",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 100000000000.0,
+          "maximum": 100000000000.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "destination": "nas",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 161061273600.0,
+          "maximum": 161061273600.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "destination": "b2",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789520207.9125335,
+          "maximum": 1789520207.9125335,
+          "value_changes": 0,
+          "maximum_age_seconds": 922490.6994664669
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "destination": "nas",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789517338.1403081,
+          "maximum": 1789517338.1403081,
+          "value_changes": 0,
+          "maximum_age_seconds": 925360.4716918468
+        },
+        {
+          "metric": "homelab_workstation_copy_success_timestamp_seconds",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789483435.2106218,
+          "maximum": 1790134625.760911,
+          "value_changes": 1,
+          "maximum_age_seconds": 651193.4013781548
+        },
+        {
+          "metric": "homelab_workstation_enrolled",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_enrollment_timestamp_seconds",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789166064.725831,
+          "maximum": 1789166064.725831,
+          "value_changes": 0,
+          "maximum_age_seconds": 1276633.8861689568
+        },
+        {
+          "metric": "homelab_workstation_prune_success_timestamp_seconds",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789600451.6781838,
+          "maximum": 1790140619.5993032,
+          "value_changes": 1,
+          "maximum_age_seconds": 540146.9338161945
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "destination": "b2",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 10770771235.0,
+          "maximum": 11431447906.0,
+          "value_changes": 3
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "destination": "nas",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 11153062199.0,
+          "maximum": 11950746467.0,
+          "value_changes": 9
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "destination": "b2",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "destination": "nas",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_time_invalid",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "destination": "b2",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789427089.136629,
+          "maximum": 1790053427.072235,
+          "value_changes": 2,
+          "maximum_age_seconds": 628009.4753708839
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "destination": "nas",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789783574.308994,
+          "maximum": 1790410022.133221,
+          "value_changes": 7,
+          "maximum_age_seconds": 116724.30300593376
+        },
+        {
+          "metric": "homelab_workstation_validation_hold",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_validation_success_timestamp_seconds",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789813909.7818787,
+          "maximum": 1790418710.4810104,
+          "value_changes": 11,
+          "maximum_age_seconds": 86388.83012127876
+        }
+      ],
+      "remaining_gates": [
+        "Natural monthly check: October 15, 02:30 America/Chicago.",
+        "Successful natural copy September 28 05:45 and prune September 29 00:30 America/Chicago; manual retries do not close this gate.",
+        "Complete seven-day operational observation after September 23 recovery, including job failures and alerts; do not claim a clean week from healthy freshness alone."
+      ],
+      "notes": [
+        "Both NAS/B2 check-success metrics record September 16; these establish current check health, not a successful natural monthly cycle.",
+        "Daily scheduled validation succeeded September 20\u201326. Validation does not imply a new client backup each day.",
+        "Scheduled copy/prune and a manual prune failed during observation; September 23 manual retries completed. Current health passes, operational acceptance remains open."
+      ]
+    },
+    "m5c": {
+      "operational_acceptance_passed": true,
+      "seven_day_observation_passed": true,
+      "natural_weekly_copy_prune_passed": true,
+      "natural_monthly_check_passed": false,
+      "current_metrics": [
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "kind": "documents",
+          "stage": "promotion",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790434893.0
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "destination": "b2",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 50000000000.0
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "destination": "nas",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 107374182400.0
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "destination": "b2",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1789523367.5941746
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "destination": "nas",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1789522162.0511298
+        },
+        {
+          "metric": "homelab_workstation_copy_success_timestamp_seconds",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790135390.2060208
+        },
+        {
+          "metric": "homelab_workstation_enrolled",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1.0
+        },
+        {
+          "metric": "homelab_workstation_enrollment_timestamp_seconds",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1789330599.249674
+        },
+        {
+          "metric": "homelab_workstation_prune_success_timestamp_seconds",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790136234.849063
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "destination": "b2",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 21542951029.0
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "destination": "nas",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 21870599542.0
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "destination": "b2",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1.0
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "destination": "nas",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1.0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_time_invalid",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 0.0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "destination": "b2",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790023213.428797
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "destination": "nas",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790023213.428797
+        },
+        {
+          "metric": "homelab_workstation_validation_hold",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 0.0
+        },
+        {
+          "metric": "homelab_workstation_validation_success_timestamp_seconds",
+          "queried_at": "2026-09-26T17:11:40.657000+00:00",
+          "value": 1790418604.0855842
+        }
+      ],
+      "seven_day_metrics": [
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "kind": "documents",
+          "stage": "promotion",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789791462.0,
+          "maximum": 1790434893.0,
+          "value_changes": 6,
+          "maximum_age_seconds": 139583.61199998856
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "destination": "b2",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 50000000000.0,
+          "maximum": 50000000000.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "destination": "nas",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 107374182400.0,
+          "maximum": 107374182400.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "destination": "b2",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789523367.5941746,
+          "maximum": 1789523367.5941746,
+          "value_changes": 0,
+          "maximum_age_seconds": 919331.0178253651
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "destination": "nas",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789522162.0511298,
+          "maximum": 1789522162.0511298,
+          "value_changes": 0,
+          "maximum_age_seconds": 920536.5608701706
+        },
+        {
+          "metric": "homelab_workstation_copy_success_timestamp_seconds",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789449635.6787603,
+          "maximum": 1790135390.2060208,
+          "value_changes": 2,
+          "maximum_age_seconds": 553922.9332396984
+        },
+        {
+          "metric": "homelab_workstation_enrolled",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_enrollment_timestamp_seconds",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789330599.249674,
+          "maximum": 1789330599.249674,
+          "value_changes": 0,
+          "maximum_age_seconds": 1112099.3623259068
+        },
+        {
+          "metric": "homelab_workstation_prune_success_timestamp_seconds",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789451274.139543,
+          "maximum": 1790136234.849063,
+          "value_changes": 2,
+          "maximum_age_seconds": 604514.4724569321
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "destination": "b2",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 16613790204.0,
+          "maximum": 21542951029.0,
+          "value_changes": 3
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "destination": "nas",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 19798743090.0,
+          "maximum": 21870599542.0,
+          "value_changes": 3
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "destination": "b2",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "destination": "nas",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_time_invalid",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "destination": "b2",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789440686.622896,
+          "maximum": 1790023213.428797,
+          "value_changes": 2,
+          "maximum_age_seconds": 562871.9891040325
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "destination": "nas",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789698232.12449,
+          "maximum": 1790023213.428797,
+          "value_changes": 3,
+          "maximum_age_seconds": 419485.18320298195
+        },
+        {
+          "metric": "homelab_workstation_validation_hold",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_validation_success_timestamp_seconds",
+          "first_sample": "2026-09-19T17:12:08.612000+00:00",
+          "last_sample": "2026-09-26T17:11:38.612000+00:00",
+          "samples": 20160,
+          "maximum_scrape_gap_seconds": 30.02,
+          "minimum": 1789813804.1155152,
+          "maximum": 1790418604.0855842,
+          "value_changes": 11,
+          "maximum_age_seconds": 86464.49648475647
+        }
+      ],
+      "remaining_gates": [
+        "Natural monthly check: October 15, 02:30 America/Chicago."
+      ],
+      "notes": [
+        "Both NAS/B2 check-success metrics record September 16; these establish current check health, not a successful natural monthly cycle.",
+        "Daily scheduled validation succeeded September 20\u201326. Validation does not imply a new client backup each day.",
+        "Latest accepted NAS/B2 snapshot is September 21; currently within seven/eight-day thresholds. Monitor for a fresh client backup before NAS staleness.",
+        "Seven-day metrics have no holds, invalid clocks, failed size collection or lost enrollment. No host-specific firing alerts or failed maintenance Jobs in this observation window."
+      ]
+    }
+  },
+  "historical_jobs": {
+    "restic-ryze-copy-29833125": {
+      "kube_job_failed": {
+        "first_positive_sample": "2026-09-21T16:45:43.277000+00:00",
+        "last_positive_sample": "2026-09-23T13:02:13.277000+00:00",
+        "maximum": 1.0
+      },
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-21T10:45:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T13:02:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-copy",
+        "owner_kind": "CronJob"
+      }
+    },
+    "restic-ryze-prune-29834250": {
+      "kube_job_failed": {
+        "first_positive_sample": "2026-09-22T05:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T13:02:13.277000+00:00",
+        "maximum": 1.0
+      },
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-22T05:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T13:02:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-prune",
+        "owner_kind": "CronJob"
+      }
+    },
+    "restic-ryze-prune-manual-20260923": {
+      "kube_job_failed": {
+        "first_positive_sample": "2026-09-23T04:21:43.277000+00:00",
+        "last_positive_sample": "2026-09-23T13:02:13.277000+00:00",
+        "maximum": 1.0
+      },
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-23T03:51:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T13:02:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-prune",
+        "owner_kind": "CronJob"
+      }
+    },
+    "restic-m5c-copy-29823045": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-21T15:12:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-copy",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-21T15:12:43.277000+00:00",
+        "maximum": 1789449642.0,
+        "completion_time": "2026-09-15T05:20:42+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-21T15:12:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-copy-29833125": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-21T10:45:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T03:49:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-copy",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-21T15:13:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T03:49:43.277000+00:00",
+        "maximum": 1790003577.0,
+        "completion_time": "2026-09-21T15:12:57+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-21T15:13:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T03:49:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-copy-manual-20260923": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-23T03:48:43.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-copy",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-23T03:50:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1790135396.0,
+        "completion_time": "2026-09-23T03:49:56+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-23T03:50:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-prune-29824170": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-22T05:43:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-prune",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-22T05:43:13.277000+00:00",
+        "maximum": 1789451280.0,
+        "completion_time": "2026-09-15T05:48:00+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-22T05:43:13.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-prune-29834250": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-22T05:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T04:03:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-prune",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-22T05:43:43.277000+00:00",
+        "last_positive_sample": "2026-09-23T04:03:43.277000+00:00",
+        "maximum": 1790055808.0,
+        "completion_time": "2026-09-22T05:43:28+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-22T05:43:43.277000+00:00",
+        "last_positive_sample": "2026-09-23T04:03:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-prune-manual-20260923": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-23T03:51:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-prune",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-23T04:04:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1790136241.0,
+        "completion_time": "2026-09-23T04:04:01+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-23T04:04:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-validate-29830230": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-20T10:31:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-20T10:31:13.277000+00:00",
+        "maximum": 1789813810.0,
+        "completion_time": "2026-09-19T10:30:10+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-20T10:31:13.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-validate-29831670": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-20T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-21T10:30:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-20T10:31:43.277000+00:00",
+        "last_positive_sample": "2026-09-21T10:30:43.277000+00:00",
+        "maximum": 1789900274.0,
+        "completion_time": "2026-09-20T10:31:14+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-20T10:31:43.277000+00:00",
+        "last_positive_sample": "2026-09-21T10:30:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-validate-29833110": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-21T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-22T10:29:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-21T10:31:13.277000+00:00",
+        "last_positive_sample": "2026-09-22T10:29:43.277000+00:00",
+        "maximum": 1789986672.0,
+        "completion_time": "2026-09-21T10:31:12+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-21T10:31:13.277000+00:00",
+        "last_positive_sample": "2026-09-22T10:29:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-validate-29834550": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-22T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T10:29:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-22T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T10:29:43.277000+00:00",
+        "maximum": 1790073010.0,
+        "completion_time": "2026-09-22T10:30:10+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-22T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T10:29:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-validate-29835990": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-23T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-24T10:29:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-23T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-24T10:29:43.277000+00:00",
+        "maximum": 1790159411.0,
+        "completion_time": "2026-09-23T10:30:11+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-23T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-24T10:29:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-validate-29837430": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-24T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-25T10:29:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-24T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-25T10:29:43.277000+00:00",
+        "maximum": 1790245810.0,
+        "completion_time": "2026-09-24T10:30:10+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-24T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-25T10:29:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-validate-29838870": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-25T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T10:29:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-25T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T10:29:43.277000+00:00",
+        "maximum": 1790332210.0,
+        "completion_time": "2026-09-25T10:30:10+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-25T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T10:29:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-m5c-validate-29840310": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-26T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-m5c-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-26T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1790418610.0,
+        "completion_time": "2026-09-26T10:30:10+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-26T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-check-activation-20260912": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": null,
+        "owner_kind": null
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1789249402.0,
+        "completion_time": "2026-09-12T21:43:22+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-copy-retry-20260915": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-23T03:36:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-copy",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-23T03:36:43.277000+00:00",
+        "maximum": 1789483442.0,
+        "completion_time": "2026-09-15T14:44:02+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-23T03:36:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-copy-retry-20260923": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-23T03:35:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-copy",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-23T03:37:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1790134632.0,
+        "completion_time": "2026-09-23T03:37:12+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-23T03:37:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-prune-manual-20260916": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-23T05:16:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-prune",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-23T05:16:43.277000+00:00",
+        "maximum": 1789600458.0,
+        "completion_time": "2026-09-16T23:14:18+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-23T05:16:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-prune-retry-20260923": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-23T04:29:43.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-prune",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-23T05:17:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1790140628.0,
+        "completion_time": "2026-09-23T05:17:08+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-23T05:17:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-validate-29830230": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-20T10:31:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-20T10:31:43.277000+00:00",
+        "maximum": 1789813917.0,
+        "completion_time": "2026-09-19T10:31:57+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-20T10:31:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-validate-29831670": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-20T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-21T10:31:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-20T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-21T10:31:43.277000+00:00",
+        "maximum": 1789900322.0,
+        "completion_time": "2026-09-20T10:32:02+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-20T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-21T10:31:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-validate-29833110": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-21T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-22T10:29:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-21T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-22T10:29:43.277000+00:00",
+        "maximum": 1789986720.0,
+        "completion_time": "2026-09-21T10:32:00+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-21T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-22T10:29:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-validate-29834550": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-22T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T10:31:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-22T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T10:31:43.277000+00:00",
+        "maximum": 1790073012.0,
+        "completion_time": "2026-09-22T10:30:12+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-22T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-23T10:31:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-validate-29835990": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-23T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-24T10:31:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-23T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-24T10:31:43.277000+00:00",
+        "maximum": 1790159518.0,
+        "completion_time": "2026-09-23T10:31:58+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-23T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-24T10:31:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-validate-29837430": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-24T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-25T10:31:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-24T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-25T10:31:43.277000+00:00",
+        "maximum": 1790245916.0,
+        "completion_time": "2026-09-24T10:31:56+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-24T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-25T10:31:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-validate-29838870": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-25T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T10:31:43.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-25T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T10:31:43.277000+00:00",
+        "maximum": 1790332318.0,
+        "completion_time": "2026-09-25T10:31:58+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-25T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T10:31:43.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-validate-29840310": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-26T10:30:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": "restic-ryze-validate",
+        "owner_kind": "CronJob"
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-26T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1790418719.0,
+        "completion_time": "2026-09-26T10:31:59+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-26T10:32:13.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0
+      }
+    },
+    "restic-ryze-validate-v2-20260911": {
+      "kube_job_owner": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0,
+        "owner_name": null,
+        "owner_kind": null
+      },
+      "kube_job_status_completion_time": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1789167177.0,
+        "completion_time": "2026-09-11T22:52:57+00:00"
+      },
+      "kube_job_status_succeeded": {
+        "first_positive_sample": "2026-09-19T17:12:43.277000+00:00",
+        "last_positive_sample": "2026-09-26T17:12:13.277000+00:00",
+        "maximum": 1.0
+      }
+    }
+  },
+  "historical_firing_alerts": [
+    {
+      "alertname": "KubeJobFailed",
+      "host": null,
+      "job_name": "restic-ryze-copy-29833125",
+      "first_observed": "2026-09-21T17:00:50.729000+00:00",
+      "last_observed": "2026-09-23T13:02:20.729000+00:00"
+    },
+    {
+      "alertname": "KubeJobFailed",
+      "host": null,
+      "job_name": "restic-ryze-prune-29834250",
+      "first_observed": "2026-09-22T05:47:20.729000+00:00",
+      "last_observed": "2026-09-23T13:02:20.729000+00:00"
+    },
+    {
+      "alertname": "KubeJobFailed",
+      "host": null,
+      "job_name": "restic-ryze-prune-manual-20260923",
+      "first_observed": "2026-09-23T04:36:50.729000+00:00",
+      "last_observed": "2026-09-23T13:02:20.729000+00:00"
+    }
+  ],
+  "current_relevant_alerts": [],
+  "live_cronjobs_and_jobs": [
+    {
+      "kind": "CronJob",
+      "name": "restic-m5c-check",
+      "schedule": "30 2 15 * *",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "status": {
+        "lastScheduleTime": "2026-09-15T07:30:00Z",
+        "lastSuccessfulTime": "2026-09-16T01:49:34Z"
+      }
+    },
+    {
+      "kind": "CronJob",
+      "name": "restic-m5c-copy",
+      "schedule": "45 5 * * 1",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "status": {
+        "lastScheduleTime": "2026-09-21T10:45:00Z",
+        "lastSuccessfulTime": "2026-09-23T03:49:56Z"
+      }
+    },
+    {
+      "kind": "CronJob",
+      "name": "restic-m5c-prune",
+      "schedule": "30 0 * * 2",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "status": {
+        "lastScheduleTime": "2026-09-22T05:30:00Z",
+        "lastSuccessfulTime": "2026-09-23T04:04:01Z"
+      }
+    },
+    {
+      "kind": "CronJob",
+      "name": "restic-m5c-validate",
+      "schedule": "30 5 * * *",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "status": {
+        "lastScheduleTime": "2026-09-26T10:30:00Z",
+        "lastSuccessfulTime": "2026-09-26T10:30:10Z"
+      }
+    },
+    {
+      "kind": "CronJob",
+      "name": "restic-ryze-check",
+      "schedule": "30 2 15 * *",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "status": {
+        "lastScheduleTime": "2026-09-15T07:30:00Z",
+        "lastSuccessfulTime": "2026-09-16T00:56:56Z"
+      }
+    },
+    {
+      "kind": "CronJob",
+      "name": "restic-ryze-copy",
+      "schedule": "45 5 * * 1",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "status": {
+        "lastScheduleTime": "2026-09-21T10:45:00Z",
+        "lastSuccessfulTime": "2026-09-23T03:37:12Z"
+      }
+    },
+    {
+      "kind": "CronJob",
+      "name": "restic-ryze-prune",
+      "schedule": "30 0 * * 2",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "status": {
+        "lastScheduleTime": "2026-09-22T05:30:00Z",
+        "lastSuccessfulTime": "2026-09-23T05:17:08Z"
+      }
+    },
+    {
+      "kind": "CronJob",
+      "name": "restic-ryze-validate",
+      "schedule": "30 5 * * *",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "status": {
+        "lastScheduleTime": "2026-09-26T10:30:00Z",
+        "lastSuccessfulTime": "2026-09-26T10:31:59Z"
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-m5c-b2-verbose-check-20260916",
+      "owner": [
+        {
+          "apiVersion": "batch/v1",
+          "controller": true,
+          "kind": "CronJob",
+          "name": "restic-m5c-check",
+          "uid": "6ff726d5-3ca5-4242-8f97-083cd50a9b4e"
+        }
+      ],
+      "annotations": {
+        "cronjob.kubernetes.io/instantiate": "manual"
+      },
+      "status": {
+        "completionTime": "2026-09-16T01:49:34Z",
+        "startTime": "2026-09-16T01:27:45Z",
+        "succeeded": 1
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-m5c-copy-manual-20260923",
+      "owner": [
+        {
+          "apiVersion": "batch/v1",
+          "controller": true,
+          "kind": "CronJob",
+          "name": "restic-m5c-copy",
+          "uid": "0b571c7d-4caa-4753-a309-c49564bd2c09"
+        }
+      ],
+      "annotations": {
+        "cronjob.kubernetes.io/instantiate": "manual"
+      },
+      "status": {
+        "completionTime": "2026-09-23T03:49:56Z",
+        "startTime": "2026-09-23T03:48:21Z",
+        "succeeded": 1
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-m5c-prune-manual-20260923",
+      "owner": [
+        {
+          "apiVersion": "batch/v1",
+          "controller": true,
+          "kind": "CronJob",
+          "name": "restic-m5c-prune",
+          "uid": "635a0098-d863-4530-957a-0c64bcdd3f80"
+        }
+      ],
+      "annotations": {
+        "cronjob.kubernetes.io/instantiate": "manual"
+      },
+      "status": {
+        "completionTime": "2026-09-23T04:04:01Z",
+        "startTime": "2026-09-23T03:50:48Z",
+        "succeeded": 1
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-m5c-validate-29840310",
+      "owner": [
+        {
+          "apiVersion": "batch/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "CronJob",
+          "name": "restic-m5c-validate",
+          "uid": "9286e284-b062-48b6-894e-3ff8434e7473"
+        }
+      ],
+      "annotations": {
+        "batch.kubernetes.io/cronjob-scheduled-timestamp": "2026-09-26T05:30:00-05:00"
+      },
+      "status": {
+        "completionTime": "2026-09-26T10:30:10Z",
+        "startTime": "2026-09-26T10:30:00Z",
+        "succeeded": 1
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-ryze-b2-unlock-20260923",
+      "status": {
+        "completionTime": "2026-09-23T04:28:05Z",
+        "startTime": "2026-09-23T04:27:58Z",
+        "succeeded": 1
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-ryze-b2-verbose-check-20260916",
+      "owner": [
+        {
+          "apiVersion": "batch/v1",
+          "controller": true,
+          "kind": "CronJob",
+          "name": "restic-ryze-check",
+          "uid": "bb32e521-3aa9-49ad-a78a-45e95f9da532"
+        }
+      ],
+      "annotations": {
+        "cronjob.kubernetes.io/instantiate": "manual"
+      },
+      "status": {
+        "completionTime": "2026-09-16T00:56:56Z",
+        "startTime": "2026-09-16T00:08:43Z",
+        "succeeded": 1
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-ryze-check-activation-20260912",
+      "status": {
+        "completionTime": "2026-09-12T21:43:22Z",
+        "startTime": "2026-09-12T21:19:18Z",
+        "succeeded": 1
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-ryze-copy-retry-20260923",
+      "owner": [
+        {
+          "apiVersion": "batch/v1",
+          "controller": true,
+          "kind": "CronJob",
+          "name": "restic-ryze-copy",
+          "uid": "97b54320-73dc-4315-a1ca-b63d90639720"
+        }
+      ],
+      "annotations": {
+        "cronjob.kubernetes.io/instantiate": "manual"
+      },
+      "status": {
+        "completionTime": "2026-09-23T03:37:12Z",
+        "startTime": "2026-09-23T03:34:54Z",
+        "succeeded": 1
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-ryze-prune-retry-20260923",
+      "owner": [
+        {
+          "apiVersion": "batch/v1",
+          "controller": true,
+          "kind": "CronJob",
+          "name": "restic-ryze-prune",
+          "uid": "ca9ee85f-3acf-4231-bf7c-a1a66f700a46"
+        }
+      ],
+      "annotations": {
+        "cronjob.kubernetes.io/instantiate": "manual"
+      },
+      "status": {
+        "completionTime": "2026-09-23T05:17:08Z",
+        "startTime": "2026-09-23T04:29:20Z",
+        "succeeded": 1
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-ryze-validate-29840310",
+      "owner": [
+        {
+          "apiVersion": "batch/v1",
+          "blockOwnerDeletion": true,
+          "controller": true,
+          "kind": "CronJob",
+          "name": "restic-ryze-validate",
+          "uid": "f4b9a8c6-bbc2-49aa-8d78-00e6a5d4741f"
+        }
+      ],
+      "annotations": {
+        "batch.kubernetes.io/cronjob-scheduled-timestamp": "2026-09-26T05:30:00-05:00"
+      },
+      "status": {
+        "completionTime": "2026-09-26T10:31:59Z",
+        "startTime": "2026-09-26T10:30:00Z",
+        "succeeded": 1
+      }
+    },
+    {
+      "kind": "Job",
+      "name": "restic-ryze-validate-v2-20260911",
+      "status": {
+        "completionTime": "2026-09-11T22:52:57Z",
+        "startTime": "2026-09-11T22:46:14Z",
+        "succeeded": 1
+      }
+    }
+  ],
+  "rest_server_readiness_and_quota_recount": [
+    {
+      "name": "restic-m5c",
+      "annotations": {
+        "worm.run/quota-recount": "1790135522359643040"
+      },
+      "status": {
+        "availableReplicas": 1,
+        "conditions": [
+          {
+            "lastTransitionTime": "2026-09-23T03:52:09Z",
+            "lastUpdateTime": "2026-09-23T03:52:09Z",
+            "message": "Deployment has minimum availability.",
+            "reason": "MinimumReplicasAvailable",
+            "status": "True",
+            "type": "Available"
+          },
+          {
+            "lastTransitionTime": "2026-09-11T02:40:30Z",
+            "lastUpdateTime": "2026-09-23T03:52:09Z",
+            "message": "ReplicaSet \"restic-m5c-5fddff4dfb\" has successfully progressed.",
+            "reason": "NewReplicaSetAvailable",
+            "status": "True",
+            "type": "Progressing"
+          }
+        ],
+        "observedGeneration": 5,
+        "readyReplicas": 1,
+        "replicas": 1,
+        "terminatingReplicas": 0,
+        "updatedReplicas": 1
+      }
+    },
+    {
+      "name": "restic-ryze",
+      "annotations": {
+        "worm.run/quota-recount": "1790137788828955564"
+      },
+      "status": {
+        "availableReplicas": 1,
+        "conditions": [
+          {
+            "lastTransitionTime": "2026-09-23T04:29:58Z",
+            "lastUpdateTime": "2026-09-23T04:29:58Z",
+            "message": "Deployment has minimum availability.",
+            "reason": "MinimumReplicasAvailable",
+            "status": "True",
+            "type": "Available"
+          },
+          {
+            "lastTransitionTime": "2026-09-11T02:40:30Z",
+            "lastUpdateTime": "2026-09-23T04:29:58Z",
+            "message": "ReplicaSet \"restic-ryze-5fc495d686\" has successfully progressed.",
+            "reason": "NewReplicaSetAvailable",
+            "status": "True",
+            "type": "Progressing"
+          }
+        ],
+        "observedGeneration": 5,
+        "readyReplicas": 1,
+        "replicas": 1,
+        "terminatingReplicas": 0,
+        "updatedReplicas": 1
+      }
+    }
+  ]
+}

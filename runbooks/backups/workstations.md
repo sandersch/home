@@ -18,10 +18,12 @@ vault v3 contract rollout completed on 2026-09-20; NAS/B2 recovery, fresh ingest
 promotion, the 24-hour observation, guarded manual retention, and the first scheduled
 NAS/B2 prune all passed. See the [promotion evidence](evidence/vault-v3-promotion-20260916.json)
 and [backup policy status](../../docs/backups.md#phasing-vault-v3-rollout-complete).
-Ryze’s seven-day observation and natural scheduled weekly copy/prune closure remain
-unrecorded. M5c’s September 19 record confirms continuous health since September 15;
-its seven-day observation and normal scheduled weekly copy/prune gates remain open. Monthly-check gates remain separate and
-open. See [Checks and evidence](#checks-and-evidence) for the latest recorded status.
+The September 26 [operational acceptance audit](evidence/workstation-acceptance-20260926.json)
+closes M5c’s seven-day observation and natural weekly copy/prune gates. Ryze is
+currently healthy, but its September 21 copy and September 22 prune failed; manual
+September 23 recovery does not close its observation or natural weekly-cycle gates.
+Both hosts have fresh NAS/B2 check-success evidence from September 16; natural
+monthly-check acceptance remains separate and open. See [Checks and evidence](#checks-and-evidence).
 
 | Host | NAS cap | B2 ceiling | Client schedule | Documents |
 | --- | ---: | ---: | --- | --- |
@@ -466,6 +468,58 @@ historical restores even if active vault configuration is reverted in an attende
 suspended window.
 
 ## Checks and evidence
+
+### 2026-09-26 operational acceptance audit
+
+The [sanitized live evidence](evidence/workstation-acceptance-20260926.json) combines
+read-only Kubernetes status with seven days of native 30-second Prometheus samples
+(September 19–26). Each workstation health series contains 20,160 samples with a
+maximum scrape gap of 30.020 seconds. Historical Job metrics preserve results that
+Kubernetes has already removed; CronJob `lastSuccessfulTime` alone would misleadingly
+attribute the retained manual successes to scheduled execution.
+
+| Gate | M5c | Ryze |
+| --- | --- | --- |
+| Current freshness, ingestion, holds, capacity and enrollment | Passed | Passed |
+| Daily scheduled validation, September 20–26 | Passed, all seven runs | Passed, all seven runs |
+| Seven-day operational observation | Passed | Open: maintenance failures and firing job alerts occurred during the window |
+| Natural weekly copy/prune | Passed, September 21/22 | Open: scheduled copy/prune failed; September 23 manual retries succeeded |
+| Current NAS/B2 repository-check health | Passed, September 16 success timestamps | Passed, September 16 success timestamps |
+| Natural monthly-check acceptance | Open | Open |
+
+M5c’s scheduled `restic-m5c-copy-29833125` completed at
+`2026-09-21T15:12:57Z`; `restic-m5c-prune-29834250` completed at
+`2026-09-22T05:43:28Z`. Prometheus retains their CronJob ownership, successful-pod
+counts and completion timestamps. The observation window contains no M5c failed
+maintenance Jobs or firing workstation alerts. Its operational acceptance is closed;
+the separate monthly scheduled-check gate remains open.
+
+Ryze’s `restic-ryze-copy-29833125`, `restic-ryze-prune-29834250`, and
+`restic-ryze-prune-manual-20260923` produced `KubeJobFailed` alerts. The retained
+September 23 copy and prune retries completed successfully, and no relevant alerts
+are currently pending or firing. These recovered failures prevent declaring a clean
+seven-day operational observation. Verify the next natural copy on September 28 at
+05:45 and prune on September 29 at 00:30 America/Chicago, and complete seven days of
+observation after recovery, including failures and alerts. The September 22 copy
+implementation change is recorded in `5b19475`; this audit does not infer the exact
+cause of deleted failed Jobs from their names or duration.
+
+Both hosts remained enrolled, with zero holds or invalid snapshot times, successful
+size collection, and fresh Documents promotion throughout the seven-day window.
+NAS snapshot age stayed below seven days and B2 below eight days. At capture, NAS/B2
+repository sizes were respectively 11.95/11.43 GB for Ryze and 21.87/21.54 GB for M5c,
+all below the 80% warning threshold. Both rest-servers are ready and carry September 23
+quota-recount markers. M5c’s latest accepted NAS/B2 snapshot dates to September 21
+(about 4.9 days old); successful daily validation does not mean a fresh client backup.
+Watch for a fresh M5c delivery before its seven-day NAS limit.
+
+September 16 NAS/B2 check-success metrics prove current repository-check health.
+The retained B2 verbose-check Jobs were manually instantiated; neither those nor a
+CronJob success timestamp proves a natural monthly cycle. Inspect the next scheduled
+checks on October 15 at 02:30 America/Chicago. No production schedules, repositories,
+credentials, or client state were changed during this audit.
+
+### Earlier enrollment and observation records
 
 2026-09-10 host preparation completed from `d7cafa1` on minis, after creating
 `/opt/.snapshots/pre-workstations-d7cafa1`. Both repository directories and root
