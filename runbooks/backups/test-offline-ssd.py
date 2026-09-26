@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Disposable real-Restic copies and fail-closed orchestration tests; no production access."""
 import argparse
+from contextlib import ExitStack
 import datetime as dt
 import importlib.util
 import hashlib
@@ -20,6 +21,66 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 c = m.module('contracts_test', 'offline-contracts.py')
 c.configure(m.legacy, lambda: None, m.canonical, m.require, HERE, m.CONTROL)
+
+
+class ScratchCleanupTests(unittest.TestCase):
+    def test_verification_failures_remove_created_scratch(self):
+        for failure in ('check', 'open', 'missing-appstate', 'appstate-listing'):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temp, ExitStack() as patches:
+                root = Path(temp)
+                created = []
+                descriptors = []
+                real_open, real_stat = os.open, Path.stat
+                device = root.stat().st_dev
+
+                def scratch():
+                    path = root / str(len(created))
+                    path.mkdir()
+                    created.append(path)
+                    return path
+
+                def open_directory(path, flags, *args, **kwargs):
+                    if path == created[0] and flags & os.O_NOFOLLOW:
+                        if failure == 'open':
+                            raise OSError('injected open failure')
+                        fd = real_open(path, flags, *args, **kwargs)
+                        descriptors.append(fd)
+                        return fd
+                    return real_open(path, flags, *args, **kwargs)
+
+                def stat_path(path, *args, **kwargs):
+                    if path == Path('/dev/mapper/vault'):
+                        return types.SimpleNamespace(st_rdev=device)
+                    return real_stat(path, *args, **kwargs)
+
+                def restic(*args, output=None):
+                    if args[0] == 'check' and failure == 'check':
+                        raise RuntimeError('injected check failure')
+                    if args[0] == 'dump':
+                        output.write(b'private fixture')
+
+                appstate = Mock(side_effect=restic)
+                appstate.snapshots.return_value = []
+                if failure == 'appstate-listing':
+                    appstate.snapshots.side_effect = RuntimeError('injected listing failure')
+                patches.enter_context(patch.object(c, 'vault_scratch', side_effect=scratch))
+                patches.enter_context(patch.object(c.os, 'open', side_effect=open_directory))
+                patches.enter_context(patch.object(Path, 'stat', stat_path))
+                patches.enter_context(patch.object(c, 'nodes', return_value=[
+                    {'type': 'file', 'path': '/data/vault/documents/fixture', 'size': 1}]))
+                patches.enter_context(patch('builtins.input', return_value='VERIFIED'))
+                patches.enter_context(patch('builtins.print'))
+                op = {'copies': {name: {'destination_id': 'a' * 64} for name in ('vault', 'appstate')}}
+                message = {'check': 'injected check', 'open': 'injected open',
+                           'missing-appstate': 'appstate destination checkpoint missing',
+                           'appstate-listing': 'injected listing'}[failure]
+                with self.assertRaisesRegex((RuntimeError, OSError), message):
+                    c.verify_all({'vault': restic, 'appstate': appstate}, op, {})
+                self.assertEqual(len(created), 1 if failure in ('check', 'open') else 2)
+                self.assertTrue(all(not path.exists() for path in created))
+                for fd in descriptors:
+                    with self.assertRaises(OSError):
+                        os.fstat(fd)
 
 
 class PolicyTests(unittest.TestCase):

@@ -322,33 +322,35 @@ def verify_all(dest, op, record):
     # Check the encrypted scratch mount before starting potentially multi-hour
     # repository reads or attended restore verification.
     scratch = vault_scratch()
-    checks = {}
-    for name, restic in dest.items():
-        check_started = time.monotonic()
-        restic('check', '--read-data')
-        checks[name] = {'full_data_check': 'passed', 'check_seconds': time.monotonic() - check_started}
-    vault_repo = dest['vault']
-    sid = op['copies']['vault']['destination_id']
-    # Pin the encrypted filesystem while dumping and prevent a concurrent normal unmount.
-    fd = os.open(scratch, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     try:
-        require(os.fstat(fd).st_dev == Path('/dev/mapper/vault').stat().st_rdev, 'vault scratch lost encrypted device')
-        pinned = Path(f'/proc/self/fd/{fd}')
-        # dump_file's canonical check is for ordinary targets; inherited fd is held
-        # by this process, and opening its files pins the encrypted filesystem too.
-        for archived, name in [('/data/vault/credentials/strongbox/ccs.kdbx', 'ccs.kdbx')]:
-            with (pinned / name).open('xb') as out:
-                vault_repo('dump', sid, archived, output=out)
-        document = next((n for n in nodes(vault_repo, sid) if n['type'] == 'file'
-                         and n['path'].startswith('/data/vault/documents/') and n.get('size', 0) > 0), None)
-        require(document is not None, 'no representative vault document')
-        with (pinned / 'representative-document').open('xb') as out:
-            vault_repo('dump', sid, document['path'], output=out)
-        print(f'Inspect document and open ccs.kdbx in Strongbox from {scratch}. Do not enter its master password here.')
-        require(input('After successful content inspection and Strongbox open, type VERIFIED: ') == 'VERIFIED',
-                'vault manual verification incomplete')
+        checks = {}
+        for name, restic in dest.items():
+            check_started = time.monotonic()
+            restic('check', '--read-data')
+            checks[name] = {'full_data_check': 'passed', 'check_seconds': time.monotonic() - check_started}
+        vault_repo = dest['vault']
+        sid = op['copies']['vault']['destination_id']
+        # Pin the encrypted filesystem while dumping and prevent a concurrent normal unmount.
+        fd = os.open(scratch, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            require(os.fstat(fd).st_dev == Path('/dev/mapper/vault').stat().st_rdev, 'vault scratch lost encrypted device')
+            pinned = Path(f'/proc/self/fd/{fd}')
+            # dump_file's canonical check is for ordinary targets; inherited fd is held
+            # by this process, and opening its files pins the encrypted filesystem too.
+            for archived, name in [('/data/vault/credentials/strongbox/ccs.kdbx', 'ccs.kdbx')]:
+                with (pinned / name).open('xb') as out:
+                    vault_repo('dump', sid, archived, output=out)
+            document = next((n for n in nodes(vault_repo, sid) if n['type'] == 'file'
+                             and n['path'].startswith('/data/vault/documents/') and n.get('size', 0) > 0), None)
+            require(document is not None, 'no representative vault document')
+            with (pinned / 'representative-document').open('xb') as out:
+                vault_repo('dump', sid, document['path'], output=out)
+            print(f'Inspect document and open ccs.kdbx in Strongbox from {scratch}. Do not enter its master password here.')
+            require(input('After successful content inspection and Strongbox open, type VERIFIED: ') == 'VERIFIED',
+                    'vault manual verification incomplete')
+        finally:
+            os.close(fd)
     finally:
-        os.close(fd)
         # The restored credentials and representative document are plaintext.
         # Keep them only for the attended inspection above, then remove the
         # whole per-run directory on success or failure.
@@ -357,12 +359,12 @@ def verify_all(dest, op, record):
     # Appstate restores include Kubernetes Secret values. Keep the complete
     # disposable restore tree on the verified encrypted vault filesystem.
     app = vault_scratch()
-    snapshot = next((s for s in dest['appstate'].snapshots()
-                     if s['id'] == op['copies']['appstate']['destination_id']), None)
-    require(snapshot is not None, 'appstate destination checkpoint missing; retry after destination sync')
-    # The restored k3s database contains Kubernetes Secret values, including
-    # flux-system/sops-age. Never leave this plaintext on the unencrypted array.
     try:
+        snapshot = next((s for s in dest['appstate'].snapshots()
+                         if s['id'] == op['copies']['appstate']['destination_id']), None)
+        require(snapshot is not None, 'appstate destination checkpoint missing; retry after destination sync')
+        # The restored k3s database contains Kubernetes Secret values, including
+        # flux-system/sops-age. Never leave this plaintext on the unencrypted array.
         verify_appstate(dest['appstate'], snapshot, app)
     finally:
         shutil.rmtree(app)
