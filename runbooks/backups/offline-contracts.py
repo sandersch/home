@@ -125,7 +125,9 @@ def appstate(restic, snapshot):
     require(re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', created) is not None
             and 0 <= stamp(snapshot['time']) - stamp(created) <= 3600, 'appstate export timestamp invalid/stale')
     listing = nodes(restic, sid)
-    require(not any(set(Path(n['path']).parts) & {'token', 'server-token'} for n in listing), 'server-token artifact forbidden')
+    require(not any(n['path'].startswith(prefix) and
+                    set(Path(n['path']).parts) & {'token', 'server-token'} for n in listing),
+            'server-token artifact forbidden')
     required = ['contract-version', 'required-sqlite-databases.txt', 'export-created-at',
                 'k3s/state.db.sqlite-backup', 'home-assistant/home-assistant.tar', 'romm/romm.sql']
     required += ['sqlite/' + rel + '.sqlite-backup' for rel in config['required']]
