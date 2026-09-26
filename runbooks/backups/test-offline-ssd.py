@@ -383,6 +383,7 @@ class OperationTests(unittest.TestCase):
         self.mount.mkdir()
         self.work = self.root / 'work'
         self.work.mkdir()
+        self.scratch = self.root / 'scratch'
         output = patch('builtins.print')
         output.start(); self.addCleanup(output.stop)
         self.records = {'drive': 'A', 'stage': 'provisioned', 'repositories': {}}
@@ -454,9 +455,12 @@ class OperationTests(unittest.TestCase):
         complete_verification = {'repositories': {d: {'full_data_check': 'passed'} for d in m.DATASETS},
             'vault_restore_and_strongbox': 'passed', 'appstate_exports_and_romm_import': 'passed',
             'legacy_evidence_and_manual_inspection': 'passed'}
+        def vault_scratch():
+            self.scratch.mkdir(exist_ok=True)
+            return self.scratch
         contracts = types.SimpleNamespace(
             configure=lambda *a: None, select=lambda r, d: m.freeze(r.snapshots()[0]), validate=lambda *a, **k: None,
-            eligibility=lambda *a: None, vault_scratch=lambda: self.root,
+            eligibility=lambda *a: None, vault_scratch=vault_scratch,
             verify_all=lambda *a: complete_verification,
             legacy_acceptance=lambda: {'snapshot_id': '3' * 64, 'repository_id': 'a' + '2' * 63})
         for name, value in dict(CONTROL=self.control, MOUNTS=self.root, Restic=FakeRestic,
