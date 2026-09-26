@@ -19,7 +19,7 @@ spec = importlib.util.spec_from_file_location('offline', HERE / 'offline-ssd.py'
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 c = m.module('contracts_test', 'offline-contracts.py')
-c.configure(m.legacy, lambda: None, m.canonical, m.require, HERE)
+c.configure(m.legacy, lambda: None, m.canonical, m.require, HERE, m.CONTROL)
 
 
 class PolicyTests(unittest.TestCase):
