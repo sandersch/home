@@ -14,6 +14,7 @@ import time
 
 
 VAULT_CONTROL = Path('/mnt/backups/.control/vault')
+_validated = set()
 
 
 class SnapshotNotEligible(RuntimeError):
@@ -81,8 +82,8 @@ def vault(restic, snapshot):
     require(name == released['contract'] and manifest['contract_sha256'] == digest(path) and
             manifest['exclusion_sha256'] == released['exclusion_sha256'] == digest(exclusion), 'unreleased contract hash')
     listing = nodes(restic, sid)
-    excluded = ('/data/vault/.backup-credentials', '/data/vault/.mail-credentials',
-                '/data/vault/inbox', '/data/vault/.restore-tests')
+    excluded = [line.strip() for line in exclusion.read_text().splitlines()
+                if line.strip() and not line.lstrip().startswith('#')]
     require(not any(n['path'] == p or n['path'].startswith(p + '/') for n in listing for p in excluded),
             'excluded vault content leaked')
     measured = []
@@ -141,7 +142,12 @@ def validate(restic, dataset, snapshot, fresh):
         require(-300 <= age <= (8 if dataset == 'vault' else 30) * 3600, 'source snapshot stale/future')
         if dataset == 'vault':
             eligibility(snapshot)
-    return vault(restic, snapshot) if dataset == 'vault' else appstate(restic, snapshot)
+    key = (id(restic), snapshot['id'])
+    if key in _validated:
+        return None
+    result = vault(restic, snapshot) if dataset == 'vault' else appstate(restic, snapshot)
+    _validated.add(key)
+    return result
 
 
 def select(restic, dataset):

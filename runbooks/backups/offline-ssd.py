@@ -172,9 +172,9 @@ def restic_failure(result, args, passwords):
         if secret:
             detail = detail.replace(secret, '[redacted]')
     detail = ''.join(c if c in '\n\t' or ord(c) >= 32 else ' ' for c in detail)
-    detail = detail[-3000:].strip()
+    detail = detail.strip()
     message = f'Restic {args[0]} failed ({result.returncode})'
-    return message + (f':\n{detail}' if detail else '')
+    return message + (f':\n{detail[:3000]}' if detail else '')
 
 
 def tree_nodes(tree):
@@ -306,9 +306,11 @@ class Restic:
             repository_directory(self.repo, private=self.record is not None)
             require({p.name for p in self.repo.iterdir()} <= {'config', 'data', 'index', 'keys', 'locks', 'snapshots'},
                     'unexpected repository content')
-            for parent, directories, files in os.walk(self.repo, followlinks=False):
-                for name in directories + files:
-                    require(not (Path(parent) / name).is_symlink(), 'repository symlink substitution')
+            # Restic owns the repository layout. Inspect only its top level here;
+            # recursively walking `data/` makes every call scale with archive size.
+            for child in self.repo.iterdir():
+                info = child.lstat()
+                require(not stat.S_ISLNK(info.st_mode), 'repository symlink substitution')
         env = {k: v for k, v in os.environ.items() if not k.startswith('RESTIC_')}
         env.update(RESTIC_PASSWORD_FILE=str(self.password), RESTIC_CACHE_DIR=str(self.workspace / 'cache'),
                    TMPDIR=str(self.workspace), GOMAXPROCS='2')

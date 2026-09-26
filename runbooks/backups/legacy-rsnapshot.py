@@ -429,27 +429,34 @@ def restored_sample_checks(records, actual, scratch, *, accepted=None):
     return selected, hashes
 
 
-def verify_destination(restic, sid, records, accepted, run):
-    """Validate a copy using accepted evidence alone; never update NAS acceptance."""
-    compare_listing(records, archived_inventory(restic('ls', '--json', sid), SOURCE))
-    compare_symlinks(restic, sid, records)
-    selected = samples(records)
+def restore_samples(restic, sid, records, selected, run, mount):
+    """Restore the representative sample after a complete, consistent capacity estimate."""
     includes = run / 'includes.txt'
     with includes.open('w') as out:
         for relative in selected:
             require('\n' not in relative and '\r' not in relative, 'unrepresentable sample name')
             out.write('/' + ''.join('\\' + c if c in '\\*?[' else c for c in relative) + '\n')
-    # Include directory descendants as well as ancestor metadata in the estimate.
-    directories = {p for p in selected if records[p]['type'] == 'dir'}
     chosen = set(selected)
+    directories = {p for p in chosen if records[p]['type'] == 'dir'}
+    ancestors = {str(parent) for p in chosen for parent in Path(p).parents}
     estimate = sum(r['size'] + 4096 for p, r in records.items()
-                   if p in chosen or any(str(parent) in directories for parent in Path(p).parents))
-    usage = os.statvfs(run)
+                   if p in chosen or p in ancestors
+                   or any(str(parent) in directories for parent in Path(p).parents))
+    usage = os.statvfs(mount)
     require(usage.f_bavail * usage.f_frsize > estimate * 1.2 + usage.f_blocks * usage.f_frsize * .1,
             'insufficient legacy restore capacity')
     scratch = run / 'tree'
     scratch.mkdir(mode=0o700)
     restic('restore', sid + ':' + str(SOURCE), '--target', scratch, '--include-file', includes)
+    return scratch
+
+
+def verify_destination(restic, sid, records, accepted, run):
+    """Validate a copy using accepted evidence alone; never update NAS acceptance."""
+    compare_listing(records, archived_inventory(restic('ls', '--json', sid), SOURCE))
+    compare_symlinks(restic, sid, records)
+    selected = samples(records)
+    scratch = restore_samples(restic, sid, records, selected, run, run)
     return restored_sample_checks(records, inventory(scratch), scratch, accepted=accepted)
 
 
@@ -626,28 +633,8 @@ def verify(restic, sid, run, records=None):
     compare_listing(records, archived_inventory(listing, SOURCE))
     compare_symlinks(restic, sid, records)
     selected = samples(records)
-    # Literal Restic glob patterns, one per line; reject filenames that cannot be represented.
-    includes = run / 'includes.txt'
-    with includes.open('w') as out:
-        for relative in selected:
-            path = '/' + relative
-            require('\n' not in path and '\r' not in path, 'sample contains newline; attended recovery required')
-            out.write(''.join('\\' + c if c in '\\*?[' else c for c in path) + '\n')
-    # Include descendants of selected directories and metadata space for their ancestors.
-    chosen = set(selected)
-    directories = {p for p in selected if records[p]['type'] == 'dir'}
-    ancestors = {str(parent) for p in selected for parent in Path(p).parents}
-    expected_bytes = 0
-    for path, record in records.items():
-        if path in chosen or path in ancestors or any(str(p) in directories for p in Path(path).parents):
-            expected_bytes += record['size'] + 4096
-    usage = os.statvfs(MOUNT)
-    require(usage.f_bavail * usage.f_frsize > expected_bytes * 1.2 + usage.f_blocks * usage.f_frsize * .1,
-            'insufficient restore scratch space')
     scratch_parent = Path(tempfile.mkdtemp(prefix='.legacy-rsnapshot-restore-', dir=MOUNT))
-    scratch = scratch_parent / 'tree'
-    scratch.mkdir(mode=0o700)
-    restic('restore', sid + ':' + str(SOURCE), '--target', scratch, '--include-file', includes)
+    scratch = restore_samples(restic, sid, records, selected, scratch_parent, MOUNT)
     restored = scratch
     actual = inventory(restored)
     selected, hashes = restored_sample_checks(records, actual, restored)

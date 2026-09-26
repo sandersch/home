@@ -202,7 +202,7 @@ class ContractTests(unittest.TestCase):
         contracts.mkdir()
         name = 'vault-v3'
         exclusion = contracts / (name + '.excludes')
-        exclusion.write_text('released exclusion fixture\n')
+        exclusion.write_text('/data/vault/inbox\n')
         roots = ['/data/vault/credentials/strongbox/ccs.kdbx', '/data/vault/documents/fixture']
         release = dict(contract=name, exclusion_sha256=hashlib.sha256(exclusion.read_bytes()).hexdigest(),
             required_content=[dict(path=roots[0], kind='kdbx', minimum_files=1, minimum_bytes=8),
