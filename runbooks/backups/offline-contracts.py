@@ -336,6 +336,10 @@ def verify_all(dest, op, record, work):
                 'vault manual verification incomplete')
     finally:
         os.close(fd)
+        # The restored credentials and representative document are plaintext.
+        # Keep them only for the attended inspection above, then remove the
+        # whole per-run directory on success or failure.
+        shutil.rmtree(scratch)
     backup_guard()
     # Appstate restores include Kubernetes Secret values. Keep the complete
     # disposable restore tree on the verified encrypted vault filesystem.

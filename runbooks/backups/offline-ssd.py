@@ -527,7 +527,8 @@ def operate(args):
         contracts.configure(legacy, backup_guard, canonical, require, HERE)
         # Fail before any multi-hour copy/read work if the encrypted restore
         # scratch filesystem is not available.
-        contracts.vault_scratch()
+        preflight_scratch = contracts.vault_scratch()
+        shutil.rmtree(preflight_scratch)
         if not op['selected']:
             for dataset in DATASETS[:2]:
                 op['selected'][dataset] = contracts.select(source[dataset], dataset)
