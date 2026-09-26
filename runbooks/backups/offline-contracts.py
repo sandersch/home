@@ -266,7 +266,8 @@ def verify_appstate(restic, snapshot, scratch):
         os.setgid(mysql_gid)
         os.setuid(mysql_uid)
     shutil.chown(sandbox, user='mysql', group='mysql')
-    with (scratch / 'mariadb.log').open('w') as log:
+    log_path = scratch / 'mariadb.log'
+    with log_path.open('w') as log:
         server = subprocess.Popen(['bwrap', '--die-with-parent', '--unshare-all', '--ro-bind', '/', '/',
                    '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/tmp/sandbox',
                    '--bind', str(sandbox), '/tmp/sandbox', '--chdir', '/tmp/sandbox',
@@ -282,12 +283,11 @@ def verify_appstate(restic, snapshot, scratch):
                     ready = True
                     break
                 status = server.poll()
-                log.flush()
-                log.seek(0)
-                startup_log = log.read()[-4000:]
-                log.seek(0, os.SEEK_END)
-                require(status is None,
-                        f'isolated MariaDB exited during startup (status {status}): {startup_log}')
+                if status is not None:
+                    log.flush()
+                    startup_log = log_path.read_text()[-4000:]
+                    require(False,
+                            f'isolated MariaDB exited during startup (status {status}): {startup_log}')
                 time.sleep(.1)
             require(ready, 'isolated MariaDB startup timed out after 10 seconds')
             with out.open('rb') as sql:
