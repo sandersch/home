@@ -3,6 +3,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import re
 import sqlite3
@@ -301,7 +302,12 @@ def verify_all(dest, op, record, work):
     app = scratch / 'appstate'
     app.mkdir(mode=0o700)
     snapshot = next(s for s in dest['appstate'].snapshots() if s['id'] == op['copies']['appstate']['destination_id'])
-    verify_appstate(dest['appstate'], snapshot, app)
+    # The restored k3s database contains Kubernetes Secret values, including
+    # flux-system/sops-age. Never leave this plaintext on the unencrypted array.
+    try:
+        verify_appstate(dest['appstate'], snapshot, app)
+    finally:
+        shutil.rmtree(app)
     accepted = legacy_acceptance()
     candidate = load(legacy.CONTROL / 'candidate.json')
     require(candidate['snapshot_id'] == accepted['snapshot_id'] and candidate['repository_id'] == accepted['repository_id'],
