@@ -270,11 +270,11 @@ def verify_appstate(restic, snapshot, scratch):
         server = subprocess.Popen(['bwrap', '--die-with-parent', '--unshare-all', '--ro-bind', '/', '/',
                    '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/tmp/sandbox',
                    '--bind', str(sandbox), '/tmp/sandbox', '--chdir', '/tmp/sandbox',
-                   '--uid', '0', '--gid', '0', 'mariadbd', '--no-defaults',
+                   '--uid', '0', '--gid', '0', 'mariadbd', '--no-defaults', '--user=mysql',
                    '--datadir=/tmp/sandbox/data', '--socket=/tmp/sandbox/mariadb.sock',
                    '--pid-file=/tmp/sandbox/mariadb.pid', '--skip-networking', '--local-infile=0',
                    '--tmpdir=/tmp/sandbox/sql-files', '--secure-file-priv=/tmp/sandbox/sql-files'],
-                   stdout=log, stderr=log, preexec_fn=mysql_identity)
+                   stdout=log, stderr=log)
         try:
             ready = False
             for _ in range(100):
@@ -282,10 +282,14 @@ def verify_appstate(restic, snapshot, scratch):
                     ready = True
                     break
                 status = server.poll()
+                log.flush()
+                log.seek(0)
+                startup_log = log.read()[-4000:]
+                log.seek(0, os.SEEK_END)
                 require(status is None,
-                        f'isolated MariaDB exited during startup (status {status}); inspect private mariadb.log')
+                        f'isolated MariaDB exited during startup (status {status}): {startup_log}')
                 time.sleep(.1)
-            require(ready, 'isolated MariaDB startup timed out after 10 seconds; inspect private mariadb.log')
+            require(ready, 'isolated MariaDB startup timed out after 10 seconds')
             with out.open('rb') as sql:
                 subprocess.run(['mariadb', '--no-defaults', '--socket=' + str(socket), '--user=mysql'],
                                stdin=sql, stdout=log, stderr=log, check=True, preexec_fn=mysql_identity)
