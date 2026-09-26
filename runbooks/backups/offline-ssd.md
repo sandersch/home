@@ -74,9 +74,10 @@ later retry. Never unlock a repository just to make this workflow proceed.
    and normal unmount counts. Return A off-site, then repeat the entire session for B.
 
 Private restore scratch needed for attended inspection is retained for deliberate
-cleanup. Vault scratch stays on the encrypted vault. Appstate verification scratch
-is removed immediately after verification (including on failure) because the restored
-k3s database contains plaintext Kubernetes Secrets. Legacy scratch lives under
+cleanup. Vault scratch stays on the encrypted vault. Appstate verification scratch,
+including the disposable MariaDB data directory and imported RomM SQL, is created on
+the encrypted vault and removed immediately after verification (including on failure)
+because appstate restores contain plaintext Kubernetes Secrets. Legacy scratch lives under
 `/mnt/backups/.control/offline/verify-*`. Do not commit scratch, inventories, private
 paths, passwords, raw command logs, or document names. The source legacy inventory,
 `candidate.json` and `accepted.json` must remain available for future verification,

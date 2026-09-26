@@ -1,8 +1,10 @@
 """Offline eligibility and destination verification against released backup contracts."""
 import datetime as dt
+import grp
 import hashlib
 import json
 import os
+import pwd
 import shutil
 from pathlib import Path
 import re
@@ -255,7 +257,8 @@ def verify_appstate(restic, snapshot, scratch):
         server = subprocess.Popen(['bwrap', '--die-with-parent', '--unshare-all', '--ro-bind', '/', '/',
                    '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/sandbox',
                    '--bind', str(sandbox), '/sandbox', '--chdir', '/sandbox',
-                   '--setuid', 'mysql', '--setgid', 'mysql', 'mariadbd', '--no-defaults',
+                   '--uid', str(pwd.getpwnam('mysql').pw_uid),
+                   '--gid', str(grp.getgrnam('mysql').gr_gid), 'mariadbd', '--no-defaults',
                    '--datadir=/sandbox/data', '--socket=/sandbox/mariadb.sock',
                    '--pid-file=/sandbox/mariadb.pid', '--skip-networking', '--local-infile=0',
                    '--tmpdir=/sandbox/sql-files', '--secure-file-priv=/sandbox/sql-files'],
@@ -321,9 +324,9 @@ def verify_all(dest, op, record, work):
     finally:
         os.close(fd)
     backup_guard()
-    scratch = Path(tempfile.mkdtemp(prefix='verify-', dir=Path('/mnt/backups/.control/offline')))
-    app = scratch / 'appstate'
-    app.mkdir(mode=0o700)
+    # Appstate restores include Kubernetes Secret values. Keep the complete
+    # disposable restore tree on the verified encrypted vault filesystem.
+    app = vault_scratch()
     snapshot = next(s for s in dest['appstate'].snapshots() if s['id'] == op['copies']['appstate']['destination_id'])
     # The restored k3s database contains Kubernetes Secret values, including
     # flux-system/sops-age. Never leave this plaintext on the unencrypted array.
@@ -331,6 +334,7 @@ def verify_all(dest, op, record, work):
         verify_appstate(dest['appstate'], snapshot, app)
     finally:
         shutil.rmtree(app)
+    scratch = Path(tempfile.mkdtemp(prefix='verify-', dir=Path('/mnt/backups/.control/offline')))
     accepted = legacy_acceptance()
     candidate = load(legacy.CONTROL / 'candidate.json')
     require(candidate['snapshot_id'] == accepted['snapshot_id'] and candidate['repository_id'] == accepted['repository_id'],
