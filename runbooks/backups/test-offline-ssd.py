@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import types
 import unittest
@@ -21,6 +22,36 @@ m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 c = m.module('contracts_test', 'offline-contracts.py')
 c.configure(m.legacy, lambda: None, m.canonical, m.require, HERE, m.CONTROL)
+
+
+class CliTests(unittest.TestCase):
+    def test_corrupt_export_errors_report_attended_retry(self):
+        script = '''
+import importlib.util
+import sys
+from unittest.mock import patch
+spec = importlib.util.spec_from_file_location('offline', sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+errors = {
+    'sqlite': module.sqlite3.DatabaseError('database disk image is malformed'),
+    'tar': module.tarfile.ReadError('invalid archive header'),
+}
+with patch.object(module, 'main', side_effect=errors[sys.argv[2]]):
+    module.cli()
+'''
+        for kind, message in [('sqlite', 'database disk image is malformed'),
+                              ('tar', 'invalid archive header')]:
+            with self.subTest(kind=kind):
+                result = subprocess.run([sys.executable, '-c', script,
+                                         str(HERE / 'offline-ssd.py'), kind],
+                                        capture_output=True, text=True)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(f'Offline operation stopped: {message}', result.stderr)
+                self.assertIn('Inspect status and retry the same command', result.stderr)
+                self.assertIn('an error never implies a successful checkpoint', result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
+                self.assertEqual(result.stdout, '')
 
 
 class ScratchCleanupTests(unittest.TestCase):

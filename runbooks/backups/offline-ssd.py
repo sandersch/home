@@ -12,9 +12,11 @@ from pathlib import Path
 import re
 import shutil
 import signal
+import sqlite3
 import stat
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 from zoneinfo import ZoneInfo
@@ -675,11 +677,16 @@ def main():
             operate(args)
 
 
+def cli():
+    try:
+        main()
+    except (RuntimeError, OSError, ValueError, KeyError, subprocess.SubprocessError,
+            sqlite3.DatabaseError, tarfile.TarError) as error:
+        print(f'Offline operation stopped: {error}. Inspect status and retry the same command; an error never implies a successful checkpoint.', file=sys.stderr)
+        sys.exit(1)
+
+
 if __name__ == '__main__':
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, lambda signum, frame: sys.exit(128 + signum))
-    try:
-        main()
-    except (RuntimeError, OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
-        print(f'Offline operation stopped: {error}. Inspect status and retry the same command; an error never implies a successful checkpoint.', file=sys.stderr)
-        sys.exit(1)
+    cli()
