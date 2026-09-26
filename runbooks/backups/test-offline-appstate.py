@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import subprocess
 import tarfile
 import tempfile
 
@@ -60,6 +61,24 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
     scratch = root / 'restored'
     scratch.mkdir(mode=0o700)
     c.verify_appstate(restic, snapshot, scratch)
+    # Client commands must be refused before they can execute on the host.
+    clean_dump = blobs['romm/romm.sql']
+    with tempfile.TemporaryDirectory(prefix='offline-client-command-', dir='/tmp') as probe:
+        Path(probe).chmod(0o777)  # A host mysql process could write the marker here.
+        marker = Path(probe) / 'executed'
+        for index, command in enumerate(('\\!', 'system')):
+            blobs['romm/romm.sql'] = f'{command} touch {marker}\n'.encode() + clean_dump
+            rejected = root / f'client-command-{index}'
+            rejected.mkdir(mode=0o700)
+            try:
+                c.verify_appstate(restic, snapshot, rejected)
+                raise AssertionError('unsafe client command accepted')
+            except subprocess.CalledProcessError as error:
+                require(error.cmd[0] == 'mariadb', 'failure was not from the import client')
+                require('sandbox' in (rejected / 'mariadb.log').read_text().lower(),
+                        'import failed without a sandbox diagnostic')
+            require(not marker.exists(), 'dump executed a shell command on the host')
+    blobs['romm/romm.sql'] = clean_dump
     # Corruption fails before any successful annual record can be produced.
     blobs['k3s/state.db.sqlite-backup'] = b'corrupt database'
     failed = root / 'bad'
@@ -69,4 +88,4 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
         raise AssertionError('corrupt datastore accepted')
     except sqlite3.DatabaseError:
         pass
-    print('PASS: SQLite/k3s schema and integrity, HA archive, real isolated RomM import/check, corrupted datastore refusal')
+    print('PASS: SQLite/k3s schema and integrity, HA archive, real isolated RomM import/check, client shell command refusal, corrupted datastore refusal')

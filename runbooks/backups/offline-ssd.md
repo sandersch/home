@@ -9,12 +9,16 @@ There is no SSD timer, automount, fstab entry, `forget`, `prune`, or automatic u
 ## Install and inspect
 
 Install host prerequisites (`python3-yaml`, util-linux, e2fsprogs, cryptsetup,
-MariaDB server/client tools), then run from a reviewed checkout on minis:
+MariaDB server/client tools with client `--sandbox` support), then run from a reviewed checkout on minis:
 
 ```sh
 sudo runbooks/backups/install-offline-ssd.sh
 sudo offline-ssd inspect --drive A --device /dev/disk/by-id/usb-EXACT_DEVICE
 ```
+
+RomM verification enables client `--sandbox` before reading restored SQL to reject
+client shell and filesystem commands. A client without this option fails verification;
+do not remove the option to work around an older client.
 
 The installer reuses the upstream-checksum-verified Restic 0.19.1 installer and
 copies released vault contracts plus the appstate required-export inventory.

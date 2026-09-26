@@ -297,7 +297,9 @@ def verify_appstate(restic, snapshot, scratch):
                 time.sleep(.1)
             require(ready, 'isolated MariaDB startup timed out after 10 seconds')
             with out.open('rb') as sql:
-                subprocess.run(['mariadb', '--no-defaults', '--socket=' + str(socket), '--user=mysql'],
+                # The host client also parses dump commands: refuse shell/file
+                # access before reading any SQL, independently of the server sandbox.
+                subprocess.run(['mariadb', '--no-defaults', '--sandbox', '--socket=' + str(socket), '--user=mysql'],
                                stdin=sql, stdout=log, stderr=log, check=True, preexec_fn=mysql_identity)
             count = subprocess.check_output(['mariadb', '--no-defaults', '--socket=' + str(socket), '--user=mysql',
                 '--batch', '--skip-column-names', '--execute=SELECT COUNT(*) FROM information_schema.tables WHERE table_schema="romm"'], text=True,
