@@ -241,7 +241,8 @@ def verify_appstate(restic, snapshot, scratch):
         require(bool(archive.getmembers()), 'empty Home Assistant archive')
     out = scratch / 'romm.sql'
     dump_file(restic, sid, prefix + 'romm/romm.sql', out)
-    require(any(line.startswith('CREATE TABLE ') for line in out.open()), 'RomM dump has no tables')
+    with out.open('rb') as dump:
+        require(any(line.startswith(b'CREATE TABLE ') for line in dump), 'RomM dump has no tables')
     # An isolated local server imports untrusted restored SQL without network access.
     # SQL is untrusted: keep the server unprivileged and give it a private mount,
     # PID, IPC, and network namespace with only this disposable tree writable.
@@ -344,7 +345,9 @@ def verify_all(dest, op, record, work):
     # Appstate restores include Kubernetes Secret values. Keep the complete
     # disposable restore tree on the verified encrypted vault filesystem.
     app = vault_scratch()
-    snapshot = next(s for s in dest['appstate'].snapshots() if s['id'] == op['copies']['appstate']['destination_id'])
+    snapshot = next((s for s in dest['appstate'].snapshots()
+                     if s['id'] == op['copies']['appstate']['destination_id']), None)
+    require(snapshot is not None, 'appstate destination checkpoint missing; retry after destination sync')
     # The restored k3s database contains Kubernetes Secret values, including
     # flux-system/sops-age. Never leave this plaintext on the unencrypted array.
     try:
