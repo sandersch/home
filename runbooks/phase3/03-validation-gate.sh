@@ -50,7 +50,7 @@ step "Direct-attached media filesystem readable from a test pod"
 assert_direct_mount_layout /mnt/media /dev/mapper/hoardvg-medialv \
   0a94d86c-76a0-44b5-bc52-930d97ab155f
 # renovate: datasource=docker depName=busybox
-kubectl run phase3-media-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616 \
+kubectl run phase3-media-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e \
   --overrides='{"spec":{"volumes":[{"name":"media","hostPath":{"path":"/mnt/media","type":"Directory"}}],"containers":[{"name":"phase3-media-test","image":"busybox:1.36","command":["sh","-c","df -T -P /media | tail -n 1 | grep -Eq \"^/dev/mapper/hoardvg-medialv[[:space:]]+ext4[[:space:]]\" && ls -la /media >/dev/null"],"volumeMounts":[{"name":"media","mountPath":"/media"}]}]}}'
 ok "direct-attached /mnt/media is readable from a test pod"
 
@@ -59,10 +59,10 @@ kubectl get node minis -o go-template='{{ index .status.allocatable "gpu.intel.c
   | grep -qx '2' || die "node minis does not advertise gpu.intel.com/i915=2"
 ok "Intel GPU plugin advertises gpu.intel.com/i915=2 on node minis"
 # renovate: datasource=docker depName=busybox
-kubectl run phase3-dri-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616 \
+kubectl run phase3-dri-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e \
   --overrides='{"spec":{"containers":[{"name":"phase3-dri-test","image":"busybox:1.36","command":["sh","-c","test -e /dev/dri/renderD128"],"securityContext":{"privileged":true},"volumeMounts":[{"name":"dri","mountPath":"/dev/dri"}]}],"volumes":[{"name":"dri","hostPath":{"path":"/dev/dri","type":"Directory"}}]}}'
 # renovate: datasource=docker depName=busybox
-kubectl run phase3-coral-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616 \
+kubectl run phase3-coral-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e \
   --overrides='{"spec":{"containers":[{"name":"phase3-coral-test","image":"busybox:1.36","command":["sh","-c","ls /dev/bus/usb/*/* >/dev/null"],"securityContext":{"privileged":true},"volumeMounts":[{"name":"usb","mountPath":"/dev/bus/usb"}]}],"volumes":[{"name":"usb","hostPath":{"path":"/dev/bus/usb","type":"Directory"}}]}}'
 ok "Quick Sync and USB device paths are visible in privileged test pods"
 
