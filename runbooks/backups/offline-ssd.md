@@ -220,13 +220,15 @@ onto the recovery staging filesystem at
 ```sh
 export RECOVERY_SOURCE=offline
 export RECOVERY_SNAPSHOT=FULL_APPSTATE_ID
-export RECOVERY_STAGE_ROOT=/mnt/media
+export RECOVERY_STAGE_ROOT=/mnt/recovery
 runbooks/disaster-recovery/00-preflight.sh
 runbooks/disaster-recovery/02-restore-opt.sh
 ```
 
-`RECOVERY_STAGE_ROOT` must be its own mounted filesystem, as required by the existing
-DR guard. The offline path checks `offline-snapshot.json` against the exact selected
+Mount a separate recovery filesystem at `/mnt/recovery` before copying the stage;
+`RECOVERY_STAGE_ROOT` must itself be an exact mountpoint. Do not use `/mnt/media`
+after an array rebuild: its guard requires the original media LV UUID, which a rebuilt
+or reformatted array will not have. The offline path checks `offline-snapshot.json` against the exact selected
 ID, host, paths and tags, validates the hot-dump contract, and asks for attended stage
 adoption. It never starts a repository-fetch Job or needs NAS/B2 credentials. Continue
 with DR steps 03–07 for RomM import, state validation and guarded application resume.

@@ -27,8 +27,10 @@ merge into nonempty state unless it is resuming its own recorded, interrupted co
   CronJobs must be absent, so no controller can recreate a writer after preflight.
 - `/opt` must be btrfs on `/dev/mapper/vg0-opt`.
 - Staging must be a separate mounted filesystem. It defaults to `/mnt/backups` for
-  the direct repository and `/mnt/media` for B2; set `RECOVERY_STAGE_ROOT` to another
-  exact mountpoint if necessary. It must have enough free space for a complete
+  the direct repository and `/mnt/media` for B2; these built-in paths are accepted
+  only with their recorded LV UUIDs. After an array rebuild, use a separate recovery
+  filesystem at an exact mountpoint such as `/mnt/recovery` and set
+  `RECOVERY_STAGE_ROOT` to that path. It must have enough free space for a complete
   restored `/opt` tree in addition to the Restic repository, if they share a disk.
 - A full 64-character snapshot ID is mandatory. `latest` is never accepted.
 - The Restic restore lands outside `/opt`. SQLite hot backups replace the live-captured
@@ -89,8 +91,9 @@ export RECOVERY_SNAPSHOT=<full-64-character-id>
 ./runbooks/disaster-recovery/run-restore.sh
 ```
 
-For B2, the default staging filesystem is `/mnt/media`. To use a temporary external
-filesystem instead, mount it first and export its exact mountpoint:
+For B2, `/mnt/media` is accepted only when it has the original recorded media LV
+identity. After an array rebuild, mount a separate recovery filesystem at an exact
+mountpoint such as `/mnt/recovery` and export it:
 
 ```bash
 export RECOVERY_STAGE_ROOT=/mnt/recovery
