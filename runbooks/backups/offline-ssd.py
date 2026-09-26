@@ -290,6 +290,7 @@ class Restic:
     def __init__(self, dataset, password, workspace, record=None, expected=None, source=None):
         self.dataset, self.password, self.workspace = dataset, password, workspace
         self.record, self.expected, self.source = record, expected, source
+        self._identity_verified = False
 
     @property
     def repo(self):
@@ -329,9 +330,10 @@ class Restic:
                 canonical(self.source.repo)
                 repository_directory(self.source.repo, private=False)
                 argv += ['--from-repo', pinned(self.source.repo), '--from-password-file', str(self.source.password)]
-            if self.expected and args[:2] != ('cat', 'config'):
+            if self.expected and not self._identity_verified and args[:2] != ('cat', 'config'):
                 config = json.loads(run(*identity_argv, 'cat', 'config', env=env, pass_fds=fds, stderr=subprocess.PIPE))
                 require(config['id'] == self.expected and config['version'] == 2, 'repository identity substituted')
+                self._identity_verified = True
             # Avoid buffering large dumps/listings in RAM when a caller supplies a file.
             result = subprocess.run([*argv, *map(str, args)], env=env, pass_fds=fds,
                                     stdout=output or subprocess.PIPE, stderr=subprocess.PIPE)
@@ -458,7 +460,11 @@ def operate(args):
     now = dt.datetime.now(ZoneInfo('America/Chicago'))
     q = quarter(now)
     kind = 'enroll' if args.command == 'enroll' else 'rotate'
-    pending = [read(p) for p in CONTROL.glob(f'{args.drive}-*.json') if read(p).get('stage') != 'complete']
+    pending = []
+    for p in CONTROL.glob(f'{args.drive}-*.json'):
+        item = read(p)
+        if item.get('stage') != 'complete':
+            pending.append(item)
     require(len(pending) <= 1, 'multiple unfinished operations require inspection')
     if pending:
         op = pending[0]
@@ -524,7 +530,7 @@ def operate(args):
             d.config()
         require(len({d.expected for d in dest.values()}) == 3, 'destination repository IDs must be distinct')
         contracts = module('offline_contracts', 'offline-contracts.py')
-        contracts.configure(legacy, backup_guard, canonical, require, HERE)
+        contracts.configure(legacy, backup_guard, canonical, require, HERE, CONTROL)
         # Fail before any multi-hour copy/read work if the encrypted restore
         # scratch filesystem is not available.
         preflight_scratch = contracts.vault_scratch()
@@ -558,7 +564,9 @@ def operate(args):
                 remaining += json.loads(source[dataset]('stats', current['id'], '--mode', 'restore-size', '--json'))['total_size']
             else:
                 require(len(existing) == 1, 'ambiguous destination checkpoint')
-        op['capacity'] = capacity(os.statvfs(mount_guard(record)), remaining)
+        mount = mount_guard(record)
+        usage = os.statvfs(mount)
+        op['capacity'] = capacity(usage, remaining)
         save(path, op)
         for dataset, frozen in op['selected'].items():
             d = dest[dataset]
@@ -590,12 +598,14 @@ def operate(args):
                 'snapshot_time': copied['time']}
             save(path, op)
         if (kind == 'enroll' or len(required) == 3) and not verification_complete(op):
-            op['verification'] = contracts.verify_all(dest, op, record, work)
+            op['verification'] = contracts.verify_all(dest, op, record)
             op['annual_verified_at'] = time.time()
             save(path, op)
         mount_guard(record)
         op['usage'] = {name: int(run('du', '-s', '-B1', d.repo).split()[0]) for name, d in dest.items()}
-        op['capacity']['free_after_bytes'] = os.statvfs(mount_guard(record)).f_bavail * os.statvfs(MOUNTS / args.drive).f_frsize
+        mount = mount_guard(record)
+        usage = os.statvfs(mount)
+        op['capacity']['free_after_bytes'] = usage.f_bavail * usage.f_frsize
         save(path, op)
         complete(op, path, record)
         if kind == 'enroll':

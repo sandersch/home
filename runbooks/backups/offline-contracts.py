@@ -22,9 +22,9 @@ _validated = set()
 class SnapshotNotEligible(RuntimeError):
     """Snapshot is outside the validated set and may be skipped during selection."""
 
-def configure(legacy_module, guard, path_guard, assertion, here):
-    global legacy, backup_guard, canonical, require, HERE
-    legacy, backup_guard, canonical, require, HERE = legacy_module, guard, path_guard, assertion, here
+def configure(legacy_module, guard, path_guard, assertion, here, control):
+    global legacy, backup_guard, canonical, require, HERE, CONTROL
+    legacy, backup_guard, canonical, require, HERE, CONTROL = legacy_module, guard, path_guard, assertion, here, control
 
 
 def stamp(value):
@@ -305,7 +305,7 @@ def verify_appstate(restic, snapshot, scratch):
             shutil.rmtree(sandbox)
 
 
-def verify_all(dest, op, record, work):
+def verify_all(dest, op, record):
     started = time.monotonic()
     # Check the encrypted scratch mount before starting potentially multi-hour
     # repository reads or attended restore verification.
@@ -354,7 +354,7 @@ def verify_all(dest, op, record, work):
         verify_appstate(dest['appstate'], snapshot, app)
     finally:
         shutil.rmtree(app)
-    scratch = Path(tempfile.mkdtemp(prefix='verify-', dir=Path('/mnt/backups/.control/offline')))
+    scratch = Path(tempfile.mkdtemp(prefix='verify-', dir=CONTROL))
     accepted = legacy_acceptance()
     candidate = load(legacy.CONTROL / 'candidate.json')
     require(candidate['snapshot_id'] == accepted['snapshot_id'] and candidate['repository_id'] == accepted['repository_id'],
