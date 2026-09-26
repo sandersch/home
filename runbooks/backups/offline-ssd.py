@@ -550,7 +550,10 @@ def operate(args):
             if not existing:
                 current = source_snapshot(source[dataset].snapshots(), frozen, checkpoint)
                 if dataset != 'legacy-rsnapshot':
-                    contracts.validate(source[dataset], dataset, current, fresh=True)
+                    # Freshness was required when this operation selected its
+                    # frozen snapshot. Resume validates identity, eligibility,
+                    # and contents without making the old selection expire.
+                    contracts.validate(source[dataset], dataset, current, fresh=False)
                 remaining += json.loads(source[dataset]('stats', current['id'], '--mode', 'restore-size', '--json'))['total_size']
             else:
                 require(len(existing) == 1, 'ambiguous destination checkpoint')
@@ -564,10 +567,14 @@ def operate(args):
                 s = source[dataset]
                 current = source_snapshot(s.snapshots(), frozen, checkpoint)
                 if checkpoint:
-                    contracts.validate(s, dataset, current, fresh=True)
-                    s('tag', '--add', checkpoint, current['id'])
+                    if 'offline-checkpoint' not in (current.get('tags') or []):
+                        # This operation froze the snapshot only after initial
+                        # freshness validation. A retry must be able to add its
+                        # retention tag after that window has elapsed.
+                        contracts.validate(s, dataset, current, fresh=False)
+                        s('tag', '--add', checkpoint, '--add', 'offline-checkpoint', current['id'])
                     current = resolve(s.snapshots(), frozen, checkpoint)
-                    contracts.validate(s, dataset, current, fresh=True)
+                    contracts.validate(s, dataset, current, fresh=False)
                     op['selected'][dataset]['tagged_id'] = current['id']
                     save(path, op)
                 d('copy', current['id'])

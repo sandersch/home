@@ -56,6 +56,7 @@ data:
     collect_candidates() {
       local repo="$1" password_file="$2" output="$3" raw="${3}.json"
       if ! RESTIC_PASSWORD_FILE="$password_file" restic -r "$repo" forget --dry-run --json --group-by host \
+        --keep-tag offline-checkpoint \
         --keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 24m \
         >"$raw"; then
         die "restic forget dry-run failed for $repo"

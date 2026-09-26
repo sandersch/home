@@ -127,7 +127,7 @@ gates run again because their completion was not recorded.
 
 Rerun the **same command and drive**. It resumes the recorded operation, including
 its original quarter and frozen snapshots; it never silently selects newer data.
-Do not delete pending operation records to bypass a failed freshness/eligibility gate.
+Do not delete pending operation records to bypass an eligibility or content-contract gate.
 After an interruption, the SSD may remain mounted. The CLI verifies that mount on
 retry. If stopping for the day, inspect the recorded device, run `sync -f` on the
 verified mount, and unmount normally; success remains pending. Never use lazy or
@@ -137,11 +137,15 @@ An interruption between `init` and recording the ID intentionally blocks automat
 adoption. Provisioning similarly records intent before formatting. Preserve the
 records and disk; investigate exact identity and partial state in a separately
 reviewed attended recovery. Do not reformat or manually invent enrollment IDs.
-A missing source checkpoint or stale source blocks only a copy that is not yet
-present on the SSD. On resume, an exact matching destination copy is revalidated
-against its frozen lineage and dataset contract without requiring the NAS source
-to remain fresh or present. Ambiguous lineage, a new vault validation hold, lost
-mount, or wrong identity remains a stop condition requiring operator action.
+A source must meet its 8-hour vault / 30-hour appstate freshness limit when first
+selected. That limit does not expire a recorded selection: on resume the tool checks
+the frozen lineage, vault eligibility, and full dataset contract without applying
+the selection-time age limit. An exact matching destination copy is likewise
+revalidated without requiring the NAS source to remain fresh or present. The
+quarterly checkpoint tag is accompanied by `offline-checkpoint`, which NAS vault
+retention keeps until an attended operation has copied it. Ambiguous lineage, a new
+vault validation hold, lost mount, or wrong identity remains a stop condition
+requiring operator action.
 
 A completed same-quarter rerun reports existing evidence without updating its time.
 A crash after normal unmount but before the durable completion write requires

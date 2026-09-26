@@ -144,8 +144,11 @@ def validate(restic, dataset, snapshot, fresh):
     if fresh:
         age = time.time() - stamp(snapshot['time'])
         require(-300 <= age <= (8 if dataset == 'vault' else 30) * 3600, 'source snapshot stale/future')
-        if dataset == 'vault':
-            eligibility(snapshot)
+    # Eligibility is a lineage/hold gate, not a freshness gate. A frozen
+    # operation may resume days later, but it must still be an eligible vault
+    # lineage and must still pass the content contract.
+    if dataset == 'vault':
+        eligibility(snapshot)
     key = (id(restic), snapshot['id'])
     if key in _validated:
         return None

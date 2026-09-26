@@ -198,6 +198,12 @@ own policy. Once safety gates pass, run prune even without new removal candidate
 interrupted forget/prune sequence can finish cleanup on retry. Only successful cleanup
 advances the retention timestamp.
 
+Vault NAS retention also uses `--keep-tag offline-checkpoint` to preserve the frozen
+source snapshot while an attended offline SSD copy is pending. The offline tool adds this
+tag together with its quarter-specific checkpoint tag before copying. Thus overnight
+interruptions do not turn a frozen selection into a missing source, and resume validates
+its lineage and content contract without repeating the original freshness window.
+
 The `appstate` rows are not a proposal — they record what
 `restic-nas-config.yaml` and `restic-b2-cronjob.yaml` already set, so the table describes
 the whole system rather than only the new half. Count-based arguments are kept there

@@ -419,7 +419,7 @@ class OperationTests(unittest.TestCase):
                 if args[0] == 'tag':
                     snapshot = next(s for s in fixture.snapshots[self.key] if s['id'] == args[-1])
                     snapshot.update(original=snapshot.get('original', snapshot['id']), id='f' + snapshot['id'][1:],
-                                    tags=[*snapshot['tags'], args[2]])
+                                    tags=[*snapshot['tags'], *[args[i + 1] for i, arg in enumerate(args[:-1]) if arg == '--add']])
                 if args[0] == 'copy':
                     snapshot = next(s for s in fixture.snapshots[self.source.key] if s['id'] == args[1])
                     fixture.snapshots[self.key].append({**snapshot})
