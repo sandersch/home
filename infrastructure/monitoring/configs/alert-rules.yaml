@@ -123,7 +123,7 @@ spec:
             summary: Local Restic backup is overdue
         - alert: ResticAppstateRetentionSkipped
           expr: |
-            (time() - homelab_restic_appstate_retention_skipped_timestamp_seconds{destination="nas"} > 30 * 60 * 60)
+            (time() - homelab_restic_appstate_retention_last_success_timestamp_seconds{destination="nas"} > 54 * 60 * 60)
             and on(destination)
               (homelab_restic_appstate_retention_skipped_timestamp_seconds{destination="nas"}
                 > homelab_restic_appstate_retention_last_success_timestamp_seconds{destination="nas"})
@@ -131,7 +131,7 @@ spec:
           labels:
             severity: warning
           annotations:
-            description: NAS appstate backup succeeded, but retention has remained skipped because offline SSD work holds the shared lock.
+            description: NAS appstate retention has not succeeded for more than 54 hours after a skip because offline SSD work holds the shared lock.
             summary: NAS appstate retention is overdue
         - alert: ResticB2BackupOverdue
           expr: |

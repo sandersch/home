@@ -10,7 +10,7 @@ import yaml
 
 root = Path(__file__).resolve().parents[2]
 source = yaml.safe_load((root / 'infrastructure/monitoring/configs/alert-rules.yaml').read_text())
-names = ['ResticBackupFailed', 'ResticPruneFailed', 'ResticVaultPruneOverdue']
+names = ['ResticBackupFailed', 'ResticPruneFailed', 'ResticVaultPruneOverdue', 'ResticAppstateRetentionSkipped']
 rules = {r['alert']: r for g in source['spec']['groups'] for r in g['rules'] if r.get('alert') in names}
 cron = '{namespace="monitoring",cronjob="restic-vault-prune"}'
 nas = '{dataset="vault",destination="nas"}'
@@ -88,6 +88,21 @@ for series in stale['input_series']:
 # Day-scale timelines evaluate every 15m (the shortest `for`) instead of every
 # minute; promtool runtime scales with the number of evaluation steps.
 long_tests = [stale]
+retention = '{destination="nas"}'
+retention_series = {
+    'homelab_restic_appstate_retention_last_success_timestamp_seconds' + retention: 1,
+    'homelab_restic_appstate_retention_skipped_timestamp_seconds' + retention: 2,
+}
+for name, labels, evaluations in [
+    ('one nightly skip is within grace', None, ('54h',)),
+    ('retention alert waits 15 minutes', None, ('54h15m',)),
+    ('repeated skips retain last success age', {}, ('54h30m',)),
+]:
+    retention_stale = case(name, retention_series, 'ResticAppstateRetentionSkipped', labels, evaluations)
+    retention_stale['interval'] = '15m'
+    for series in retention_stale['input_series']:
+        series['values'] = series['values'].replace('x40', 'x221')
+    long_tests.append(retention_stale)
 
 with tempfile.TemporaryDirectory(prefix='prune-alerts-') as directory:
     work = Path(directory)
