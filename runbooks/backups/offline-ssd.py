@@ -593,13 +593,19 @@ def _operate(args):
                 s = source[dataset]
                 current = source_snapshot(s.snapshots(), frozen, checkpoint)
                 if checkpoint:
-                    if checkpoint not in (current.get('tags') or []):
+                    current_tags = set(current.get('tags') or [])
+                    missing_tags = [value for value in (checkpoint, 'offline-checkpoint')
+                                    if value not in current_tags]
+                    if missing_tags:
                         # This operation froze the snapshot only after initial
-                        # freshness validation. A retry must be able to add its
-                        # retention tag after that window has elapsed.
+                        # freshness validation. A retry may need to restore either
+                        # tag after that window has elapsed.
                         contracts.validate(s, dataset, current, fresh=False)
-                        s('tag', '--add', checkpoint, '--add', 'offline-checkpoint', current['id'])
+                        arguments = [part for value in missing_tags for part in ('--add', value)]
+                        s('tag', *arguments, current['id'])
                     current = resolve(s.snapshots(), frozen, checkpoint)
+                    require('offline-checkpoint' in (current.get('tags') or []),
+                            'frozen source snapshot is missing its retention pin')
                     contracts.validate(s, dataset, current, fresh=False)
                     op['selected'][dataset]['tagged_id'] = current['id']
                     save(path, op)
