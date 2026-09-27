@@ -525,6 +525,7 @@ class OperationTests(unittest.TestCase):
         self.save_count = 0
         self.counter = 0
         self.inject_command = None
+        self.inject_before_command = None
         fixture = self
         class FakeRestic:
             def __init__(self, dataset, password, workspace, record=None, expected=None, source=None):
@@ -542,6 +543,9 @@ class OperationTests(unittest.TestCase):
                         tags=['legacy-rsnapshot'] if dataset == 'legacy-rsnapshot' else ['original']))
             def __call__(self, *args, **kwargs):
                 fixture.calls.append((self.key, args))
+                if fixture.inject_before_command == (self.dataset, args[0]) and not fixture.failed:
+                    fixture.failed = True
+                    raise RuntimeError('injected pre-commit interruption')
                 if args[0] == 'init':
                     self.repo.mkdir()
                 if args[0] == 'stats':
@@ -655,6 +659,37 @@ class OperationTests(unittest.TestCase):
                     m.operate(test.args)
                     self.assertTrue(test.pending()['success_at'])
                     self.assertTrue(all(len(test.snapshots['dst', d]) == 1 for d in m.DATASETS))
+                finally:
+                    test.doCleanups()
+
+    def test_tag_interruption_preserves_selection_when_new_snapshot_arrives(self):
+        for before in (True, False):
+            with self.subTest(before_commit=before):
+                test = OperationTests()
+                test.setUp()
+                try:
+                    if before:
+                        test.inject_before_command = ('vault', 'tag')
+                    else:
+                        test.inject_command = ('vault', 'tag')
+                    with self.assertRaisesRegex(RuntimeError, 'injected'):
+                        m.operate(test.args)
+                    selected = test.pending()['selected']
+                    self.assertEqual(set(selected), set(m.DATASETS))
+                    for dataset in m.DATASETS[:2]:
+                        self.assertEqual(selected[dataset]['lineage'],
+                                         str(m.DATASETS.index(dataset) + 1) * 64)
+                        snapshots = test.snapshots['src', dataset]
+                        newer = {**snapshots[0], 'id': '9' * 64,
+                                 'time': '2026-10-02T00:00:00Z', 'tags': ['original']}
+                        newer.pop('original', None)
+                        snapshots.insert(0, newer)
+                    m.operate(test.args)
+                    self.assertTrue(test.pending()['success_at'])
+                    for dataset in m.DATASETS[:2]:
+                        self.assertEqual(test.pending()['copies'][dataset]['lineage'],
+                                         selected[dataset]['lineage'])
+                        self.assertNotIn('offline-checkpoint', test.snapshots['src', dataset][0]['tags'])
                 finally:
                     test.doCleanups()
 
