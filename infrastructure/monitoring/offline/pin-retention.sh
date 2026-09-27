@@ -87,6 +87,8 @@ offline_pin_reconcile_and_release() {
           rm -f "$tmp"
           return 1
         fi
+        # mktemp inherits the job's group, which can differ from the record's.
+        chown "$(stat -c '%u:%g' "$record")" "$tmp" || { rm -f "$tmp"; return 1; }
         chmod 0600 "$tmp" || { rm -f "$tmp"; return 1; }
         mv -f "$tmp" "$record" || { rm -f "$tmp"; return 1; }
       fi

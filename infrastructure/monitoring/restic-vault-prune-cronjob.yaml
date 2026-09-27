@@ -52,7 +52,7 @@ spec:
                 runAsUser: 0
                 capabilities:
                   drop: [ALL]
-                  add: [DAC_OVERRIDE]
+                  add: [DAC_OVERRIDE, CHOWN]
               volumeMounts:
                 - {name: script, mountPath: /scripts, readOnly: true}
                 - {name: offline-retention, mountPath: /offline-retention, readOnly: true}

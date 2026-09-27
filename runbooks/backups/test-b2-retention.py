@@ -184,6 +184,10 @@ with tempfile.TemporaryDirectory(prefix='offline-pin-release-') as directory:
                                       'destination_id': copied_old}}}
     completed = records / 'A-enroll-2026-Q4.json'
     completed.write_text(json.dumps(operation))
+    # Exercise replacement when the record's group differs from mktemp's.
+    record_group = next((gid for gid in os.getgroups() if gid != os.getegid()), os.getegid())
+    os.chown(completed, os.geteuid(), record_group)
+    original_owner = (completed.stat().st_uid, completed.stat().st_gid)
     pending = records / 'B-enroll-2026-Q4.json'
     pending.write_text(json.dumps({**operation, 'stage': 'selected'}))
     stub = r'''set -Eeuo pipefail
@@ -219,6 +223,8 @@ restic() {
     pending.unlink()
     assert release(fail=True).returncode != 0
     assert release().returncode == 0, 'cleanup retry failed after snapshot ID changed'
+    assert (completed.stat().st_uid, completed.stat().st_gid) == original_owner, 'pin release changed operation ownership'
+    assert completed.stat().st_mode & 0o777 == 0o600, 'pin release changed operation permissions'
     assert (work / 'actions').read_text().splitlines() == ['tag']
     tags = json.loads(listing.read_text())[0]['tags']
     assert tags == ['vault', 'offline-checkpoint-2026-Q4']
