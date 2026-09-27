@@ -140,17 +140,19 @@ If `/mnt/backups/.legacy-rsnapshot-control` loses any of `enrollment.json`, `can
 `accepted.json` or the candidate inventory **while the original source tree still exists**,
 use `reconstruct`. It never backs up, initializes, or adopts a repository. Before the
 hours-long inventory it checks the `--snapshot` format, the evidence scope, that the source
-exists, and that every surviving record names the evidence repository and snapshot; a
-mismatched survivor is a stop for attended review. If `enrollment.json`, `candidate.json` and
-its inventory all survive, it refuses and `verify` is the right operation. Otherwise it
-requires:
+exists, and that every surviving record is readable and names the evidence repository and
+snapshot; an empty, truncated or mismatched survivor is a stop for attended review. If
+`enrollment.json`, `candidate.json` and its inventory all survive, it refuses and `verify` is
+the right operation. Otherwise it requires:
 
 - the repository `config` ID to match the committed sanitized evidence;
-- the repository to hold exactly one snapshot, the evidence snapshot ID;
+- the repository to hold exactly one snapshot, the evidence snapshot ID, with the archive's
+  source path, `minis` host and `legacy-rsnapshot` tag;
 - a source inventory whose entry count, per-type counts, unique-inode logical bytes and
   allocated bytes equal the evidence's `source_inventory` (the evidence's `block_device`
-  count is the inventory's `dev` type). A surviving candidate inventory is reused; otherwise
-  a fresh inventory is taken and recorded in place.
+  count is the inventory's `dev` type). A surviving candidate inventory is reused only if it
+  is a canonical, root-owned 0600 file under the control directory (anything else is a stop
+  for attended review); otherwise a fresh inventory is taken and recorded in place.
 
 Only then does it write whichever of `candidate.json` and `enrollment.json` are missing,
 candidate first, each marked `reconstructed` with the evidence file name, original

@@ -176,7 +176,9 @@ class ArchiveTests(unittest.TestCase):
         return evidence
 
     def reconstruct(self, sid, evidence, restic=None):
-        plan = m.reconstruct_plan(sid, evidence)
+        # Production requires root-owned control files; test callers may be unprivileged.
+        with patch.object(m, 'private_file'):
+            plan = m.reconstruct_plan(sid, evidence)
         records = m.Inventory(plan['inventory']) if plan['inventory'] else m.inventory(self.source)
         return m.reconstruct(restic or self.restic, sid, records, self.run, plan)
 
@@ -293,6 +295,54 @@ class ArchiveTests(unittest.TestCase):
             accepted = json.loads((self.control / 'accepted.json').read_text())
             self.assertEqual(accepted['source'], m.totals(self.records))
             self.assertEqual(accepted['reconstructed'], enrollment['reconstructed'])
+
+    def test_reconstruct_rejects_unreadable_surviving_records(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            original = json.loads((self.control / 'candidate.json').read_text())
+            evidence = self.lost_control_evidence(sid, lose=('enrollment',))
+            candidate = self.control / 'candidate.json'
+            for content, message in (('', 'unreadable or truncated'), ('{"snapshot_id": "', 'unreadable or truncated'),
+                                     (b'\xff', 'unreadable or truncated'), ('[]', 'not a record')):
+                candidate.write_bytes(content if isinstance(content, bytes) else content.encode())
+                with self.assertRaisesRegex(RuntimeError, message):
+                    m.reconstruct_plan(sid, evidence)
+            candidate.write_text(json.dumps({k: v for k, v in original.items() if k != 'inventory'}))
+            with self.assertRaisesRegex(RuntimeError, 'names no inventory'):
+                m.reconstruct_plan(sid, evidence)
+            self.assertFalse((self.control / 'enrollment.json').exists())
+
+    def test_reconstruct_rejects_untrusted_candidate_inventory(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            original = json.loads((self.control / 'candidate.json').read_text())
+            evidence = self.lost_control_evidence(sid, lose=('enrollment',))
+            outside = self.root / 'outside.sqlite'
+            shutil.copy(original['inventory'], outside)
+            for path, message in ((outside, 'outside the control directory'),
+                                  (self.control / 'alias.sqlite', 'noncanonical')):
+                if path != outside:
+                    path.symlink_to(original['inventory'])
+                m.save(self.control / 'candidate.json', dict(original, inventory=str(path)))
+                with self.assertRaisesRegex(RuntimeError, message):
+                    m.reconstruct_plan(sid, evidence)
+            loose = self.control / 'loose.sqlite'
+            shutil.copy(original['inventory'], loose)
+            loose.chmod(0o644)
+            with self.assertRaisesRegex(RuntimeError, 'root:root 0600'):
+                m.private_file(loose)
+            self.assertFalse((self.control / 'enrollment.json').exists())
+
+    def test_reconstruct_checks_snapshot_scope_before_writing(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            self.restic('tag', '--set', 'other', sid)
+            [retagged] = json.loads(self.restic('snapshots', '--json'))
+            evidence = self.lost_control_evidence(retagged['id'], lose=('enrollment', 'candidate'))
+            with self.assertRaisesRegex(RuntimeError, 'snapshot scope mismatch'):
+                self.reconstruct(retagged['id'], evidence)
+            self.assertFalse((self.control / 'candidate.json').exists())
+            self.assertFalse((self.control / 'enrollment.json').exists())
 
     def test_reconstruct_rejects_changed_source_and_extra_snapshots(self):
         with patch.object(m, 'private'):

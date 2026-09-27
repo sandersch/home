@@ -506,9 +506,7 @@ def finalize_existing_restore(sid, records, candidate, prior_run, prior_log,
                 and json.loads(path.read_text()).get('exit_code') == 0,
                 f'prior verification command did not succeed: {name}')
     snapshots = json.loads((prior_run / '02-snapshots.stdout').read_text())
-    require(len(snapshots) == 1 and snapshots[0]['id'] == sid
-            and snapshots[0]['paths'] == [str(SOURCE)] and snapshots[0]['hostname'] == 'minis'
-            and snapshots[0].get('tags') == ['legacy-rsnapshot'], 'prior snapshot scope mismatch')
+    require_snapshot_scope(snapshots, sid, 'prior snapshot scope mismatch')
     canonical(prior_log)
     require(prior_log.is_relative_to(CONTROL) and prior_log.stat().st_uid == 0
             and 'KeyError: \'\'' in prior_log.read_text(errors='replace'),
@@ -589,6 +587,12 @@ class Restic:
 
 
 
+def require_snapshot_scope(snapshots, sid, message='snapshot scope mismatch'):
+    require(len(snapshots) == 1 and snapshots[0]['id'] == sid
+            and snapshots[0]['paths'] == [str(SOURCE)] and snapshots[0]['hostname'] == 'minis'
+            and snapshots[0].get('tags') == ['legacy-rsnapshot'], message)
+
+
 def identity(restic, record):
     config = json.loads(restic('cat', 'config'))
     require(config['id'] == record['repository_id'] and config['version'] == 2,
@@ -639,6 +643,29 @@ def candidate_inventory(candidate):
     return path
 
 
+def surviving_record(name):
+    try:
+        record = json.loads((CONTROL / f'{name}.json').read_text())
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f'surviving {name}.json is unreadable or truncated; attended review required') from exc
+    require(isinstance(record, dict), f'surviving {name}.json is not a record; attended review required')
+    return record
+
+
+def private_file(path):
+    s = path.lstat()
+    require(stat.S_ISREG(s.st_mode) and (s.st_uid, s.st_gid, stat.S_IMODE(s.st_mode)) == (0, 0, 0o600),
+            f'expected root:root 0600 regular file: {path}')
+
+
+def reusable_inventory(path):
+    canonical(path)
+    require(path.is_relative_to(CONTROL),
+            f'surviving candidate inventory is outside the control directory; attended review required: {path}')
+    private_file(path)
+    return path
+
+
 def reconstruct_plan(sid, evidence_path):
     """Cheap checks before the hours-long inventory: evidence scope and surviving records."""
     require(SOURCE.is_dir() and not SOURCE.is_symlink(), 'source missing or substituted; attended review required')
@@ -647,18 +674,24 @@ def reconstruct_plan(sid, evidence_path):
             and evidence.get('source') == str(SOURCE) and evidence.get('repository') == str(REPO)
             and evidence.get('source_deleted') is False, 'evidence scope mismatch')
     require(sid == evidence.get('snapshot_id'), 'snapshot must equal committed evidence snapshot ID')
-    existing = {name: json.loads((CONTROL / f'{name}.json').read_text())
+    existing = {name: surviving_record(name)
                 for name in ('enrollment', 'candidate', 'accepted') if (CONTROL / f'{name}.json').exists()}
     for name, record in existing.items():
         require(record.get('repository_id') == evidence['repository_id']
                 and record.get('snapshot_id', sid) == sid,
                 f'surviving {name}.json does not match evidence; attended review required')
     candidate = existing.get('candidate')
-    inventory_path = Path(candidate['inventory']) if candidate else None
-    if inventory_path is not None and not inventory_path.is_file():
-        inventory_path = None
+    inventory_path = None
+    if candidate is not None:
+        require(isinstance(candidate.get('inventory'), str),
+                'surviving candidate.json names no inventory; attended review required')
+        inventory_path = Path(candidate['inventory'])
+        if not os.path.lexists(inventory_path):
+            inventory_path = None
     require(not ('enrollment' in existing and inventory_path is not None),
             'no control record lost; use verify' if 'accepted' not in existing else 'no control record lost')
+    if inventory_path is not None:
+        reusable_inventory(inventory_path)
     return dict(evidence=evidence, evidence_name=evidence_path.name, existing=existing,
                 inventory=inventory_path)
 
@@ -670,6 +703,8 @@ def reconstruct(restic, sid, records, run, plan, source_totals=None):
     identity(restic, record)
     snapshots = json.loads(restic('snapshots', '--json'))
     require([s['id'] for s in snapshots] == [sid], 'repository must contain exactly the accepted snapshot')
+    # Scope is checked again by verify; checking here fails closed before any record is written.
+    require_snapshot_scope(snapshots, sid)
     measured = source_totals or totals(records)
     recorded = dict(evidence['source_inventory'])
     recorded['types'] = {EVIDENCE_TYPES.get(k, k): v for k, v in recorded['types'].items()}
@@ -703,10 +738,7 @@ def verify(restic, sid, run, records=None, source_totals=None):
     identity(restic, enrollment)
     if records is None:
         records = Inventory(candidate_inventory(candidate))
-    snapshots = json.loads(restic('snapshots', '--json', sid))
-    require(len(snapshots) == 1 and snapshots[0]['id'] == sid
-            and snapshots[0]['paths'] == [str(SOURCE)] and snapshots[0]['hostname'] == 'minis'
-            and snapshots[0].get('tags') == ['legacy-rsnapshot'], 'snapshot scope mismatch')
+    require_snapshot_scope(json.loads(restic('snapshots', '--json', sid)), sid)
     restic('check', '--read-data')
     listing = restic('ls', '--json', sid)
     compare_listing(records, archived_inventory(listing, SOURCE))
