@@ -14,6 +14,7 @@ data:
   prune-vault.sh: |
     #!/usr/bin/env bash
     set -Eeuo pipefail
+    . /offline-retention/pin-retention.sh
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
     die() { log "ERROR: $*" >&2; exit 1; }
     restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
@@ -89,65 +90,8 @@ data:
       fi
     }
     release_offline_pins() {
-      local records=/repo/nas/.control/offline record snapshot_id lineage matches_count pinned
-      local operations=() releasable=/work/offline-releasable pending=/work/offline-pending
-      shopt -s nullglob
-      operations=("$records"/[AB]-*.json)
-      shopt -u nullglob
-      [ "${#operations[@]}" -gt 0 ] || return 0
-      for record in "${operations[@]}"; do
-        [ -f "$record" ] && [ ! -L "$record" ] || die "invalid offline operation record"
-      done
-      # Every reference must have durable clean-unmount evidence and a matching
-      # destination copy. Unknown or unfinished references keep the pin in place.
-      jq -s -r '
-        if all(.[]; (.selected | type == "object")) then . else error("invalid offline operation") end
-        | [.[] | select(.selected.vault != null)
-           | {lineage: .selected.vault.lineage,
-              released: (.stage == "complete" and .clean_unmount == true
-                         and (.success_at | type == "number")
-                         and .copies.vault.lineage == .selected.vault.lineage
-                         and (.copies.vault.destination_id | type == "string"))}]
-        | group_by(.lineage)[] | select(all(.[]; .released)) | .[0].lineage
-      ' "${operations[@]}" >"$releasable" || die "cannot read offline completion evidence"
       RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
-        restic -r "$source_repo" snapshots --json >/work/offline-source.json
-      jq -s -r '
-        if all(.[]; (.selected | type == "object")) then . else error("invalid offline operation") end
-        | [.[] | select(.selected.vault != null)
-           | {lineage: .selected.vault.lineage,
-              pending: ((.stage == "complete" and .clean_unmount == true
-                         and (.success_at | type == "number")
-                         and .copies.vault.lineage == .selected.vault.lineage
-                         and (.copies.vault.destination_id | type == "string")) | not)}]
-        | if all(.[]; ((.lineage | type) == "string" and (.lineage | test("^[0-9a-f]{64}$"))))
-          then . else error("invalid vault lineage in offline operation") end
-        | group_by(.lineage)[] | select(any(.[]; .pending)) | .[0].lineage
-      ' "${operations[@]}" >"$pending" || die "cannot read pending offline vault selections"
-      # Selection is persisted before tagging. Commit any missing retention
-      # pins first, so this same retention pass cannot delete a frozen source
-      # after an interrupted offline operation.
-      while IFS= read -r lineage; do
-        [ -n "$lineage" ] || continue
-        matches_count="$(jq --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)] | length' /work/offline-source.json)"
-        [ "$matches_count" -gt 0 ] || die "pending offline vault lineage is absent from NAS"
-        pinned="$(jq --arg lineage "$lineage" 'any(.[]; (.original // .id) == $lineage and ((.tags // []) | index("offline-checkpoint") != null))' /work/offline-source.json)"
-        if [ "$pinned" != true ]; then
-          snapshot_id="$(jq -er --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)][0].id' /work/offline-source.json)"
-          RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
-            restic -r "$source_repo" tag --add offline-checkpoint "$snapshot_id"
-        fi
-      done <"$pending"
-      RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
-        restic -r "$source_repo" snapshots --json >/work/offline-source.json
-      jq -r '.[] | select((.tags // []) | index("offline-checkpoint"))
-             | [.id, (.original // .id)] | @tsv' /work/offline-source.json >/work/offline-pins
-      while IFS=$'\t' read -r snapshot_id lineage; do
-        if grep -qxF "$lineage" "$releasable"; then
-          RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
-            restic -r "$source_repo" tag --remove offline-checkpoint "$snapshot_id"
-        fi
-      done </work/offline-pins
+        offline_pin_reconcile_and_release vault /repo/nas/.control/offline /work -r "$source_repo"
     }
     mount_record="$(awk '$5 == "/data/vault" { separator=0; for (field=7; field<=NF; field++) if ($field == "-") { separator=field; break }; if (separator>0) print $(separator+1) "\t" $(separator+2) }' /proc/self/mountinfo | tail -n1)"
     IFS=$'\t' read -r vault_fs vault_source <<<"$mount_record"
@@ -199,13 +143,6 @@ data:
     export AWS_ACCESS_KEY_ID="$b2_key_id"
     export AWS_SECRET_ACCESS_KEY="$b2_application_key"
     export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
-    # Serialize with attended offline operations across host/container namespaces.
-    # Hold through both retention passes; a busy operator makes this run retry later.
-    umask 0077
-    [ ! -L /repo/nas/.control/offline-retention.lock ] || die "invalid offline retention lock"
-    exec 9>>/repo/nas/.control/offline-retention.lock
-    flock -n 9 || { write_metrics 1 0 offline-active; log "offline operation active; skipping retention"; exit 0; }
-    release_offline_pins
     source_listing=/work/source.json
     destination_listing=/work/destination.json
     RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
@@ -265,6 +202,16 @@ data:
     [ "$destination_files" -ge $((baseline_files * minimum_retained_percent / 100)) ] \
       && [ "$destination_bytes" -ge $((baseline_bytes * minimum_retained_percent / 100)) ] \
       || { write_metrics 1 0 destination-baseline-tolerance; log "latest B2 snapshot is below the healthy baseline tolerance; skipping retention"; exit 0; }
+    # Keep expensive validation outside the shared lock. Serialize only pin
+    # reconciliation, candidate selection, and deletion with offline selection.
+    umask 0077
+    [ ! -L /repo/nas/.control/offline-retention.lock ] || die "invalid offline retention lock"
+    exec 9>>/repo/nas/.control/offline-retention.lock
+    flock -n 9 || { write_metrics 1 0 offline-active; log "offline selection/pinning is active; retry retention later"; exit 0; }
+    release_offline_pins
+    RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+      restic -r "$source_repo" snapshots --host minis-vault --json >"$source_listing"
+    restic -r "$VAULT_B2_REPOSITORY" snapshots --host minis-vault --json >"$destination_listing"
     collect_candidates "$source_repo" /data/vault/.backup-credentials/nas-password /work/source-candidates
     mapfile -t source_candidates < /work/source-candidates
     unreplicated=0
@@ -290,6 +237,7 @@ data:
       RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
         restic -r "$source_repo" forget --group-by host "${source_candidates[@]}"
     fi
+    flock -u 9
     # A previous run may have forgotten snapshots before cleanup was interrupted.
     RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
       restic -r "$source_repo" prune

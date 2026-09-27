@@ -28,8 +28,10 @@ under `/mnt/offline/{A,B}` and creates no backup schedule. `inspect` reports har
 signatures, mount use and existing enrollment; it does not change the device.
 The NAS backup-volume identity and sentinel guard must pass before control/source
 access. Restic uses two CPU threads, nice 19, idle I/O priority, a two-minute lock
-retry and a process lock. A conflicting production maintenance job may require a
-later retry. Never unlock a repository just to make this workflow proceed.
+retry and a process lock. Only password files use `/run`; Restic's cache is under
+the NAS offline-control directory and temporary files use disk-backed system temp.
+A conflicting production maintenance job may require a later retry. Never unlock a
+repository just to make this workflow proceed.
 
 ## Provision and enroll, one drive per session
 
@@ -78,12 +80,13 @@ later retry. Never unlock a repository just to make this workflow proceed.
    `clean_unmount: true`, and a genuine success timestamp. Only success after `sync`
    and normal unmount counts. Return A off-site, then repeat the entire session for B.
 
-Private restore scratch needed for attended inspection is retained for deliberate
-cleanup. Vault scratch stays on the encrypted vault. Appstate verification scratch,
+Private restore scratch needed for attended inspection is kept only until that prompt
+finishes. Vault scratch stays on the encrypted vault. Appstate verification scratch,
 including the disposable MariaDB data directory and imported RomM SQL, is created on
 the encrypted vault and removed immediately after verification (including on failure)
-because appstate restores contain plaintext Kubernetes Secrets. Legacy scratch lives under
-`/mnt/backups/.control/offline/verify-*`. Do not commit scratch, inventories, private
+because appstate restores contain plaintext Kubernetes Secrets. Legacy verification
+listings, inventories, and samples live temporarily under `/mnt/backups/.control/offline/verify-*`
+and are removed on success or failure. Do not commit scratch, inventories, private
 paths, passwords, raw command logs, or document names. The source legacy inventory,
 `candidate.json` and `accepted.json` must remain available for future verification,
 even after any separately authorized retirement of the original rsnapshot tree.
@@ -156,8 +159,10 @@ missing generic pin from an unfinished operation's durable selection record, cov
 a stop between recording the selection and committing its Restic tag. Interrupted
 cleanup retries safely. B2 ignores inherited
 generic tags and keeps any lineage still on NAS. Both retention paths and attended
-operations share a lock; a busy job stops or fails before it can prune and can be retried
-later. Ambiguous lineage, a new
+operations share a lock around frozen selection, pin reconciliation, and snapshot
+forget. Full data checks and repository garbage collection run outside that lock. A
+busy job stops or fails before snapshot deletion and can be retried later. Ambiguous
+lineage, a new
 vault validation hold, lost mount, or wrong identity remains a stop condition
 requiring operator action.
 

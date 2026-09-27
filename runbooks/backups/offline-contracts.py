@@ -22,9 +22,19 @@ _validated = set()
 class SnapshotNotEligible(RuntimeError):
     """Snapshot is outside the validated set and may be skipped during selection."""
 
-def configure(legacy_module, guard, path_guard, assertion, here, control):
-    global legacy, backup_guard, canonical, require, HERE, CONTROL
+def configure(legacy_module, guard, path_guard, assertion, here, control, freeze_snapshot=None):
+    global legacy, backup_guard, canonical, require, HERE, CONTROL, freeze
     legacy, backup_guard, canonical, require, HERE, CONTROL = legacy_module, guard, path_guard, assertion, here, control
+    freeze = freeze_snapshot or freeze
+
+
+def freeze(snapshot):
+    snapshot_id = snapshot['id']
+    require(re.fullmatch(r'[0-9a-f]{64}', snapshot_id) is not None, 'full snapshot ID required')
+    lineage = snapshot.get('original') or snapshot_id
+    require(re.fullmatch(r'[0-9a-f]{64}', lineage) is not None, 'invalid snapshot lineage')
+    return {**{k: snapshot[k] for k in ('id', 'time', 'hostname', 'paths', 'tree')},
+            'tags': snapshot.get('tags') or [], 'lineage': lineage}
 
 
 def stamp(value):
@@ -106,7 +116,7 @@ def vault(restic, snapshot):
     require(f'vault-contract-version={name.removeprefix("vault-v")}' in sentinel
             and f'filesystem-uuid={manifest["filesystem_uuid"]}' in sentinel, 'vault sentinel mismatch')
     # KDBX is binary; inspect without decoding and without plaintext filesystem scratch.
-    with tempfile.TemporaryFile(dir=restic.workspace) as out:
+    with tempfile.TemporaryFile(dir=CONTROL) as out:
         restic('dump', sid, '/data/vault/credentials/strongbox/ccs.kdbx', output=out)
         require(out.tell() == measured[0]['bytes'], 'KDBX size mismatch')
         out.seek(0)
@@ -172,8 +182,7 @@ def select(restic, dataset):
         elif snapshot['hostname'] != 'minis' or not {'opt', 'nas'} <= set(snapshot.get('tags', [])):
             continue
         validate(restic, dataset, snapshot, fresh=True)
-        return {**{k: snapshot[k] for k in ('id', 'time', 'hostname', 'paths', 'tree')},
-                'tags': snapshot.get('tags') or [], 'lineage': snapshot.get('original') or snapshot['id']}
+        return freeze(snapshot)
     raise RuntimeError(f'no eligible {dataset} snapshot')
 
 
@@ -246,43 +255,41 @@ def verify_appstate(restic, snapshot, scratch):
     # An isolated local server imports untrusted restored SQL without network access.
     # SQL is untrusted: keep the server unprivileged and give it a private mount,
     # PID, IPC, and network namespace with only this disposable tree writable.
-    # Keep the bind source under /tmp so mysql can traverse its ancestors even
-    # when the restored snapshot's scratch directory is intentionally mode 0700.
-    sandbox = Path(tempfile.mkdtemp(prefix='offline-mariadb-', dir='/tmp'))
-    sandbox.chmod(0o711)
-    dbdir = sandbox / 'data'
-    dbdir.mkdir(mode=0o700)
-    sql_files = sandbox / 'sql-files'
-    sql_files.mkdir(mode=0o700)
-    socket = sandbox / 'mariadb.sock'
-    subprocess.run(['mariadb-install-db', '--no-defaults', '--datadir=' + str(dbdir), '--user=mysql'],
-                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    for path in (dbdir, sql_files):
-        shutil.chown(path, user='mysql', group='mysql')
-    mysql_uid = pwd.getpwnam('mysql').pw_uid
-    mysql_gid = grp.getgrnam('mysql').gr_gid
-    def mysql_identity():
-        os.setgroups([])
-        os.setgid(mysql_gid)
-        os.setuid(mysql_uid)
-    shutil.chown(sandbox, user='mysql', group='mysql')
-    log_path = scratch / 'mariadb.log'
-    with log_path.open('w') as log:
-        # No user namespace: it would leave the host mysql UID unmapped, so the
-        # data directory is inaccessible. mariadbd starts as root with only the
-        # capabilities needed to enter the datadir and drop to mysql; setuid
-        # clears them before any restored SQL is read.
-        server = subprocess.Popen(['bwrap', '--die-with-parent', '--unshare-ipc', '--unshare-pid',
-                   '--unshare-net', '--unshare-uts', '--unshare-cgroup-try', '--ro-bind', '/', '/',
-                   '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/tmp/sandbox',
-                   '--bind', str(sandbox), '/tmp/sandbox', '--chdir', '/tmp/sandbox',
-                   '--cap-add', 'CAP_DAC_OVERRIDE', '--cap-add', 'CAP_SETUID', '--cap-add', 'CAP_SETGID',
-                   'mariadbd', '--no-defaults', '--user=mysql',
-                   '--datadir=/tmp/sandbox/data', '--socket=/tmp/sandbox/mariadb.sock',
-                   '--pid-file=/tmp/sandbox/mariadb.pid', '--skip-networking', '--local-infile=0',
-                   '--tmpdir=/tmp/sandbox/sql-files', '--secure-file-priv=/tmp/sandbox/sql-files'],
-                   stdout=log, stderr=log)
-        try:
+    # Keep the restored SQL and MariaDB datadir on the verified encrypted vault.
+    sandbox = Path(tempfile.mkdtemp(prefix='offline-mariadb-', dir=scratch))
+    server = None
+    try:
+        sandbox.chmod(0o711)
+        dbdir = sandbox / 'data'
+        dbdir.mkdir(mode=0o700)
+        sql_files = sandbox / 'sql-files'
+        sql_files.mkdir(mode=0o700)
+        socket = sandbox / 'mariadb.sock'
+        subprocess.run(['mariadb-install-db', '--no-defaults', '--datadir=' + str(dbdir), '--user=mysql'],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        for path in (dbdir, sql_files):
+            shutil.chown(path, user='mysql', group='mysql')
+        mysql_uid = pwd.getpwnam('mysql').pw_uid
+        mysql_gid = grp.getgrnam('mysql').gr_gid
+        def mysql_identity():
+            os.setgroups([])
+            os.setgid(mysql_gid)
+            os.setuid(mysql_uid)
+        shutil.chown(sandbox, user='mysql', group='mysql')
+        log_path = scratch / 'mariadb.log'
+        with log_path.open('w') as log:
+            # No user namespace: it would leave the host mysql UID unmapped, so
+            # mariadbd starts with only the capabilities needed to drop to mysql.
+            server = subprocess.Popen(['bwrap', '--die-with-parent', '--unshare-ipc', '--unshare-pid',
+                       '--unshare-net', '--unshare-uts', '--unshare-cgroup-try', '--ro-bind', '/', '/',
+                       '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/tmp/sandbox',
+                       '--bind', str(sandbox), '/tmp/sandbox', '--chdir', '/tmp/sandbox',
+                       '--cap-add', 'CAP_DAC_OVERRIDE', '--cap-add', 'CAP_SETUID', '--cap-add', 'CAP_SETGID',
+                       'mariadbd', '--no-defaults', '--user=mysql',
+                       '--datadir=/tmp/sandbox/data', '--socket=/tmp/sandbox/mariadb.sock',
+                       '--pid-file=/tmp/sandbox/mariadb.pid', '--skip-networking', '--local-infile=0',
+                       '--tmpdir=/tmp/sandbox/sql-files', '--secure-file-priv=/tmp/sandbox/sql-files'],
+                       stdout=log, stderr=log)
             ready = False
             for _ in range(100):
                 if socket.exists():
@@ -307,13 +314,19 @@ def verify_appstate(restic, snapshot, scratch):
             require(int(count) > 0, 'RomM import empty')
             subprocess.run(['mariadb-check', '--no-defaults', '--socket=' + str(socket), '--user=mysql', '--databases', 'romm'],
                            check=True, stdout=log, stderr=log, preexec_fn=mysql_identity)
+    finally:
+        try:
+            if server is not None:
+                try:
+                    server.terminate()
+                except ProcessLookupError:
+                    pass
+                try:
+                    server.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    server.kill()
+                    server.wait()
         finally:
-            server.terminate()
-            try:
-                server.wait(timeout=30)
-            except subprocess.TimeoutExpired:
-                server.kill()
-                server.wait()
             shutil.rmtree(sandbox)
 
 
@@ -369,23 +382,23 @@ def verify_all(dest, op, record):
     finally:
         shutil.rmtree(app)
     scratch = Path(tempfile.mkdtemp(prefix='verify-', dir=CONTROL))
-    accepted = legacy_acceptance()
-    candidate = load(legacy.CONTROL / 'candidate.json')
-    require(candidate['snapshot_id'] == accepted['snapshot_id'] and candidate['repository_id'] == accepted['repository_id'],
-            'legacy acceptance/candidate mismatch')
-    canonical(Path(candidate['inventory']))
-    records = legacy.Inventory(candidate['inventory'])
-    expected = op['copies'].get('legacy-rsnapshot', record.get('legacy'))
-    require(expected is not None, 'legacy destination identity missing')
-    sid = expected['destination_id']
-    matches = [s for s in dest['legacy-rsnapshot'].snapshots() if s['id'] == sid]
-    require(len(matches) == 1 and (matches[0].get('original') or sid) == expected['lineage'], 'legacy checkpoint substituted')
-    archive_scratch = scratch / 'legacy'
-    archive_scratch.mkdir(mode=0o700)
-    # Inventory scratch belongs to this operation, never the accepted NAS archive.
-    original_control = legacy.CONTROL
-    legacy.CONTROL = archive_scratch
     try:
+        accepted = legacy_acceptance()
+        candidate = load(legacy.CONTROL / 'candidate.json')
+        require(candidate['snapshot_id'] == accepted['snapshot_id'] and candidate['repository_id'] == accepted['repository_id'],
+                'legacy acceptance/candidate mismatch')
+        canonical(Path(candidate['inventory']))
+        records = legacy.Inventory(candidate['inventory'])
+        expected = op['copies'].get('legacy-rsnapshot', record.get('legacy'))
+        require(expected is not None, 'legacy destination identity missing')
+        sid = expected['destination_id']
+        matches = [s for s in dest['legacy-rsnapshot'].snapshots() if s['id'] == sid]
+        require(len(matches) == 1 and (matches[0].get('original') or sid) == expected['lineage'], 'legacy checkpoint substituted')
+        archive_scratch = scratch / 'legacy'
+        archive_scratch.mkdir(mode=0o700)
+        # Inventory scratch belongs to this operation, never the accepted NAS archive.
+        original_control = legacy.CONTROL
+        legacy.CONTROL = archive_scratch
         def archived(*args):
             if args[0] == 'ls':
                 path = archive_scratch / ('listing.jsonl' if '--json' in args else 'listing.txt')
@@ -394,11 +407,14 @@ def verify_all(dest, op, record):
                 return path
             return dest['legacy-rsnapshot'](*args)
         legacy.verify_destination(archived, sid, records, accepted, archive_scratch)
-    finally:
         legacy.CONTROL = original_control
-    print(f'Inspect representative legacy history in {archive_scratch}; scratch is retained for attended cleanup.')
-    require(input('After inspecting restored historical content, type VERIFIED: ') == 'VERIFIED',
-            'legacy manual verification incomplete')
+        print(f'Inspect representative legacy history in {archive_scratch}; scratch is removed when verification ends.')
+        require(input('After inspecting restored historical content, type VERIFIED: ') == 'VERIFIED',
+                'legacy manual verification incomplete')
+    finally:
+        if 'original_control' in locals():
+            legacy.CONTROL = original_control
+        shutil.rmtree(scratch)
 
     return {'repositories': checks, 'vault_restore_and_strongbox': 'passed',
             'appstate_exports_and_romm_import': 'passed', 'legacy_evidence_and_manual_inspection': 'passed',

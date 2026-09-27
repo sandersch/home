@@ -18,6 +18,7 @@ fi
 
 files=(
   infrastructure/monitoring/restic-mount-guard.yaml
+  infrastructure/monitoring/restic-nas-config.yaml
   infrastructure/monitoring/restic-vault-config.yaml
   infrastructure/monitoring/restic-vault-copy-config.yaml
   infrastructure/monitoring/restic-vault-prune-config.yaml
@@ -35,6 +36,7 @@ for relative in "${files[@]}"; do
 done
 
 host_scripts=(
+  infrastructure/monitoring/offline/pin-retention.sh
   host/minis/usr/local/sbin/backups-mountpoint-guard
   host/minis/usr/local/sbin/vault-ingest-promote
   host/minis/usr/local/sbin/vault-mountpoint-guard

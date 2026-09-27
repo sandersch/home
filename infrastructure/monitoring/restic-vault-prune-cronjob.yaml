@@ -55,6 +55,7 @@ spec:
                   add: [DAC_OVERRIDE]
               volumeMounts:
                 - {name: script, mountPath: /scripts, readOnly: true}
+                - {name: offline-retention, mountPath: /offline-retention, readOnly: true}
                 - {name: vault-scripts, mountPath: /vault-scripts, readOnly: true}
                 - {name: contract, mountPath: /contracts, readOnly: true}
                 - {name: guard, mountPath: /guards, readOnly: true}
@@ -67,6 +68,8 @@ spec:
           volumes:
             - name: script
               configMap: {name: restic-vault-prune-config, defaultMode: 0555}
+            - name: offline-retention
+              configMap: {name: restic-offline-retention, defaultMode: 0444}
             - name: vault-scripts
               configMap: {name: restic-vault-config, defaultMode: 0555}
             - name: contract

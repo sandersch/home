@@ -180,6 +180,20 @@ def restic_failure(result, args, passwords):
     return message + (f':\n{detail[:3000]}' if detail else '')
 
 
+@contextmanager
+def retention_lock():
+    """Serialize only source selection/pinning and retention reconciliation."""
+    lock_path = CONTROL.parent / 'offline-retention.lock'
+    backup_guard()
+    canonical(lock_path)
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'w') as lock:
+        secure(lock_path, 0o600, group=False)
+        require(stat.S_ISREG(os.fstat(lock.fileno()).st_mode), 'unsafe offline retention lock')
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        yield
+
+
 def tree_nodes(tree):
     yield tree
     for child in tree.get('children', []):
@@ -315,9 +329,12 @@ class Restic:
             for child in self.repo.iterdir():
                 info = child.lstat()
                 require(not stat.S_ISLNK(info.st_mode), 'repository symlink substitution')
-        env = {k: v for k, v in os.environ.items() if not k.startswith('RESTIC_')}
-        env.update(RESTIC_PASSWORD_FILE=str(self.password), RESTIC_CACHE_DIR=str(self.workspace / 'cache'),
-                   TMPDIR=str(self.workspace), GOMAXPROCS='2')
+        cache = CONTROL / 'cache'
+        if not cache.exists():
+            cache.mkdir(mode=0o700)
+        secure(cache)
+        env = {k: v for k, v in os.environ.items() if not k.startswith('RESTIC_') and k != 'TMPDIR'}
+        env.update(RESTIC_PASSWORD_FILE=str(self.password), RESTIC_CACHE_DIR=str(cache), GOMAXPROCS='2')
         fds = []
         try:
             def pinned(path):
@@ -340,8 +357,9 @@ class Restic:
             # Avoid buffering large dumps/listings in RAM when a caller supplies a file.
             result = subprocess.run([*argv, *map(str, args)], env=env, pass_fds=fds,
                                     stdout=output or subprocess.PIPE, stderr=subprocess.PIPE)
-            require(result.returncode == 0,
-                    restic_failure(result, args, [self.password] + ([self.source.password] if self.source else [])))
+            if result.returncode != 0:
+                raise RuntimeError(restic_failure(
+                    result, args, [self.password] + ([self.source.password] if self.source else [])))
             return result.stdout.decode() if output is None else None
         finally:
             for fd in fds:
@@ -462,17 +480,7 @@ def complete(op, path, record):
 
 
 def operate(args):
-    # Shared with vault retention while selecting and copying frozen lineages.
-    lock_path = CONTROL.parent / 'offline-retention.lock'
-    backup_guard()
-    canonical(lock_path)
-    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, 'w') as lock:
-        # The prune container uses GID 65534; mode 0600 gives only root access.
-        secure(lock_path, 0o600, group=False)
-        require(stat.S_ISREG(os.fstat(lock.fileno()).st_mode), 'unsafe offline retention lock')
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        _operate(args)
+    _operate(args)
 
 
 def _operate(args):
@@ -552,25 +560,52 @@ def _operate(args):
             d.config()
         require(len({d.expected for d in dest.values()}) == 3, 'destination repository IDs must be distinct')
         contracts = module('offline_contracts', 'offline-contracts.py')
-        contracts.configure(legacy, backup_guard, canonical, require, HERE, CONTROL)
+        contracts.configure(legacy, backup_guard, canonical, require, HERE, CONTROL, freeze)
         # Fail before any multi-hour copy/read work if the encrypted restore
         # scratch filesystem is not available.
         preflight_scratch = contracts.vault_scratch()
         shutil.rmtree(preflight_scratch)
-        if not op['selected']:
-            for dataset in DATASETS[:2]:
-                op['selected'][dataset] = contracts.select(source[dataset], dataset)
-            if kind == 'enroll':
-                accepted = contracts.legacy_acceptance()
-                snapshots = source['legacy-rsnapshot'].snapshots()
-                selected = [s for s in snapshots if s['id'] == accepted['snapshot_id']]
-                require(len(selected) == 1 and accepted['repository_id'] == source['legacy-rsnapshot'].expected,
-                        'accepted exact legacy source ID missing/substituted')
-                require(selected[0]['hostname'] == 'minis' and selected[0]['paths'] == [str(legacy.SOURCE)]
-                        and selected[0].get('tags') == ['legacy-rsnapshot'], 'legacy snapshot scope mismatch')
-                op['selected']['legacy-rsnapshot'] = freeze(selected[0])
-            op['stage'] = 'selected'
-            save(path, op)
+        with retention_lock():
+            if not op['selected']:
+                for dataset in DATASETS[:2]:
+                    op['selected'][dataset] = contracts.select(source[dataset], dataset)
+                if kind == 'enroll':
+                    accepted = contracts.legacy_acceptance()
+                    snapshots = source['legacy-rsnapshot'].snapshots()
+                    selected = [s for s in snapshots if s['id'] == accepted['snapshot_id']]
+                    require(len(selected) == 1 and accepted['repository_id'] == source['legacy-rsnapshot'].expected,
+                            'accepted exact legacy source ID missing/substituted')
+                    require(selected[0]['hostname'] == 'minis' and selected[0]['paths'] == [str(legacy.SOURCE)]
+                            and selected[0].get('tags') == ['legacy-rsnapshot'], 'legacy snapshot scope mismatch')
+                    op['selected']['legacy-rsnapshot'] = freeze(selected[0])
+                op['stage'] = 'selected'
+                save(path, op)
+            tag = 'offline-checkpoint-' + op['quarter']
+            for dataset, frozen in op['selected'].items():
+                if dataset == 'legacy-rsnapshot':
+                    continue
+                destination_matches = [s for s in dest[dataset].snapshots()
+                                       if matches(s, frozen, tag)]
+                source_snapshots = source[dataset].snapshots()
+                current_matches = [s for s in source_snapshots if matches(s, frozen, tag)]
+                if not current_matches:
+                    current_matches = [s for s in source_snapshots if matches(s, frozen)]
+                if not current_matches:
+                    require(len(destination_matches) == 1,
+                            'missing or ambiguous frozen source and no completed destination copy')
+                    continue
+                current = resolve(current_matches, frozen)
+                contracts.validate(source[dataset], dataset, current, fresh=False)
+                missing_tags = [value for value in (tag, 'offline-checkpoint')
+                                if value not in (current.get('tags') or [])]
+                if missing_tags:
+                    arguments = [part for value in missing_tags for part in ('--add', value)]
+                    source[dataset]('tag', *arguments, current['id'])
+                    current = resolve(source[dataset].snapshots(), frozen, tag)
+                require('offline-checkpoint' in (current.get('tags') or []),
+                        'frozen source snapshot is missing its retention pin')
+                op['selected'][dataset]['tagged_id'] = current['id']
+                save(path, op)
         tag = 'offline-checkpoint-' + op['quarter']
         remaining = 0
         for dataset, frozen in op['selected'].items():
@@ -578,11 +613,6 @@ def _operate(args):
             existing = [s for s in dest[dataset].snapshots() if matches(s, frozen, checkpoint)]
             if not existing:
                 current = source_snapshot(source[dataset].snapshots(), frozen, checkpoint)
-                if dataset != 'legacy-rsnapshot':
-                    # Freshness was required when this operation selected its
-                    # frozen snapshot. Resume validates identity, eligibility,
-                    # and contents without making the old selection expire.
-                    contracts.validate(source[dataset], dataset, current, fresh=False)
                 remaining += json.loads(source[dataset]('stats', current['id'], '--mode', 'restore-size', '--json'))['total_size']
             else:
                 require(len(existing) == 1, 'ambiguous destination checkpoint')
@@ -598,22 +628,8 @@ def _operate(args):
                 s = source[dataset]
                 current = source_snapshot(s.snapshots(), frozen, checkpoint)
                 if checkpoint:
-                    current_tags = set(current.get('tags') or [])
-                    missing_tags = [value for value in (checkpoint, 'offline-checkpoint')
-                                    if value not in current_tags]
-                    if missing_tags:
-                        # This operation froze the snapshot only after initial
-                        # freshness validation. A retry may need to restore either
-                        # tag after that window has elapsed.
-                        contracts.validate(s, dataset, current, fresh=False)
-                        arguments = [part for value in missing_tags for part in ('--add', value)]
-                        s('tag', *arguments, current['id'])
-                    current = resolve(s.snapshots(), frozen, checkpoint)
                     require('offline-checkpoint' in (current.get('tags') or []),
                             'frozen source snapshot is missing its retention pin')
-                    contracts.validate(s, dataset, current, fresh=False)
-                    op['selected'][dataset]['tagged_id'] = current['id']
-                    save(path, op)
                 d('copy', current['id'])
             copied = resolve(d.snapshots(), frozen, checkpoint)
             if checkpoint:

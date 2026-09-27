@@ -158,6 +158,25 @@ class PolicyTests(unittest.TestCase):
             self.assertNotIn('secret value', message)
             self.assertLessEqual(len(message), 3100)
 
+    def test_successful_restic_call_does_not_read_password_files(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            repo = root / 'repo'
+            repo.mkdir()
+            password = root / 'password-must-not-be-read'
+            control = root / 'control'
+            control.mkdir()
+            with patch.object(m, 'CONTROL', control), \
+                    patch.object(m, 'SOURCES', {**m.SOURCES, 'vault': repo}), \
+                    patch.object(m, 'backup_guard'), \
+                    patch.object(m, 'secure'), \
+                    patch.object(m, 'repository_directory'), \
+                    patch.object(m.subprocess, 'run', return_value=types.SimpleNamespace(
+                        returncode=0, stdout=b'ok', stderr=b'')), \
+                    patch.object(Path, 'read_text', side_effect=AssertionError('password file read')):
+                restic = m.Restic('vault', password, root)
+                self.assertEqual(restic('cat', 'config'), 'ok')
+
     def test_lineage_requires_metadata_and_unique_match(self):
         s = dict(id='a' * 64, hostname='minis', paths=['/opt'], tree='d' * 64, time='2026-10-01T00:00:00Z', tags=['nas'])
         frozen = m.freeze(s)
@@ -233,7 +252,7 @@ class ContractTests(unittest.TestCase):
         self.ledger_root.mkdir()
         self.lineage = 'a' * 64
         (self.ledger_root / 'validated.jsonl').write_text(json.dumps({'lineage': self.lineage}) + '\n')
-        for name, value in [('VAULT_CONTROL', self.ledger_root), ('HERE', self.root)]:
+        for name, value in [('VAULT_CONTROL', self.ledger_root), ('HERE', self.root), ('CONTROL', self.root)]:
             p = patch.object(c, name, value)
             p.start(); self.addCleanup(p.stop)
         self.snapshot = dict(id=self.lineage, hostname='minis', paths=['/data/opt', '/work/hot-dumps'],
@@ -346,6 +365,18 @@ class ContractTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'stale'):
                 c.select(r, 'appstate')
 
+    def test_selection_uses_validated_freeze_contract(self):
+        snapshot = {**self.snapshot, 'tree': 'f' * 64}
+        r = Mock()
+        r.snapshots.return_value = [snapshot]
+        with patch.object(c, 'validate'):
+            r.snapshots.return_value = [{**snapshot, 'id': 'bad'}]
+            with self.assertRaisesRegex(RuntimeError, 'full snapshot ID'):
+                c.select(r, 'appstate')
+            r.snapshots.return_value = [{**snapshot, 'original': 'not-a-lineage'}]
+            with self.assertRaisesRegex(RuntimeError, 'lineage'):
+                c.select(r, 'appstate')
+
 
 
 class RealResticTests(unittest.TestCase):
@@ -361,8 +392,10 @@ class RealResticTests(unittest.TestCase):
         sources = {d: self.root / ('nas-' + d) for d in m.DATASETS}
         mounts = self.root / 'mounts'
         (mounts / 'A').mkdir(parents=True)
+        control = self.root / 'control'
+        control.mkdir()
         self.record = {'drive': 'A'}
-        for name, value in dict(SOURCES=sources, MOUNTS=mounts,
+        for name, value in dict(SOURCES=sources, MOUNTS=mounts, CONTROL=control,
                 BINARY=Path(os.environ.get('WORKSTATION_RESTIC', shutil.which('restic')))).items():
             self.patch(name, value)
         self.patch('backup_guard', lambda: None)
@@ -582,18 +615,23 @@ class OperationTests(unittest.TestCase):
         self.assertTrue(previous['clean_unmount'])
         self.assertEqual(len(previous['copies']), 3)
         self.assertEqual(m.read(self.path)['stage'], 'enrolled')
+        tag_indexes = [i for i, (_, args) in enumerate(self.calls) if args[0] == 'tag']
+        stats_indexes = [i for i, (_, args) in enumerate(self.calls) if args[0] == 'stats']
+        self.assertTrue(tag_indexes and stats_indexes and max(tag_indexes) < min(stats_indexes),
+                        'source pins must commit before capacity-estimation stats')
         calls = len(self.calls)
         m.operate(self.args)
         self.assertEqual(len(self.calls), calls)
         self.assertEqual(self.pending()['success_at'], previous['success_at'])
 
-    def test_retention_lock_blocks_operation_before_repository_access(self):
+    def test_retention_lock_blocks_selection_and_pinning(self):
         with (self.control.parent / 'offline-retention.lock').open('w') as lock:
             m.fcntl.flock(lock, m.fcntl.LOCK_EX | m.fcntl.LOCK_NB)
             with self.assertRaises(BlockingIOError):
                 m.operate(self.args)
-        self.assertEqual(self.calls, [])
-        self.assertEqual(self.pending(), {})
+        self.assertFalse(any(args[0] in ('snapshots', 'stats', 'tag', 'copy') for _, args in self.calls))
+        self.assertEqual(self.pending().get('selected'), {})
+        self.assertFalse(self.pending().get('success_at'))
 
     def test_copy_and_tag_interruptions_resume_existing_checkpoints(self):
         for dataset, command in [('vault', 'tag'), ('vault', 'copy'), ('appstate', 'copy'), ('legacy-rsnapshot', 'copy')]:

@@ -403,8 +403,8 @@ def samples(records):
     return sorted(selected)
 
 
-def restored_sample_checks(records, actual, scratch, *, accepted=None):
-    selected = samples(records)
+def restored_sample_checks(records, actual, scratch, *, accepted=None, selected=None):
+    selected = samples(records) if selected is None else selected
     groups = {}
     hashes = {}
     previous = accepted if accepted is not None else (
@@ -429,13 +429,7 @@ def restored_sample_checks(records, actual, scratch, *, accepted=None):
     return selected, hashes
 
 
-def restore_samples(restic, sid, records, selected, run, mount):
-    """Restore the representative sample after a complete, consistent capacity estimate."""
-    includes = run / 'includes.txt'
-    with includes.open('w') as out:
-        for relative in selected:
-            require('\n' not in relative and '\r' not in relative, 'unrepresentable sample name')
-            out.write('/' + ''.join('\\' + c if c in '\\*?[' else c for c in relative) + '\n')
+def restore_capacity(records, selected, mount):
     chosen = set(selected)
     directories = {p for p in chosen if records[p]['type'] == 'dir'}
     ancestors = {str(parent) for p in chosen for parent in Path(p).parents}
@@ -445,7 +439,16 @@ def restore_samples(restic, sid, records, selected, run, mount):
     usage = os.statvfs(mount)
     require(usage.f_bavail * usage.f_frsize > estimate * 1.2 + usage.f_blocks * usage.f_frsize * .1,
             'insufficient legacy restore capacity')
-    scratch = run / 'tree'
+
+
+def restore_samples(restic, sid, records, selected, run, mount, scratch_parent=None):
+    """Restore the representative sample after a complete, consistent capacity estimate."""
+    includes = run / 'includes.txt'
+    with includes.open('w') as out:
+        for relative in selected:
+            require('\n' not in relative and '\r' not in relative, 'unrepresentable sample name')
+            out.write('/' + ''.join('\\' + c if c in '\\*?[' else c for c in relative) + '\n')
+    scratch = (scratch_parent or run) / 'tree'
     scratch.mkdir(mode=0o700)
     restic('restore', sid + ':' + str(SOURCE), '--target', scratch, '--include-file', includes)
     return scratch
@@ -456,8 +459,9 @@ def verify_destination(restic, sid, records, accepted, run):
     compare_listing(records, archived_inventory(restic('ls', '--json', sid), SOURCE))
     compare_symlinks(restic, sid, records)
     selected = samples(records)
+    restore_capacity(records, selected, run)
     scratch = restore_samples(restic, sid, records, selected, run, run)
-    return restored_sample_checks(records, inventory(scratch), scratch, accepted=accepted)
+    return restored_sample_checks(records, inventory(scratch), scratch, accepted=accepted, selected=selected)
 
 
 def accept_verification(records, actual, sid, run, scratch, candidate):
@@ -633,11 +637,12 @@ def verify(restic, sid, run, records=None):
     compare_listing(records, archived_inventory(listing, SOURCE))
     compare_symlinks(restic, sid, records)
     selected = samples(records)
+    restore_capacity(records, selected, MOUNT)
     scratch_parent = Path(tempfile.mkdtemp(prefix='.legacy-rsnapshot-restore-', dir=MOUNT))
-    scratch = restore_samples(restic, sid, records, selected, scratch_parent, MOUNT)
+    scratch = restore_samples(restic, sid, records, selected, run, MOUNT, scratch_parent)
     restored = scratch
     actual = inventory(restored)
-    selected, hashes = restored_sample_checks(records, actual, restored)
+    selected, hashes = restored_sample_checks(records, actual, restored, selected=selected)
     if SOURCE.exists():
         require(inventory(SOURCE) == records, 'source changed since archive')
     report = dict(snapshot_id=sid, repository_id=candidate['repository_id'], restic_version='0.19.1',

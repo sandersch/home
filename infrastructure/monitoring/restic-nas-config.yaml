@@ -47,6 +47,7 @@ data:
       REQUIRED_SQLITE_DATABASES \
       HOME_ASSISTANT_TOKEN \
       ROMM_DB_PASSWORD
+    . /offline-retention/pin-retention.sh
 
     BACKUP_STARTED_EPOCH="$(date +%s)"
     WORK_DIR="${BACKUP_WORK_DIR:-/work}"
@@ -313,24 +314,7 @@ data:
     run_restic() {
       local target_tag="${RESTIC_TARGET_TAG:-nas}"
       local -a retention_args=()
-      local offline_control=/repo/nas/.control/offline
       local offline_lock=/repo/nas/.control/offline-retention.lock
-
-      # Offline SSD operations and vault retention use the same cross-process
-      # lock. Establish the control path before opening the lock so an offline
-      # operation cannot race the appstate forget step on first enrollment.
-      [ ! -L /repo/nas/.control ] && [ ! -L "$offline_control" ] \
-        || die "offline control path must not be a symlink"
-      umask 0077
-      mkdir -p "$offline_control"
-      chmod 0700 /repo/nas/.control "$offline_control"
-      [ ! -L "$offline_lock" ] || die "offline retention lock must not be a symlink"
-      : >>"$offline_lock"
-      [ -f "$offline_lock" ] && [ ! -L "$offline_lock" ] \
-        || die "offline retention lock is not a regular file"
-      chmod 0600 "$offline_lock"
-      exec 9>>"$offline_lock"
-      flock -n 9 || die "offline SSD operation is active; appstate backup will retry next schedule"
 
       [ -n "${RESTIC_KEEP_DAILY:-}" ] && retention_args+=(--keep-daily "$RESTIC_KEEP_DAILY")
       [ -n "${RESTIC_KEEP_WEEKLY:-}" ] && retention_args+=(--keep-weekly "$RESTIC_KEEP_WEEKLY")
@@ -349,6 +333,18 @@ data:
         /data/opt \
         "$HOT_DUMPS"
 
+      # Hold the shared lock only while reconciling pins and forgetting/pruning.
+      [ ! -L /repo/nas/.control ] || die "offline control path must not be a symlink"
+      umask 0077
+      mkdir -p /repo/nas/.control/offline
+      chmod 0700 /repo/nas/.control /repo/nas/.control/offline
+      [ ! -L "$offline_lock" ] || die "offline retention lock must not be a symlink"
+      : >>"$offline_lock"
+      [ -f "$offline_lock" ] && [ ! -L "$offline_lock" ] \
+        || die "offline retention lock is not a regular file"
+      chmod 0600 "$offline_lock"
+      exec 9>>"$offline_lock"
+      flock -n 9 || die "offline SSD selection/pinning is active; retry appstate retention next schedule"
       release_completed_appstate_pins
 
       log "applying Restic retention policy"
@@ -356,68 +352,13 @@ data:
         --host "$RESTIC_HOST" \
         --tag "$target_tag" \
         "${retention_args[@]}" \
-        --keep-tag offline-checkpoint \
-        --prune
+        --keep-tag offline-checkpoint
+      flock -u 9
+      restic prune
     }
 
     release_completed_appstate_pins() {
-      local records=/repo/nas/.control/offline record snapshot_id lineage matches_count pinned
-      local operations=() releasable=/work/offline-appstate-releasable pending=/work/offline-appstate-pending
-      shopt -s nullglob
-      operations=("$records"/[AB]-*.json)
-      shopt -u nullglob
-      [ "${#operations[@]}" -gt 0 ] || return 0
-      for record in "${operations[@]}"; do
-        [ -f "$record" ] && [ ! -L "$record" ] || die "invalid offline operation record"
-      done
-      # A lineage is releasable only when every operation that selected it has
-      # durable clean-unmount evidence and a matching SSD appstate copy.
-      jq -s -r '
-        if all(.[]; (.selected | type == "object")) then . else error("invalid offline operation") end
-        | [.[] | select(.selected.appstate != null)
-           | {lineage: .selected.appstate.lineage,
-              released: (.stage == "complete" and .clean_unmount == true
-                         and (.success_at | type == "number")
-                         and .copies.appstate.lineage == .selected.appstate.lineage
-                         and (.copies.appstate.destination_id | type == "string"))}]
-        | if all(.[]; ((.lineage | type) == "string" and (.lineage | test("^[0-9a-f]{64}$"))))
-          then . else error("invalid appstate lineage in offline operation") end
-        | group_by(.lineage)[] | select(all(.[]; .released)) | .[0].lineage
-      ' "${operations[@]}" >"$releasable" || die "cannot read offline appstate completion evidence"
-      restic snapshots --host "$RESTIC_HOST" --json >/work/offline-appstate-source.json
-      jq -s -r '
-        if all(.[]; (.selected | type == "object")) then . else error("invalid offline operation") end
-        | [.[] | select(.selected.appstate != null)
-           | {lineage: .selected.appstate.lineage,
-              pending: ((.stage == "complete" and .clean_unmount == true
-                         and (.success_at | type == "number")
-                         and .copies.appstate.lineage == .selected.appstate.lineage
-                         and (.copies.appstate.destination_id | type == "string")) | not)}]
-        | if all(.[]; ((.lineage | type) == "string" and (.lineage | test("^[0-9a-f]{64}$"))))
-          then . else error("invalid appstate lineage in offline operation") end
-        | group_by(.lineage)[] | select(any(.[]; .pending)) | .[0].lineage
-      ' "${operations[@]}" >"$pending" || die "cannot read pending offline appstate selections"
-      # Selection is persisted before tagging. Reconcile any pin interrupted
-      # before its Restic tag commit before retention can forget that lineage.
-      while IFS= read -r lineage; do
-        [ -n "$lineage" ] || continue
-        matches_count="$(jq --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)] | length' /work/offline-appstate-source.json)"
-        [ "$matches_count" -gt 0 ] || die "pending offline appstate lineage is absent from NAS"
-        pinned="$(jq --arg lineage "$lineage" 'any(.[]; (.original // .id) == $lineage and ((.tags // []) | index("offline-checkpoint") != null))' /work/offline-appstate-source.json)"
-        if [ "$pinned" != true ]; then
-          snapshot_id="$(jq -er --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)][0].id' /work/offline-appstate-source.json)"
-          restic tag --add offline-checkpoint "$snapshot_id"
-        fi
-      done <"$pending"
-      restic snapshots --host "$RESTIC_HOST" --json >/work/offline-appstate-source.json
-      jq -r '.[] | select((.tags // []) | index("offline-checkpoint"))
-             | [.id, (.original // .id)] | @tsv' \
-        /work/offline-appstate-source.json >/work/offline-appstate-pins
-      while IFS=$'\t' read -r snapshot_id lineage; do
-        if grep -qxF "$lineage" "$releasable"; then
-          restic tag --remove offline-checkpoint "$snapshot_id"
-        fi
-      done </work/offline-appstate-pins
+      offline_pin_reconcile_and_release appstate /repo/nas/.control/offline /work --host "$RESTIC_HOST"
     }
 
     dump_sqlite

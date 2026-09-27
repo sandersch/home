@@ -75,6 +75,9 @@ spec:
                 - name: backup-script
                   mountPath: /scripts
                   readOnly: true
+                - name: offline-retention
+                  mountPath: /offline-retention
+                  readOnly: true
                 - name: opt
                   mountPath: /data/opt
                   readOnly: true
@@ -98,6 +101,10 @@ spec:
                 items:
                   - key: backup.sh
                     path: backup.sh
+            - name: offline-retention
+              configMap:
+                name: restic-offline-retention
+                defaultMode: 0444
             - name: opt
               hostPath:
                 path: /opt

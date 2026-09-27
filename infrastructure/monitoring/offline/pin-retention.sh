@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+# Shared NAS pin reconciliation for appstate and vault Restic repositories.
+# Caller holds offline-retention.lock and sets credentials/repository context.
+offline_pin_reconcile_and_release() {
+  local dataset="$1" records="$2" work="$3" record lineage matches_count pinned snapshot_id can_release needs_pin
+  shift 3
+  local -a restic_args=("$@") operations=()
+  local releasable="$work/offline-releasable" pending="$work/offline-pending" references="$work/offline-references"
+  local listing="$work/offline-source.json"
+  shopt -s nullglob
+  operations=("$records"/[AB]-*.json)
+  shopt -u nullglob
+  [ "${#operations[@]}" -gt 0 ] || return 0
+  for record in "${operations[@]}"; do
+    [ -f "$record" ] && [ ! -L "$record" ] || { echo "invalid offline operation record: $record" >&2; return 1; }
+  done
+  jq -s -r --arg dataset "$dataset" '
+    if all(.[]; (.selected | type == "object")) then . else error("invalid offline operation") end
+    | [.[] | select(.selected[$dataset] != null)
+       | {lineage: .selected[$dataset].lineage,
+          released: (.stage == "complete" and .clean_unmount == true
+                     and (.success_at | type == "number")
+                     and .copies[$dataset].lineage == .selected[$dataset].lineage
+                     and (.copies[$dataset].destination_id | type == "string"))}]
+    | if all(.[]; ((.lineage | type) == "string" and (.lineage | test("^[0-9a-f]{64}$"))))
+      then . else error("invalid offline lineage") end
+    | group_by(.lineage)[]
+    | [.[0].lineage, (all(.[]; .released) | tostring), (any(.[]; (.released | not)) | tostring)]
+    | @tsv
+  ' "${operations[@]}" >"$references" || { echo "cannot read offline pin evidence" >&2; return 1; }
+  : >"$releasable"
+  : >"$pending"
+  while IFS=$'\t' read -r lineage can_release needs_pin; do
+    [ -n "$lineage" ] || continue
+    [ "$can_release" != true ] || printf '%s\n' "$lineage" >>"$releasable"
+    [ "$needs_pin" != true ] || printf '%s\n' "$lineage" >>"$pending"
+  done <"$references"
+
+  restic "${restic_args[@]}" snapshots --json >"$listing" || return 1
+  while IFS= read -r lineage; do
+    [ -n "$lineage" ] || continue
+    matches_count="$(jq --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)] | length' "$listing")" || return 1
+    # The destination copy may already be complete while NAS retention has
+    # legitimately removed its source. That does not block unrelated pruning.
+    [ "$matches_count" -gt 0 ] || continue
+    pinned="$(jq --arg lineage "$lineage" 'any(.[]; (.original // .id) == $lineage and ((.tags // []) | index("offline-checkpoint") != null))' "$listing")" || return 1
+    if [ "$pinned" != true ]; then
+      snapshot_id="$(jq -er --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)][0].id' "$listing")" || return 1
+      restic "${restic_args[@]}" tag --add offline-checkpoint "$snapshot_id" || return 1
+    fi
+  done <"$pending"
+
+  restic "${restic_args[@]}" snapshots --json >"$listing" || return 1
+  while IFS=$'\t' read -r snapshot_id lineage; do
+    [ -n "$snapshot_id" ] || continue
+    if grep -qxF "$lineage" "$releasable"; then
+      restic "${restic_args[@]}" tag --remove offline-checkpoint "$snapshot_id" || return 1
+    fi
+  done < <(jq -r '.[] | select((.tags // []) | index("offline-checkpoint"))
+                 | [.id, (.original // .id)] | @tsv' "$listing")
+}

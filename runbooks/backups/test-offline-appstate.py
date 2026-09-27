@@ -9,6 +9,7 @@ import sqlite3
 import subprocess
 import tarfile
 import tempfile
+from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('contracts', HERE / 'offline-contracts.py')
@@ -60,6 +61,22 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
                     paths=['/data/opt', '/work/hot-dumps'], time='2026-09-26T12:01:00Z')
     scratch = root / 'restored'
     scratch.mkdir(mode=0o700)
+    real_mkdtemp = tempfile.mkdtemp
+    sandbox_dirs = []
+    def track_sandbox(*args, **kwargs):
+        if kwargs.get('prefix') == 'offline-mariadb-':
+            sandbox_dirs.append(Path(kwargs['dir']))
+            require(Path(kwargs['dir']) == scratch, 'MariaDB scratch escaped the appstate restore tree')
+        return real_mkdtemp(*args, **kwargs)
+    with patch.object(c.tempfile, 'mkdtemp', side_effect=track_sandbox), \
+            patch.object(c.subprocess, 'run', side_effect=FileNotFoundError('injected setup failure')):
+        try:
+            c.verify_appstate(restic, snapshot, scratch)
+            raise AssertionError('injected MariaDB setup failure was ignored')
+        except FileNotFoundError as error:
+            require('injected setup failure' in str(error), 'unexpected setup failure')
+    require(sandbox_dirs == [scratch] and not list(scratch.glob('offline-mariadb-*')),
+            'MariaDB setup failure left plaintext scratch behind')
     c.verify_appstate(restic, snapshot, scratch)
     # Client commands must be refused before they can execute on the host.
     clean_dump = blobs['romm/romm.sql']

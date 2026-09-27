@@ -17,6 +17,10 @@ resources:
 - restic-verify-config.yaml
 - restic-verify-cronjob.yaml
 configMapGenerator:
+- name: restic-offline-retention
+  namespace: monitoring
+  files:
+  - pin-retention.sh=offline/pin-retention.sh
 - name: restic-vault-contract
   namespace: monitoring
   files:
