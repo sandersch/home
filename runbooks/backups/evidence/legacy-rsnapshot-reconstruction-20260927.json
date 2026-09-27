@@ -82,9 +82,14 @@
   },
   "pending": [
     "Separate attended review before any deletion of /mnt/backups/snapshots",
-    "Independent validation of a separate legacy-rsnapshot repository on each future offline SSD",
-    "Refresh or retire the stale helper copy at /usr/local/lib/legacy-rsnapshot/legacy-rsnapshot.py"
+    "Independent validation of a separate legacy-rsnapshot repository on each future offline SSD"
   ],
+  "helper_copy_retired": {
+    "path": "/usr/local/lib/legacy-rsnapshot/legacy-rsnapshot.py",
+    "sha256": "2bdc268564f65e8dc34a537443c35b0d3b0ef4f26e2f261fdf70cef0a649ff09",
+    "matches_commit": "732be888da506790df3c7eb7f16e42274b1ace9b",
+    "reason": "predates the reconstruction fixes; the runbook and offline tooling load the helper from the checkout"
+  },
   "limitations": [
     "The original enrollment time and the original candidate inventory were not recoverable; the reconstructed enrollment has no enrolled_at and the candidate inventory is a fresh 2026-09-27 inventory proven equal to the original evidence totals.",
     "Historical Unix sockets are not archived by Restic; their paths and metadata remain in the private local inventory.",

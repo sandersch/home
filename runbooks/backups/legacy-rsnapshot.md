@@ -7,9 +7,10 @@ same day with [`reconstruct`](#lost-control-records) and re-accepted after a ful
 including `check --read-data` and manual inspection; see the
 [reconstruction evidence](evidence/legacy-rsnapshot-reconstruction-20260927.json). The
 accepted repository and snapshot IDs, measured sizes, and original verification results are
-in the [sanitized evidence](evidence/legacy-rsnapshot-20260920.json). The helper is installed at
-`/usr/local/lib/legacy-rsnapshot/legacy-rsnapshot.py` on `minis`; checksum-verified Restic
-0.19.1 is installed alongside it. The operator confirmed that the source is retired,
+in the [sanitized evidence](evidence/legacy-rsnapshot-20260920.json). Run the helper from a
+reviewed checkout (`runbooks/backups/legacy-rsnapshot.py`); the installed copy used for the
+original archive was retired on 2026-09-27. Checksum-verified Restic 0.19.1 remains
+installed at `/usr/local/lib/legacy-rsnapshot/restic`. The operator confirmed that the source is retired,
 including remote writers, and approved an attended
 low-I/O window. A live scan found historical Unix sockets. The operator explicitly accepted
 Restic's inherent omission of those entries; their paths and metadata remain in the private
