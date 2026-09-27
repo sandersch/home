@@ -88,7 +88,22 @@
     "path": "/usr/local/lib/legacy-rsnapshot/legacy-rsnapshot.py",
     "sha256": "2bdc268564f65e8dc34a537443c35b0d3b0ef4f26e2f261fdf70cef0a649ff09",
     "matches_commit": "732be888da506790df3c7eb7f16e42274b1ace9b",
-    "reason": "predates the reconstruction fixes; the runbook and offline tooling load the helper from the checkout"
+    "reason": "predates the reconstruction fixes; the runbook and offline tooling load the helper from the checkout",
+    "also_removed": [
+      {
+        "path": "/usr/local/lib/legacy-rsnapshot/__pycache__/legacy-rsnapshot.cpython-312.pyc",
+        "note": "stale bytecode of the retired helper"
+      },
+      {
+        "path": "/usr/local/lib/legacy-rsnapshot/test-legacy-rsnapshot.py",
+        "sha256": "9889fa1c6cf4270d754394916e50caea4fa1051dbf9a36e5bec7532fbc9cd0ee",
+        "bytes": 10161,
+        "installed": "2026-09-20T14:19 (host local time)",
+        "matches_commit": null,
+        "note": "fixture-only test draft installed before commit 732be88; matched no committed version and is not recoverable. It was not referenced by any evidence or tooling; the committed 732be88 suite also contains 13 tests."
+      }
+    ],
+    "remaining": ["/usr/local/lib/legacy-rsnapshot/restic"]
   },
   "limitations": [
     "The original enrollment time and the original candidate inventory were not recoverable; the reconstructed enrollment has no enrolled_at and the candidate inventory is a fresh 2026-09-27 inventory proven equal to the original evidence totals.",
