@@ -66,7 +66,13 @@ def eligibility(snapshot):
 
 def nodes(restic, sid):
     # Vault/appstate are bounded relative to the 13-million-entry legacy archive.
-    key = (id(restic), sid)
+    repository = getattr(restic, 'repo', None)
+    if repository is None:
+        # Lightweight test doubles may change their listing between calls and
+        # do not identify a persistent repository to cache against.
+        return [n for line in restic('ls', '--json', sid).splitlines()
+                if (n := json.loads(line)).get('type') and n.get('path')]
+    key = (str(repository), sid)
     if key not in _node_cache:
         _node_cache[key] = [n for line in restic('ls', '--json', sid).splitlines()
                             if (n := json.loads(line)).get('type') and n.get('path')]
