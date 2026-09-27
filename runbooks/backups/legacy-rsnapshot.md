@@ -1,11 +1,13 @@
 # Legacy rsnapshot archive
 
 Status: the archive was accepted on 2026-09-20. The original tree remains in place pending a
-separate attended deletion review. **The private control records were found missing on
-2026-09-27** (the repository is intact); they must be recreated with
-[`reconstruct`](#lost-control-records) before offline SSD enrollment. The accepted repository and snapshot IDs, measured sizes,
-and verification results are in the
-[sanitized evidence](evidence/legacy-rsnapshot-20260920.json). The helper is installed at
+separate attended deletion review. The private control directory was found missing on
+2026-09-27 (cause undetermined; the repository was intact). Its records were recreated the
+same day with [`reconstruct`](#lost-control-records) and re-accepted after a full `verify`,
+including `check --read-data` and manual inspection; see the
+[reconstruction evidence](evidence/legacy-rsnapshot-reconstruction-20260927.json). The
+accepted repository and snapshot IDs, measured sizes, and original verification results are
+in the [sanitized evidence](evidence/legacy-rsnapshot-20260920.json). The helper is installed at
 `/usr/local/lib/legacy-rsnapshot/legacy-rsnapshot.py` on `minis`; checksum-verified Restic
 0.19.1 is installed alongside it. The operator confirmed that the source is retired,
 including remote writers, and approved an attended
