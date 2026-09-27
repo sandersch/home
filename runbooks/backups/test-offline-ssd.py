@@ -561,6 +561,7 @@ class OperationTests(unittest.TestCase):
                 return {'id': ('d' if self.record else 'a') + str(m.DATASETS.index(self.dataset)) * 63,
                         'version': 2, 'chunker_polynomial': 'same'}
             def snapshots(self):
+                fixture.calls.append((self.key, ('snapshots',)))
                 return list(fixture.snapshots[self.key])
         self.FakeRestic = FakeRestic
         from contextlib import contextmanager
