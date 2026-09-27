@@ -1,10 +1,8 @@
 """Offline eligibility and destination verification against released backup contracts."""
 import datetime as dt
-import grp
 import hashlib
 import json
 import os
-import pwd
 import shutil
 from pathlib import Path
 import re
@@ -256,8 +254,26 @@ def verify_appstate(restic, snapshot, scratch):
     # SQL is untrusted: keep the server unprivileged and give it a private mount,
     # PID, IPC, and network namespace with only this disposable tree writable.
     # Keep the restored SQL and MariaDB datadir on the verified encrypted vault.
+    # Its root-only 0700 ancestors stop the host mysql UID, so every MariaDB
+    # process reaches the tree only through this bind at /tmp/sandbox.
     sandbox = Path(tempfile.mkdtemp(prefix='offline-mariadb-', dir=scratch))
     server = None
+
+    def isolated(*command, caps=()):
+        # No user namespace: it would leave the host mysql UID unmapped, so each
+        # process starts as root with only the capabilities it needs.
+        return ['bwrap', '--die-with-parent', '--unshare-ipc', '--unshare-pid',
+                '--unshare-net', '--unshare-uts', '--unshare-cgroup-try', '--ro-bind', '/', '/',
+                '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/tmp/sandbox',
+                '--bind', str(sandbox), '/tmp/sandbox', '--chdir', '/tmp/sandbox',
+                *(arg for cap in caps for arg in ('--cap-add', cap)), *command]
+
+    def as_mysql(*command):
+        # Changing every UID away from root clears the capabilities used for the switch.
+        return isolated('setpriv', '--reuid=mysql', '--regid=mysql', '--clear-groups', '--inh-caps=-all',
+                        *command, caps=('CAP_SETUID', 'CAP_SETGID'))
+
+    socket_arg = '--socket=/tmp/sandbox/mariadb.sock'
     try:
         sandbox.chmod(0o711)
         dbdir = sandbox / 'data'
@@ -265,30 +281,21 @@ def verify_appstate(restic, snapshot, scratch):
         sql_files = sandbox / 'sql-files'
         sql_files.mkdir(mode=0o700)
         socket = sandbox / 'mariadb.sock'
-        subprocess.run(['mariadb-install-db', '--no-defaults', '--datadir=' + str(dbdir), '--user=mysql'],
-                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        for path in (dbdir, sql_files):
+        for path in (dbdir, sql_files, sandbox):
             shutil.chown(path, user='mysql', group='mysql')
-        mysql_uid = pwd.getpwnam('mysql').pw_uid
-        mysql_gid = grp.getgrnam('mysql').gr_gid
-        def mysql_identity():
-            os.setgroups([])
-            os.setgid(mysql_gid)
-            os.setuid(mysql_uid)
-        shutil.chown(sandbox, user='mysql', group='mysql')
+        # The read-only host root also keeps install-db's PAM helper ownership
+        # changes off the host; MariaDB treats those failures as warnings.
+        subprocess.run(isolated('mariadb-install-db', '--no-defaults', '--datadir=/tmp/sandbox/data', '--user=mysql',
+                                '--tmpdir=/tmp/sandbox/sql-files', caps=('CAP_CHOWN', 'CAP_DAC_OVERRIDE', 'CAP_FOWNER', 'CAP_SETUID', 'CAP_SETGID')),
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         log_path = scratch / 'mariadb.log'
         with log_path.open('w') as log:
-            # No user namespace: it would leave the host mysql UID unmapped, so
-            # mariadbd starts with only the capabilities needed to drop to mysql.
-            server = subprocess.Popen(['bwrap', '--die-with-parent', '--unshare-ipc', '--unshare-pid',
-                       '--unshare-net', '--unshare-uts', '--unshare-cgroup-try', '--ro-bind', '/', '/',
-                       '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/tmp/sandbox',
-                       '--bind', str(sandbox), '/tmp/sandbox', '--chdir', '/tmp/sandbox',
-                       '--cap-add', 'CAP_DAC_OVERRIDE', '--cap-add', 'CAP_SETUID', '--cap-add', 'CAP_SETGID',
+            server = subprocess.Popen(isolated(
                        'mariadbd', '--no-defaults', '--user=mysql',
-                       '--datadir=/tmp/sandbox/data', '--socket=/tmp/sandbox/mariadb.sock',
+                       '--datadir=/tmp/sandbox/data', socket_arg,
                        '--pid-file=/tmp/sandbox/mariadb.pid', '--skip-networking', '--local-infile=0',
-                       '--tmpdir=/tmp/sandbox/sql-files', '--secure-file-priv=/tmp/sandbox/sql-files'],
+                       '--tmpdir=/tmp/sandbox/sql-files', '--secure-file-priv=/tmp/sandbox/sql-files',
+                       caps=('CAP_DAC_OVERRIDE', 'CAP_SETUID', 'CAP_SETGID')),
                        stdout=log, stderr=log)
             ready = False
             for _ in range(100):
@@ -304,16 +311,16 @@ def verify_appstate(restic, snapshot, scratch):
                 time.sleep(.1)
             require(ready, 'isolated MariaDB startup timed out after 10 seconds')
             with out.open('rb') as sql:
-                # The host client also parses dump commands: refuse shell/file
-                # access before reading any SQL, independently of the server sandbox.
-                subprocess.run(['mariadb', '--no-defaults', '--sandbox', '--socket=' + str(socket), '--user=mysql'],
-                               stdin=sql, stdout=log, stderr=log, check=True, preexec_fn=mysql_identity)
-            count = subprocess.check_output(['mariadb', '--no-defaults', '--socket=' + str(socket), '--user=mysql',
-                '--batch', '--skip-column-names', '--execute=SELECT COUNT(*) FROM information_schema.tables WHERE table_schema="romm"'], text=True,
-                preexec_fn=mysql_identity)
+                # The client also parses dump commands: refuse shell/file access
+                # before reading any SQL, independently of its read-only namespace.
+                subprocess.run(as_mysql('mariadb', '--no-defaults', '--sandbox', socket_arg, '--user=mysql'),
+                               stdin=sql, stdout=log, stderr=log, check=True)
+            count = subprocess.check_output(as_mysql('mariadb', '--no-defaults', socket_arg, '--user=mysql',
+                '--batch', '--skip-column-names', '--execute=SELECT COUNT(*) FROM information_schema.tables WHERE table_schema="romm"'),
+                text=True)
             require(int(count) > 0, 'RomM import empty')
-            subprocess.run(['mariadb-check', '--no-defaults', '--socket=' + str(socket), '--user=mysql', '--databases', 'romm'],
-                           check=True, stdout=log, stderr=log, preexec_fn=mysql_identity)
+            subprocess.run(as_mysql('mariadb-check', '--no-defaults', socket_arg, '--user=mysql', '--databases', 'romm'),
+                           check=True, stdout=log, stderr=log)
     finally:
         try:
             if server is not None:

@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sqlite3
+import stat
 import subprocess
 import tarfile
 import tempfile
@@ -59,42 +60,46 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
             return data.decode()
     snapshot = dict(id='a' * 64, hostname='minis', tags=['opt', 'nas'],
                     paths=['/data/opt', '/work/hot-dumps'], time='2026-09-26T12:01:00Z')
-    scratch = root / 'restored'
-    scratch.mkdir(mode=0o700)
+    # Like the vault restore tree, every scratch ancestor is root-only 0700.
+    require(root.stat().st_uid == 0 and stat.S_IMODE(root.stat().st_mode) == 0o700,
+            'test scratch must have root-only 0700 ancestors')
+    setup_failure = root / 'setup-failure'
+    setup_failure.mkdir(mode=0o700)
     real_mkdtemp = tempfile.mkdtemp
     sandbox_dirs = []
     def track_sandbox(*args, **kwargs):
         if kwargs.get('prefix') == 'offline-mariadb-':
             sandbox_dirs.append(Path(kwargs['dir']))
-            require(Path(kwargs['dir']) == scratch, 'MariaDB scratch escaped the appstate restore tree')
+            require(Path(kwargs['dir']) == setup_failure, 'MariaDB scratch escaped the appstate restore tree')
         return real_mkdtemp(*args, **kwargs)
     with patch.object(c.tempfile, 'mkdtemp', side_effect=track_sandbox), \
             patch.object(c.subprocess, 'run', side_effect=FileNotFoundError('injected setup failure')):
         try:
-            c.verify_appstate(restic, snapshot, scratch)
+            c.verify_appstate(restic, snapshot, setup_failure)
             raise AssertionError('injected MariaDB setup failure was ignored')
         except FileNotFoundError as error:
             require('injected setup failure' in str(error), 'unexpected setup failure')
-    require(sandbox_dirs == [scratch] and not list(scratch.glob('offline-mariadb-*')),
+    require(sandbox_dirs == [setup_failure] and not list(setup_failure.glob('offline-mariadb-*')),
             'MariaDB setup failure left plaintext scratch behind')
+    scratch = root / 'restored'
+    scratch.mkdir(mode=0o700)
     c.verify_appstate(restic, snapshot, scratch)
-    # Client commands must be refused before they can execute on the host.
+    require(not list(scratch.glob('offline-mariadb-*')), 'MariaDB sandbox left behind after success')
+    # Client commands must be refused before they execute. Shell output would
+    # reach the client's log; the marker text appears only if a shell ran.
     clean_dump = blobs['romm/romm.sql']
-    with tempfile.TemporaryDirectory(prefix='offline-client-command-', dir='/tmp') as probe:
-        Path(probe).chmod(0o777)  # A host mysql process could write the marker here.
-        marker = Path(probe) / 'executed'
-        for index, command in enumerate(('\\!', 'system')):
-            blobs['romm/romm.sql'] = f'{command} touch {marker}\n'.encode() + clean_dump
-            rejected = root / f'client-command-{index}'
-            rejected.mkdir(mode=0o700)
-            try:
-                c.verify_appstate(restic, snapshot, rejected)
-                raise AssertionError('unsafe client command accepted')
-            except subprocess.CalledProcessError as error:
-                require(error.cmd[0] == 'mariadb', 'failure was not from the import client')
-                require('sandbox' in (rejected / 'mariadb.log').read_text().lower(),
-                        'import failed without a sandbox diagnostic')
-            require(not marker.exists(), 'dump executed a shell command on the host')
+    for index, command in enumerate(('\\!', 'system')):
+        blobs['romm/romm.sql'] = f"{command} printf 'CLIENT-%s\\n' SHELL-EXECUTED\n".encode() + clean_dump
+        rejected = root / f'client-command-{index}'
+        rejected.mkdir(mode=0o700)
+        try:
+            c.verify_appstate(restic, snapshot, rejected)
+            raise AssertionError('unsafe client command accepted')
+        except subprocess.CalledProcessError as error:
+            require('mariadb' in error.cmd and '--sandbox' in error.cmd, 'failure was not from the import client')
+            log = (rejected / 'mariadb.log').read_text()
+            require('sandbox' in log.lower(), 'import failed without a sandbox diagnostic')
+            require('CLIENT-SHELL-EXECUTED' not in log, 'dump executed a shell command')
     blobs['romm/romm.sql'] = clean_dump
     # Corruption fails before any successful annual record can be produced.
     blobs['k3s/state.db.sqlite-backup'] = b'corrupt database'
