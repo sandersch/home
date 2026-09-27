@@ -116,10 +116,10 @@ data:
         if all(.[]; (.selected | type == "object")) then . else error("invalid offline operation") end
         | [.[] | select(.selected.vault != null)
            | {lineage: .selected.vault.lineage,
-              pending: !(.stage == "complete" and .clean_unmount == true
+              pending: ((.stage == "complete" and .clean_unmount == true
                          and (.success_at | type == "number")
                          and .copies.vault.lineage == .selected.vault.lineage
-                         and (.copies.vault.destination_id | type == "string"))}]
+                         and (.copies.vault.destination_id | type == "string")) | not)}]
         | if all(.[]; ((.lineage | type) == "string" and (.lineage | test("^[0-9a-f]{64}$"))))
           then . else error("invalid vault lineage in offline operation") end
         | group_by(.lineage)[] | select(any(.[]; .pending)) | .[0].lineage

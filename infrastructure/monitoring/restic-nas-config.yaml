@@ -389,10 +389,10 @@ data:
         if all(.[]; (.selected | type == "object")) then . else error("invalid offline operation") end
         | [.[] | select(.selected.appstate != null)
            | {lineage: .selected.appstate.lineage,
-              pending: !(.stage == "complete" and .clean_unmount == true
+              pending: ((.stage == "complete" and .clean_unmount == true
                          and (.success_at | type == "number")
                          and .copies.appstate.lineage == .selected.appstate.lineage
-                         and (.copies.appstate.destination_id | type == "string"))}]
+                         and (.copies.appstate.destination_id | type == "string")) | not)}]
         | if all(.[]; ((.lineage | type) == "string" and (.lineage | test("^[0-9a-f]{64}$"))))
           then . else error("invalid appstate lineage in offline operation") end
         | group_by(.lineage)[] | select(any(.[]; .pending)) | .[0].lineage
