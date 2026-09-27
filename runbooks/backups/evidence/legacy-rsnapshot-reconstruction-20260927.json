@@ -1,0 +1,113 @@
+{
+  "date": "2026-09-27",
+  "status": "accepted",
+  "operation": "reconstruct",
+  "host": "minis",
+  "source": "/mnt/backups/snapshots",
+  "repository": "/mnt/backups/legacy-rsnapshot",
+  "source_deleted": false,
+  "original_evidence": "legacy-rsnapshot-20260920.json",
+  "original_accepted_at": "2026-09-20T21:15:07-05:00",
+  "repository_id": "133fae911ab920b8952dc982c347cf70eacf23c528db2c5b201d8901d204911c",
+  "snapshot_id": "208d5fcdbb4d4e045dedd296290dc8c36aff08ec7a33d67907d88d7c8f57da94",
+  "loss": {
+    "detected": "2026-09-27",
+    "missing": [
+      "/mnt/backups/.legacy-rsnapshot-control (entire directory: enrollment, candidate, accepted records and inventories)"
+    ],
+    "repository_intact": true,
+    "backup_filesystem_mounted": true,
+    "relocated_records_found_on_backup_filesystem": false,
+    "cause": "accidental operator deletion during the 2026-09-20 disk-image cleanup of /mnt/backups"
+  },
+  "helper": {
+    "invoked_path": "runbooks/backups/legacy-rsnapshot.py (reviewed checkout on minis)",
+    "commit": "fc79ea556221370a70ed54fc1fd2d0447469e7b8",
+    "sha256": "9afa794722a555ecd40a6968ae065eb34404f46c0e1f1a38d99ea247b2c6ee1f"
+  },
+  "restic": {
+    "version": "0.19.1",
+    "installed_path": "/usr/local/lib/legacy-rsnapshot/restic"
+  },
+  "source_inventory": {
+    "entries": 13456631,
+    "types": {
+      "dir": 1418796,
+      "file": 11518400,
+      "symlink": 518456,
+      "socket": 513,
+      "fifo": 315,
+      "chardev": 121,
+      "block_device": 30
+    },
+    "unique_inode_logical_bytes": 119519918733,
+    "allocated_bytes": 127204077568,
+    "matches_original_evidence": true
+  },
+  "repository_allocated_bytes": 27512586240,
+  "timing": {
+    "records_reconstructed_at": "2026-09-27T19:31:45.316172+00:00",
+    "verify_elapsed_seconds": 7599.331,
+    "accepted_at": "2026-09-27T22:36:05.721303+00:00"
+  },
+  "runs": [
+    {
+      "operation": "reconstruct",
+      "records_written": ["candidate.json", "enrollment.json"],
+      "automated_verification": "passed",
+      "manual_confirmation": "refused: entered snapshot ID had a trailing quote character; no acceptance recorded"
+    },
+    {
+      "operation": "verify",
+      "automated_verification": "passed",
+      "manual_inspection": "passed",
+      "accepted_record_written": true
+    }
+  ],
+  "validation": {
+    "repository_identity_matches_evidence": true,
+    "repository_holds_only_evidence_snapshot": true,
+    "exact_snapshot_scope_check": "passed",
+    "production_full_data_check": "passed",
+    "archived_paths_metadata_and_symlink_targets": "passed",
+    "restore_metadata_hash_and_hardlink_sample_checks": "passed",
+    "selected_sample_entries": 44,
+    "fresh_source_inventory_comparison": "passed",
+    "manual_historical_inspection": "passed",
+    "socket_entries_omitted": 513,
+    "accepted_record_carries_reconstructed_provenance": true,
+    "fixture_tests_run": 26,
+    "fixture_tests_skipped": 1,
+    "fixture_suite_result": "passed (laptop, unprivileged; root-only resume-inventory test skipped)"
+  },
+  "pending": [
+    "Separate attended review before any deletion of /mnt/backups/snapshots",
+    "Independent validation of a separate legacy-rsnapshot repository on each future offline SSD"
+  ],
+  "helper_copy_retired": {
+    "path": "/usr/local/lib/legacy-rsnapshot/legacy-rsnapshot.py",
+    "sha256": "2bdc268564f65e8dc34a537443c35b0d3b0ef4f26e2f261fdf70cef0a649ff09",
+    "matches_commit": "732be888da506790df3c7eb7f16e42274b1ace9b",
+    "reason": "predates the reconstruction fixes; the runbook and offline tooling load the helper from the checkout",
+    "also_removed": [
+      {
+        "path": "/usr/local/lib/legacy-rsnapshot/__pycache__/legacy-rsnapshot.cpython-312.pyc",
+        "note": "stale bytecode of the retired helper"
+      },
+      {
+        "path": "/usr/local/lib/legacy-rsnapshot/test-legacy-rsnapshot.py",
+        "sha256": "9889fa1c6cf4270d754394916e50caea4fa1051dbf9a36e5bec7532fbc9cd0ee",
+        "bytes": 10161,
+        "installed": "2026-09-20T14:19 (host local time)",
+        "matches_commit": null,
+        "note": "fixture-only test draft installed before commit 732be88; matched no committed version and is not recoverable. It was not referenced by any evidence or tooling; the committed 732be88 suite also contains 13 tests."
+      }
+    ],
+    "remaining": ["/usr/local/lib/legacy-rsnapshot/restic"]
+  },
+  "limitations": [
+    "The original enrollment time and the original candidate inventory were not recoverable; the reconstructed enrollment has no enrolled_at and the candidate inventory is a fresh 2026-09-27 inventory proven equal to the original evidence totals.",
+    "Historical Unix sockets are not archived by Restic; their paths and metadata remain in the private local inventory.",
+    "No B2 or offline replication exists for this archive; array loss would destroy the local copy."
+  ]
+}

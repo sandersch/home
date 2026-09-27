@@ -2,7 +2,9 @@
 
 The [legacy rsnapshot archive](./legacy-rsnapshot.md) was accepted on 2026-09-20. Its
 exact snapshot ID and validation evidence are recorded in the runbook and
-[sanitized evidence](./evidence/legacy-rsnapshot-20260920.json). The original tree remains
+[sanitized evidence](./evidence/legacy-rsnapshot-20260920.json). Its lost private control
+records were reconstructed and re-accepted on 2026-09-27
+([evidence](./evidence/legacy-rsnapshot-reconstruction-20260927.json)). The original tree remains
 in place pending a separate attended deletion review. The 513 historical Unix sockets were
 omitted with operator acceptance; their paths and metadata remain in the private inventory.
 The archive has annual attended checks, no automated retention, and no off-array copy yet;

@@ -1,13 +1,17 @@
 # Legacy rsnapshot archive
 
 Status: the archive was accepted on 2026-09-20. The original tree remains in place pending a
-separate attended deletion review. **The private control records were found missing on
-2026-09-27** (the repository is intact); they must be recreated with
-[`reconstruct`](#lost-control-records) before offline SSD enrollment. The accepted repository and snapshot IDs, measured sizes,
-and verification results are in the
-[sanitized evidence](evidence/legacy-rsnapshot-20260920.json). The helper is installed at
-`/usr/local/lib/legacy-rsnapshot/legacy-rsnapshot.py` on `minis`; checksum-verified Restic
-0.19.1 is installed alongside it. The operator confirmed that the source is retired,
+separate attended deletion review. The private control directory was found missing on
+2026-09-27; it had been deleted by accident during the 2026-09-20 disk-image cleanup (the
+repository was intact). Its records were recreated the
+same day with [`reconstruct`](#lost-control-records) and re-accepted after a full `verify`,
+including `check --read-data` and manual inspection; see the
+[reconstruction evidence](evidence/legacy-rsnapshot-reconstruction-20260927.json). The
+accepted repository and snapshot IDs, measured sizes, and original verification results are
+in the [sanitized evidence](evidence/legacy-rsnapshot-20260920.json). Run the helper from a
+reviewed checkout (`runbooks/backups/legacy-rsnapshot.py`); the installed copy used for the
+original archive was retired on 2026-09-27. Checksum-verified Restic 0.19.1 remains
+installed at `/usr/local/lib/legacy-rsnapshot/restic`. The operator confirmed that the source is retired,
 including remote writers, and approved an attended
 low-I/O window. A live scan found historical Unix sockets. The operator explicitly accepted
 Restic's inherent omission of those entries; their paths and metadata remain in the private
@@ -141,6 +145,12 @@ candidate ID. Never recreate candidate or accepted records by hand.
 
 Preserve control state with the accepted evidence. A later decision to remove the original
 tree must also preserve the accepted inventory and sample hashes.
+
+`/mnt/backups` holds long-lived control directories (`.legacy-rsnapshot-control`, `.control`)
+beside the repositories; dot-prefixed names are easy to miss in a plain `ls`. The legacy
+control directory was lost once to a routine cleanup there. Before deleting anything under
+`/mnt/backups`, list it with `ls -la`, name each target explicitly, and never glob or
+recurse at the top level.
 
 ### Lost control records
 
