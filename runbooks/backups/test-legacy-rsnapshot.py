@@ -133,6 +133,21 @@ class ArchiveTests(unittest.TestCase):
             m.load_resume_inventory(outside)
 
 
+    def test_snapshot_argument_checked_before_privileged_work(self):
+        report = str(self.control / 'verification.json')
+        for argv in (['verify'], ['finalize', '--snapshot', 'latest', '--prior-run', report, '--prior-log', report,
+                      '--scratch', report, '--restored-inventory', report],
+                     ['accept', '--snapshot', 'A' * 64, '--verification-report', report],
+                     ['reconstruct', '--snapshot', 'a' * 63, '--evidence', report]):
+            with patch('sys.argv', ['legacy-rsnapshot', *argv]), \
+                    patch.object(m, 'mount_guard', side_effect=AssertionError('reached privileged work')), \
+                    patch('socket.gethostname', return_value='minis'), patch('os.geteuid', return_value=0):
+                with self.assertRaisesRegex(RuntimeError, 'full --snapshot required'):
+                    m.main()
+        with patch('sys.argv', ['legacy-rsnapshot', 'preflight']), patch('os.geteuid', return_value=1000):
+            with self.assertRaisesRegex(RuntimeError, 'run as root'):
+                m.main()
+
     def test_unexpected_existing_directory(self):
         self.repo.mkdir()
         with self.assertRaisesRegex(RuntimeError, 'unexpected existing'):

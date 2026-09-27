@@ -737,11 +737,11 @@ def reconstruct(restic, sid, records, run, plan, source_totals=None):
         origin['prior_accepted'] = str(run / 'prior-accepted.json')
     # Candidate before enrollment: without enrollment, archive refuses the existing repository.
     if plan['inventory'] is None:
-        candidate = dict(snapshot_id=sid, inventory=str(records.keep().path),
-                         repository_id=record['repository_id'], reconstructed=origin)
-        if 'candidate' in existing:
-            candidate['reconstructed'] = dict(origin, replaced_candidate=existing['candidate'])
-        save(CONTROL / 'candidate.json', candidate)
+        reconstructed = (dict(origin, replaced_candidate=existing['candidate'])
+                         if 'candidate' in existing else origin)
+        save(CONTROL / 'candidate.json', dict(snapshot_id=sid, inventory=str(records.keep().path),
+                                              repository_id=record['repository_id'],
+                                              reconstructed=reconstructed))
     if 'enrollment' not in existing:
         save(CONTROL / 'enrollment.json', dict(record, password_manager_copy_confirmed=True,
                                                reconstructed=origin))
@@ -810,6 +810,9 @@ def main():
     require((args.verification_report is not None) if args.operation == 'accept'
             else (args.verification_report is None),
             '--verification-report is only valid with accept')
+    require(args.operation in ('preflight', 'archive')
+            or (args.snapshot is not None and re.fullmatch('[a-f0-9]{64}', args.snapshot)),
+            'full --snapshot required')
     os.umask(0o077)
     require(os.geteuid() == 0 and socket.gethostname().split('.')[0] == 'minis', 'run as root on minis')
     mount_guard()
@@ -821,8 +824,6 @@ def main():
         started = time.monotonic()
         run = Path(tempfile.mkdtemp(prefix=args.operation + '-', dir=CONTROL))
         if args.operation == 'accept':
-            require(args.snapshot is not None and re.fullmatch('[a-f0-9]{64}', args.snapshot),
-                    'full --snapshot required')
             require(os.isatty(0), 'interactive terminal required')
             return accept_saved_verification(args.snapshot, args.verification_report)
         if args.operation != 'verify':
@@ -830,8 +831,6 @@ def main():
         baseline_path = None
         cached_source_totals = None
         plan = None
-        if args.operation in ('verify', 'reconstruct'):
-            require(args.snapshot is not None and re.fullmatch('[a-f0-9]{64}', args.snapshot), 'full --snapshot required')
         if args.operation == 'verify':
             require(SOURCE.exists() or (CONTROL / 'accepted.json').exists(), 'source missing before acceptance')
             candidate = json.loads((CONTROL / 'candidate.json').read_text())
@@ -840,8 +839,6 @@ def main():
             plan = reconstruct_plan(args.snapshot, args.evidence)
             records = Inventory(plan['inventory']) if plan['inventory'] else inventory(SOURCE)
         elif args.operation == 'finalize':
-            require(args.snapshot is not None and re.fullmatch('[a-f0-9]{64}', args.snapshot),
-                    'full --snapshot required')
             candidate = json.loads((CONTROL / 'candidate.json').read_text())
             records = Inventory(candidate_inventory(candidate))
         elif args.operation == 'archive' and args.resume_inventory:
@@ -858,6 +855,10 @@ def main():
                                                     available_bytes=usage.f_bavail * usage.f_frsize)))
         report['elapsed_seconds'] = time.monotonic() - started
         save(run / 'preflight.json', report)
+        if args.operation == 'archive' and baseline_path is None:
+            # Beside preflight.json so a declined prompt can retry with --resume-inventory.
+            baseline_path = run / 'inventory.sqlite'
+            save(baseline_path, records)
         print(json.dumps(report, indent=2), flush=True)
         if args.operation == 'preflight':
             return
