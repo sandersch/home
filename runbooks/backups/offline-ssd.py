@@ -597,8 +597,7 @@ def operate(args):
             ready[dataset] = current
 
         with retention_lock():
-            op['stage'] = 'selected'
-            save(path, op)
+            locked_ready = {}
             for dataset, frozen in op['selected'].items():
                 if dataset == 'legacy-rsnapshot':
                     continue
@@ -609,8 +608,20 @@ def operate(args):
                 if not current_matches:
                     require(ready.get(dataset) is None,
                             'selected source snapshot changed during retention coordination; retry selection')
+                    locked_ready[dataset] = None
                     continue
                 current = resolve(current_matches, frozen)
+                contracts.validate(source[dataset], dataset, current, fresh=False)
+                locked_ready[dataset] = current
+
+            # Persist only after every source has passed the in-lock re-check.
+            # If validation fails, a retry can select a fresh source again.
+            op['stage'] = 'selected'
+            save(path, op)
+            for dataset, frozen in op['selected'].items():
+                if dataset == 'legacy-rsnapshot' or locked_ready[dataset] is None:
+                    continue
+                current = locked_ready[dataset]
                 missing_tags = [value for value in (tag, 'offline-checkpoint')
                                 if value not in (current.get('tags') or [])]
                 if missing_tags:
@@ -649,8 +660,6 @@ def operate(args):
             copied = resolve(d.snapshots(), frozen, checkpoint)
             if checkpoint:
                 # Recheck eligibility even when resuming a completed copy; no stale success from a hold.
-                if dataset == 'vault':
-                    contracts.eligibility(frozen)
                 contracts.validate(d, dataset, copied, fresh=False)
             op['copies'][dataset] = {'source_id': frozen.get('tagged_id', frozen['id']),
                 'destination_id': copied['id'], 'lineage': frozen['lineage'], 'tag': checkpoint,
