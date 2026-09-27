@@ -121,6 +121,18 @@ spec:
           annotations:
             description: The nightly direct-array Restic CronJob has no successful run in the last 30 hours.
             summary: Local Restic backup is overdue
+        - alert: ResticAppstateRetentionSkipped
+          expr: |
+            (time() - homelab_restic_appstate_retention_skipped_timestamp_seconds{destination="nas"} > 30 * 60 * 60)
+            and on(destination)
+              (homelab_restic_appstate_retention_skipped_timestamp_seconds{destination="nas"}
+                > homelab_restic_appstate_retention_last_success_timestamp_seconds{destination="nas"})
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            description: NAS appstate backup succeeded, but retention has remained skipped because offline SSD work holds the shared lock.
+            summary: NAS appstate retention is overdue
         - alert: ResticB2BackupOverdue
           expr: |
             (time() - kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob="restic-b2-backup"} > 8 * 24 * 60 * 60)

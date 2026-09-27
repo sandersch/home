@@ -317,6 +317,7 @@ data:
       local target_tag="${RESTIC_TARGET_TAG:-nas}"
       local -a retention_args=()
       local offline_lock=/repo/nas/.control/offline-retention.lock
+      local retention_metric=/metrics/restic-appstate-retention.prom
 
       [ -n "${RESTIC_KEEP_DAILY:-}" ] && retention_args+=(--keep-daily "$RESTIC_KEEP_DAILY")
       [ -n "${RESTIC_KEEP_WEEKLY:-}" ] && retention_args+=(--keep-weekly "$RESTIC_KEEP_WEEKLY")
@@ -348,7 +349,16 @@ data:
           || die "offline retention lock is not a regular file"
         chmod 0600 "$offline_lock"
         exec 9>>"$offline_lock"
-        flock -n 9 || die "offline SSD selection/pinning is active; retry appstate retention next schedule"
+        if ! flock -n 9; then
+          log "offline SSD selection/pinning is active; skipping appstate retention"
+          local tmp_metric
+          tmp_metric="$(mktemp "$retention_metric.tmp.XXXXXX")"
+          printf 'homelab_restic_appstate_retention_last_success_timestamp_seconds{destination="nas"} 0\nhomelab_restic_appstate_retention_skipped_timestamp_seconds{destination="nas"} %s\n' \
+            "$(date +%s)" >"$tmp_metric"
+          chmod 0644 "$tmp_metric"
+          mv -f "$tmp_metric" "$retention_metric"
+          return 0
+        fi
         release_completed_appstate_pins
       fi
 
@@ -362,6 +372,14 @@ data:
         flock -u 9
       fi
       restic prune
+      if [ "$target_tag" = nas ]; then
+        local tmp_metric
+        tmp_metric="$(mktemp "$retention_metric.tmp.XXXXXX")"
+        printf 'homelab_restic_appstate_retention_last_success_timestamp_seconds{destination="nas"} %s\nhomelab_restic_appstate_retention_skipped_timestamp_seconds{destination="nas"} 0\n' \
+          "$(date +%s)" >"$tmp_metric"
+        chmod 0644 "$tmp_metric"
+        mv -f "$tmp_metric" "$retention_metric"
+      fi
     }
 
     release_completed_appstate_pins() {

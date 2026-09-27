@@ -629,7 +629,10 @@ class OperationTests(unittest.TestCase):
             m.fcntl.flock(lock, m.fcntl.LOCK_EX | m.fcntl.LOCK_NB)
             with self.assertRaises(BlockingIOError):
                 m.operate(self.args)
-        self.assertFalse(any(args[0] in ('snapshots', 'stats', 'tag', 'copy') for _, args in self.calls))
+        self.assertTrue(any(args[0] == 'snapshots' for _, args in self.calls),
+                        'selection and validation should happen before the shared lock')
+        self.assertFalse(any(args[0] in ('tag', 'copy') for _, args in self.calls),
+                         'a contended lock must prevent pinning and copying')
         self.assertEqual(self.pending().get('selected'), {})
         self.assertFalse(self.pending().get('success_at'))
 

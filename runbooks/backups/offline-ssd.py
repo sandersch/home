@@ -565,37 +565,56 @@ def _operate(args):
         # scratch filesystem is not available.
         preflight_scratch = contracts.vault_scratch()
         shutil.rmtree(preflight_scratch)
+        if not op['selected']:
+            for dataset in DATASETS[:2]:
+                op['selected'][dataset] = contracts.select(source[dataset], dataset)
+            if kind == 'enroll':
+                accepted = contracts.legacy_acceptance()
+                snapshots = source['legacy-rsnapshot'].snapshots()
+                selected = [s for s in snapshots if s['id'] == accepted['snapshot_id']]
+                require(len(selected) == 1 and accepted['repository_id'] == source['legacy-rsnapshot'].expected,
+                        'accepted exact legacy source ID missing/substituted')
+                require(selected[0]['hostname'] == 'minis' and selected[0]['paths'] == [str(legacy.SOURCE)]
+                        and selected[0].get('tags') == ['legacy-rsnapshot'], 'legacy snapshot scope mismatch')
+                op['selected']['legacy-rsnapshot'] = freeze(selected[0])
+
+        # Do full content and eligibility validation before taking the shared
+        # lock. Retention may run concurrently, so the selected lineage is
+        # checked again under the lock immediately before it is saved and tagged.
+        tag = 'offline-checkpoint-' + op['quarter']
+        ready = {}
+        for dataset, frozen in op['selected'].items():
+            if dataset == 'legacy-rsnapshot':
+                continue
+            source_snapshots = source[dataset].snapshots()
+            current_matches = [s for s in source_snapshots if matches(s, frozen, tag)]
+            if not current_matches:
+                current_matches = [s for s in source_snapshots if matches(s, frozen)]
+            destination_matches = [s for s in dest[dataset].snapshots() if matches(s, frozen, tag)]
+            if not current_matches:
+                require(len(destination_matches) == 1,
+                        'missing or ambiguous frozen source and no completed destination copy')
+                ready[dataset] = None
+                continue
+            current = resolve(current_matches, frozen)
+            contracts.validate(source[dataset], dataset, current, fresh=False)
+            ready[dataset] = current
+
         with retention_lock():
-            if not op['selected']:
-                for dataset in DATASETS[:2]:
-                    op['selected'][dataset] = contracts.select(source[dataset], dataset)
-                if kind == 'enroll':
-                    accepted = contracts.legacy_acceptance()
-                    snapshots = source['legacy-rsnapshot'].snapshots()
-                    selected = [s for s in snapshots if s['id'] == accepted['snapshot_id']]
-                    require(len(selected) == 1 and accepted['repository_id'] == source['legacy-rsnapshot'].expected,
-                            'accepted exact legacy source ID missing/substituted')
-                    require(selected[0]['hostname'] == 'minis' and selected[0]['paths'] == [str(legacy.SOURCE)]
-                            and selected[0].get('tags') == ['legacy-rsnapshot'], 'legacy snapshot scope mismatch')
-                    op['selected']['legacy-rsnapshot'] = freeze(selected[0])
-                op['stage'] = 'selected'
-                save(path, op)
-            tag = 'offline-checkpoint-' + op['quarter']
+            op['stage'] = 'selected'
+            save(path, op)
             for dataset, frozen in op['selected'].items():
                 if dataset == 'legacy-rsnapshot':
                     continue
-                destination_matches = [s for s in dest[dataset].snapshots()
-                                       if matches(s, frozen, tag)]
                 source_snapshots = source[dataset].snapshots()
                 current_matches = [s for s in source_snapshots if matches(s, frozen, tag)]
                 if not current_matches:
                     current_matches = [s for s in source_snapshots if matches(s, frozen)]
                 if not current_matches:
-                    require(len(destination_matches) == 1,
-                            'missing or ambiguous frozen source and no completed destination copy')
+                    require(ready.get(dataset) is None,
+                            'selected source snapshot changed during retention coordination; retry selection')
                     continue
                 current = resolve(current_matches, frozen)
-                contracts.validate(source[dataset], dataset, current, fresh=False)
                 missing_tags = [value for value in (tag, 'offline-checkpoint')
                                 if value not in (current.get('tags') or [])]
                 if missing_tags:

@@ -89,6 +89,8 @@ spec:
                 - name: backup-guard
                   mountPath: /guards
                   readOnly: true
+                - name: metrics
+                  mountPath: /metrics
                 - name: work
                   mountPath: /work
                 - name: tmp
@@ -121,6 +123,10 @@ spec:
               configMap:
                 name: restic-mount-guard
                 defaultMode: 0555
+            - name: metrics
+              hostPath:
+                path: /var/lib/node-exporter/textfile
+                type: Directory
             - name: work
               emptyDir: {}
             - name: tmp

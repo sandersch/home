@@ -212,12 +212,14 @@ tags remain. Cleanup is idempotent after an interrupted retag and shares a lock 
 attended offline operations. B2 ignores copied generic pins and excludes every lineage
 still present on NAS after NAS retention, regardless of tag differences.
 
-The inline NAS `appstate` backup uses the same lock around its backup and forget steps.
-Its `forget --prune` preserves `offline-checkpoint` snapshots, and after a successful new
+The inline NAS `appstate` backup writes its new snapshot before acquiring the shared lock.
+The lock covers pin reconciliation and `forget`; `restic prune` runs after the lock is
+released. `forget` preserves `offline-checkpoint` snapshots, and after a successful new
 backup it removes that tag only for appstate lineages whose every recorded operation has
-durable completion, clean-unmount, and matching SSD-copy evidence. A busy lock fails the
-appstate job before it can prune; the next scheduled run retries it. Unknown or unfinished
-operations keep the pin in place.
+durable completion, clean-unmount, and matching SSD-copy evidence. If an offline operation
+holds the lock, the backup remains successful, retention is skipped, and a textfile metric
+records the skip for monitoring; the next scheduled run retries retention. Unknown or
+unfinished operations keep the pin in place.
 
 The `appstate` rows are not a proposal — they record what
 `restic-nas-config.yaml` and `restic-b2-cronjob.yaml` already set, so the table describes
