@@ -185,8 +185,9 @@ workstation repos over hostPath rather than REST (§ 4), and the B2 repos over t
 backend, where the cluster does hold delete authority. `appstate` is the exception in both
 columns: its NAS and B2 retention run *inline* at the end of `restic-nas-backup` and
 `restic-b2-backup` respectively, with the keep values supplied per-job through
-`RESTIC_KEEP_*` — the existing arrangement, deliberately left alone (§ 3). Nothing prunes
-offline media at all.
+`RESTIC_KEEP_*`. NAS appstate retention also honors pending offline checkpoint pins and
+shares the offline-operation lock; its cadence and B2 path are unchanged (§ 3). Nothing
+prunes offline media at all.
 
 For every new NAS→B2 repository pair, the shared job always applies NAS retention first and
 B2 retention second. The destination policy must never discard a snapshot before the source
@@ -209,6 +210,13 @@ SSD copy evidence. Unknown or unfinished operations keep the pin. Quarter-specif
 tags remain. Cleanup is idempotent after an interrupted retag and shares a lock with
 attended offline operations. B2 ignores copied generic pins and excludes every lineage
 still present on NAS after NAS retention, regardless of tag differences.
+
+The inline NAS `appstate` backup uses the same lock around its backup and forget steps.
+Its `forget --prune` preserves `offline-checkpoint` snapshots, and after a successful new
+backup it removes that tag only for appstate lineages whose every recorded operation has
+durable completion, clean-unmount, and matching SSD-copy evidence. A busy lock fails the
+appstate job before it can prune; the next scheduled run retries it. Unknown or unfinished
+operations keep the pin in place.
 
 The `appstate` rows are not a proposal — they record what
 `restic-nas-config.yaml` and `restic-b2-cronjob.yaml` already set, so the table describes
@@ -1188,7 +1196,8 @@ identity hop. Two consequences worth being explicit about:
 The existing `appstate` pipeline keeps its independent-read model, **and its inline
 retention**: `restic-nas-config.yaml` runs `restic forget … --prune` at the end of its own
 backup, immediately after a run that has already hard-failed unless every contract artifact
-was freshly produced.
+was freshly produced. It preserves and releases pending offline checkpoint pins under the
+shared lock described above.
 
 The two controls are **orthogonal, not ranked**. The appstate contract asserts that a fixed set of
 required artifacts exists, is fresh, and is internally consistent; the shrink guard asserts
