@@ -180,7 +180,8 @@ with tempfile.TemporaryDirectory(prefix='offline-pin-release-') as directory:
     listing.write_text(json.dumps([snapshot]))
     operation = {'selected': {'vault': {'lineage': latest}}, 'stage': 'complete',
                  'success_at': 1, 'clean_unmount': True,
-                 'copies': {'vault': {'lineage': latest, 'destination_id': copied_old}}}
+                 'copies': {'vault': {'lineage': latest, 'source_id': old,
+                                      'destination_id': copied_old}}}
     completed = records / 'A-enroll-2026-Q4.json'
     completed.write_text(json.dumps(operation))
     pending = records / 'B-enroll-2026-Q4.json'
@@ -221,6 +222,9 @@ restic() {
     assert (work / 'actions').read_text().splitlines() == ['tag']
     tags = json.loads(listing.read_text())[0]['tags']
     assert tags == ['vault', 'offline-checkpoint-2026-Q4']
+    released_operation = json.loads(completed.read_text())
+    assert released_operation['copies']['vault']['source_id'] == old, 'copy-time source ID must remain historical evidence'
+    assert released_operation['copies']['vault']['released_source_id'] == 'e' * 64, 'post-release ID was not recorded'
     # No completion evidence means no automatic release.
     completed.unlink()
     listing.write_text(json.dumps([snapshot]))
@@ -231,13 +235,16 @@ restic() {
     completed.write_text(json.dumps(operation))
     appstate = {'selected': {'appstate': {'lineage': latest}}, 'stage': 'complete',
                 'success_at': 1, 'clean_unmount': True,
-                'copies': {'appstate': {'lineage': latest, 'destination_id': copied_old}}}
+                'copies': {'appstate': {'lineage': latest, 'source_id': old,
+                                        'destination_id': copied_old}}}
     (records / 'A-rotate-2026-Q4.json').write_text(json.dumps(appstate))
     assert release(dataset='appstate', snapshots=[{
         'id': old, 'original': latest,
         'tags': ['opt', 'offline-checkpoint', 'offline-checkpoint-2026-Q4']}]).returncode == 0
     appstate_tags = json.loads(listing.read_text())[0]['tags']
     assert appstate_tags == ['opt', 'offline-checkpoint-2026-Q4'], appstate_tags
+    released_appstate = json.loads((records / 'A-rotate-2026-Q4.json').read_text())
+    assert released_appstate['copies']['appstate']['released_source_id'] == 'e' * 64
     listing.write_text(json.dumps([{'id': old, 'original': latest,
                                     'tags': ['vault', 'offline-checkpoint-2026-Q4']}]))
     pending.write_text(json.dumps({**operation, 'stage': 'selected'}))

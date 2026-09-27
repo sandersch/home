@@ -115,6 +115,9 @@ there is no appstate JSON backup manifest. Tagging adds
 Copies are independently listed and validated at the destination. Restic's
 [tag implementation](https://raw.githubusercontent.com/restic/restic/v0.19.1/cmd/restic/cmd_tag.go)
 retains `original` across tag changes; matching also checks tree, time, host and paths.
+The operation record keeps `copies[dataset].source_id` as the exact NAS ID used for the
+copy. When retention later removes the generic pin, it records the resulting current ID in
+`copies[dataset].released_source_id`; both IDs are correlated by the stable `lineage`.
 
 The capacity gate budgets the selected logical data at 120% plus a 10% filesystem
 reserve. It deliberately overestimates deduplicated copy requirements. Capacity

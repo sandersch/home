@@ -209,8 +209,11 @@ The next vault retention run removes the generic NAS pin only when every recorde
 operation referencing that lineage has durable completion, clean unmount, and matching
 SSD copy evidence. Unknown or unfinished operations keep the pin. Quarter-specific
 tags remain. Cleanup is idempotent after an interrupted retag and shares a lock with
-attended offline operations. B2 ignores copied generic pins and excludes every lineage
-still present on NAS after NAS retention, regardless of tag differences.
+attended offline operations. Because each retag creates a new snapshot ID, completed
+operation records preserve the copy-time `source_id` and record the current NAS ID as
+`released_source_id` after pin removal; both are tied to the stable lineage. B2 ignores
+copied generic pins and excludes every lineage still present on NAS after NAS retention,
+regardless of tag differences.
 
 The inline NAS `appstate` backup writes its new snapshot before acquiring the shared lock.
 The lock covers pin reconciliation and `forget`; `restic prune` runs after the lock is
