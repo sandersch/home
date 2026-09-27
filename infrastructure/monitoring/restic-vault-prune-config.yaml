@@ -89,8 +89,8 @@ data:
       fi
     }
     release_offline_pins() {
-      local records=/repo/nas/.control/offline record snapshot_id lineage
-      local operations=() releasable=/work/offline-releasable
+      local records=/repo/nas/.control/offline record snapshot_id lineage matches_count pinned
+      local operations=() releasable=/work/offline-releasable pending=/work/offline-pending
       shopt -s nullglob
       operations=("$records"/[AB]-*.json)
       shopt -u nullglob
@@ -110,6 +110,34 @@ data:
                          and (.copies.vault.destination_id | type == "string"))}]
         | group_by(.lineage)[] | select(all(.[]; .released)) | .[0].lineage
       ' "${operations[@]}" >"$releasable" || die "cannot read offline completion evidence"
+      RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+        restic -r "$source_repo" snapshots --json >/work/offline-source.json
+      jq -s -r '
+        if all(.[]; (.selected | type == "object")) then . else error("invalid offline operation") end
+        | [.[] | select(.selected.vault != null)
+           | {lineage: .selected.vault.lineage,
+              pending: !(.stage == "complete" and .clean_unmount == true
+                         and (.success_at | type == "number")
+                         and .copies.vault.lineage == .selected.vault.lineage
+                         and (.copies.vault.destination_id | type == "string"))}]
+        | if all(.[]; ((.lineage | type) == "string" and (.lineage | test("^[0-9a-f]{64}$"))))
+          then . else error("invalid vault lineage in offline operation") end
+        | group_by(.lineage)[] | select(any(.[]; .pending)) | .[0].lineage
+      ' "${operations[@]}" >"$pending" || die "cannot read pending offline vault selections"
+      # Selection is persisted before tagging. Commit any missing retention
+      # pins first, so this same retention pass cannot delete a frozen source
+      # after an interrupted offline operation.
+      while IFS= read -r lineage; do
+        [ -n "$lineage" ] || continue
+        matches_count="$(jq --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)] | length' /work/offline-source.json)"
+        [ "$matches_count" -gt 0 ] || die "pending offline vault lineage is absent from NAS"
+        pinned="$(jq --arg lineage "$lineage" 'any(.[]; (.original // .id) == $lineage and ((.tags // []) | index("offline-checkpoint") != null))' /work/offline-source.json)"
+        if [ "$pinned" != true ]; then
+          snapshot_id="$(jq -er --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)][0].id' /work/offline-source.json)"
+          RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+            restic -r "$source_repo" tag --add offline-checkpoint "$snapshot_id"
+        fi
+      done <"$pending"
       RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
         restic -r "$source_repo" snapshots --json >/work/offline-source.json
       jq -r '.[] | select((.tags // []) | index("offline-checkpoint"))

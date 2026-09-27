@@ -361,8 +361,8 @@ data:
     }
 
     release_completed_appstate_pins() {
-      local records=/repo/nas/.control/offline record snapshot_id lineage
-      local operations=() releasable=/work/offline-appstate-releasable
+      local records=/repo/nas/.control/offline record snapshot_id lineage matches_count pinned
+      local operations=() releasable=/work/offline-appstate-releasable pending=/work/offline-appstate-pending
       shopt -s nullglob
       operations=("$records"/[AB]-*.json)
       shopt -u nullglob
@@ -384,6 +384,31 @@ data:
           then . else error("invalid appstate lineage in offline operation") end
         | group_by(.lineage)[] | select(all(.[]; .released)) | .[0].lineage
       ' "${operations[@]}" >"$releasable" || die "cannot read offline appstate completion evidence"
+      restic snapshots --host "$RESTIC_HOST" --json >/work/offline-appstate-source.json
+      jq -s -r '
+        if all(.[]; (.selected | type == "object")) then . else error("invalid offline operation") end
+        | [.[] | select(.selected.appstate != null)
+           | {lineage: .selected.appstate.lineage,
+              pending: !(.stage == "complete" and .clean_unmount == true
+                         and (.success_at | type == "number")
+                         and .copies.appstate.lineage == .selected.appstate.lineage
+                         and (.copies.appstate.destination_id | type == "string"))}]
+        | if all(.[]; ((.lineage | type) == "string" and (.lineage | test("^[0-9a-f]{64}$"))))
+          then . else error("invalid appstate lineage in offline operation") end
+        | group_by(.lineage)[] | select(any(.[]; .pending)) | .[0].lineage
+      ' "${operations[@]}" >"$pending" || die "cannot read pending offline appstate selections"
+      # Selection is persisted before tagging. Reconcile any pin interrupted
+      # before its Restic tag commit before retention can forget that lineage.
+      while IFS= read -r lineage; do
+        [ -n "$lineage" ] || continue
+        matches_count="$(jq --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)] | length' /work/offline-appstate-source.json)"
+        [ "$matches_count" -gt 0 ] || die "pending offline appstate lineage is absent from NAS"
+        pinned="$(jq --arg lineage "$lineage" 'any(.[]; (.original // .id) == $lineage and ((.tags // []) | index("offline-checkpoint") != null))' /work/offline-appstate-source.json)"
+        if [ "$pinned" != true ]; then
+          snapshot_id="$(jq -er --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)][0].id' /work/offline-appstate-source.json)"
+          restic tag --add offline-checkpoint "$snapshot_id"
+        fi
+      done <"$pending"
       restic snapshots --host "$RESTIC_HOST" --json >/work/offline-appstate-source.json
       jq -r '.[] | select((.tags // []) | index("offline-checkpoint"))
              | [.id, (.original // .id)] | @tsv' \

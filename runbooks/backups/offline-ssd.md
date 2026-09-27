@@ -151,7 +151,10 @@ quarterly checkpoint tag is accompanied by `offline-checkpoint` on both source
 snapshots. NAS vault and appstate retention preserve each pin until all recorded
 operations referencing that dataset lineage have completed with matching SSD copy
 evidence and a clean unmount. Their next retention run releases the generic NAS tag;
-quarter-specific tags remain. Interrupted cleanup retries safely. B2 ignores inherited
+quarter-specific tags remain. Before pruning, each retention job also reconciles any
+missing generic pin from an unfinished operation's durable selection record, covering
+a stop between recording the selection and committing its Restic tag. Interrupted
+cleanup retries safely. B2 ignores inherited
 generic tags and keeps any lineage still on NAS. Both retention paths and attended
 operations share a lock; a busy job stops or fails before it can prune and can be retried
 later. Ambiguous lineage, a new
@@ -176,6 +179,9 @@ time and clean-unmount outcome. Copy that sanitized evidence into the backup dri
 table only after actual acceptance. Do not replace pending physical gates with test
 fixture results. `status --rebuild-metrics` atomically rebuilds both timestamp series
 from successful records; missing state emits zero and failures preserve prior success.
+After the clean-unmount completion record is durable, a metrics write failure is
+reported as a warning and does not change the successful checkpoint result. Rebuild
+the textfile metrics with `status --rebuild-metrics` after repairing the metrics path.
 
 After both genuine enrollment successes, verify the metric file is collected by
 node-exporter, then add `../offline` to

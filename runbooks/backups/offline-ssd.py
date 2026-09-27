@@ -452,7 +452,12 @@ def complete(op, path, record):
     op.update(clean_unmount=True, stage='complete', success_at=time.time(),
               elapsed_seconds=time.time() - op['started_at'])
     save(path, op)
-    publish()
+    try:
+        publish()
+    except Exception as error:
+        # The completion record and clean unmount are already durable. Metrics
+        # are secondary; their failure must not contradict checkpoint success.
+        print(f'Offline backup completed, but metrics publication failed: {error}', file=sys.stderr)
     print(json.dumps(evidence(op), indent=2))
 
 
