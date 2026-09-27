@@ -614,10 +614,10 @@ def operate(args):
                 contracts.validate(source[dataset], dataset, current, fresh=False)
                 locked_ready[dataset] = current
 
-            # Persist only after every source has passed the in-lock re-check.
-            # If validation fails, a retry can select a fresh source again.
-            op['stage'] = 'selected'
-            save(path, op)
+            # Pin every selected source before recording the selection. If the
+            # process dies before the record is committed, the orphaned pins
+            # are safe and can be reconciled; recording first would allow
+            # retention to delete an unpinned source before a retry.
             for dataset, frozen in op['selected'].items():
                 if dataset == 'legacy-rsnapshot' or locked_ready[dataset] is None:
                     continue
@@ -631,7 +631,10 @@ def operate(args):
                 require('offline-checkpoint' in (current.get('tags') or []),
                         'frozen source snapshot is missing its retention pin')
                 op['selected'][dataset]['tagged_id'] = current['id']
-                save(path, op)
+            # Persist only after every source has passed the in-lock re-check
+            # and has a durable retention pin.
+            op['stage'] = 'selected'
+            save(path, op)
         tag = 'offline-checkpoint-' + op['quarter']
         remaining = 0
         for dataset, frozen in op['selected'].items():

@@ -23,7 +23,8 @@ offline_pin_reconcile_and_release() {
                      and (.success_at | type == "number")
                      and .copies[$dataset].lineage == .selected[$dataset].lineage
                      and (.copies[$dataset].source_id | type == "string")
-                     and (.copies[$dataset].destination_id | type == "string"))}]
+                     and (.copies[$dataset].destination_id | type == "string"
+                          and test("^[0-9a-f]{64}$"))) }]
     | if all(.[]; ((.lineage | type) == "string" and (.lineage | test("^[0-9a-f]{64}$"))))
       then . else error("invalid offline lineage") end
     | group_by(.lineage)[]
