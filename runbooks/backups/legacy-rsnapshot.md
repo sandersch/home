@@ -136,25 +136,36 @@ tree must also preserve the accepted inventory and sample hashes.
 
 ### Lost control records
 
-If `/mnt/backups/.legacy-rsnapshot-control` loses `enrollment.json`, `candidate.json`,
+If `/mnt/backups/.legacy-rsnapshot-control` loses any of `enrollment.json`, `candidate.json`,
 `accepted.json` or the candidate inventory **while the original source tree still exists**,
-use `reconstruct`. It never backs up, initializes, or adopts a repository. It refuses to run
-if any of the three records still exists; use `verify` instead. It requires:
+use `reconstruct`. It never backs up, initializes, or adopts a repository. Before the
+hours-long inventory it checks the `--snapshot` format, the evidence scope, that the source
+exists, and that every surviving record names the evidence repository and snapshot; a
+mismatched survivor is a stop for attended review. If `enrollment.json`, `candidate.json` and
+its inventory all survive, it refuses and `verify` is the right operation. Otherwise it
+requires:
 
 - the repository `config` ID to match the committed sanitized evidence;
 - the repository to hold exactly one snapshot, the evidence snapshot ID;
-- a fresh source inventory whose entry count, per-type counts, unique-inode logical bytes and
-  allocated bytes equal the evidence's `source_inventory`.
+- a source inventory whose entry count, per-type counts, unique-inode logical bytes and
+  allocated bytes equal the evidence's `source_inventory` (the evidence's `block_device`
+  count is the inventory's `dev` type). A surviving candidate inventory is reused; otherwise
+  a fresh inventory is taken and recorded in place.
 
-Only then does it record `enrollment.json` and `candidate.json`, both marked `reconstructed`
-with the evidence file name and original acceptance time. It then runs the full `verify` flow:
-`check --read-data`, full listing comparison against the new inventory, symlink comparison,
-sample restore with hashes against the live source, a fresh-source recheck, and the
-attended manual-inspection prompt that writes `accepted.json`. The original evidence is not
-rewritten; commit a separate sanitized reconstruction evidence report.
+Only then does it write whichever of `candidate.json` and `enrollment.json` are missing,
+candidate first, each marked `reconstructed` with the evidence file name, original
+acceptance time and reconstruction time. A candidate whose inventory was lost is replaced and
+its original content kept under `reconstructed.replaced_candidate`; a reconstructed
+enrollment has no `enrolled_at`, since that time was never recorded independently. `archive`
+refuses a reconstructed enrollment. It then runs the full `verify` flow: `check --read-data`,
+full listing comparison, symlink comparison, sample restore with hashes against the live
+source, a fresh-source recheck, and the attended manual-inspection prompt. The resulting
+`accepted.json` carries the same `reconstructed` provenance; a surviving earlier
+`accepted.json` is copied to the run directory first and referenced as `prior_accepted`. The
+original evidence is not rewritten; commit a separate sanitized reconstruction evidence report.
 
-First, confirm the repository holds exactly one snapshot with a quick read-only listing,
-because the inventory takes hours:
+First, confirm the repository holds exactly one snapshot with a quick read-only listing, since
+that gate needs the password and runs only after the inventory:
 
 ```bash
 sudo /usr/local/lib/legacy-rsnapshot/restic --repo /mnt/backups/legacy-rsnapshot --no-cache snapshots
@@ -164,7 +175,13 @@ sudo ionice -c 3 nice -n 19 python3 runbooks/backups/legacy-rsnapshot.py reconst
 
 An additional snapshot, a changed source, or a missing source is a stop for separate
 attended review; do not forget snapshots or hand-write records to satisfy the gate.
-If interrupted after `candidate.json` is written, resume with `verify --snapshot`.
+If interrupted, rerun the same `reconstruct` command; once both records exist it refuses and
+`verify --snapshot` resumes.
+
+If the control records are lost **after the source tree has been removed**, `reconstruct`
+cannot be used. Recover the repository using the password-manager credential, inspect
+`snapshots --json`, and reconstruct the exact ID and evidence under attended review; do not
+fabricate an accepted record.
 
 ## Annual check and offline copies
 
