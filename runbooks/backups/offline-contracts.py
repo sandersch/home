@@ -113,10 +113,16 @@ def vault(restic, snapshot):
     sentinel = restic('dump', sid, '/data/vault/.vault-sentinel').splitlines()
     require(f'vault-contract-version={name.removeprefix("vault-v")}' in sentinel
             and f'filesystem-uuid={manifest["filesystem_uuid"]}' in sentinel, 'vault sentinel mismatch')
+    kdbx_requirements = [entry for entry in released['required_content'] if entry['kind'] == 'kdbx']
+    require(len(kdbx_requirements) == 1, 'vault contract must declare exactly one KDBX entry')
+    kdbx_path = kdbx_requirements[0]['path']
+    kdbx_measurements = [entry for entry in measured
+                         if entry['kind'] == 'kdbx' and entry['path'] == kdbx_path]
+    require(len(kdbx_measurements) == 1, 'vault manifest must contain exactly one KDBX measurement')
     # KDBX is binary; inspect without decoding and without plaintext filesystem scratch.
     with tempfile.TemporaryFile(dir=CONTROL) as out:
-        restic('dump', sid, '/data/vault/credentials/strongbox/ccs.kdbx', output=out)
-        require(out.tell() == measured[0]['bytes'], 'KDBX size mismatch')
+        restic('dump', sid, kdbx_path, output=out)
+        require(out.tell() == kdbx_measurements[0]['bytes'], 'KDBX size mismatch')
         out.seek(0)
         require(out.read(8).hex() == '03d9a29a67fb4bb5', 'invalid KDBX header')
     return manifest

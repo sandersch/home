@@ -314,24 +314,27 @@ class ContractTests(unittest.TestCase):
         name = 'vault-v3'
         exclusion = contracts / (name + '.excludes')
         exclusion.write_text('/data/vault/inbox\n')
-        roots = ['/data/vault/credentials/strongbox/ccs.kdbx', '/data/vault/documents/fixture']
+        roots = ['/data/vault/documents/fixture', '/data/vault/credentials/strongbox/alternate.kdbx']
         release = dict(contract=name, exclusion_sha256=hashlib.sha256(exclusion.read_bytes()).hexdigest(),
-            required_content=[dict(path=roots[0], kind='kdbx', minimum_files=1, minimum_bytes=8),
-                              dict(path=roots[1], kind='directory', minimum_files=1, minimum_bytes=1)])
+            required_content=[dict(path=roots[0], kind='directory', minimum_files=1, minimum_bytes=1),
+                              dict(path=roots[1], kind='kdbx', minimum_files=1, minimum_bytes=8)])
         released_path = contracts / (name + '.json')
         released_path.write_text(json.dumps(release))
         manifest = dict(contract=name, contract_sha256=hashlib.sha256(released_path.read_bytes()).hexdigest(),
             exclusion_sha256=release['exclusion_sha256'], filesystem_uuid='fixture-uuid',
             generated_at='2026-01-01T00:00:00Z', total_files=2, total_bytes=9,
-            measurements=[dict(path=roots[0], kind='kdbx', files=1, bytes=8),
-                          dict(path=roots[1], kind='directory', files=1, bytes=1)])
-        listing = [dict(path=roots[0], type='file', size=8), dict(path=roots[1], type='dir'),
-                   dict(path=roots[1] + '/document', type='file', size=1)]
+            measurements=[dict(path=roots[0], kind='directory', files=1, bytes=1),
+                          dict(path=roots[1], kind='kdbx', files=1, bytes=8)])
+        listing = [dict(path=roots[0], type='dir'), dict(path=roots[0] + '/document', type='file', size=1),
+                   dict(path=roots[1], type='file', size=8)]
         header = bytes.fromhex('03d9a29a67fb4bb5')
         root = self.root
+        dumped = []
         class R:
             workspace = root
             def __call__(self, *args, output=None):
+                if args[0] == 'dump':
+                    dumped.append(args[-1])
                 if args[0] == 'ls':
                     return '\n'.join(json.dumps(n) for n in listing)
                 if args[-1] == '/work/backup-manifest.json':
@@ -341,6 +344,7 @@ class ContractTests(unittest.TestCase):
                 output.write(header)
         snapshot = dict(id='a' * 64, hostname='minis-vault', paths=['/data/vault', '/work/backup-manifest.json'], tags=['vault'])
         c.vault(R(), snapshot)
+        self.assertIn(roots[1], dumped, 'KDBX path must come from its contract entry, independent of order')
         manifest['total_bytes'] += 1
         with self.assertRaisesRegex(RuntimeError, 'measurements'):
             c.vault(R(), snapshot)
