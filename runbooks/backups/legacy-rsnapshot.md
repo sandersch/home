@@ -1,7 +1,9 @@
 # Legacy rsnapshot archive
 
 Status: the archive was accepted on 2026-09-20. The original tree remains in place pending a
-separate attended deletion review. The accepted repository and snapshot IDs, measured sizes,
+separate attended deletion review. **The private control records were found missing on
+2026-09-27** (the repository is intact); they must be recreated with
+[`reconstruct`](#lost-control-records) before offline SSD enrollment. The accepted repository and snapshot IDs, measured sizes,
 and verification results are in the
 [sanitized evidence](evidence/legacy-rsnapshot-20260920.json). The helper is installed at
 `/usr/local/lib/legacy-rsnapshot/legacy-rsnapshot.py` on `minis`; checksum-verified Restic
@@ -129,10 +131,40 @@ the final manual prompt was interrupted, use `accept --snapshot FULL_SNAPSHOT_ID
 it accepts only a root-owned pending report tied to the enrolled repository and exact
 candidate ID. Never recreate candidate or accepted records by hand.
 
-Preserve control state with the accepted evidence. If it is lost, recover the repository
-using the password-manager credential, inspect `snapshots --json`, and reconstruct the exact
-ID and evidence under attended review; do not fabricate an accepted record. A later decision
-to remove the original tree must also preserve the accepted inventory and sample hashes.
+Preserve control state with the accepted evidence. A later decision to remove the original
+tree must also preserve the accepted inventory and sample hashes.
+
+### Lost control records
+
+If `/mnt/backups/.legacy-rsnapshot-control` loses `enrollment.json`, `candidate.json`,
+`accepted.json` or the candidate inventory **while the original source tree still exists**,
+use `reconstruct`. It never backs up, initializes, or adopts a repository. It refuses to run
+if any of the three records still exists; use `verify` instead. It requires:
+
+- the repository `config` ID to match the committed sanitized evidence;
+- the repository to hold exactly one snapshot, the evidence snapshot ID;
+- a fresh source inventory whose entry count, per-type counts, unique-inode logical bytes and
+  allocated bytes equal the evidence's `source_inventory`.
+
+Only then does it record `enrollment.json` and `candidate.json`, both marked `reconstructed`
+with the evidence file name and original acceptance time. It then runs the full `verify` flow:
+`check --read-data`, full listing comparison against the new inventory, symlink comparison,
+sample restore with hashes against the live source, a fresh-source recheck, and the
+attended manual-inspection prompt that writes `accepted.json`. The original evidence is not
+rewritten; commit a separate sanitized reconstruction evidence report.
+
+First, confirm the repository holds exactly one snapshot with a quick read-only listing,
+because the inventory takes hours:
+
+```bash
+sudo /usr/local/lib/legacy-rsnapshot/restic --repo /mnt/backups/legacy-rsnapshot --no-cache snapshots
+sudo ionice -c 3 nice -n 19 python3 runbooks/backups/legacy-rsnapshot.py reconstruct \
+  --snapshot FULL_SNAPSHOT_ID --evidence runbooks/backups/evidence/legacy-rsnapshot-20260920.json
+```
+
+An additional snapshot, a changed source, or a missing source is a stop for separate
+attended review; do not forget snapshots or hand-write records to satisfy the gate.
+If interrupted after `candidate.json` is written, resume with `verify --snapshot`.
 
 ## Annual check and offline copies
 

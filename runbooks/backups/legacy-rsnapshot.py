@@ -620,6 +620,37 @@ def archive(restic, records, run, baseline_path=None, source_logical_bytes=None)
     return sid
 
 
+def reconstruct(restic, sid, records, run, evidence_path):
+    """Recreate lost control records for the existing archive; never back up or adopt blindly."""
+    for name in ('enrollment.json', 'candidate.json', 'accepted.json'):
+        require(not (CONTROL / name).exists(), f'control record exists; use verify: {name}')
+    evidence = json.loads(evidence_path.read_text())
+    require(evidence.get('status') == 'accepted' and evidence.get('host') == 'minis'
+            and evidence.get('source') == str(SOURCE) and evidence.get('repository') == str(REPO)
+            and evidence.get('source_deleted') is False, 'evidence scope mismatch')
+    require(sid == evidence.get('snapshot_id'), 'snapshot must equal committed evidence snapshot ID')
+    private(REPO)
+    record = dict(repository_id=evidence['repository_id'], version=2)
+    identity(restic, record)
+    snapshots = json.loads(restic('snapshots', '--json'))
+    require([s['id'] for s in snapshots] == [sid], 'repository must contain exactly the accepted snapshot')
+    measured = totals(records)
+    recorded = evidence['source_inventory']
+    require(all(measured[k] == recorded[k] for k in
+                ('entries', 'types', 'unique_inode_logical_bytes', 'allocated_bytes')),
+            'source inventory differs from committed acceptance evidence')
+    inventory_path = run / 'inventory.sqlite'
+    save(inventory_path, records)
+    origin = dict(evidence=evidence_path.name, original_accepted_at=evidence['accepted_at'],
+                  reconstructed_at=dt.datetime.now(dt.timezone.utc).isoformat())
+    save(CONTROL / 'enrollment.json', dict(record, password_manager_copy_confirmed=True,
+                                           enrolled_at=evidence['timing']['archive_started'],
+                                           reconstructed=origin))
+    save(CONTROL / 'candidate.json', dict(snapshot_id=sid, inventory=str(inventory_path),
+                                        repository_id=record['repository_id'], reconstructed=origin))
+    return verify(restic, sid, run, records)
+
+
 def verify(restic, sid, run, records=None):
     candidate = json.loads((CONTROL / 'candidate.json').read_text())
     require(sid == candidate['snapshot_id'], 'snapshot must equal recorded full candidate ID')
@@ -661,7 +692,7 @@ def verify(restic, sid, run, records=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['preflight', 'archive', 'verify', 'finalize', 'accept'])
+    parser.add_argument('operation', choices=['preflight', 'archive', 'verify', 'finalize', 'accept', 'reconstruct'])
     parser.add_argument('--snapshot')
     parser.add_argument('--resume-inventory', type=Path,
                         help='reuse a root-owned completed archive inventory from the past 2 hours')
@@ -670,7 +701,10 @@ def main():
     parser.add_argument('--scratch', type=Path)
     parser.add_argument('--restored-inventory', type=Path)
     parser.add_argument('--verification-report', type=Path)
+    parser.add_argument('--evidence', type=Path, help='committed sanitized acceptance evidence (reconstruct only)')
     args = parser.parse_args()
+    require((args.evidence is not None) == (args.operation == 'reconstruct'),
+            '--evidence is required with, and only valid with, reconstruct')
     require(args.resume_inventory is None or args.operation == 'archive', '--resume-inventory is only valid with archive')
     finalize_args = (args.prior_run, args.prior_log, args.scratch, args.restored_inventory)
     require(all(value is not None for value in finalize_args) if args.operation == 'finalize'
@@ -717,7 +751,7 @@ def main():
         usage = os.statvfs(MOUNT)
         source_totals = cached_source_totals or totals(records)
         report = dict(source=source_totals, capacity=(capacity(records, usage,
-            source_totals['unique_inode_logical_bytes']) if args.operation != 'verify' else dict(filesystem_bytes=usage.f_blocks * usage.f_frsize,
+            source_totals['unique_inode_logical_bytes']) if args.operation not in ('verify', 'reconstruct') else dict(filesystem_bytes=usage.f_blocks * usage.f_frsize,
                                                     available_bytes=usage.f_bavail * usage.f_frsize)))
         report['elapsed_seconds'] = time.monotonic() - started
         save(run / 'preflight.json', report)
@@ -748,7 +782,10 @@ def main():
             else:
                 private(REPO)
                 require(args.snapshot is not None and re.fullmatch('[a-f0-9]{64}', args.snapshot), 'full --snapshot required')
-                sid = verify(restic, args.snapshot, run, records)
+                if args.operation == 'reconstruct':
+                    sid = reconstruct(restic, args.snapshot, records, run, args.evidence)
+                else:
+                    sid = verify(restic, args.snapshot, run, records)
             save(run / 'completion.json', dict(snapshot_id=sid, elapsed_seconds=time.monotonic() - started))
             print(f'Completed {args.operation}: {sid}; local evidence: {run}')
         finally:
