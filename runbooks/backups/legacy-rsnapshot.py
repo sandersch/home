@@ -464,15 +464,21 @@ def verify_destination(restic, sid, records, accepted, run):
     return restored_sample_checks(records, inventory(scratch), scratch, accepted=accepted, selected=selected)
 
 
-def accept_verification(records, actual, sid, run, scratch, candidate):
+def reconstructed_provenance(candidate, enrollment):
+    """Provenance saved by reconstruct; carried into accepted.json on every later acceptance path."""
+    return candidate.get('reconstructed') or enrollment.get('reconstructed')
+
+
+def accept_verification(records, actual, sid, run, scratch, candidate, enrollment):
     selected, hashes = restored_sample_checks(records, actual, scratch)
     if SOURCE.exists():
         require(inventory(SOURCE) == records, 'source changed since archive')
     report = dict(snapshot_id=sid, repository_id=candidate['repository_id'], restic_version='0.19.1',
-                  source=source_totals or totals(records), omitted_unix_sockets=sum(r['type'] == 'socket' for r in records.values()),
+                  source=totals(records), omitted_unix_sockets=sum(r['type'] == 'socket' for r in records.values()),
                   repository_allocated_bytes=int(command('du', '-s', '-B1', REPO).split()[0]),
                   selected_entries=len(selected), automated_verification='passed', scratch=str(scratch),
                   sample_hashes=hashes)
+    provenance = reconstructed_provenance(candidate, enrollment)
     if provenance is not None:
         report['reconstructed'] = provenance
     save(run / 'verification.json', report)
@@ -519,7 +525,7 @@ def finalize_existing_restore(sid, records, candidate, prior_run, prior_log,
             'restored inventory must be a root-owned 0600 control file')
     actual = Inventory(actual_path)
     require(len(actual) > 1, 'restored inventory is empty')
-    return accept_verification(records, actual, sid, run, scratch, candidate)
+    return accept_verification(records, actual, sid, run, scratch, candidate, enrollment)
 
 
 def accept_saved_verification(sid, report_path):
@@ -686,10 +692,10 @@ def reconstruct(restic, sid, records, run, plan, source_totals=None):
     if 'enrollment' not in existing:
         save(CONTROL / 'enrollment.json', dict(record, password_manager_copy_confirmed=True,
                                                reconstructed=origin))
-    return verify(restic, sid, run, records, source_totals=measured, provenance=origin)
+    return verify(restic, sid, run, records, source_totals=measured)
 
 
-def verify(restic, sid, run, records=None, source_totals=None, provenance=None):
+def verify(restic, sid, run, records=None, source_totals=None):
     candidate = json.loads((CONTROL / 'candidate.json').read_text())
     require(sid == candidate['snapshot_id'], 'snapshot must equal recorded full candidate ID')
     enrollment = json.loads((CONTROL / 'enrollment.json').read_text())
@@ -719,6 +725,7 @@ def verify(restic, sid, run, records=None, source_totals=None, provenance=None):
                   repository_allocated_bytes=int(command('du', '-s', '-B1', REPO).split()[0]),
                   selected_entries=len(selected), automated_verification='passed', scratch=str(scratch),
                   sample_hashes=hashes)
+    provenance = reconstructed_provenance(candidate, enrollment)
     if provenance is not None:
         report['reconstructed'] = provenance
     save(run / 'verification.json', report)

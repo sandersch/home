@@ -257,6 +257,43 @@ class ArchiveTests(unittest.TestCase):
                 self.assertEqual(self.reconstruct(sid, evidence), sid)
             self.assertEqual(len(json.loads(self.restic('snapshots', '--json'))), 1)
 
+    def test_reconstruct_interrupted_at_manual_prompt_resumes_with_verify(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            with patch('builtins.input', return_value=sid):
+                m.verify(self.restic, sid, self.run)
+            prior = json.loads((self.control / 'accepted.json').read_text())
+            evidence = self.lost_control_evidence(sid, lose=('enrollment', 'candidate'))
+            with patch('builtins.input', return_value='no'), \
+                    self.assertRaisesRegex(RuntimeError, 'manual inspection'):
+                self.reconstruct(sid, evidence)
+            self.assertEqual(json.loads((self.control / 'accepted.json').read_text()), prior)
+            with self.assertRaisesRegex(RuntimeError, 'no control record lost'):
+                m.reconstruct_plan(sid, evidence)
+            # The documented resume path still records reconstruction provenance.
+            with patch('builtins.input', return_value=sid):
+                self.assertEqual(m.verify(self.restic, sid, self.run), sid)
+            accepted = json.loads((self.control / 'accepted.json').read_text())
+            self.assertEqual(accepted['reconstructed']['evidence'], 'evidence.json')
+            self.assertEqual(json.loads(Path(accepted['reconstructed']['prior_accepted']).read_text()), prior)
+
+    def test_accept_verification_carries_reconstructed_provenance(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            evidence = self.lost_control_evidence(sid, lose=('enrollment',))
+            with patch('builtins.input', return_value=sid):
+                self.reconstruct(sid, evidence)
+            candidate = json.loads((self.control / 'candidate.json').read_text())
+            enrollment = json.loads((self.control / 'enrollment.json').read_text())
+            selected = m.samples(self.records)
+            scratch = m.restore_samples(self.restic, sid, self.records, selected, self.run, self.root)
+            with patch('builtins.input', return_value=sid):
+                self.assertEqual(m.accept_verification(self.records, m.inventory(scratch), sid, self.run,
+                                                       scratch, candidate, enrollment), sid)
+            accepted = json.loads((self.control / 'accepted.json').read_text())
+            self.assertEqual(accepted['source'], m.totals(self.records))
+            self.assertEqual(accepted['reconstructed'], enrollment['reconstructed'])
+
     def test_reconstruct_rejects_changed_source_and_extra_snapshots(self):
         with patch.object(m, 'private'):
             sid = m.archive(self.restic, self.records, self.run)
