@@ -47,7 +47,9 @@ data:
       REQUIRED_SQLITE_DATABASES \
       HOME_ASSISTANT_TOKEN \
       ROMM_DB_PASSWORD
-    . /offline-retention/pin-retention.sh
+    if [ "${RESTIC_TARGET_TAG:-nas}" = nas ]; then
+      . /offline-retention/pin-retention.sh
+    fi
 
     BACKUP_STARTED_EPOCH="$(date +%s)"
     WORK_DIR="${BACKUP_WORK_DIR:-/work}"
@@ -333,19 +335,22 @@ data:
         /data/opt \
         "$HOT_DUMPS"
 
-      # Hold the shared lock only while reconciling pins and forgetting/pruning.
-      [ ! -L /repo/nas/.control ] || die "offline control path must not be a symlink"
-      umask 0077
-      mkdir -p /repo/nas/.control/offline
-      chmod 0700 /repo/nas/.control /repo/nas/.control/offline
-      [ ! -L "$offline_lock" ] || die "offline retention lock must not be a symlink"
-      : >>"$offline_lock"
-      [ -f "$offline_lock" ] && [ ! -L "$offline_lock" ] \
-        || die "offline retention lock is not a regular file"
-      chmod 0600 "$offline_lock"
-      exec 9>>"$offline_lock"
-      flock -n 9 || die "offline SSD selection/pinning is active; retry appstate retention next schedule"
-      release_completed_appstate_pins
+      # NAS retention shares the offline-operation lock and reconciles pins.
+      # The B2 pod has no NAS mount and must not touch NAS control paths.
+      if [ "$target_tag" = nas ]; then
+        [ ! -L /repo/nas/.control ] || die "offline control path must not be a symlink"
+        umask 0077
+        mkdir -p /repo/nas/.control/offline
+        chmod 0700 /repo/nas/.control /repo/nas/.control/offline
+        [ ! -L "$offline_lock" ] || die "offline retention lock must not be a symlink"
+        : >>"$offline_lock"
+        [ -f "$offline_lock" ] && [ ! -L "$offline_lock" ] \
+          || die "offline retention lock is not a regular file"
+        chmod 0600 "$offline_lock"
+        exec 9>>"$offline_lock"
+        flock -n 9 || die "offline SSD selection/pinning is active; retry appstate retention next schedule"
+        release_completed_appstate_pins
+      fi
 
       log "applying Restic retention policy"
       restic forget \
@@ -353,7 +358,9 @@ data:
         --tag "$target_tag" \
         "${retention_args[@]}" \
         --keep-tag offline-checkpoint
-      flock -u 9
+      if [ "$target_tag" = nas ]; then
+        flock -u 9
+      fi
       restic prune
     }
 

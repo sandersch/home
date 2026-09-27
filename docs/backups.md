@@ -186,8 +186,9 @@ backend, where the cluster does hold delete authority. `appstate` is the excepti
 columns: its NAS and B2 retention run *inline* at the end of `restic-nas-backup` and
 `restic-b2-backup` respectively, with the keep values supplied per-job through
 `RESTIC_KEEP_*`. NAS appstate retention also honors pending offline checkpoint pins and
-shares the offline-operation lock; its cadence and B2 path are unchanged (§ 3). Nothing
-prunes offline media at all.
+shares the offline-operation lock. The B2 job uses the same backup script and retention
+cadence, but skips NAS-only offline pin loading, lock handling, and pin reconciliation
+because it has no NAS repository mount (§ 3). Nothing prunes offline media at all.
 
 For every new NAS→B2 repository pair, the shared job always applies NAS retention first and
 B2 retention second. The destination policy must never discard a snapshot before the source

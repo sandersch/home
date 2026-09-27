@@ -500,6 +500,12 @@ assert_phase5_backup_invariants() {
     || die "shared Restic backup script does not apply the selected target tag"
   grep -Fq -- "\"\${retention_args[@]}\"" "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
     || die "shared Restic backup script does not build retention arguments dynamically"
+  grep -Fq -- 'if [ "${RESTIC_TARGET_TAG:-nas}" = nas ]; then' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not restrict offline pin loading to NAS"
+  grep -Fq -- 'if [ "$target_tag" = nas ]; then' \
+    "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml" \
+    || die "shared Restic backup script does not restrict NAS lock and pin reconciliation to NAS"
   if grep -Fq -- "-newer \"\$HA_MARKER\"" "$REPO_ROOT/infrastructure/monitoring/restic-nas-config.yaml"; then
     die "shared Restic backup script still uses timestamp-based Home Assistant artifact detection"
   fi
