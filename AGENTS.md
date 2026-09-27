@@ -113,8 +113,11 @@ first copy run completed successfully. Ryze and m5c workstation clients and main
 schedules are active, with native NAS/B2
 recovery gates passed; remaining observation and scheduled maintenance gates are tracked in
 [attended enrollment and recovery](./runbooks/backups/workstations.md). The vault v3 rollout
-and first scheduled NAS/B2 prune completed on 2026-09-20. Offline copies and mail archival
-remain draft. The vault, curated workstation homes, and appstate (`/opt`, the k3s datastore,
+and first scheduled NAS/B2 prune completed on 2026-09-20. Offline SSD tooling and staged
+monitoring are implemented; both physical enrollments, independent recovery acceptance
+and alert activation remain pending. Follow
+[the attended SSD runbook](./runbooks/backups/offline-ssd.md). Mail archival remains draft.
+The vault, curated workstation homes, and appstate (`/opt`, the k3s datastore,
 and required hot dumps) are backed up; other bulk-array data has a single copy.
 
 ## Repository structure
@@ -131,7 +134,7 @@ Standard Flux layout. `flux bootstrap` creates `clusters/minis/flux-system`.
 │   ├── network.md
 │   ├── migration-runbook.md
 │   ├── direct-attached-storage-migration.md
-│   ├── backups.md             #   Vault + workstation NAS/B2 live; offline/mail remain draft
+│   ├── backups.md             #   Vault + workstation NAS/B2 live; offline tooling ready, enrollment pending; mail draft
 │   └── operations.md
 ├── runbooks/                  # Phases 0–5 plus attended bastion/DR/migration/NFS workflows
 ├── host/                      # canonical bare-metal host and switch config
@@ -222,4 +225,4 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 6. [docs/migration-runbook.md](./docs/migration-runbook.md) — historical Plex + *arr migration path.
 7. [docs/operations.md](./docs/operations.md) — backups, monitoring, tuning, follow-ups.
 8. [docs/backups.md](./docs/backups.md) — vault/appstate backup status,
-   remaining workstation gates and draft offline-drive and mail tiers.
+   remaining workstation gates, offline SSD enrollment, and the draft mail tier.

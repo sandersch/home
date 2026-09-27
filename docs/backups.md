@@ -16,8 +16,10 @@
 > validations succeeded, and the attended Ryze one-off prune completed successfully.
 > The v3 promotion evidence, fresh Ryze/M5c deliveries, and 24-hour observation are
 > recorded in `runbooks/backups/evidence/vault-v3-promotion-20260916.json`; the scheduled
-> prune completion is recorded in the drill table below. Offline copies and mail archival
-> remain draft. Updated 2026-09-26.
+> prune completion is recorded in the drill table below. Offline SSD tooling and staged
+> monitoring are implemented; both physical enrollments and alert activation remain pending.
+> Follow [the attended SSD runbook](../runbooks/backups/offline-ssd.md). Mail archival remains
+> draft. Updated 2026-09-26.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
@@ -158,10 +160,10 @@ file?"
 |---|---|---|---|---|---|
 | `vault` (NAS) | `--keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 24m` | 4h | 8h (`ResticVaultBackupOverdue`) | 24 months | weekly prune job (§ 2) |
 | `vault` (B2) | `--keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 24m` | 24h | 36h (`ResticVaultCopyOverdue`) | 24 months | weekly prune job, against the B2 repo |
-| `vault` (offline) | **none — `forget` never runs**, see below | 90d | 120d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
+| `vault` (offline) | **none — `forget` never runs**, see below | 90d | 210d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
 | `appstate` (NAS) | `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` — **existing, unchanged** | 24h | 30h (`ResticLocalBackupOverdue`) | ~12 months | inline in `restic-nas-backup` (§ 3) |
 | `appstate` (B2) | `--keep-weekly 8 --keep-monthly 12` — **existing, unchanged** | 7d | 8d (`ResticB2BackupOverdue`) | ~12 months | inline in `restic-b2-backup` |
-| `appstate` (offline) | none — `forget` never runs | 90d | 120d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
+| `appstate` (offline) | none — `forget` never runs | 90d | 210d (`ResticOfflineDriveStale`) | full history of the drive | nothing prunes it |
 | each workstation (NAS) | `--keep-within 30d --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 12m` | 24h | 7d (`ResticWorkstationBackupStale`) | every snapshot for 30d; selected history for 12 months | weekly prune job, over each hostPath (§ 4) |
 | `workstations/ryze` (B2) | `--keep-within 30d --keep-within-weekly 84d --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the `ryze` B2 repo |
 | `workstations/m5c` (B2) | `--keep-within 30d --keep-within-weekly 84d --keep-within-monthly 12m` | 7d | 8d (`ResticWorkstationCopyOverdue`) | every copied snapshot for 30d; selected history for 12 months | weekly prune job, against the `m5c` B2 repo |
@@ -183,8 +185,10 @@ workstation repos over hostPath rather than REST (§ 4), and the B2 repos over t
 backend, where the cluster does hold delete authority. `appstate` is the exception in both
 columns: its NAS and B2 retention run *inline* at the end of `restic-nas-backup` and
 `restic-b2-backup` respectively, with the keep values supplied per-job through
-`RESTIC_KEEP_*` — the existing arrangement, deliberately left alone (§ 3). Nothing prunes
-offline media at all.
+`RESTIC_KEEP_*`. NAS appstate retention also honors pending offline checkpoint pins and
+shares the offline-operation lock. The B2 job uses the same backup script and retention
+cadence, but skips NAS-only offline pin loading, lock handling, and pin reconciliation
+because it has no NAS repository mount (§ 3). Nothing prunes offline media at all.
 
 For every new NAS→B2 repository pair, the shared job always applies NAS retention first and
 B2 retention second. The destination policy must never discard a snapshot before the source
@@ -195,6 +199,30 @@ only after the source forget succeeds may B2 independently remove lineages selec
 own policy. Once safety gates pass, run prune even without new removal candidates so an
 interrupted forget/prune sequence can finish cleanup on retry. Only successful cleanup
 advances the retention timestamp.
+
+Vault NAS retention also uses `--keep-tag offline-checkpoint` to preserve the frozen
+source snapshot while an attended offline SSD copy is pending. The offline tool adds this
+tag together with its quarter-specific checkpoint tag before copying. Thus overnight
+interruptions do not turn a frozen selection into a missing source, and resume validates
+its lineage and content contract without repeating the original freshness window.
+The next vault retention run removes the generic NAS pin only when every recorded
+operation referencing that lineage has durable completion, clean unmount, and matching
+SSD copy evidence. Unknown or unfinished operations keep the pin. Quarter-specific
+tags remain. Cleanup is idempotent after an interrupted retag and shares a lock with
+attended offline operations. Because each retag creates a new snapshot ID, completed
+operation records preserve the copy-time `source_id` and record the current NAS ID as
+`released_source_id` after pin removal; both are tied to the stable lineage. B2 ignores
+copied generic pins and excludes every lineage still present on NAS after NAS retention,
+regardless of tag differences.
+
+The inline NAS `appstate` backup writes its new snapshot before acquiring the shared lock.
+The lock covers pin reconciliation and `forget`; `restic prune` runs after the lock is
+released. `forget` preserves `offline-checkpoint` snapshots, and after a successful new
+backup it removes that tag only for appstate lineages whose every recorded operation has
+durable completion, clean-unmount, and matching SSD-copy evidence. If an offline operation
+holds the lock, the backup remains successful, retention is skipped, and a textfile metric
+records the skip for monitoring; the next scheduled run retries retention. Unknown or
+unfinished operations keep the pin in place.
 
 The `appstate` rows are not a proposal — they record what
 `restic-nas-config.yaml` and `restic-b2-cronjob.yaml` already set, so the table describes
@@ -241,13 +269,11 @@ All six repositories are only ever copied *into*: `forget` and `prune` never run
 offline media, and a repository is retired by re-initializing it (`--from-repo`, § 3), not
 by pruning it. The two drives alternate quarterly, so the newest offline copy is
 at most **90 days old** when rotations happen on time, and **180 days** if the most recent
-drive is lost, destroyed, or unreadable. A skipped rotation extends both figures without
-limit, which is what the alerts exist to catch. `ResticOfflineDriveStale` evaluates the
-newest successful rotation across **either** drive and fires at 120d, so it catches a missed
-quarterly rotation without paging merely because the other drive is waiting its normal
-turn. A separate per-drive `ResticOfflineDriveRotationOverdue` fires at 210d: each physical
-drive is normally updated every 180d, and the extra 30d allows scheduling slack while still
-detecting that one SSD was skipped or repeatedly left out of rotation (§ 9). At ~35 GB
+drive is lost, destroyed, or unreadable. A rotation may happen any time during its assigned
+quarter, so alerts allow the full quarter window plus 30 days of scheduling slack.
+`ResticOfflineDriveStale` evaluates the newest successful rotation across **either** drive
+and fires at 210d. `ResticOfflineDriveRotationOverdue` fires at 300d per drive, allowing two
+quarters for that physical SSD's next turn plus 30 days of slack (§ 9). At ~35 GB
 growing 5 GB/yr with no pruning, either 2 TB drive has ample headroom for the intended
 retention; capacity is measured during rotation rather than projected from a fixed
 replacement date.
@@ -256,8 +282,8 @@ The drive not being updated remains off-site throughout the attended rotation. T
 retrieves only the drive whose turn it is and runs one attended command. The runbook verifies
 the recorded device and filesystem UUIDs, mounts the expected ext4 filesystem, copies a
 **tagged checkpoint** containing the newest validated `vault` and `appstate` snapshots,
-confirms both checkpoints are listable from the drive, records the snapshot IDs and success
-metric, runs `sync`, and unmounts cleanly. It does not require a quarterly filesystem repair,
+confirms both checkpoints are listable from the drive, records the snapshot IDs, runs `sync`, unmounts cleanly, and only then records success
+and publishes the metric. It does not require a quarterly filesystem repair,
 SMART test, full repository read, or test restore. The drive returns off-site before the
 other drive may be brought home. The reasoning, and why offline media are deliberately
 excluded from prune's replication gate, is in § 2.
@@ -265,8 +291,11 @@ excluded from prune's replication gate, is in § 2.
 Once per year, the rotation runbook performs the confidence-building work omitted from the
 quarterly path: on the SSD in rotation it runs `restic check --read-data` for all three
 repositories and restores `ccs.kdbx`, one representative document, the `appstate`
-backup manifest, and representative legacy history to scratch. The selected SSD alternates
-by year so each physical drive
+contract artifacts (version, required exports and export timestamp), and representative
+legacy history to scratch. Appstate has no standalone JSON manifest. A is scheduled in
+Q4 of even years, B in Q3 of odd years; missed verification runs at that drive’s next
+attended rotation. Normal rotation begins with A in Q4 2026 after both enrollments, then
+uses A in Q2/Q4 and B in Q1/Q3. Each physical drive
 receives the full check at least every two years. Filesystem repair and deeper device
 diagnostics are response actions for an unclean mount, I/O error, or failed repository
 operation, not routine quarterly ceremony. A drive is replaced after persistent errors;
@@ -385,8 +414,10 @@ a failure case.
 The local vault foundation, migrated photo archive, and vault B2 replication described in
 §§ 1–3 are implemented and validated. The sections below retain the design rationale and
 the remaining proposed extensions; imperative language in the completed phases is historical
-rebuild guidance. Workstation repositories, offline copies, and the mail archive remain
-unimplemented.
+rebuild guidance. Workstation repositories are live. Offline SSD tooling is implemented
+in [the attended runbook](../runbooks/backups/offline-ssd.md); physical enrollment,
+independent recovery acceptance and monitoring activation are still pending for A and B.
+The mail archive remains unimplemented.
 
 ### 1. A dedicated home for irreplaceable data: `/mnt/vault`
 
@@ -1171,7 +1202,8 @@ identity hop. Two consequences worth being explicit about:
 The existing `appstate` pipeline keeps its independent-read model, **and its inline
 retention**: `restic-nas-config.yaml` runs `restic forget … --prune` at the end of its own
 backup, immediately after a run that has already hard-failed unless every contract artifact
-was freshly produced.
+was freshly produced. It preserves and releases pending offline checkpoint pins under the
+shared lock described above.
 
 The two controls are **orthogonal, not ranked**. The appstate contract asserts that a fixed set of
 required artifacts exists, is fresh, and is internally consistent; the shrink guard asserts
@@ -1592,8 +1624,8 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticWorkstationBackupStale` | newest `ryze`/`m5c` snapshot older than 7d (warning) |
 | `BackupsVolumeFillingUp` | `/mnt/backups` below 20% free (warning) / 10% free (critical) |
 | `ResticPruneOverdue` | no prune in 10d (warning) |
-| `ResticOfflineDriveStale` | newest successful offline rotation across either drive older than 120d (warning) |
-| `ResticOfflineDriveRotationOverdue` | last successful rotation of an individual drive older than 210d (warning) — per drive |
+| `ResticOfflineDriveStale` | newest successful offline rotation across either drive older than 210d (warning) |
+| `ResticOfflineDriveRotationOverdue` | last successful rotation of an individual drive older than 300d (warning) — per drive |
 | `ResticReplicationLag` | prune reports unreplicated or unvalidated NAS candidates awaiting B2 (warning) |
 | `ResticRepoNearCeiling` | repo size above 80% of its ceiling (warning) |
 | `ResticRepositoryCheckOverdue` | no successful monthly structural + rotating data check in 40d (warning) — per NAS/B2 repo; vault destinations arm only while mounted |
@@ -2255,8 +2287,8 @@ Backups are only worth what a restore proves, so every phase ends with one.
   400-day per-repository annual restore states. With the vault locked, prove its check/drill
   age does not duplicate `VaultLocked`, then unlock and prove stale state becomes actionable.
   Exercise the offline metrics separately: two per-drive timestamps 90d and 180d old must
-  fire neither offline alert; aging the newest of both beyond 120d must fire
-  `ResticOfflineDriveStale`; and aging only one labeled drive beyond 210d must fire
+  fire neither offline alert; aging the newest of both beyond 210d must fire
+  `ResticOfflineDriveStale`; and aging only one labeled drive beyond 300d must fire
   `ResticOfflineDriveRotationOverdue` for that drive without firing the global stale rule
   while the other drive remains current.
   `runbooks/phase5/12-test-pushover.sh` is the existing precedent.
@@ -2266,7 +2298,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
   not a restore drill: the one-command runbook verifies drive identity, copies and lists the
   two `offline-checkpoint-<YYYY>-Q<n>` snapshots, records their IDs, and unmounts cleanly.
   Once annually, alternate the selected SSD and add full `--read-data` checks plus scratch
-  restores of `ccs.kdbx`, one document, the `appstate` manifest, and representative
+  restores of `ccs.kdbx`, one document, the `appstate` contract artifacts, and representative
   `legacy-rsnapshot` history. The contents of a
   disconnected drive therefore remain recorded without making an elaborate quarterly test
   a precondition for maintaining the offline copy.

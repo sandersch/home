@@ -16,8 +16,12 @@ This static archive contains `/mnt/backups/snapshots` in the dedicated encrypted
 `/mnt/backups/legacy-rsnapshot` repository. Keep it indefinitely: no scheduled backups,
 forget, prune, unattended credential, CronJob, or freshness metric. It is an explicit
 exception to automated repository-check enrollment. An attended annual full-data check
-and representative restore replace automated checking. Until the future SSD copies are
-seeded and independently validated, array loss destroys the archive. B2 is outside this
+and representative restore replace automated checking. [Offline SSD tooling](offline-ssd.md) now copies the accepted exact snapshot during
+each drive’s enrollment and validates metadata, symlinks, hashes, xattrs and sampled
+hardlinks against accepted evidence without changing this archive’s acceptance record.
+Keep the saved inventory, candidate and acceptance records even if the original tree
+is separately retired. Physical A/B enrollment is pending; until both SSD copies are
+seeded and independently validated, array loss can destroy the archive. B2 is outside this
 implementation.
 
 ## Prepare and measure

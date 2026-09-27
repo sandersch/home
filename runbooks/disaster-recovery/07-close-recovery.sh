@@ -17,7 +17,7 @@ snapshot="$(state_value snapshot)"
 stage="$(state_value stage)"
 completed_at="$(state_value recovery_completed_at)"
 case "$source_name" in
-  nas|b2) ;;
+  nas|b2|offline) ;;
   *) die "recovery record has an invalid source" ;;
 esac
 [[ "$snapshot" =~ ^[0-9a-f]{64}$ ]] || die "recovery record has no full snapshot ID"

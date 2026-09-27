@@ -14,6 +14,7 @@ data:
   prune-vault.sh: |
     #!/usr/bin/env bash
     set -Eeuo pipefail
+    . /offline-retention/pin-retention.sh
     log() { printf '[%s] %s\n' "$(date -Iseconds)" "$*"; }
     die() { log "ERROR: $*" >&2; exit 1; }
     restic_lock_retry="${RESTIC_LOCK_RETRY:-30m}"
@@ -55,7 +56,11 @@ data:
     }
     collect_candidates() {
       local repo="$1" password_file="$2" output="$3" raw="${3}.json"
+      local keep_tags=()
+      # Copied B2 tags must not retain history forever; NAS pins are authoritative.
+      [ "$repo" != "$source_repo" ] || keep_tags=(--keep-tag offline-checkpoint)
       if ! RESTIC_PASSWORD_FILE="$password_file" restic -r "$repo" forget --dry-run --json --group-by host \
+        "${keep_tags[@]}" \
         --keep-within-hourly 48h --keep-within-daily 30d --keep-within-weekly 84d --keep-within-monthly 24m \
         >"$raw"; then
         die "restic forget dry-run failed for $repo"
@@ -83,6 +88,10 @@ data:
       ' "$raw" >"$output"; then
         die "could not parse restic forget JSON for $repo"
       fi
+    }
+    release_offline_pins() {
+      RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+        offline_pin_reconcile_and_release vault /repo/nas/.control/offline /work -r "$source_repo"
     }
     mount_record="$(awk '$5 == "/data/vault" { separator=0; for (field=7; field<=NF; field++) if ($field == "-") { separator=field; break }; if (separator>0) print $(separator+1) "\t" $(separator+2) }' /proc/self/mountinfo | tail -n1)"
     IFS=$'\t' read -r vault_fs vault_source <<<"$mount_record"
@@ -193,6 +202,16 @@ data:
     [ "$destination_files" -ge $((baseline_files * minimum_retained_percent / 100)) ] \
       && [ "$destination_bytes" -ge $((baseline_bytes * minimum_retained_percent / 100)) ] \
       || { write_metrics 1 0 destination-baseline-tolerance; log "latest B2 snapshot is below the healthy baseline tolerance; skipping retention"; exit 0; }
+    # Keep expensive validation outside the shared lock. Serialize only pin
+    # reconciliation, candidate selection, and deletion with offline selection.
+    umask 0077
+    [ ! -L /repo/nas/.control/offline-retention.lock ] || die "invalid offline retention lock"
+    exec 9>>/repo/nas/.control/offline-retention.lock
+    flock -n 9 || { write_metrics 1 0 offline-active; log "offline selection/pinning is active; retry retention later"; exit 0; }
+    release_offline_pins
+    RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+      restic -r "$source_repo" snapshots --host minis-vault --json >"$source_listing"
+    restic -r "$VAULT_B2_REPOSITORY" snapshots --host minis-vault --json >"$destination_listing"
     collect_candidates "$source_repo" /data/vault/.backup-credentials/nas-password /work/source-candidates
     mapfile -t source_candidates < /work/source-candidates
     unreplicated=0
@@ -218,6 +237,7 @@ data:
       RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
         restic -r "$source_repo" forget --group-by host "${source_candidates[@]}"
     fi
+    flock -u 9
     # A previous run may have forgotten snapshots before cleanup was interrupted.
     RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
       restic -r "$source_repo" prune
@@ -225,6 +245,16 @@ data:
     export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
     collect_candidates "$VAULT_B2_REPOSITORY" /data/vault/.backup-credentials/b2-password /work/destination-candidates
     mapfile -t destination_candidates < /work/destination-candidates
+    # Re-read after NAS forget. Protect all surviving NAS lineages even when
+    # B2 was copied before the temporary pin was added, or retains a stale tag.
+    RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/nas-password \
+      restic -r "$source_repo" snapshots --json >/work/source-after-retention.json
+    jq -r --slurpfile source /work/source-after-retention.json \
+      --slurpfile destination "$destination_listing" '
+      . as $id | ($destination[0][] | select(.id == $id) | (.original // .id)) as $lineage
+      | select(all($source[0][]; (.original // .id) != $lineage))
+    ' --raw-input /work/destination-candidates >/work/destination-safe-candidates
+    mapfile -t destination_candidates < /work/destination-safe-candidates
     destination_unvalidated=0
     for snapshot_id in "${destination_candidates[@]}"; do
       [ -n "$snapshot_id" ] || continue

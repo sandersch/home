@@ -47,6 +47,9 @@ data:
       REQUIRED_SQLITE_DATABASES \
       HOME_ASSISTANT_TOKEN \
       ROMM_DB_PASSWORD
+    if [ "${RESTIC_TARGET_TAG:-nas}" = nas ]; then
+      . /offline-retention/pin-retention.sh
+    fi
 
     BACKUP_STARTED_EPOCH="$(date +%s)"
     WORK_DIR="${BACKUP_WORK_DIR:-/work}"
@@ -313,6 +316,8 @@ data:
     run_restic() {
       local target_tag="${RESTIC_TARGET_TAG:-nas}"
       local -a retention_args=()
+      local offline_lock=/repo/nas/.control/offline-retention.lock
+      local retention_metric=/metrics/restic-appstate-retention.prom
 
       [ -n "${RESTIC_KEEP_DAILY:-}" ] && retention_args+=(--keep-daily "$RESTIC_KEEP_DAILY")
       [ -n "${RESTIC_KEEP_WEEKLY:-}" ] && retention_args+=(--keep-weekly "$RESTIC_KEEP_WEEKLY")
@@ -331,12 +336,57 @@ data:
         /data/opt \
         "$HOT_DUMPS"
 
+      # NAS retention shares the offline-operation lock and reconciles pins.
+      # The B2 pod has no NAS mount and must not touch NAS control paths.
+      if [ "$target_tag" = nas ]; then
+        [ ! -L /repo/nas/.control ] || die "offline control path must not be a symlink"
+        umask 0077
+        mkdir -p /repo/nas/.control/offline
+        chmod 0700 /repo/nas/.control /repo/nas/.control/offline
+        [ ! -L "$offline_lock" ] || die "offline retention lock must not be a symlink"
+        : >>"$offline_lock"
+        [ -f "$offline_lock" ] && [ ! -L "$offline_lock" ] \
+          || die "offline retention lock is not a regular file"
+        chmod 0600 "$offline_lock"
+        exec 9>>"$offline_lock"
+        if ! flock -n 9; then
+          log "offline SSD selection/pinning is active; skipping appstate retention"
+          local tmp_metric previous_success
+          previous_success=0
+          [ -f "$retention_metric" ] && previous_success="$(awk '/appstate_retention_last_success_timestamp_seconds/ {print $NF}' "$retention_metric" | tail -n1)"
+          previous_success="${previous_success:-0}"
+          tmp_metric="$(mktemp "$retention_metric.tmp.XXXXXX")"
+          printf 'homelab_restic_appstate_retention_last_success_timestamp_seconds{destination="nas"} %s\nhomelab_restic_appstate_retention_skipped_timestamp_seconds{destination="nas"} %s\n' \
+            "$previous_success" "$(date +%s)" >"$tmp_metric"
+          chmod 0644 "$tmp_metric"
+          mv -f "$tmp_metric" "$retention_metric"
+          return 0
+        fi
+        release_completed_appstate_pins
+      fi
+
       log "applying Restic retention policy"
       restic forget \
         --host "$RESTIC_HOST" \
         --tag "$target_tag" \
         "${retention_args[@]}" \
-        --prune
+        --keep-tag offline-checkpoint
+      if [ "$target_tag" = nas ]; then
+        flock -u 9
+      fi
+      restic prune
+      if [ "$target_tag" = nas ]; then
+        local tmp_metric
+        tmp_metric="$(mktemp "$retention_metric.tmp.XXXXXX")"
+        printf 'homelab_restic_appstate_retention_last_success_timestamp_seconds{destination="nas"} %s\nhomelab_restic_appstate_retention_skipped_timestamp_seconds{destination="nas"} 0\n' \
+          "$(date +%s)" >"$tmp_metric"
+        chmod 0644 "$tmp_metric"
+        mv -f "$tmp_metric" "$retention_metric"
+      fi
+    }
+
+    release_completed_appstate_pins() {
+      offline_pin_reconcile_and_release appstate /repo/nas/.control/offline /work --host "$RESTIC_HOST"
     }
 
     dump_sqlite

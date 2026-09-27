@@ -27,8 +27,10 @@ merge into nonempty state unless it is resuming its own recorded, interrupted co
   CronJobs must be absent, so no controller can recreate a writer after preflight.
 - `/opt` must be btrfs on `/dev/mapper/vg0-opt`.
 - Staging must be a separate mounted filesystem. It defaults to `/mnt/backups` for
-  the direct repository and `/mnt/media` for B2; set `RECOVERY_STAGE_ROOT` to another
-  exact mountpoint if necessary. It must have enough free space for a complete
+  the direct repository and `/mnt/media` for B2; these built-in paths are accepted
+  only with their recorded LV UUIDs. After an array rebuild, use a separate recovery
+  filesystem at an exact mountpoint such as `/mnt/recovery` and set
+  `RECOVERY_STAGE_ROOT` to that path. It must have enough free space for a complete
   restored `/opt` tree in addition to the Restic repository, if they share a disk.
 - A full 64-character snapshot ID is mandatory. `latest` is never accepted.
 - The Restic restore lands outside `/opt`. SQLite hot backups replace the live-captured
@@ -89,8 +91,9 @@ export RECOVERY_SNAPSHOT=<full-64-character-id>
 ./runbooks/disaster-recovery/run-restore.sh
 ```
 
-For B2, the default staging filesystem is `/mnt/media`. To use a temporary external
-filesystem instead, mount it first and export its exact mountpoint:
+For B2, `/mnt/media` is accepted only when it has the original recorded media LV
+identity. After an array rebuild, mount a separate recovery filesystem at an exact
+mountpoint such as `/mnt/recovery` and export it:
 
 ```bash
 export RECOVERY_STAGE_ROOT=/mnt/recovery
@@ -185,3 +188,16 @@ data, and server-token-absence checks in addition to the application recovery co
 | `06-resume-monitoring.sh` | Reconcile the second resume commit and create/validate fresh backups |
 | `07-close-recovery.sh` | Archive the completed state record after the observation window |
 | `run-restore.sh` | Run the attended offline steps `00`, `02`, `03`, and `04` |
+
+## Offline SSD stage handoff
+
+For a retrieved SSD, use [independent Linux recovery](../backups/offline-ssd.md#independent-recovery-on-linux)
+to restore and verify an exact appstate ID and save its `offline-snapshot.json`.
+After rebuilding the host and satisfying this runbook's normal GitOps, mount and
+empty-`/opt` guards, place that private stage at
+`RECOVERY_STAGE_ROOT/homelab-recovery/RECOVERY_SNAPSHOT` and set `RECOVERY_SOURCE=offline`.
+Skip the repository-listing step: `02-restore-opt.sh` validates the saved exact-ID
+metadata and contract before attended stage adoption. Offline recovery refuses an
+empty stage and never fetches from NAS/B2. Continue with the existing export overlay,
+RomM import, validation and activation gates. Initial SSD recovery requires neither
+minis nor its NAS control records.

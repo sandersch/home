@@ -75,6 +75,9 @@ spec:
                 - name: backup-script
                   mountPath: /scripts
                   readOnly: true
+                - name: offline-retention
+                  mountPath: /offline-retention
+                  readOnly: true
                 - name: opt
                   mountPath: /data/opt
                   readOnly: true
@@ -86,6 +89,8 @@ spec:
                 - name: backup-guard
                   mountPath: /guards
                   readOnly: true
+                - name: metrics
+                  mountPath: /metrics
                 - name: work
                   mountPath: /work
                 - name: tmp
@@ -98,6 +103,10 @@ spec:
                 items:
                   - key: backup.sh
                     path: backup.sh
+            - name: offline-retention
+              configMap:
+                name: restic-offline-retention
+                defaultMode: 0444
             - name: opt
               hostPath:
                 path: /opt
@@ -114,6 +123,10 @@ spec:
               configMap:
                 name: restic-mount-guard
                 defaultMode: 0555
+            - name: metrics
+              hostPath:
+                path: /var/lib/node-exporter/textfile
+                type: Directory
             - name: work
               emptyDir: {}
             - name: tmp
