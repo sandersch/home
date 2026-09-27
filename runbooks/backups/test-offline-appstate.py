@@ -26,7 +26,7 @@ def require(condition, message):
 require(os.geteuid() == 0, 'run in a disposable root test environment with MariaDB tools')
 with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp:
     root = Path(temp)
-    c.configure(None, lambda: None, lambda p: require(p.resolve() == p, 'symlink'), require, root, root)
+    c.configure(None, lambda: None, lambda p: require(p.resolve() == p, 'symlink'), require, root, root, None)
     (root / 'appstate-contract.json').write_text(json.dumps({'version': '3', 'required': ['app/state.db']}))
     source = root / 'source'
     source.mkdir()
