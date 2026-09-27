@@ -117,9 +117,16 @@ creation and enrollment requires attended identity reconstruction, not automatic
 Never automatically unlock, remove a failed snapshot, or discard a failed candidate.
 Failed backups can leave packs/snapshots; retries reuse uploaded data through deduplication.
 If inventory and capacity checks completed but the retirement prompt was declined, retry
-within two hours using `archive --resume-inventory /mnt/backups/.legacy-rsnapshot-control/<run>/inventory.sqlite`; this reuses only a root-owned, checked inventory from the private control tree, then performs a fresh before/after comparison around backup. If backup completed but candidate recording was interrupted, a retry may create an additional
-snapshot. Retain both pending attended review. Once a candidate is recorded, `archive`
-refuses another backup; use `verify` with its exact ID. Do not use `latest`.
+within two hours using `archive --resume-inventory /mnt/backups/.legacy-rsnapshot-control/<run>/inventory.sqlite`; this reuses only a root-owned, checked inventory from the private control tree, then performs a fresh before/after comparison around backup. `archive` backs up only into a repository with no snapshots: if backup completed but
+candidate recording was interrupted, or `candidate.json` was later lost beside a surviving
+`enrollment.json`, a retry refuses rather than adding a second snapshot; stop for attended
+review. Once a candidate is recorded, `archive` refuses another backup; use `verify` with its
+exact ID. Do not use `latest`.
+
+Temporary inventories (`inventory-*.sqlite` in the control directory) are removed when the
+operation exits, including after a failed gate; only the recorded candidate inventory and the
+named run records (`before.sqlite`, `after.sqlite`) are kept. A hard kill can still leave one
+behind; one not named by `candidate.json` may be removed under attended review.
 
 If a completed attended verification has a root-path alias failure after its successful
 `--read-data` check, path/metadata listings, symlink comparison, and restore, use the

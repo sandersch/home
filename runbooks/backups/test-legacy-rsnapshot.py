@@ -10,6 +10,7 @@ import socket
 import subprocess
 import tempfile
 import unittest
+import gc
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('legacy', Path(__file__).with_name('legacy-rsnapshot.py'))
@@ -360,6 +361,38 @@ class ArchiveTests(unittest.TestCase):
             self.source.rename(self.root / 'gone')
             with self.assertRaisesRegex(RuntimeError, 'source missing'):
                 m.reconstruct_plan(sid, evidence)
+
+    def transient_inventories(self):
+        gc.collect()
+        return set(self.control.glob('inventory-*.sqlite')) - {self.records.path}
+
+    def test_temporary_inventories_are_discarded_unless_kept(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            with patch('builtins.input', return_value=sid):
+                m.verify(self.restic, sid, self.run)
+            self.assertEqual(self.transient_inventories(), set())
+            evidence = self.lost_control_evidence(sid)
+            directory = (self.source / 'daily.0').stat()
+            (self.source / 'daily.0/new').write_text('changed')
+            with self.assertRaisesRegex(RuntimeError, 'differs from committed'):
+                self.reconstruct(sid, evidence)
+            self.assertEqual(self.transient_inventories(), set())
+            (self.source / 'daily.0/new').unlink()
+            os.utime(self.source / 'daily.0', ns=(directory.st_atime_ns, directory.st_mtime_ns))
+            with patch('builtins.input', return_value=sid):
+                self.reconstruct(sid, evidence)
+            candidate = json.loads((self.control / 'candidate.json').read_text())
+            self.assertEqual(self.transient_inventories(), {Path(candidate['inventory'])})
+
+    def test_archive_refuses_repository_with_snapshot(self):
+        with patch.object(m, 'private'):
+            m.archive(self.restic, self.records, self.run)
+            # The original enrollment survives while the candidate is lost.
+            (self.control / 'candidate.json').unlink()
+            with self.assertRaisesRegex(RuntimeError, 'already holds a snapshot'):
+                m.archive(self.restic, self.records, self.run)
+            self.assertEqual(len(json.loads(self.restic('snapshots', '--json'))), 1)
 
     def test_partial_and_interrupted_backup_retry(self):
         for failure in (subprocess.CalledProcessError(3, 'restic'), KeyboardInterrupt()):

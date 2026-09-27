@@ -19,6 +19,7 @@ import stat
 import subprocess
 import tempfile
 import time
+import weakref
 
 SOURCE = Path('/mnt/backups/snapshots')
 REPO = Path('/mnt/backups/legacy-rsnapshot')
@@ -29,16 +30,25 @@ DEVICE = Path('/dev/mapper/hoardvg-backuplv')
 BINARY = Path('/usr/local/lib/legacy-rsnapshot/restic')
 
 
+def discard_inventory(db, path):
+    db.close()
+    path.unlink(missing_ok=True)
+
+
 class Inventory(Mapping):
     """Disk-backed mapping: legacy histories can contain millions of directory entries."""
     def __init__(self, path=None):
-        if path is None:
+        temporary = path is None
+        if temporary:
             fd, name = tempfile.mkstemp(prefix='inventory-', suffix='.sqlite', dir=CONTROL)
             os.close(fd)
             path = Path(name)
         self.path = Path(path)
         self.db = sqlite3.connect(self.path)
         self.db.execute('CREATE TABLE IF NOT EXISTS entries (path TEXT PRIMARY KEY, record TEXT NOT NULL)')
+        # Temporary inventories can be several GB: remove them when collected or at exit
+        # (including after a failed gate) unless keep() records them in place.
+        self.discard = weakref.finalize(self, discard_inventory, self.db, self.path) if temporary else None
 
     def __getitem__(self, key):
         row = self.db.execute('SELECT record FROM entries WHERE path=?', (key,)).fetchone()
@@ -89,6 +99,11 @@ class Inventory(Mapping):
     def finish(self):
         self.db.commit()
         return self
+
+    def keep(self):
+        if self.discard is not None:
+            self.discard.detach()
+        return self.finish()
 
     def __del__(self):
         if hasattr(self, 'db'):
@@ -616,6 +631,9 @@ def archive(restic, records, run, baseline_path=None, source_logical_bytes=None)
     private(REPO)
     identity(restic, record)
     require(not (CONTROL / 'candidate.json').exists(), 'candidate already recorded; use verify')
+    # An enrollment can survive loss of its candidate: never add a snapshot beside an existing one.
+    require(json.loads(restic('snapshots', '--json')) == [],
+            'repository already holds a snapshot; attended review required, never archive again')
     if baseline_path is None:
         baseline_path = run / 'before.sqlite'
         save(baseline_path, records)
@@ -719,7 +737,7 @@ def reconstruct(restic, sid, records, run, plan, source_totals=None):
         origin['prior_accepted'] = str(run / 'prior-accepted.json')
     # Candidate before enrollment: without enrollment, archive refuses the existing repository.
     if plan['inventory'] is None:
-        candidate = dict(snapshot_id=sid, inventory=str(records.finish().path),
+        candidate = dict(snapshot_id=sid, inventory=str(records.keep().path),
                          repository_id=record['repository_id'], reconstructed=origin)
         if 'candidate' in existing:
             candidate['reconstructed'] = dict(origin, replaced_candidate=existing['candidate'])
