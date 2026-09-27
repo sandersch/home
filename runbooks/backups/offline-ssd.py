@@ -480,10 +480,6 @@ def complete(op, path, record):
 
 
 def operate(args):
-    _operate(args)
-
-
-def _operate(args):
     record_path = CONTROL / f'{args.drive}.json'
     record = read(record_path)
     require(record['stage'] in ('provisioned', 'enrolling', 'enrolled'), 'incomplete provisioning requires manual recovery')
@@ -660,7 +656,7 @@ def _operate(args):
                 'destination_id': copied['id'], 'lineage': frozen['lineage'], 'tag': checkpoint,
                 'snapshot_time': copied['time']}
             save(path, op)
-        if (kind == 'enroll' or len(required) == 3) and not verification_complete(op):
+        if (kind == 'enroll' or required == DATASETS) and not verification_complete(op):
             op['verification'] = contracts.verify_all(dest, op, record)
             op['annual_verified_at'] = time.time()
             save(path, op)
@@ -711,9 +707,11 @@ def main():
                 'enrollment': read(CONTROL / f'{args.drive}.json') if (CONTROL / f'{args.drive}.json').exists() else None}, indent=2))
         elif args.command == 'status':
             for drive in ([args.drive] if args.drive else ('A', 'B')):
-                print(json.dumps({'drive': drive, 'successful_operations': [evidence(o) for o in successful(drive)],
-                    'pending_operations': [evidence(read(p)) for p in CONTROL.glob(f'{drive}-*.json')
-                                           if read(p).get('stage') != 'complete']}, indent=2))
+                operations = [read(p) for p in CONTROL.glob(f'{drive}-*.json')]
+                print(json.dumps({'drive': drive,
+                    'successful_operations': [evidence(op) for op in operations if op.get('success_at')
+                        and op.get('clean_unmount') and op.get('stage') == 'complete'],
+                    'pending_operations': [evidence(op) for op in operations if op.get('stage') != 'complete']}, indent=2))
             if args.rebuild_metrics:
                 publish()
         elif args.command == 'provision':

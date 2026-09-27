@@ -15,24 +15,16 @@ import time
 
 VAULT_CONTROL = Path('/mnt/backups/.control/vault')
 _validated = set()
+_node_cache = {}
 
 
 class SnapshotNotEligible(RuntimeError):
     """Snapshot is outside the validated set and may be skipped during selection."""
 
-def configure(legacy_module, guard, path_guard, assertion, here, control, freeze_snapshot=None):
+def configure(legacy_module, guard, path_guard, assertion, here, control, freeze_snapshot):
     global legacy, backup_guard, canonical, require, HERE, CONTROL, freeze
     legacy, backup_guard, canonical, require, HERE, CONTROL = legacy_module, guard, path_guard, assertion, here, control
-    freeze = freeze_snapshot or freeze
-
-
-def freeze(snapshot):
-    snapshot_id = snapshot['id']
-    require(re.fullmatch(r'[0-9a-f]{64}', snapshot_id) is not None, 'full snapshot ID required')
-    lineage = snapshot.get('original') or snapshot_id
-    require(re.fullmatch(r'[0-9a-f]{64}', lineage) is not None, 'invalid snapshot lineage')
-    return {**{k: snapshot[k] for k in ('id', 'time', 'hostname', 'paths', 'tree')},
-            'tags': snapshot.get('tags') or [], 'lineage': lineage}
+    freeze = freeze_snapshot
 
 
 def stamp(value):
@@ -74,8 +66,11 @@ def eligibility(snapshot):
 
 def nodes(restic, sid):
     # Vault/appstate are bounded relative to the 13-million-entry legacy archive.
-    return [n for line in restic('ls', '--json', sid).splitlines()
-            if (n := json.loads(line)).get('type') and n.get('path')]
+    key = (id(restic), sid)
+    if key not in _node_cache:
+        _node_cache[key] = [n for line in restic('ls', '--json', sid).splitlines()
+                            if (n := json.loads(line)).get('type') and n.get('path')]
+    return _node_cache[key]
 
 
 def vault(restic, snapshot):
@@ -176,16 +171,14 @@ def select(restic, dataset):
     for snapshot in snapshots:
         # Only scope/ledger-ineligible snapshots may be skipped. A broken contract
         # in the newest eligible lineage stops selection rather than hiding damage.
-        if dataset == 'vault':
-            if snapshot['hostname'] != 'minis-vault' or 'vault' not in snapshot.get('tags', []):
-                continue
-            try:
-                eligibility(snapshot)
-            except SnapshotNotEligible:
-                continue
-        elif snapshot['hostname'] != 'minis' or not {'opt', 'nas'} <= set(snapshot.get('tags', [])):
+        if dataset == 'vault' and (snapshot['hostname'] != 'minis-vault' or 'vault' not in snapshot.get('tags', [])):
             continue
-        validate(restic, dataset, snapshot, fresh=True)
+        if dataset != 'vault' and (snapshot['hostname'] != 'minis' or not {'opt', 'nas'} <= set(snapshot.get('tags', []))):
+            continue
+        try:
+            validate(restic, dataset, snapshot, fresh=True)
+        except SnapshotNotEligible:
+            continue
         return freeze(snapshot)
     raise RuntimeError(f'no eligible {dataset} snapshot')
 

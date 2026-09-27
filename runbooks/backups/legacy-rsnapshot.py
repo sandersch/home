@@ -441,7 +441,7 @@ def restore_capacity(records, selected, mount):
             'insufficient legacy restore capacity')
 
 
-def restore_samples(restic, sid, records, selected, run, mount, scratch_parent=None):
+def restore_samples(restic, sid, records, selected, run, scratch_parent=None):
     """Restore the representative sample after a complete, consistent capacity estimate."""
     includes = run / 'includes.txt'
     with includes.open('w') as out:
@@ -639,7 +639,7 @@ def verify(restic, sid, run, records=None):
     selected = samples(records)
     restore_capacity(records, selected, MOUNT)
     scratch_parent = Path(tempfile.mkdtemp(prefix='.legacy-rsnapshot-restore-', dir=MOUNT))
-    scratch = restore_samples(restic, sid, records, selected, run, MOUNT, scratch_parent)
+    scratch = restore_samples(restic, sid, records, selected, run, scratch_parent)
     restored = scratch
     actual = inventory(restored)
     selected, hashes = restored_sample_checks(records, actual, restored, selected=selected)
