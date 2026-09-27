@@ -2,7 +2,8 @@
 
 Status: the archive was accepted on 2026-09-20. The original tree remains in place pending a
 separate attended deletion review. The private control directory was found missing on
-2026-09-27 (cause undetermined; the repository was intact). Its records were recreated the
+2026-09-27; it had been deleted by accident during the 2026-09-20 disk-image cleanup (the
+repository was intact). Its records were recreated the
 same day with [`reconstruct`](#lost-control-records) and re-accepted after a full `verify`,
 including `check --read-data` and manual inspection; see the
 [reconstruction evidence](evidence/legacy-rsnapshot-reconstruction-20260927.json). The
@@ -144,6 +145,12 @@ candidate ID. Never recreate candidate or accepted records by hand.
 
 Preserve control state with the accepted evidence. A later decision to remove the original
 tree must also preserve the accepted inventory and sample hashes.
+
+`/mnt/backups` holds long-lived control directories (`.legacy-rsnapshot-control`, `.control`)
+beside the repositories; dot-prefixed names are easy to miss in a plain `ls`. The legacy
+control directory was lost once to a routine cleanup there. Before deleting anything under
+`/mnt/backups`, list it with `ls -la`, name each target explicitly, and never glob or
+recurse at the top level.
 
 ### Lost control records
 

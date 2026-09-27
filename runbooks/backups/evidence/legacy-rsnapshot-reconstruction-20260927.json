@@ -18,7 +18,7 @@
     "repository_intact": true,
     "backup_filesystem_mounted": true,
     "relocated_records_found_on_backup_filesystem": false,
-    "cause": "undetermined"
+    "cause": "accidental operator deletion during the 2026-09-20 disk-image cleanup of /mnt/backups"
   },
   "helper": {
     "invoked_path": "runbooks/backups/legacy-rsnapshot.py (reviewed checkout on minis)",
