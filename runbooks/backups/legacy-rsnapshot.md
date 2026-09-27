@@ -1,7 +1,9 @@
 # Legacy rsnapshot archive
 
 Status: the archive was accepted on 2026-09-20. The original tree remains in place pending a
-separate attended deletion review. The accepted repository and snapshot IDs, measured sizes,
+separate attended deletion review. **The private control records were found missing on
+2026-09-27** (the repository is intact); they must be recreated with
+[`reconstruct`](#lost-control-records) before offline SSD enrollment. The accepted repository and snapshot IDs, measured sizes,
 and verification results are in the
 [sanitized evidence](evidence/legacy-rsnapshot-20260920.json). The helper is installed at
 `/usr/local/lib/legacy-rsnapshot/legacy-rsnapshot.py` on `minis`; checksum-verified Restic
@@ -115,9 +117,17 @@ creation and enrollment requires attended identity reconstruction, not automatic
 Never automatically unlock, remove a failed snapshot, or discard a failed candidate.
 Failed backups can leave packs/snapshots; retries reuse uploaded data through deduplication.
 If inventory and capacity checks completed but the retirement prompt was declined, retry
-within two hours using `archive --resume-inventory /mnt/backups/.legacy-rsnapshot-control/<run>/inventory.sqlite`; this reuses only a root-owned, checked inventory from the private control tree, then performs a fresh before/after comparison around backup. If backup completed but candidate recording was interrupted, a retry may create an additional
-snapshot. Retain both pending attended review. Once a candidate is recorded, `archive`
-refuses another backup; use `verify` with its exact ID. Do not use `latest`.
+within two hours using `archive --resume-inventory /mnt/backups/.legacy-rsnapshot-control/<run>/inventory.sqlite`
+(`archive` saves its preflight inventory there, beside `preflight.json`); this reuses only a root-owned, checked inventory from the private control tree, then performs a fresh before/after comparison around backup. `archive` backs up only into a repository with no snapshots: if backup completed but
+candidate recording was interrupted, or `candidate.json` was later lost beside a surviving
+`enrollment.json`, a retry refuses rather than adding a second snapshot; stop for attended
+review. Once a candidate is recorded, `archive` refuses another backup; use `verify` with its
+exact ID. Do not use `latest`.
+
+Temporary inventories (`inventory-*.sqlite` in the control directory) are removed when the
+operation exits, including after a failed gate; only the recorded candidate inventory and the
+named run records (`inventory.sqlite`, `after.sqlite`) are kept. A hard kill can still leave one
+behind; one not named by `candidate.json` may be removed under attended review.
 
 If a completed attended verification has a root-path alias failure after its successful
 `--read-data` check, path/metadata listings, symlink comparison, and restore, use the
@@ -129,10 +139,59 @@ the final manual prompt was interrupted, use `accept --snapshot FULL_SNAPSHOT_ID
 it accepts only a root-owned pending report tied to the enrolled repository and exact
 candidate ID. Never recreate candidate or accepted records by hand.
 
-Preserve control state with the accepted evidence. If it is lost, recover the repository
-using the password-manager credential, inspect `snapshots --json`, and reconstruct the exact
-ID and evidence under attended review; do not fabricate an accepted record. A later decision
-to remove the original tree must also preserve the accepted inventory and sample hashes.
+Preserve control state with the accepted evidence. A later decision to remove the original
+tree must also preserve the accepted inventory and sample hashes.
+
+### Lost control records
+
+If `/mnt/backups/.legacy-rsnapshot-control` loses any of `enrollment.json`, `candidate.json`,
+`accepted.json` or the candidate inventory **while the original source tree still exists**,
+use `reconstruct`. It never backs up, initializes, or adopts a repository. Before the
+hours-long inventory it checks the `--snapshot` format, the evidence scope, that the source
+exists, and that every surviving record is readable and names the evidence repository and
+snapshot; an empty, truncated or mismatched survivor is a stop for attended review. If
+`enrollment.json`, `candidate.json` and its inventory all survive, it refuses and `verify` is
+the right operation. Otherwise it requires:
+
+- the repository `config` ID to match the committed sanitized evidence;
+- the repository to hold exactly one snapshot, the evidence snapshot ID, with the archive's
+  source path, `minis` host and `legacy-rsnapshot` tag;
+- a source inventory whose entry count, per-type counts, unique-inode logical bytes and
+  allocated bytes equal the evidence's `source_inventory` (the evidence's `block_device`
+  count is the inventory's `dev` type). A surviving candidate inventory is reused only if it
+  is a canonical, root-owned 0600 file under the control directory (anything else is a stop
+  for attended review); otherwise a fresh inventory is taken and recorded in place.
+
+Only then does it write whichever of `candidate.json` and `enrollment.json` are missing,
+candidate first, each marked `reconstructed` with the evidence file name, original
+acceptance time and reconstruction time. A candidate whose inventory was lost is replaced and
+its original content kept under `reconstructed.replaced_candidate`; a reconstructed
+enrollment has no `enrolled_at`, since that time was never recorded independently. `archive`
+refuses a reconstructed enrollment. It then runs the full `verify` flow: `check --read-data`,
+full listing comparison, symlink comparison, sample restore with hashes against the live
+source, a fresh-source recheck, and the attended manual-inspection prompt. The resulting
+`accepted.json` carries the same `reconstructed` provenance; a surviving earlier
+`accepted.json` is copied to the run directory first and referenced as `prior_accepted`. The
+original evidence is not rewritten; commit a separate sanitized reconstruction evidence report.
+
+First, confirm the repository holds exactly one snapshot with a quick read-only listing, since
+that gate needs the password and runs only after the inventory:
+
+```bash
+sudo /usr/local/lib/legacy-rsnapshot/restic --repo /mnt/backups/legacy-rsnapshot --no-cache snapshots
+sudo ionice -c 3 nice -n 19 python3 runbooks/backups/legacy-rsnapshot.py reconstruct \
+  --snapshot FULL_SNAPSHOT_ID --evidence runbooks/backups/evidence/legacy-rsnapshot-20260920.json
+```
+
+An additional snapshot, a changed source, or a missing source is a stop for separate
+attended review; do not forget snapshots or hand-write records to satisfy the gate.
+If interrupted, rerun the same `reconstruct` command; once both records exist it refuses and
+`verify --snapshot` resumes.
+
+If the control records are lost **after the source tree has been removed**, `reconstruct`
+cannot be used. Recover the repository using the password-manager credential, inspect
+`snapshots --json`, and reconstruct the exact ID and evidence under attended review; do not
+fabricate an accepted record.
 
 ## Annual check and offline copies
 

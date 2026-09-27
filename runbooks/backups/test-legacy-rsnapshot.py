@@ -10,6 +10,7 @@ import socket
 import subprocess
 import tempfile
 import unittest
+import gc
 from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location('legacy', Path(__file__).with_name('legacy-rsnapshot.py'))
@@ -132,6 +133,21 @@ class ArchiveTests(unittest.TestCase):
             m.load_resume_inventory(outside)
 
 
+    def test_snapshot_argument_checked_before_privileged_work(self):
+        report = str(self.control / 'verification.json')
+        for argv in (['verify'], ['finalize', '--snapshot', 'latest', '--prior-run', report, '--prior-log', report,
+                      '--scratch', report, '--restored-inventory', report],
+                     ['accept', '--snapshot', 'A' * 64, '--verification-report', report],
+                     ['reconstruct', '--snapshot', 'a' * 63, '--evidence', report]):
+            with patch('sys.argv', ['legacy-rsnapshot', *argv]), \
+                    patch.object(m, 'mount_guard', side_effect=AssertionError('reached privileged work')), \
+                    patch('socket.gethostname', return_value='minis'), patch('os.geteuid', return_value=0):
+                with self.assertRaisesRegex(RuntimeError, 'full --snapshot required'):
+                    m.main()
+        with patch('sys.argv', ['legacy-rsnapshot', 'preflight']), patch('os.geteuid', return_value=1000):
+            with self.assertRaisesRegex(RuntimeError, 'run as root'):
+                m.main()
+
     def test_unexpected_existing_directory(self):
         self.repo.mkdir()
         with self.assertRaisesRegex(RuntimeError, 'unexpected existing'):
@@ -158,6 +174,240 @@ class ArchiveTests(unittest.TestCase):
             m.save(self.control / 'enrollment.json', enrollment)
             with self.assertRaisesRegex(RuntimeError, 'identity'):
                 m.archive(self.restic, self.records, self.run)
+
+    def lost_control_evidence(self, sid, lose=('enrollment', 'candidate', 'accepted')):
+        repository_id = json.loads((self.control / 'enrollment.json').read_text())['repository_id']
+        for name in lose:
+            (self.control / f'{name}.json').unlink(missing_ok=True)
+        # Spell types the way committed sanitized evidence does.
+        spelling = {v: k for k, v in m.EVIDENCE_TYPES.items()}
+        source_inventory = m.totals(self.records)
+        source_inventory['types'] = {spelling.get(k, k): v for k, v in source_inventory['types'].items()}
+        evidence = self.root / 'evidence.json'
+        evidence.write_text(json.dumps(dict(
+            status='accepted', host='minis', source=str(self.source), repository=str(self.repo),
+            source_deleted=False, repository_id=repository_id, snapshot_id=sid,
+            accepted_at='2026-09-20T21:15:07-05:00', source_inventory=source_inventory,
+            timing=dict(archive_started='2026-09-20T14:23:52-05:00'))))
+        return evidence
+
+    def reconstruct(self, sid, evidence, restic=None):
+        # Production requires root-owned control files; test callers may be unprivileged.
+        with patch.object(m, 'private_file'):
+            plan = m.reconstruct_plan(sid, evidence)
+        records = m.Inventory(plan['inventory']) if plan['inventory'] else m.inventory(self.source)
+        return m.reconstruct(restic or self.restic, sid, records, self.run, plan)
+
+    def test_committed_evidence_types_match_inventory_names(self):
+        evidence = json.loads((Path(__file__).parent / 'evidence/legacy-rsnapshot-20260920.json').read_text())
+        kinds = {'dir', 'file', 'symlink', 'fifo', 'chardev', 'dev', 'socket'}
+        types = {m.EVIDENCE_TYPES.get(k, k) for k in evidence['source_inventory']['types']}
+        self.assertLessEqual(types, kinds)
+        self.assertEqual(sum(evidence['source_inventory']['types'].values()), evidence['source_inventory']['entries'])
+
+    def test_reconstruct_lost_control_records(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            with patch('builtins.input', return_value=sid):
+                m.verify(self.restic, sid, self.run)
+            evidence = self.lost_control_evidence(sid)
+            with self.assertRaisesRegex(RuntimeError, 'committed evidence'):
+                m.reconstruct_plan('a' * 64, evidence)
+            with patch('builtins.input', return_value=sid):
+                self.assertEqual(self.reconstruct(sid, evidence), sid)
+            accepted = json.loads((self.control / 'accepted.json').read_text())
+            self.assertEqual((accepted['automated_verification'], accepted['manual_inspection']), ('passed', 'passed'))
+            self.assertTrue(accepted['sample_hashes'])
+            self.assertEqual(accepted['reconstructed']['original_accepted_at'], '2026-09-20T21:15:07-05:00')
+            enrollment = json.loads((self.control / 'enrollment.json').read_text())
+            self.assertNotIn('enrolled_at', enrollment)
+            candidate = json.loads((self.control / 'candidate.json').read_text())
+            self.assertEqual(candidate['reconstructed']['evidence'], 'evidence.json')
+            self.assertEqual(m.Inventory(candidate['inventory']), self.records)
+            # The fresh inventory is recorded in place, not copied into the run directory.
+            self.assertEqual(Path(candidate['inventory']).parent, self.control)
+            self.assertFalse((self.run / 'inventory.sqlite').exists())
+            with self.assertRaisesRegex(RuntimeError, 'no control record lost'):
+                m.reconstruct_plan(sid, evidence)
+            with self.assertRaisesRegex(RuntimeError, 'reconstructed enrollment'):
+                (self.control / 'candidate.json').unlink()
+                m.archive(self.restic, self.records, self.run)
+
+    def test_reconstruct_partial_loss(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            with patch('builtins.input', return_value=sid):
+                m.verify(self.restic, sid, self.run)
+            original = json.loads((self.control / 'candidate.json').read_text())
+            prior = json.loads((self.control / 'accepted.json').read_text())
+            # Only enrollment lost: the surviving candidate and its inventory are kept.
+            evidence = self.lost_control_evidence(sid, lose=('enrollment',))
+            with patch('builtins.input', return_value=sid):
+                self.reconstruct(sid, evidence)
+            self.assertEqual(json.loads((self.control / 'candidate.json').read_text()), original)
+            accepted = json.loads((self.control / 'accepted.json').read_text())
+            self.assertEqual(json.loads(Path(accepted['reconstructed']['prior_accepted']).read_text()), prior)
+            # Only the candidate inventory lost: verify fails closed, reconstruct replaces the candidate.
+            Path(original['inventory']).unlink()
+            with self.assertRaisesRegex(RuntimeError, 'candidate inventory missing'):
+                m.verify(self.restic, sid, self.run)
+            with patch('builtins.input', return_value=sid):
+                self.reconstruct(sid, evidence)
+            candidate = json.loads((self.control / 'candidate.json').read_text())
+            self.assertEqual(candidate['reconstructed']['replaced_candidate'], original)
+            self.assertTrue(Path(candidate['inventory']).is_file())
+
+    def test_reconstruct_interrupted_before_enrollment_resumes(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            evidence = self.lost_control_evidence(sid)
+            real_save = m.save
+            def interrupted(path, value):
+                if path.name == 'enrollment.json':
+                    raise KeyboardInterrupt()
+                return real_save(path, value)
+            with patch.object(m, 'save', interrupted), self.assertRaises(KeyboardInterrupt):
+                self.reconstruct(sid, evidence)
+            self.assertTrue((self.control / 'candidate.json').exists())
+            with self.assertRaisesRegex(RuntimeError, 'unexpected existing'):
+                m.archive(self.restic, self.records, self.run)
+            with patch('builtins.input', return_value=sid):
+                self.assertEqual(self.reconstruct(sid, evidence), sid)
+            self.assertEqual(len(json.loads(self.restic('snapshots', '--json'))), 1)
+
+    def test_reconstruct_interrupted_at_manual_prompt_resumes_with_verify(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            with patch('builtins.input', return_value=sid):
+                m.verify(self.restic, sid, self.run)
+            prior = json.loads((self.control / 'accepted.json').read_text())
+            evidence = self.lost_control_evidence(sid, lose=('enrollment', 'candidate'))
+            with patch('builtins.input', return_value='no'), \
+                    self.assertRaisesRegex(RuntimeError, 'manual inspection'):
+                self.reconstruct(sid, evidence)
+            self.assertEqual(json.loads((self.control / 'accepted.json').read_text()), prior)
+            with self.assertRaisesRegex(RuntimeError, 'no control record lost'):
+                m.reconstruct_plan(sid, evidence)
+            # The documented resume path still records reconstruction provenance.
+            with patch('builtins.input', return_value=sid):
+                self.assertEqual(m.verify(self.restic, sid, self.run), sid)
+            accepted = json.loads((self.control / 'accepted.json').read_text())
+            self.assertEqual(accepted['reconstructed']['evidence'], 'evidence.json')
+            self.assertEqual(json.loads(Path(accepted['reconstructed']['prior_accepted']).read_text()), prior)
+
+    def test_accept_verification_carries_reconstructed_provenance(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            evidence = self.lost_control_evidence(sid, lose=('enrollment',))
+            with patch('builtins.input', return_value=sid):
+                self.reconstruct(sid, evidence)
+            candidate = json.loads((self.control / 'candidate.json').read_text())
+            enrollment = json.loads((self.control / 'enrollment.json').read_text())
+            selected = m.samples(self.records)
+            scratch = m.restore_samples(self.restic, sid, self.records, selected, self.run, self.root)
+            with patch('builtins.input', return_value=sid):
+                self.assertEqual(m.accept_verification(self.records, m.inventory(scratch), sid, self.run,
+                                                       scratch, candidate, enrollment), sid)
+            accepted = json.loads((self.control / 'accepted.json').read_text())
+            self.assertEqual(accepted['source'], m.totals(self.records))
+            self.assertEqual(accepted['reconstructed'], enrollment['reconstructed'])
+
+    def test_reconstruct_rejects_unreadable_surviving_records(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            original = json.loads((self.control / 'candidate.json').read_text())
+            evidence = self.lost_control_evidence(sid, lose=('enrollment',))
+            candidate = self.control / 'candidate.json'
+            for content, message in (('', 'unreadable or truncated'), ('{"snapshot_id": "', 'unreadable or truncated'),
+                                     (b'\xff', 'unreadable or truncated'), ('[]', 'not a record')):
+                candidate.write_bytes(content if isinstance(content, bytes) else content.encode())
+                with self.assertRaisesRegex(RuntimeError, message):
+                    m.reconstruct_plan(sid, evidence)
+            candidate.write_text(json.dumps({k: v for k, v in original.items() if k != 'inventory'}))
+            with self.assertRaisesRegex(RuntimeError, 'names no inventory'):
+                m.reconstruct_plan(sid, evidence)
+            self.assertFalse((self.control / 'enrollment.json').exists())
+
+    def test_reconstruct_rejects_untrusted_candidate_inventory(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            original = json.loads((self.control / 'candidate.json').read_text())
+            evidence = self.lost_control_evidence(sid, lose=('enrollment',))
+            outside = self.root / 'outside.sqlite'
+            shutil.copy(original['inventory'], outside)
+            for path, message in ((outside, 'outside the control directory'),
+                                  (self.control / 'alias.sqlite', 'noncanonical')):
+                if path != outside:
+                    path.symlink_to(original['inventory'])
+                m.save(self.control / 'candidate.json', dict(original, inventory=str(path)))
+                with self.assertRaisesRegex(RuntimeError, message):
+                    m.reconstruct_plan(sid, evidence)
+            loose = self.control / 'loose.sqlite'
+            shutil.copy(original['inventory'], loose)
+            loose.chmod(0o644)
+            with self.assertRaisesRegex(RuntimeError, 'root:root 0600'):
+                m.private_file(loose)
+            self.assertFalse((self.control / 'enrollment.json').exists())
+
+    def test_reconstruct_checks_snapshot_scope_before_writing(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            self.restic('tag', '--set', 'other', sid)
+            [retagged] = json.loads(self.restic('snapshots', '--json'))
+            evidence = self.lost_control_evidence(retagged['id'], lose=('enrollment', 'candidate'))
+            with self.assertRaisesRegex(RuntimeError, 'snapshot scope mismatch'):
+                self.reconstruct(retagged['id'], evidence)
+            self.assertFalse((self.control / 'candidate.json').exists())
+            self.assertFalse((self.control / 'enrollment.json').exists())
+
+    def test_reconstruct_rejects_changed_source_and_extra_snapshots(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            evidence = self.lost_control_evidence(sid)
+            (self.source / 'daily.0/new').write_text('changed')
+            with self.assertRaisesRegex(RuntimeError, 'differs from committed'):
+                self.reconstruct(sid, evidence)
+            self.assertFalse((self.control / 'candidate.json').exists())
+            (self.source / 'daily.0/new').unlink()
+            self.restic('backup', '--host', 'minis', '--tag', 'legacy-rsnapshot', self.source)
+            with self.assertRaisesRegex(RuntimeError, 'exactly the accepted snapshot'):
+                self.reconstruct(sid, evidence)
+            self.assertFalse((self.control / 'enrollment.json').exists())
+            self.source.rename(self.root / 'gone')
+            with self.assertRaisesRegex(RuntimeError, 'source missing'):
+                m.reconstruct_plan(sid, evidence)
+
+    def transient_inventories(self):
+        gc.collect()
+        return set(self.control.glob('inventory-*.sqlite')) - {self.records.path}
+
+    def test_temporary_inventories_are_discarded_unless_kept(self):
+        with patch.object(m, 'private'):
+            sid = m.archive(self.restic, self.records, self.run)
+            with patch('builtins.input', return_value=sid):
+                m.verify(self.restic, sid, self.run)
+            self.assertEqual(self.transient_inventories(), set())
+            evidence = self.lost_control_evidence(sid)
+            directory = (self.source / 'daily.0').stat()
+            (self.source / 'daily.0/new').write_text('changed')
+            with self.assertRaisesRegex(RuntimeError, 'differs from committed'):
+                self.reconstruct(sid, evidence)
+            self.assertEqual(self.transient_inventories(), set())
+            (self.source / 'daily.0/new').unlink()
+            os.utime(self.source / 'daily.0', ns=(directory.st_atime_ns, directory.st_mtime_ns))
+            with patch('builtins.input', return_value=sid):
+                self.reconstruct(sid, evidence)
+            candidate = json.loads((self.control / 'candidate.json').read_text())
+            self.assertEqual(self.transient_inventories(), {Path(candidate['inventory'])})
+
+    def test_archive_refuses_repository_with_snapshot(self):
+        with patch.object(m, 'private'):
+            m.archive(self.restic, self.records, self.run)
+            # The original enrollment survives while the candidate is lost.
+            (self.control / 'candidate.json').unlink()
+            with self.assertRaisesRegex(RuntimeError, 'already holds a snapshot'):
+                m.archive(self.restic, self.records, self.run)
+            self.assertEqual(len(json.loads(self.restic('snapshots', '--json'))), 1)
 
     def test_partial_and_interrupted_backup_retry(self):
         for failure in (subprocess.CalledProcessError(3, 'restic'), KeyboardInterrupt()):
