@@ -96,7 +96,7 @@ retention_series = {
 for name, labels, evaluations in [
     ('one nightly skip is within grace', None, ('54h',)),
     ('retention alert waits 15 minutes', None, ('54h15m',)),
-    ('repeated skips retain last success age', {}, ('54h30m',)),
+    ('repeated skips retain last success age', {'destination': 'nas'}, ('54h30m',)),
 ]:
     retention_stale = case(name, retention_series, 'ResticAppstateRetentionSkipped', labels, evaluations)
     retention_stale['interval'] = '15m'
