@@ -17,7 +17,9 @@ sudo runbooks/backups/install-offline-ssd.sh
 sudo offline-ssd inspect --drive A --device /dev/disk/by-id/usb-EXACT_DEVICE
 ```
 
-RomM verification enables client `--sandbox` before reading restored SQL to reject
+`mariadb-server-core` is sufficient; the installer creates the unprivileged
+`mysql` system account if that package left it absent, without enabling any
+MariaDB service. RomM verification enables client `--sandbox` before reading restored SQL to reject
 client shell and filesystem commands. A client without this option fails verification;
 do not remove the option to work around an older client.
 

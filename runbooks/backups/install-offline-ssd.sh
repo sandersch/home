@@ -10,6 +10,11 @@ for tool in python3 findmnt lsblk wipefs sfdisk mkfs.ext4 chattr lsattr ionice n
   command -v "$tool" >/dev/null
 done
 python3 -c 'import yaml'
+# mariadb-server-core ships the binaries without the package postinst that creates
+# this account. RomM verification drops the sandboxed server and client to it.
+getent group mysql >/dev/null || groupadd --system mysql
+getent passwd mysql >/dev/null || useradd --system --gid mysql --no-create-home \
+  --home-dir /nonexistent --shell /usr/sbin/nologin mysql
 install -d -o root -g root -m 0755 /usr/local/lib/offline-ssd
 python3 "$root/runbooks/backups/workstation-install-restic.py" --directory /usr/local/lib/offline-ssd
 for file in offline-ssd.py offline-contracts.py legacy-rsnapshot.py; do
