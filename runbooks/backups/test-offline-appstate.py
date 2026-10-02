@@ -8,6 +8,7 @@ from pathlib import Path
 import sqlite3
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 from unittest.mock import patch
@@ -18,6 +19,11 @@ c = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(c)
 
 
+def phase(message):
+    # The step is otherwise silent until PASS; show where a hang happens.
+    print(f'phase: {message}', file=sys.stderr, flush=True)
+
+
 def require(condition, message):
     if not condition:
         raise RuntimeError(message)
@@ -25,7 +31,9 @@ def require(condition, message):
 
 require(os.geteuid() == 0, 'run in a disposable root test environment with podman')
 image = c.romm_mariadb_image((HERE.parent.parent / 'apps/media/romm/deployment.yaml').read_text())
-subprocess.run(['podman', 'pull', '--quiet', image['image']], check=True, stdout=subprocess.DEVNULL)
+phase(f'pull {image["image"]}')
+subprocess.run(['podman', 'pull', '--quiet', image['image']], check=True, stdout=subprocess.DEVNULL, timeout=600)
+c.ROMM_IMPORT_TIMEOUT = 300
 with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp:
     root = Path(temp)
     c.configure(None, lambda: None, lambda p: require(p.resolve() == p, 'symlink'), require, root, root, None)
@@ -78,6 +86,7 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
     with patch.object(c.tempfile, 'mkdtemp', side_effect=track_sandbox), \
             patch.object(c.subprocess, 'run', side_effect=FileNotFoundError('injected setup failure')):
         try:
+            phase('injected setup failure')
             c.verify_appstate(restic, snapshot, setup_failure)
             raise AssertionError('injected MariaDB setup failure was ignored')
         except FileNotFoundError as error:
@@ -86,6 +95,7 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
             'MariaDB setup failure left plaintext scratch behind')
     scratch = root / 'restored'
     scratch.mkdir(mode=0o700)
+    phase('clean RomM import')
     c.verify_appstate(restic, snapshot, scratch)
     require(not list(scratch.glob('offline-mariadb-*')), 'MariaDB sandbox left behind after success')
     # Client commands must be refused before they execute. Shell output would
@@ -97,6 +107,7 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
         rejected = root / f'client-command-{index}'
         rejected.mkdir(mode=0o700)
         try:
+            phase(f'client command refusal {index}')
             c.verify_appstate(restic, snapshot, rejected)
             raise AssertionError('unsafe client command accepted')
         except RuntimeError as error:
@@ -110,6 +121,7 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
     newer = root / 'newer-dump'
     newer.mkdir(mode=0o700)
     try:
+        phase('newer dump refusal')
         c.verify_appstate(restic, snapshot, newer)
         raise AssertionError('dump from a newer MariaDB accepted')
     except RuntimeError as error:
@@ -121,6 +133,7 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
     failed = root / 'bad'
     failed.mkdir(mode=0o700)
     try:
+        phase('corrupt datastore refusal')
         c.verify_appstate(restic, snapshot, failed)
         raise AssertionError('corrupt datastore accepted')
     except sqlite3.DatabaseError:

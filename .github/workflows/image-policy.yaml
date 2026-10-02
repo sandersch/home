@@ -64,6 +64,7 @@ jobs:
           bash runbooks/backups/test-workstation-rest-server.sh
 
       - name: Test isolated offline appstate verification
+        timeout-minutes: 15
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y podman

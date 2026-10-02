@@ -266,6 +266,10 @@ echo "romm-tables=$count"
 '''
 
 
+# The RomM database is small; a stuck runtime must fail rather than hang enrollment.
+ROMM_IMPORT_TIMEOUT = 1800
+
+
 def release(text):
     return tuple(int(part) for part in text.split('.'))
 
@@ -326,12 +330,18 @@ def verify_appstate(restic, snapshot, scratch):
     log_path = scratch / 'mariadb.log'
     try:
         with out.open('rb') as sql, log_path.open('w') as log:
-            result = subprocess.run(['podman', 'run', '--rm', '--interactive', '--name', sandbox.name,
-                                     '--pull=never', '--network=none', '--read-only', '--cap-drop=all',
-                                     '--security-opt=no-new-privileges', '--user=mysql',
-                                     '--volume', f'{sandbox}:/work:U', '--entrypoint=sh',
-                                     image['image'], '-c', ROMM_IMPORT],
-                                    stdin=sql, stdout=subprocess.PIPE, stderr=log, text=True)
+            try:
+                result = subprocess.run(['podman', 'run', '--rm', '--interactive', '--name', sandbox.name,
+                                         '--pull=never', '--network=none', '--read-only', '--cap-drop=all',
+                                         '--security-opt=no-new-privileges', '--user=mysql',
+                                         '--volume', f'{sandbox}:/work:U', '--entrypoint=sh',
+                                         image['image'], '-c', ROMM_IMPORT],
+                                        stdin=sql, stdout=subprocess.PIPE, stderr=log, text=True,
+                                        timeout=ROMM_IMPORT_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                # The finally below force-removes the container the killed client left behind.
+                require(False, f'isolated RomM import timed out after {ROMM_IMPORT_TIMEOUT}s: '
+                        + log_path.read_text(errors='replace')[-4000:])
         # The log holds MariaDB diagnostics only, shown on the attended terminal.
         require(result.returncode == 0, f'isolated RomM import failed (status {result.returncode}): '
                 + log_path.read_text(errors='replace')[-4000:])
