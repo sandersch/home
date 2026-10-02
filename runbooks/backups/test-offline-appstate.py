@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Disposable SQLite, HA archive and real isolated MariaDB restore validation."""
+"""Disposable SQLite, HA archive and real pinned-container MariaDB restore validation."""
 import importlib.util
 import io
 import json
@@ -23,11 +23,14 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
-require(os.geteuid() == 0, 'run in a disposable root test environment with MariaDB tools')
+require(os.geteuid() == 0, 'run in a disposable root test environment with podman')
+image = c.romm_mariadb_image((HERE.parent.parent / 'apps/media/romm/deployment.yaml').read_text())
+subprocess.run(['podman', 'pull', '--quiet', image['image']], check=True, stdout=subprocess.DEVNULL)
 with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp:
     root = Path(temp)
     c.configure(None, lambda: None, lambda p: require(p.resolve() == p, 'symlink'), require, root, root, None)
     (root / 'appstate-contract.json').write_text(json.dumps({'version': '3', 'required': ['app/state.db']}))
+    (root / 'romm-mariadb.json').write_text(json.dumps(image))
     source = root / 'source'
     source.mkdir()
     database = source / 'test.sqlite'
@@ -47,7 +50,7 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
         'sqlite/app/state.db.sqlite-backup': database.read_bytes(),
         'k3s/state.db.sqlite-backup': database.read_bytes(),
         'home-assistant/home-assistant.tar': archive.read_bytes(),
-        'romm/romm.sql': b'CREATE DATABASE romm;\nUSE romm;\nCREATE TABLE fixture (id INT PRIMARY KEY);\nINSERT INTO fixture VALUES (1);\n',
+        'romm/romm.sql': f'-- Server version\t{image["version"]}-MariaDB\n'.encode() + b'CREATE DATABASE romm;\nUSE romm;\nCREATE TABLE fixture (id INT PRIMARY KEY);\nINSERT INTO fixture VALUES (1);\n',
     }
     def restic(*args, output=None):
         if args[0] == 'ls':
@@ -88,18 +91,30 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
     # Client commands must be refused before they execute. Shell output would
     # reach the client's log; the marker text appears only if a shell ran.
     clean_dump = blobs['romm/romm.sql']
+    header, body = clean_dump.split(b'\n', 1)
     for index, command in enumerate(('\\!', 'system')):
-        blobs['romm/romm.sql'] = f"{command} printf 'CLIENT-%s\\n' SHELL-EXECUTED\n".encode() + clean_dump
+        blobs['romm/romm.sql'] = header + f"\n{command} printf 'CLIENT-%s\\n' SHELL-EXECUTED\n".encode() + body
         rejected = root / f'client-command-{index}'
         rejected.mkdir(mode=0o700)
         try:
             c.verify_appstate(restic, snapshot, rejected)
             raise AssertionError('unsafe client command accepted')
-        except subprocess.CalledProcessError as error:
-            require('mariadb' in error.cmd and '--sandbox' in error.cmd, 'failure was not from the import client')
+        except RuntimeError as error:
+            require('isolated RomM import failed' in str(error), 'failure was not from the import')
+            require('not allowed in the sandbox mode' in str(error).lower(), 'import failed without a sandbox diagnostic')
             log = (rejected / 'mariadb.log').read_text()
-            require('sandbox' in log.lower(), 'import failed without a sandbox diagnostic')
             require('CLIENT-SHELL-EXECUTED' not in log, 'dump executed a shell command')
+        require(not list(rejected.glob('offline-mariadb-*')), 'MariaDB sandbox left behind after import failure')
+    # A dump from a newer server than the pinned image is refused before import.
+    blobs['romm/romm.sql'] = b'-- Server version\t99.0.0-MariaDB\n' + body
+    newer = root / 'newer-dump'
+    newer.mkdir(mode=0o700)
+    try:
+        c.verify_appstate(restic, snapshot, newer)
+        raise AssertionError('dump from a newer MariaDB accepted')
+    except RuntimeError as error:
+        require('newer than verification image' in str(error), 'unexpected newer-dump failure')
+    require(not list(newer.glob('offline-mariadb-*')), 'newer dump started an import')
     blobs['romm/romm.sql'] = clean_dump
     # Corruption fails before any successful annual record can be produced.
     blobs['k3s/state.db.sqlite-backup'] = b'corrupt database'
@@ -110,4 +125,4 @@ with tempfile.TemporaryDirectory(prefix='offline-appstate-', dir='/tmp') as temp
         raise AssertionError('corrupt datastore accepted')
     except sqlite3.DatabaseError:
         pass
-    print('PASS: SQLite/k3s schema and integrity, HA archive, real isolated RomM import/check, client shell command refusal, corrupted datastore refusal')
+    print('PASS: SQLite/k3s schema and integrity, HA archive, pinned-container RomM import/check, client shell command refusal, newer-dump refusal, corrupted datastore refusal')
