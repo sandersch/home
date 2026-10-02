@@ -20,8 +20,11 @@ RomM verification never uses host MariaDB. The installer records and pre-pulls t
 exact digest-pinned image of the `mariadb` container in
 `apps/media/romm/deployment.yaml`, so verification matches production as Renovate
 updates it. The import runs in a podman container with no network, a read-only
-root, no capabilities and `--pull=never`, as the image's unprivileged `mysql` user,
-writing only to disposable scratch on the encrypted vault. Its client enables
+root, no capabilities, `no-new-privileges`, podman's default seccomp filter and
+`--pull=never`, as the image's unprivileged `mysql` user, writing only to
+disposable scratch on the encrypted vault. AppArmor is disabled for this one
+container: on Ubuntu 24.04, podman's `containers-default` profile stacked with
+the `crun`/`runc` profile denies MariaDB's signal to itself, so its shutdown hangs. Its client enables
 `--sandbox` before reading restored SQL to reject client shell and filesystem
 commands; do not remove the option. A dump from a newer MariaDB than the recorded
 image is refused before import: reinstall from a reviewed checkout matching

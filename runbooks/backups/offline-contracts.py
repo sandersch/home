@@ -326,6 +326,9 @@ def verify_appstate(restic, snapshot, scratch):
     # capabilities, and runs as the image's mysql user. Its only writable
     # persistent path is this disposable tree on the verified encrypted vault,
     # whose root-only 0700 ancestors keep the same host UID out.
+    # AppArmor is off for this container only: on Ubuntu 24.04, podman's
+    # containers-default profile stacked with the crun (or runc) profile denies
+    # MariaDB's kill(getpid(), SIGTERM), so server shutdown waits forever.
     sandbox = Path(tempfile.mkdtemp(prefix='offline-mariadb-', dir=scratch))
     log_path = scratch / 'mariadb.log'
     try:
@@ -333,7 +336,8 @@ def verify_appstate(restic, snapshot, scratch):
             try:
                 result = subprocess.run(['podman', 'run', '--rm', '--interactive', '--name', sandbox.name,
                                          '--pull=never', '--network=none', '--read-only', '--cap-drop=all',
-                                         '--security-opt=no-new-privileges', '--user=mysql',
+                                         '--security-opt=no-new-privileges', '--security-opt=apparmor=unconfined',
+                                         '--user=mysql',
                                          '--volume', f'{sandbox}:/work:U', '--entrypoint=sh',
                                          image['image'], '-c', ROMM_IMPORT],
                                         stdin=sql, stdout=subprocess.PIPE, stderr=log, text=True,
