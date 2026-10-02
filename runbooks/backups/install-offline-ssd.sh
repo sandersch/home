@@ -6,15 +6,10 @@ root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 [[ "$(hostname -s)" = minis ]] || { echo 'Installer is for minis' >&2; exit 1; }
 for tool in python3 findmnt lsblk wipefs sfdisk mkfs.ext4 chattr lsattr ionice nice cryptsetup \
             mount mountpoint umount swapon udevadm sync du \
-            mariadb mariadbd mariadb-install-db mariadb-check bwrap; do
+            podman; do
   command -v "$tool" >/dev/null
 done
 python3 -c 'import yaml'
-# mariadb-server-core ships the binaries without the package postinst that creates
-# this account. RomM verification drops the sandboxed server and client to it.
-getent group mysql >/dev/null || groupadd --system mysql
-getent passwd mysql >/dev/null || useradd --system --gid mysql --no-create-home \
-  --home-dir /nonexistent --shell /usr/sbin/nologin mysql
 install -d -o root -g root -m 0755 /usr/local/lib/offline-ssd
 python3 "$root/runbooks/backups/workstation-install-restic.py" --directory /usr/local/lib/offline-ssd
 for file in offline-ssd.py offline-contracts.py legacy-rsnapshot.py; do
@@ -35,6 +30,26 @@ path.write_text(json.dumps({'version': config['BACKUP_CONTRACT_VERSION'],
                             'required': config['REQUIRED_SQLITE_DATABASES'].strip().splitlines()}) + '\n')
 path.chmod(0o644)
 PY
+# RomM verification imports with the exact image production runs. Pull it now so
+# attended operations never need registry access (they run with --pull=never).
+romm_image="$(python3 - "$root" <<'PY'
+import importlib.util
+import json
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location('contracts', root / 'runbooks/backups/offline-contracts.py')
+contracts = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(contracts)
+image = contracts.romm_mariadb_image((root / 'apps/media/romm/deployment.yaml').read_text())
+path = Path('/usr/local/lib/offline-ssd/romm-mariadb.json')
+path.write_text(json.dumps(image) + '\n')
+path.chmod(0o644)
+print(image['image'])
+PY
+)"
+podman pull --quiet "$romm_image" >/dev/null
+podman image exists "$romm_image"
 install -d -o root -g root -m 0700 /mnt/offline
 for drive in A B; do
   path="/mnt/offline/$drive"

@@ -231,6 +231,64 @@ def dump_file(restic, sid, archived, target):
     require(target.stat().st_size > 0, 'empty restored artifact')
 
 
+# Runs inside the pinned RomM MariaDB image as its unprivileged mysql user.
+# Restored SQL arrives on stdin, and only the import client reads it.
+ROMM_IMPORT = r'''
+set -eu
+mkdir -m 0700 /work/data /work/tmp /work/files
+mariadb-install-db --no-defaults --user=mysql --datadir=/work/data --tmpdir=/work/tmp </dev/null 1>&2
+mariadbd --no-defaults --user=mysql --datadir=/work/data --socket=/tmp/mariadb.sock \
+  --pid-file=/tmp/mariadb.pid --skip-networking --local-infile=0 \
+  --tmpdir=/work/tmp --secure-file-priv=/work/files </dev/null 1>&2 &
+server=$!
+tries=0
+until [ -S /tmp/mariadb.sock ]; do
+  if ! kill -0 "$server" 2>/dev/null; then
+    echo 'isolated MariaDB exited during startup' >&2
+    exit 1
+  fi
+  tries=$((tries + 1))
+  if [ "$tries" -gt 300 ]; then
+    echo 'isolated MariaDB startup timed out after 30 seconds' >&2
+    exit 1
+  fi
+  sleep 0.1
+done
+client='--no-defaults --socket=/tmp/mariadb.sock --user=mysql'
+# The client also parses dump commands: refuse shell/file access before reading SQL.
+mariadb $client --sandbox 1>&2
+count=$(mariadb $client --batch --skip-column-names </dev/null \
+  --execute='SELECT COUNT(*) FROM information_schema.tables WHERE table_schema="romm"')
+mariadb-check $client --databases romm </dev/null 1>&2
+mariadb-admin $client shutdown </dev/null 1>&2
+wait "$server"
+echo "romm-tables=$count"
+'''
+
+
+# The RomM database is small; a stuck runtime must fail rather than hang enrollment.
+ROMM_IMPORT_TIMEOUT = 1800
+
+
+def release(text):
+    return tuple(int(part) for part in text.split('.'))
+
+
+def romm_mariadb_image(text):
+    """Return the digest-pinned MariaDB image of the RomM Deployment manifest."""
+    import yaml
+    images = [container['image'] for doc in yaml.safe_load_all(text)
+              if doc and doc.get('kind') == 'Deployment' and doc['metadata']['name'] == 'romm'
+              for container in doc['spec']['template']['spec']['containers'] if container['name'] == 'mariadb']
+    if len(images) != 1:
+        raise ValueError('RomM MariaDB container not found exactly once')
+    match = re.fullmatch(r'mariadb:(\d+\.\d+\.\d+)@(sha256:[0-9a-f]{64})', images[0])
+    if match is None:
+        raise ValueError('RomM MariaDB image is not an exact version and digest pin')
+    # Digest-only references avoid tag@digest parsing differences between runtimes.
+    return {'image': f'docker.io/library/mariadb@{match[2]}', 'version': match[1]}
+
+
 def verify_appstate(restic, snapshot, scratch):
     config = appstate(restic, snapshot)
     sid = snapshot['id']
@@ -255,89 +313,48 @@ def verify_appstate(restic, snapshot, scratch):
     dump_file(restic, sid, prefix + 'romm/romm.sql', out)
     with out.open('rb') as dump:
         require(any(line.startswith(b'CREATE TABLE ') for line in dump), 'RomM dump has no tables')
-    # An isolated local server imports untrusted restored SQL without network access.
-    # SQL is untrusted: keep the server unprivileged and give it a private mount,
-    # PID, IPC, and network namespace with only this disposable tree writable.
-    # Keep the restored SQL and MariaDB datadir on the verified encrypted vault.
-    # Its root-only 0700 ancestors stop the host mysql UID, so every MariaDB
-    # process reaches the tree only through this bind at /tmp/sandbox.
+    image = json.loads((HERE / 'romm-mariadb.json').read_text())
+    with out.open('rb') as dump:
+        dumped = re.search(rb'^-- Server version\s+(\d+\.\d+\.\d+)', dump.read(4096), re.M)
+    require(dumped is not None, 'RomM dump has no server version header')
+    require(release(dumped[1].decode()) <= release(image['version']),
+            f'RomM dump is from MariaDB {dumped[1].decode()}, newer than verification image {image["version"]}; '
+            'reinstall from a reviewed checkout matching production')
+    # Import with the digest-pinned image production runs, never host MariaDB,
+    # so Renovate updates of RomM's database keep verification in step.
+    # SQL is untrusted: the container has no network, a read-only root and no
+    # capabilities, and runs as the image's mysql user. Its only writable
+    # persistent path is this disposable tree on the verified encrypted vault,
+    # whose root-only 0700 ancestors keep the same host UID out.
+    # AppArmor is off for this container only: on Ubuntu 24.04, podman's
+    # containers-default profile stacked with the crun (or runc) profile denies
+    # MariaDB's kill(getpid(), SIGTERM), so server shutdown waits forever.
     sandbox = Path(tempfile.mkdtemp(prefix='offline-mariadb-', dir=scratch))
-    server = None
-
-    def isolated(*command, caps=()):
-        # No user namespace: it would leave the host mysql UID unmapped, so each
-        # process starts as root with only the capabilities it needs.
-        return ['bwrap', '--die-with-parent', '--unshare-ipc', '--unshare-pid',
-                '--unshare-net', '--unshare-uts', '--unshare-cgroup-try', '--ro-bind', '/', '/',
-                '--dev', '/dev', '--proc', '/proc', '--tmpfs', '/tmp', '--dir', '/tmp/sandbox',
-                '--bind', str(sandbox), '/tmp/sandbox', '--chdir', '/tmp/sandbox',
-                *(arg for cap in caps for arg in ('--cap-add', cap)), *command]
-
-    def as_mysql(*command):
-        # Changing every UID away from root clears the capabilities used for the switch.
-        return isolated('setpriv', '--reuid=mysql', '--regid=mysql', '--clear-groups', '--inh-caps=-all',
-                        *command, caps=('CAP_SETUID', 'CAP_SETGID'))
-
-    socket_arg = '--socket=/tmp/sandbox/mariadb.sock'
+    log_path = scratch / 'mariadb.log'
     try:
-        sandbox.chmod(0o711)
-        dbdir = sandbox / 'data'
-        dbdir.mkdir(mode=0o700)
-        sql_files = sandbox / 'sql-files'
-        sql_files.mkdir(mode=0o700)
-        socket = sandbox / 'mariadb.sock'
-        for path in (dbdir, sql_files, sandbox):
-            shutil.chown(path, user='mysql', group='mysql')
-        # The read-only host root also keeps install-db's PAM helper ownership
-        # changes off the host; MariaDB treats those failures as warnings.
-        subprocess.run(isolated('mariadb-install-db', '--no-defaults', '--datadir=/tmp/sandbox/data', '--user=mysql',
-                                '--tmpdir=/tmp/sandbox/sql-files', caps=('CAP_CHOWN', 'CAP_DAC_OVERRIDE', 'CAP_FOWNER', 'CAP_SETUID', 'CAP_SETGID')),
-                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        log_path = scratch / 'mariadb.log'
-        with log_path.open('w') as log:
-            server = subprocess.Popen(isolated(
-                       'mariadbd', '--no-defaults', '--user=mysql',
-                       '--datadir=/tmp/sandbox/data', socket_arg,
-                       '--pid-file=/tmp/sandbox/mariadb.pid', '--skip-networking', '--local-infile=0',
-                       '--tmpdir=/tmp/sandbox/sql-files', '--secure-file-priv=/tmp/sandbox/sql-files',
-                       caps=('CAP_DAC_OVERRIDE', 'CAP_SETUID', 'CAP_SETGID')),
-                       stdout=log, stderr=log)
-            ready = False
-            for _ in range(100):
-                if socket.exists():
-                    ready = True
-                    break
-                status = server.poll()
-                if status is not None:
-                    log.flush()
-                    startup_log = log_path.read_text()[-4000:]
-                    require(False,
-                            f'isolated MariaDB exited during startup (status {status}): {startup_log}')
-                time.sleep(.1)
-            require(ready, 'isolated MariaDB startup timed out after 10 seconds')
-            with out.open('rb') as sql:
-                # The client also parses dump commands: refuse shell/file access
-                # before reading any SQL, independently of its read-only namespace.
-                subprocess.run(as_mysql('mariadb', '--no-defaults', '--sandbox', socket_arg, '--user=mysql'),
-                               stdin=sql, stdout=log, stderr=log, check=True)
-            count = subprocess.check_output(as_mysql('mariadb', '--no-defaults', socket_arg, '--user=mysql',
-                '--batch', '--skip-column-names', '--execute=SELECT COUNT(*) FROM information_schema.tables WHERE table_schema="romm"'),
-                text=True)
-            require(int(count) > 0, 'RomM import empty')
-            subprocess.run(as_mysql('mariadb-check', '--no-defaults', socket_arg, '--user=mysql', '--databases', 'romm'),
-                           check=True, stdout=log, stderr=log)
+        with out.open('rb') as sql, log_path.open('w') as log:
+            try:
+                result = subprocess.run(['podman', 'run', '--rm', '--interactive', '--name', sandbox.name,
+                                         '--pull=never', '--network=none', '--read-only', '--cap-drop=all',
+                                         '--security-opt=no-new-privileges', '--security-opt=apparmor=unconfined',
+                                         '--user=mysql',
+                                         '--volume', f'{sandbox}:/work:U', '--entrypoint=sh',
+                                         image['image'], '-c', ROMM_IMPORT],
+                                        stdin=sql, stdout=subprocess.PIPE, stderr=log, text=True,
+                                        timeout=ROMM_IMPORT_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                # The finally below force-removes the container the killed client left behind.
+                require(False, f'isolated RomM import timed out after {ROMM_IMPORT_TIMEOUT}s: '
+                        + log_path.read_text(errors='replace')[-4000:])
+        # The log holds MariaDB diagnostics only, shown on the attended terminal.
+        require(result.returncode == 0, f'isolated RomM import failed (status {result.returncode}): '
+                + log_path.read_text(errors='replace')[-4000:])
+        count = re.fullmatch(r'romm-tables=(\d+)\n', result.stdout)
+        require(count is not None and int(count[1]) > 0, 'RomM import empty')
     finally:
         try:
-            if server is not None:
-                try:
-                    server.terminate()
-                except ProcessLookupError:
-                    pass
-                try:
-                    server.wait(timeout=30)
-                except subprocess.TimeoutExpired:
-                    server.kill()
-                    server.wait()
+            subprocess.run(['podman', 'rm', '--force', '--ignore', sandbox.name],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         finally:
             shutil.rmtree(sandbox)
 

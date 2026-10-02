@@ -8,24 +8,31 @@ There is no SSD timer, automount, fstab entry, `forget`, `prune`, or automatic u
 
 ## Install and inspect
 
-Install host prerequisites (`python3-yaml`, util-linux, e2fsprogs, cryptsetup,
-`bubblewrap`, and MariaDB server/client tools with client `--sandbox` support),
-then run from a reviewed checkout on minis:
+Install host prerequisites (`python3-yaml`, util-linux, e2fsprogs, cryptsetup and
+`podman`), then run from a reviewed checkout on minis:
 
 ```sh
 sudo runbooks/backups/install-offline-ssd.sh
 sudo offline-ssd inspect --drive A --device /dev/disk/by-id/usb-EXACT_DEVICE
 ```
 
-`mariadb-server-core` is sufficient; the installer creates the unprivileged
-`mysql` system account if that package left it absent, without enabling any
-MariaDB service. RomM verification enables client `--sandbox` before reading restored SQL to reject
-client shell and filesystem commands. A client without this option fails verification;
-do not remove the option to work around an older client.
+RomM verification never uses host MariaDB. The installer records and pre-pulls the
+exact digest-pinned image of the `mariadb` container in
+`apps/media/romm/deployment.yaml`, so verification matches production as Renovate
+updates it. The import runs in a podman container with no network, a read-only
+root, no capabilities, `no-new-privileges`, podman's default seccomp filter and
+`--pull=never`, as the image's unprivileged `mysql` user, writing only to
+disposable scratch on the encrypted vault. AppArmor is disabled for this one
+container: on Ubuntu 24.04, podman's `containers-default` profile stacked with
+the `crun`/`runc` profile denies MariaDB's signal to itself, so its shutdown hangs. Its client enables
+`--sandbox` before reading restored SQL to reject client shell and filesystem
+commands; do not remove the option. A dump from a newer MariaDB than the recorded
+image is refused before import: reinstall from a reviewed checkout matching
+production, then retry. An import failure reports MariaDB's own diagnostic.
 
 The installer reuses the upstream-checksum-verified Restic 0.19.1 installer and
 copies released vault contracts plus the appstate required-export inventory.
-Reinstall after a reviewed contract update. It installs immutable, empty mountpoints
+Reinstall after a reviewed contract or RomM MariaDB image update. It installs immutable, empty mountpoints
 under `/mnt/offline/{A,B}` and creates no backup schedule. `inspect` reports hardware,
 signatures, mount use and existing enrollment; it does not change the device.
 The NAS backup-volume identity and sentinel guard must pass before control/source
