@@ -1,0 +1,66 @@
+{
+  "drive": "A",
+  "quarter": "2026-Q3",
+  "kind": "enroll",
+  "stage": "complete",
+  "started_at": 1790566453.3247235,
+  "success_at": 1790991753.688361,
+  "elapsed_seconds": 425300.3636381626,
+  "clean_unmount": true,
+  "annual_verified_at": 1790991748.5676496,
+  "verification": {
+    "repositories": {
+      "vault": {
+        "full_data_check": "passed",
+        "check_seconds": 858.3687242530286
+      },
+      "appstate": {
+        "full_data_check": "passed",
+        "check_seconds": 384.9601497228723
+      },
+      "legacy-rsnapshot": {
+        "full_data_check": "passed",
+        "check_seconds": 860.304934869986
+      }
+    },
+    "vault_restore_and_strongbox": "passed",
+    "appstate_exports_and_romm_import": "passed",
+    "legacy_evidence_and_manual_inspection": "passed",
+    "elapsed_seconds": 9906.975792010082
+  },
+  "copies": {
+    "appstate": {
+      "source_id": "a7d4c352a8e438835b81b04ddd528b36b72cb7409b771b918b89833ce50fc562",
+      "destination_id": "bde408241bf9225b99c2748f6f0c8da7a29a1c42f78ab3cd861f50e9ecea2308",
+      "lineage": "a82aff6e125d6386a88e92ac2ef35ddf7c426aac8318bbbf6801695db38bee5b",
+      "tag": "offline-checkpoint-2026-Q3",
+      "snapshot_time": "2026-09-27T08:15:17.585588659Z"
+    },
+    "legacy-rsnapshot": {
+      "source_id": "208d5fcdbb4d4e045dedd296290dc8c36aff08ec7a33d67907d88d7c8f57da94",
+      "destination_id": "39fc357a3161e500836d11feab0fd9e7828e24894f782f72a44857f2c719fe2f",
+      "lineage": "208d5fcdbb4d4e045dedd296290dc8c36aff08ec7a33d67907d88d7c8f57da94",
+      "tag": null,
+      "snapshot_time": "2026-09-20T14:23:52.257529711-05:00"
+    },
+    "vault": {
+      "source_id": "9cc324f4de377c1609875936013e209363e83f3d989ebdc10f2bffbebaf4f89f",
+      "destination_id": "7963a5e976f7034586868d9a6743edf4bd82b3071c8f74e9ad53f7bb2c0c68ff",
+      "lineage": "f0d8347ce2255ffc4d137a7a144e140e1d1ea409e98a67d85b6cf9290b27691e",
+      "tag": "offline-checkpoint-2026-Q3",
+      "snapshot_time": "2026-09-28T03:15:23.91165138Z"
+    }
+  },
+  "capacity": {
+    "free_bytes": 1799433838592,
+    "filesystem_bytes": 1967845998592,
+    "selected_logical_bytes": 0,
+    "reserve_bytes": 196784599859,
+    "free_after_bytes": 1799433838592
+  },
+  "usage": {
+    "vault": 28211871744,
+    "appstate": 12651048960,
+    "legacy-rsnapshot": 27512545280
+  }
+}
