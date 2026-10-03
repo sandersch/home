@@ -114,8 +114,8 @@ schedules are active, with native NAS/B2
 recovery gates passed; remaining observation and scheduled maintenance gates are tracked in
 [attended enrollment and recovery](./runbooks/backups/workstations.md). The vault v3 rollout
 and first scheduled NAS/B2 prune completed on 2026-09-20. Offline SSD tooling and staged
-monitoring are implemented; both physical enrollments, independent recovery acceptance
-and alert activation remain pending. Follow
+monitoring are implemented; drive A was enrolled on 2026-10-02 and passed its independent
+recovery drill on 2026-10-03, while drive B and alert activation remain pending. Follow
 [the attended SSD runbook](./runbooks/backups/offline-ssd.md). Mail archival remains draft.
 The vault, curated workstation homes, and appstate (`/opt`, the k3s datastore,
 and required hot dumps) are backed up; other bulk-array data has a single copy.

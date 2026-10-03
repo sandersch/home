@@ -17,9 +17,10 @@
 > The v3 promotion evidence, fresh Ryze/M5c deliveries, and 24-hour observation are
 > recorded in `runbooks/backups/evidence/vault-v3-promotion-20260916.json`; the scheduled
 > prune completion is recorded in the drill table below. Offline SSD tooling and staged
-> monitoring are implemented; both physical enrollments and alert activation remain pending.
+> monitoring are implemented; drive A was enrolled on 2026-10-02 and passed its independent
+> recovery drill on 2026-10-03, while drive B enrollment and alert activation remain pending.
 > Follow [the attended SSD runbook](../runbooks/backups/offline-ssd.md). Mail archival remains
-> draft. Updated 2026-09-26.
+> draft. Updated 2026-10-03.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
@@ -67,7 +68,8 @@
 > destination repository per host; and the capacity, alerting, metric, integrity-check, and
 > restore-drill inconsistencies found during review are corrected below.
 > Strongbox uses only a master password; both workstations use their existing `~/Documents`
-> trees rather than a staging directory; and the two already-owned 2 TB portable USB SSDs
+> trees rather than a staging directory; and the two already-owned portable USB SSDs (A is
+> 2 TB, B is 500 GB)
 > alternate as the offline tier. Quarterly rotations are deliberately lightweight, with one
 > substantive offline restore and full data check per year rather than every quarter.
 
@@ -258,7 +260,7 @@ target, change the target or the procedure explicitly rather than continuing to 
 objective without evidence.
 
 **Offline media are cumulative, and there are two drives.** The two already-owned drives
-are 2 TB portable USB SSDs from different production batches. Each is initialized with GPT
+are portable USB SSDs of different models: A is 2 TB and B is 500 GB. Each is initialized with GPT
 and one ext4 filesystem, given a unique label and recorded filesystem UUID, and mounted only
 by the attended rotation runbook with `noauto,nodev,nosuid,noexec`. The filesystems do not
 add LUKS: Restic already encrypts repository contents and metadata, and another passphrase
@@ -274,7 +276,7 @@ quarter, so alerts allow the full quarter window plus 30 days of scheduling slac
 `ResticOfflineDriveStale` evaluates the newest successful rotation across **either** drive
 and fires at 210d. `ResticOfflineDriveRotationOverdue` fires at 300d per drive, allowing two
 quarters for that physical SSD's next turn plus 30 days of slack (§ 9). At ~35 GB
-growing 5 GB/yr with no pruning, either 2 TB drive has ample headroom for the intended
+growing 5 GB/yr with no pruning, even the smaller 500 GB drive has ample headroom for the intended
 retention; capacity is measured during rotation rather than projected from a fixed
 replacement date.
 
@@ -417,8 +419,8 @@ The local vault foundation, migrated photo archive, and vault B2 replication des
 §§ 1–3 are implemented and validated. The sections below retain the design rationale and
 the remaining proposed extensions; imperative language in the completed phases is historical
 rebuild guidance. Workstation repositories are live. Offline SSD tooling is implemented
-in [the attended runbook](../runbooks/backups/offline-ssd.md); physical enrollment,
-independent recovery acceptance and monitoring activation are still pending for A and B.
+in [the attended runbook](../runbooks/backups/offline-ssd.md); drive A is enrolled and
+passed independent recovery, while drive B and monitoring activation are still pending.
 The mail archive remains unimplemented.
 
 ### 1. A dedicated home for irreplaceable data: `/mnt/vault`
@@ -2049,7 +2051,8 @@ Ordered so the highest-value, least-reversible data is protected first.
    `2000:2000` mbsync app without a Kubernetes Secret or `fsGroup`, and prove a successful
    sync, least-privilege boundary, and credential exclusion from the next vault snapshot.
 8. **Offline drives** — init **both** drives `--from-repo <NAS> --copy-chunker-params`
-   (with their own distinct password, § 8) on the two existing 2 TB portable USB SSDs, record
+   (with their own distinct password, § 8) on the two existing portable USB SSDs (A 2 TB,
+   B 500 GB), record
    their labels and filesystem UUIDs, and install the single-command attended rotation
    runbook. Include a separate `legacy-rsnapshot` repository on each drive, copy its accepted
    exact snapshot, and independently check data and restored history. Seed and validate each
@@ -2322,7 +2325,8 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | Frigate exports restore (local + B2) | *not yet* | — |
 | Offline drive rotation (drive A) | *not yet* | — |
 | Offline drive rotation (drive B) | *not yet* | — |
-| Annual offline data check + representative restore | *not yet* | — |
+| Annual offline data check + representative restore | 2026-10-02 (drive A, initial) | passed — enrollment ran `check --read-data` on all three repositories plus the vault, appstate and legacy restore checks. See `runbooks/backups/evidence/offline-ssd-A-enrollment-20261002.json`. Drive B not yet enrolled. |
+| Offline drive A independent recovery, break-glass only | 2026-10-03 | passed — restored on `ryze` from the SSD and break-glass card alone, without `minis`, the NAS, or control records. All three snapshot IDs matched enrollment; full vault, appstate and legacy restores passed `--verify`; KDBX, documents, photos and legacy files opened; appstate hot-dump contract v3 artifacts were readable. RomM import and DR steps were not run. See `runbooks/backups/evidence/offline-ssd-A-recovery-20261003.json`. |
 | Recurring online repository checks (all NAS + B2 repos) | 2026-09-07 | passed — structural checks plus September's rotating `9/12` read-data subset completed without errors for appstate NAS/B2 and vault NAS/B2. Vault B2 checked 8 snapshots and read 93 of 1,135 packs. |
 | Quarterly online restore program | *not yet* | — |
 | Locked-vault degraded boot (§ 1b) | *not yet* | — |

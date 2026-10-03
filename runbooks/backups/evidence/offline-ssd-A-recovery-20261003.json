@@ -1,0 +1,73 @@
+{
+  "drive": "A",
+  "kind": "independent-recovery-drill",
+  "recorded_date": "2026-10-03",
+  "host": "ryze",
+  "platform": "Linux",
+  "restic_version": "0.19.1",
+  "evidence_source": "Attended session command results and operator confirmations",
+  "result": "passed",
+  "independence": {
+    "credential_source": "break-glass card",
+    "password_manager_used": false,
+    "minis_nas_or_control_records_used": false,
+    "ssd_mount": "ext4 ro,noload,nodev,nosuid,noexec",
+    "restic_options": "--no-lock --no-cache",
+    "restore_target": "temporary LUKS container on the recovery machine; no plaintext outside it"
+  },
+  "repositories": {
+    "vault": {
+      "snapshot_id": "7963a5e976f7034586868d9a6743edf4bd82b3071c8f74e9ad53f7bb2c0c68ff",
+      "snapshot_time": "2026-09-28T03:15:23.91165138Z",
+      "host": "minis-vault",
+      "tag": "offline-checkpoint-2026-Q3",
+      "snapshots_in_repository": 1,
+      "matches_enrollment_evidence": true,
+      "restore": "full, restic --verify",
+      "kdbx_manually_opened": true,
+      "documents_and_photos_manually_opened": true
+    },
+    "appstate": {
+      "snapshot_id": "bde408241bf9225b99c2748f6f0c8da7a29a1c42f78ab3cd861f50e9ecea2308",
+      "snapshot_time": "2026-09-27T08:15:17.585588659Z",
+      "host": "minis",
+      "tag": "offline-checkpoint-2026-Q3",
+      "snapshots_in_repository": 1,
+      "matches_enrollment_evidence": true,
+      "restore": "full excluding /data/opt/romm/db, restic --verify",
+      "contract_version": 3,
+      "export_created_at": "2026-09-27T08:15:16Z",
+      "k3s_datastore_integrity_check": "ok",
+      "required_sqlite_exports": {
+        "integrity_check_ok": 5,
+        "plex_schema_readability_ok": 2,
+        "note": "Stock sqlite3 cannot run integrity_check on the Plex databases (custom FTS tokenizer); they received the same schema-readability check as the backup job and DR validator."
+      },
+      "home_assistant_archive_listed": true,
+      "romm_dump_present_and_complete": true,
+      "romm_import_run": false,
+      "live_romm_db_directory_absent": true
+    },
+    "legacy-rsnapshot": {
+      "snapshot_id": "39fc357a3161e500836d11feab0fd9e7828e24894f782f72a44857f2c719fe2f",
+      "snapshot_time": "2026-09-20T14:23:52.257529711-05:00",
+      "host": "minis",
+      "snapshots_in_repository": 1,
+      "matches_enrollment_evidence": true,
+      "restore": "full, restic --verify",
+      "restored_gib_reported": 119,
+      "hardlinks_preserved": true,
+      "symlink_targets_spot_checked": true,
+      "files_manually_opened": true
+    }
+  },
+  "not_covered": [
+    "RomM import/check and DR steps 00-07, which run on a rebuilt minis.",
+    "Non-root numeric ownership in the legacy restore was not separately spot-checked.",
+    "Cross-drive password uniqueness, pending drive B enrollment."
+  ],
+  "notes": [
+    "The first legacy-rsnapshot password entry was rejected and the retry succeeded.",
+    "No repository credentials, file contents, document names, or private paths are included in this record."
+  ]
+}
