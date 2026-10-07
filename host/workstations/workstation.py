@@ -134,6 +134,74 @@ def excluded(relative, rules):
                for rule in rules)
 
 
+def restic_literal(path):
+    """Escape a literal path for a Restic exclude file; line breaks fail closed."""
+    if '\n' in path or '\r' in path:
+        raise ValueError('excluded path contains a line break')
+    # Restic expands $NAME, trims surrounding whitespace and reads \\ as an escape.
+    return ''.join('[' + c + ']' if c in '*?[ \t' else {'$': '$$', '\\': '\\\\'}.get(c, c)
+                   for c in path)
+
+
+def restic_glob(pattern):
+    """Translate one fnmatch component pattern to Restic's Go glob dialect."""
+    result, index = [], 0
+    while index < len(pattern):
+        c = pattern[index]
+        index += 1
+        if c == '*':
+            # Go reads a '**' component as any depth; fnmatch reads it as '*'.
+            if result[-1:] != ['*']:
+                result.append('*')
+            continue
+        if c != '[':
+            result.append({'$': '$$', '\\': '\\\\', ' ': '[ ]', '\t': '[\t]'}.get(c, c))
+            continue
+        # Mirror fnmatch: '[' opens a class only when a later ']' closes it.
+        end = index + (pattern[index:index + 1] == '!')
+        end = pattern.find(']', end + (pattern[end:end + 1] == ']'))
+        if end < 0:
+            result.append('[[]')
+            continue
+        body, index = pattern[index:end], end + 1
+        negate, body = ('^', body[1:]) if body.startswith('!') else ('', body)
+        body = body.replace('\\', '\\\\').replace('$', '$$')
+        if body[:1] in (']', '^'):
+            body = '\\' + body
+        result.append('[' + negate + body + ']')
+    return ''.join(result)
+
+
+def restic_excludes(home, rules, omissions):
+    """Exclude-file lines: the contract rules, then the inventory's omissions.
+
+    Rules keep a matching path out even when it first appears after the
+    inventory. Omissions add what rules cannot express (mounts, cache tags,
+    sockets). Restic lets the last matching line win, so only-file negations
+    come first and every other exclusion still applies to the kept file.
+    """
+    root = restic_literal(str(home))
+    keeps = [rule.removeprefix('only-file:') for rule in rules if rule.startswith('only-file:')]
+    lines = [root + '/' + restic_literal(keep.rpartition('/')[0]) + '/*' for keep in keeps]
+    # A file kept by one rule but inside another rule's parent stays excluded.
+    lines += ['!' + root + '/' + restic_literal(keep) for keep in keeps
+              if not excluded(keep, [rule for rule in rules if rule.startswith('only-file:')])]
+    for rule in rules:
+        if rule.startswith('only-file:'):
+            continue
+        parts = rule.split('/')
+        if not all(parts):
+            # An empty component never matches a home-relative path.
+            continue
+        glob = '/'.join(map(restic_glob, parts))
+        if len(parts) > 1:
+            lines.append(root + '/' + glob)
+        else:
+            # Restic reads a leading '!' as a negation.
+            lines.append('[!]' + glob[1:] if glob.startswith('!') else glob)
+    return lines + [restic_literal(path) for path in omissions]
+
+
 @contextmanager
 def directory_entries(directory):
     """Finish enumeration before yielding; never retry processing child files."""
@@ -433,23 +501,18 @@ def backup(config, state):
     env.update(read_json(credentials))
     print(timestamped(f'backup: repository {safe_repository(env["RESTIC_REPOSITORY"])}'), flush=True)
     progress_total = contract.get('measured', {}).get('', {}).get('files')
-    records, omissions = inventory(home, patterns(excludes), progress_total=progress_total,
+    rules = patterns(excludes)
+    records, omissions = inventory(home, rules, progress_total=progress_total,
                                    progress_label='backup')
     check_floors(records, contract)
     manifest = {'contract': contract['contract'], 'exclusion_sha256': contract['exclusion_sha256'],
                 'records': records, 'measured': totals(records)}
     with phase('manifest-write'):
         atomic(home / MANIFEST, manifest)
-    # Restic sees the same exclusions the inventory resolved. Literal paths are
-    # escaped for Restic's glob matcher; line breaks fail closed.
+    # Restic gets the contract rules and the exclusions the inventory resolved.
     with tempfile.TemporaryDirectory(prefix='workstation-', dir=state) as temporary:
         skip = Path(temporary) / 'excludes'
-        escaped = []
-        for path in omissions:
-            if '\n' in path or '\r' in path:
-                raise ValueError('excluded path contains a line break')
-            escaped.append(''.join('[' + c + ']' if c in '*?[' else c for c in path))
-        skip.write_text('\n'.join(escaped) + '\n')
+        skip.write_text('\n'.join(restic_excludes(home, rules, omissions)) + '\n')
         output = restic('--retry-lock', '15m', 'backup', '--json', '--host', config['host'],
                         '--one-file-system', '--exclude-file', skip, home, env=env)
     summaries = [json.loads(line) for line in output.splitlines()]
@@ -467,6 +530,14 @@ def backup(config, state):
         check_drift(paths, contract)
     except ValueError as error:
         raise ValueError(f'snapshot {sid} differs from inventory ({error}); success not advanced') from error
+    # The server holds any snapshot containing excluded content; a path created
+    # after the inventory must not pass as churn.
+    with phase('exclusion-verification') as counters:
+        leaked = [path for path in actual if excluded(path, rules)]
+        counters.update(excluded_paths=len(leaked))
+    if leaked:
+        raise ValueError(f'snapshot {sid} contains {len(leaked)} excluded paths, first {leaked[0]!r}; '
+                         'success not advanced')
     # The server re-checks these bounds but cannot see the live filesystem.
     with phase('churn-verification'):
         missing = unexplained(paths, home, since)

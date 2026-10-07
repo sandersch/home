@@ -147,6 +147,13 @@ success is not advanced. Accepted churn is logged as `accepted N paths changed d
 backup`. A change under Documents or to the KDBX during a run fails that run; the next
 hourly retry repeats it.
 
+Restic receives the contract's exclusion rules, translated to its own glob dialect,
+ahead of the literal paths the inventory omitted, so a path that first matches a rule
+after the inventory is still left out. The literal list remains for omissions the
+rules cannot express: other filesystems, tagged cache directories and sockets. The
+client then applies the rules to the finished snapshot and fails the run, without a
+receipt, if any excluded path is present; the server would hold that snapshot anyway.
+
 After all client checks pass, a tolerant-contract client writes a small encrypted
 completion receipt as a separate append-only Restic snapshot, using the reserved
 path `/.workstation-backup-validation/<full-home-snapshot-id>.json`. Its payload
@@ -291,8 +298,8 @@ NAS/B2 seed is validated.
 
 The client logs JSON phase start/progress/complete/failed records to stderr with
 30-second heartbeats and monotonic elapsed time. `backup-total` includes inventory,
-manifest writing, Restic backup, snapshot listing/decoding, comparisons, churn
-verification, and completion-receipt publication. Inventory reports completed
+manifest writing, Restic backup, snapshot listing/decoding, comparisons, exclusion
+and churn verification, and completion-receipt publication. Inventory reports completed
 files/directories, bytes read (including partial files), and average bytes/second.
 `enrollment_files` is a historical reference, not a current total or percentage.
 Every backup still reads every included file before invoking Restic. Restic phases
