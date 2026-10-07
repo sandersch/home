@@ -222,3 +222,15 @@ restores. The static archive needs no quarterly recopy or freshness metric. Neve
 
 Tests: `PYTHONDONTWRITEBYTECODE=1 python3 runbooks/backups/test-legacy-rsnapshot.py` uses
 real Restic 0.19.1 on disposable fixtures plus injected failures; no live storage is touched.
+Install `cryptography==50.0.1` in the test Python environment first (CI uses a temporary
+venv). Most fixtures reuse the workstation fixture helper to lower only the disposable
+key's scrypt cost after a real `restic init`. Each test still gets a fresh repository,
+and all backup, integrity-check, restore, locking, and failure-injection coverage remains.
+`test_real_archive_verify_and_repeat` retains Restic's normal key parameters for its
+entire archive/verify/repeat sequence. Production code and repository keys are unchanged.
+
+A serial local before/after benchmark with Restic 0.19.1 reduced suite time from
+177 seconds to 105 seconds (41%). Both runs passed 25 tests with the same one
+root-only test skipped, and executed identical counts of all 207 Restic commands,
+including 17 initializations, 14 integrity checks and 15 restores. This measures
+the test suite only; CI dependency setup and hosted-runner timing are additional.

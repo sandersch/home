@@ -128,7 +128,10 @@ jobs:
 
       - name: Test legacy archive and recovery
         if: matrix.suite == 'legacy'
-        run: python3 runbooks/backups/test-legacy-rsnapshot.py
+        run: |
+          python3 -m venv "$RUNNER_TEMP/legacy-tools"
+          "$RUNNER_TEMP/legacy-tools/bin/pip" install --quiet 'cryptography==50.0.1'
+          "$RUNNER_TEMP/legacy-tools/bin/python" runbooks/backups/test-legacy-rsnapshot.py
 
       - name: Test workstation repositories and append-only server
         if: matrix.suite == 'workstations'

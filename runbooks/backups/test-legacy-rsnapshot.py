@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Disposable real-Restic and failure-injection tests; no production paths accessed."""
+"""Disposable real-Restic and failure-injection tests; no production paths accessed.
+
+Requires cryptography for the existing disposable-key rewrapping helper. Most
+fixtures lower only the password-derivation cost after a real `restic init`;
+the full round-trip test retains Restic's normal key parameters throughout.
+"""
 import importlib.util
 import json
 import os
@@ -16,6 +21,11 @@ from unittest.mock import patch
 spec = importlib.util.spec_from_file_location('legacy', Path(__file__).with_name('legacy-rsnapshot.py'))
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
+
+spec = importlib.util.spec_from_file_location(
+    'fixture_keys', Path(__file__).with_name('fixtures') / 'make-workstation-repositories.py')
+fixture_keys = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(fixture_keys)
 
 
 class ArchiveTests(unittest.TestCase):
@@ -48,14 +58,25 @@ class ArchiveTests(unittest.TestCase):
         self.run = self.control / 'run'
         self.run.mkdir()
         self.password = self.root / 'password'
-        self.password.write_text('disposable-test-password\n')
+        self.password.write_text(fixture_keys.PASSWORD + '\n')
         for name, value in dict(SOURCE=self.source, REPO=self.repo, CONTROL=self.control,
                                 MOUNT=self.root, BINARY=Path(shutil.which('restic'))).items():
             p = patch.object(m, name, value)
             p.start()
             self.addCleanup(p.stop)
-        self.restic = m.Restic(self.password, log_dir=self.run, guarded=False)
+        self.standard_restic = m.Restic(self.password, log_dir=self.run, guarded=False)
+        self.restic = self.fixture_restic
         self.records = m.inventory(self.source)
+
+    def fixture_restic(self, *args):
+        result = self.standard_restic(*args)
+        if args[0] == 'init':
+            # Keep real initialization, independent repository identities, normal
+            # locking, encryption and every backup/restore/check operation. Only
+            # the disposable password's repeated scrypt work is made cheaper.
+            self.assertEqual(m.REPO, self.root / 'repository')
+            fixture_keys.rewrap(self.repo)
+        return result
 
     def test_inventory_hardlinks_and_capacity(self):
         total = m.totals(self.records)
@@ -154,6 +175,8 @@ class ArchiveTests(unittest.TestCase):
             m.archive(self.restic, self.records, self.run)
 
     def test_real_archive_verify_and_repeat(self):
+        # Retain end-to-end coverage with normal upstream password derivation.
+        self.restic = self.standard_restic
         # Production requires root-owned directories; test callers may be unprivileged.
         with patch.object(m, 'private'):
             sid = m.archive(self.restic, self.records, self.run)
