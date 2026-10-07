@@ -57,9 +57,30 @@ drift. Fixtures prove accepted exact pins and rejection of each prohibited form.
 completed migration has no allowlist.
 
 `.github/workflows/image-policy.yaml` runs on every pull request and push to `main`.
-It executes the fixtures and inventory, runs `bash -n` and ShellCheck on changed shell
-scripts, and renders the application and monitoring Kustomizations. After its first
-successful repository run, make `image-policy / validate` a required `main` branch check.
+The `checks` job always executes the image fixtures/inventory, k3s safety tests,
+backup contract/configuration regressions, `bash -n` and ShellCheck on changed shell
+scripts, and application/monitoring Kustomization renders. Expensive alert and
+repository integrations then run in parallel: alert rules, offline SSD/appstate,
+legacy archive recovery, and workstation/append-only server coverage. Every existing
+suite is retained, including real Restic round trips and isolated MariaDB imports.
+
+On PRs only, `runbooks/version-management/ci-integration-scope.py` skips the expensive
+integrations when **all** changes are known unrelated paths: Markdown under `docs/`,
+root `AGENTS.md`/`README.md`, `renovate.json5`, or apps outside `apps/media/romm/`.
+RomM is deliberately included because the appstate test uses its pinned database image.
+Unknown paths, missing/failed diffs, CI changes, and every push to `main` run the full
+suite. Renames consider both paths; selection uses the entire PR merge diff. Tests
+guard this selection policy. New integration dependencies must update it if they
+fall under a currently excluded path.
+
+Keep `image-policy / validate` as the required `main` branch check. It now aggregates
+the jobs and explicitly rejects failed, cancelled, or unexpectedly skipped suites.
+Superseded runs of the same PR are cancelled; separate PRs and main pushes retain
+independent runs. Based on the 2026-10-06 baseline, parallelism should reduce full
+runs from roughly 5–7 minutes to roughly 3 minutes plus runner queueing, while
+unrelated PRs need only the quick checks and final gate. Confirm actual timings
+after this workflow runs on GitHub.
+
 `.github/workflows/renovate-config.yaml` strictly validates the Renovate configuration,
 running only when `renovate.json5` or that workflow (which pins the validator version)
 changes.

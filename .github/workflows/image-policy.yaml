@@ -6,12 +6,19 @@ on:
     branches:
       - main
 
+# Superseded PR runs cannot be merged; keep every main push fully validated.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
 jobs:
-  validate:
+  checks:
     runs-on: ubuntu-latest
+    outputs:
+      integration: ${{ steps.scope.outputs.integration }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -27,6 +34,7 @@ jobs:
 
       - name: Validate immutable image inventory
         run: |
+          python3 runbooks/version-management/test-ci-integration-scope.py
           runbooks/version-management/test-image-policy.sh
           runbooks/version-management/image_policy.py check
           runbooks/phase2/test-k3s-version.sh
@@ -37,6 +45,45 @@ jobs:
           runbooks/backups/test-phase4-b2.sh
           runbooks/backups/test-review-regressions.sh
           bash runbooks/backups/test-offline-dr.sh
+
+      - name: Check changed shell scripts
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="${PR_BASE_SHA:-HEAD^}"
+          git diff --name-only --diff-filter=ACMRT -z "$base" -- '*.sh' > "$RUNNER_TEMP/changed-shell-scripts"
+          mapfile -d '' -t scripts < "$RUNNER_TEMP/changed-shell-scripts"
+          if ((${#scripts[@]})); then
+            for script in "${scripts[@]}"; do bash -n "$script"; done
+            shellcheck --severity=warning "${scripts[@]}"
+          fi
+
+      - name: Render application manifests
+        uses: imranismail/setup-kustomize@v2
+      - run: kustomize build apps >/dev/null
+      - run: kustomize build infrastructure/monitoring >/dev/null
+      - run: kustomize build infrastructure/monitoring/workstations >/dev/null
+      - run: kustomize build infrastructure/monitoring/offline >/dev/null
+
+      - name: Select integration coverage
+        id: scope
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 runbooks/version-management/ci-integration-scope.py >> "$GITHUB_OUTPUT"
+
+  alerts:
+    needs: checks
+    if: needs.checks.outputs.integration == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install alert test tooling
+        run: |
+          python3 -m venv "$RUNNER_TEMP/alert-tools"
+          "$RUNNER_TEMP/alert-tools/bin/pip" install --quiet 'yq==3.4.3'
+          echo "$RUNNER_TEMP/alert-tools/bin" >> "$GITHUB_PATH"
 
       - name: Test vault prune alerts
         env:
@@ -50,29 +97,55 @@ jobs:
           python3 runbooks/backups/test-offline-alerts.py
           python3 runbooks/phase5/test-raid-check-alerts.py
 
-      - name: Test workstation repositories and append-only server
-        env:
-          PYTHONDONTWRITEBYTECODE: "1"
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+  repositories:
+    needs: checks
+    if: needs.checks.outputs.integration == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [offline, legacy, workstations]
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install checksum-verified Restic
         run: |
           python3 runbooks/backups/workstation-install-restic.py --directory "$RUNNER_TEMP/restic"
-          export WORKSTATION_RESTIC="$RUNNER_TEMP/restic/restic"
-          export PATH="$RUNNER_TEMP/restic:$PATH"
+          echo "WORKSTATION_RESTIC=$RUNNER_TEMP/restic/restic" >> "$GITHUB_ENV"
+          echo "$RUNNER_TEMP/restic" >> "$GITHUB_PATH"
+
+      - name: Test offline SSD repositories and mounts
+        if: matrix.suite == 'offline'
+        run: |
           python3 runbooks/backups/test-offline-ssd.py
-          python3 runbooks/backups/test-legacy-rsnapshot.py
           sudo unshare --mount --propagation private python3 runbooks/backups/test-offline-loopback.py
+
+      - name: Test legacy archive and recovery
+        if: matrix.suite == 'legacy'
+        run: python3 runbooks/backups/test-legacy-rsnapshot.py
+
+      - name: Test workstation repositories and append-only server
+        if: matrix.suite == 'workstations'
+        run: |
           python3 runbooks/backups/test-workstations.py
           bash runbooks/backups/test-workstation-rest-server.sh
 
       - name: Test isolated offline appstate verification
+        if: matrix.suite == 'offline'
         timeout-minutes: 15
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y podman
+          sudo apt-get install -y podman python3-yaml
           sudo python3 runbooks/backups/test-offline-appstate.py
 
       - name: Diagnose offline appstate container failure
-        if: failure()
+        if: failure() && matrix.suite == 'offline'
         timeout-minutes: 5
         run: |
           image="$(python3 - <<'PY'
@@ -90,20 +163,27 @@ jobs:
           sudo timeout 60 podman run --rm --user=mysql --entrypoint=sh "$image" -c "sh -c '$probe'; true" || true
           sudo dmesg | grep -i 'apparmor="DENIED"' | tail -20 || true
 
-      - name: Check changed shell scripts
+  # Preserve the required check name. A failed/cancelled prerequisite must not
+  # turn into a skipped (and therefore mergeable) required check.
+  validate:
+    if: always()
+    needs: [checks, alerts, repositories]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all selected suites to pass
         env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          INTEGRATION: ${{ needs.checks.outputs.integration }}
+          ALERTS_RESULT: ${{ needs.alerts.result }}
+          REPOSITORIES_RESULT: ${{ needs.repositories.result }}
         run: |
-          base="${PR_BASE_SHA:-HEAD^}"
-          mapfile -t scripts < <(git diff --name-only --diff-filter=ACMRT "$base" -- '*.sh')
-          if ((${#scripts[@]})); then
-            bash -n "${scripts[@]}"
-            shellcheck --severity=warning "${scripts[@]}"
-          fi
-
-      - name: Render application manifests
-        uses: imranismail/setup-kustomize@v2
-      - run: kustomize build apps >/dev/null
-      - run: kustomize build infrastructure/monitoring >/dev/null
-      - run: kustomize build infrastructure/monitoring/workstations >/dev/null
-      - run: kustomize build infrastructure/monitoring/offline >/dev/null
+          [[ "$CHECKS_RESULT" == success ]]
+          case "$INTEGRATION" in
+            true)
+              [[ "$ALERTS_RESULT" == success && "$REPOSITORIES_RESULT" == success ]]
+              ;;
+            false)
+              [[ "$ALERTS_RESULT" == skipped && "$REPOSITORIES_RESULT" == skipped ]]
+              ;;
+            *) exit 1 ;;
+          esac
