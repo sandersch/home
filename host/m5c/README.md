@@ -13,6 +13,19 @@ is excluded. Settings stored in this file are outside the recovery promise; othe
 preferences remain in scope. Do not change its permissions or elevate the backup
 client to recover this omission.
 
+Pending recovery limitation (working exclusions, not yet in a released contract):
+macOS intermittently denies the launchd client some OS-generated files with
+`Operation not permitted`, even though the same client reads them at other times.
+Observed items were the `Safari.PageLoad` stream under
+`Library/Biome/streams/restricted`, two location files in
+`Library/DuetExpertCenter`, and the `com.apple.milod` data directory in its
+`Library/Daemon Containers` instance. Between 2026-09-17 and 2026-10-07 this
+failed 116 inventories and one Restic run and left m5c without a successful
+backup from 2026-09-27 to 2026-10-07. The operator approved excluding all of
+`Library/Biome` and `Library/DuetExpertCenter`, which hold OS-managed telemetry
+and prediction caches, plus the `com.apple.milod` data directory; other daemon
+containers remain in scope. The cause of the denial is not established.
+
 The Google Drive account tree at `Library/CloudStorage/GoogleDrive-sanderscharlie@gmail.com`
 is excluded on m5c: the operator confirmed it is fully present on ryze and intended
 to be backed up there. Verify its actual ryze path and included, locally readable

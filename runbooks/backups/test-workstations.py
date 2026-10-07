@@ -921,6 +921,20 @@ class ScopeTests(unittest.TestCase):
         self.assertFalse(client.excluded(root + 'other', mac))
         self.assertFalse(client.excluded('Library/Application Support/Google/Chrome/Default/Bookmarks', mac))
 
+    def test_mac_excludes_intermittently_unreadable_system_state(self):
+        mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
+        self.assertTrue(client.excluded('Library/Biome/streams/restricted/Safari.PageLoad/local/753075578992595', mac))
+        self.assertTrue(client.excluded('Library/Biome/streams/public/App.InFocus/local/1', mac))
+        self.assertTrue(client.excluded('Library/DuetExpertCenter/_ATXAppLaunchLocation', mac))
+        self.assertTrue(client.excluded('Library/DuetExpertCenter/ModeCaches/apps_DND', mac))
+        self.assertFalse(client.excluded('Library/Application Support/Biome/state', mac))
+        self.assertFalse(client.excluded('Library/Duet/state', mac))
+        containers = 'Library/Daemon Containers/'
+        instance = containers + '6922DF6D-28B1-46F0-ABBD-CA00C7524299/'
+        self.assertTrue(client.excluded(instance + 'Data/com.apple.milod/milo.db-wal', mac))
+        self.assertFalse(client.excluded(instance + '.com.apple.containermanagerd.metadata.plist', mac))
+        self.assertFalse(client.excluded(containers + '1416CC3E-B51F-41FB-8FA2-5BA8CB303FCD/Data/Library/x', mac))
+
     def test_mac_google_drive_is_delegated_to_ryze(self):
         mac = client.patterns(ROOT / 'host/m5c/etc/workstation-backup/excludes')
         linux = client.patterns(ROOT / 'host/ryze/etc/workstation-backup/excludes')

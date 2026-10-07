@@ -15,6 +15,13 @@ only-file:Dropbox/ccs.kdbx
 # Attended inventory: two UUID instances have an empty, mode-000 tombstone/a.
 # Match only UUID-named instances and this exact subtree, not other provider state.
 Library/Application Support/FileProvider/[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/wharf/tombstone/a
+# Client log 2026-09-17..2026-10-07: macOS intermittently denies the launchd client
+# OS-generated telemetry, prediction and location files here (EPERM), failing 116
+# inventories and one Restic run. Approved omission: both OS-managed trees in full
+# and the micro-location daemon's data; other daemon containers stay in scope.
+Library/Biome
+Library/DuetExpertCenter
+Library/Daemon Containers/*/Data/com.apple.milod
 .cache
 # Attended inventory: NordVPN Realm runtime FIFO, not database contents.
 Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.management/access_control.new_commit.cv
