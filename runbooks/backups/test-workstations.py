@@ -478,6 +478,64 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(self.manager.state['highwater'], 0)
         self.assertEqual(self.manager.state['holds']['nas:' + sid]['reason'], 'client-validation-incomplete')
 
+    def test_client_excludes_rule_match_created_after_inventory(self):
+        self.tolerate(5)
+        def during_backup(args):
+            # No inventory omission names this path; only the rule keeps it out.
+            (self.home / '.cache').mkdir()
+            (self.home / '.cache/late').write_text('created during backup')
+            return args
+        sid = self.client_backup(during_backup)
+        self.manager.validate()
+        self.assertIn(sid, self.manager.state['accepted'])
+        self.assertFalse(self.manager.state['holds'])
+
+    def test_client_rejects_excluded_content_in_snapshot(self):
+        self.tolerate(5)
+        def during_backup(args):
+            (self.home / '.cache').mkdir()
+            (self.home / '.cache/late').write_text('created during backup')
+            return args
+        # Without the rules Restic archives the late path as ordinary churn.
+        with patch.object(client, 'restic_excludes', lambda home, rules, omissions: omissions):
+            with self.assertRaisesRegex(ValueError, "contains 2 excluded paths, first '.cache'"):
+                self.client_backup(during_backup)
+        self.manager.validate()
+        self.assertEqual(self.manager.receipts, {})
+        self.assertEqual(next(iter(self.manager.state['holds'].values()))['reason'],
+                         'excluded content leaked into snapshot')
+
+    def test_restic_excludes_match_contract_rules(self):
+        rules = ['only-file:Dropbox/ccs.kdbx', 'only-file:Library/Cloud/Dropbox/ccs.kdbx',
+                 '.cache', '*.iso', 'node_modules', '.cargo/registry', '.claude/projects/*/*.jsonl',
+                 'Library/[0-9A-F][0-9A-F]-[!a-z]/tomb', 'Safe Browsing/data', 'pre$HOME',
+                 'back\\slash', 'open[bracket', '!bang', 'deep/**/leaf', '[]x]y', '[^a]z']
+        for name in ('.cache/a', 'Documents/disk.iso', 'Documents/disk.iso.txt', 'src/node_modules/m',
+                     '.cargo/registry/x', '.cargo/bin/x', 'src/.cargo/registry/keep',
+                     '.claude/projects/p/s.jsonl', '.claude/projects/p/memory/s.jsonl',
+                     '.claude/projects/s.jsonl', 'Dropbox/other', 'Dropbox/sub/f', 'Dropbox/ccs.kdbx.bak',
+                     'Library/Cloud/Dropbox/other', 'Library/Cloud/Dropbox/ccs.kdbx',
+                     'Library/0F-9/tomb/a', 'Library/0F-q/tomb/a', 'Library/0f-9/tomb/a',
+                     'Safe Browsing/data/a', 'x/Safe Browsing/data/a',
+                     'pre$HOME/a', 'pre/a', 'back\\slash/a', 'backslash/a', 'open[bracket/a',
+                     '!bang/a', 'bang/a', 'deep/one/leaf/a', 'deep/one/two/leaf/a', 'deep/leaf/a',
+                     ']y/a', 'xy/a', 'ay/a', '^z/a', 'az/a', 'bz/a', 'sub/.cache/a', 'sub/plain'):
+            path = self.home / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('x')
+        expected, _ = client.inventory(self.home, rules)
+        skip = self.base / 'restic-excludes'
+        skip.write_text('\n'.join(client.restic_excludes(self.home, rules, [])) + '\n')
+        self.manager.run('nas', 'backup', '--json', '--host', 'ryze', '--exclude-file', skip, self.home, raw=True)
+        sid, = self.manager.listing('nas')
+        nodes = [json.loads(line) for line in self.manager.run('nas', 'ls', '--json', sid, raw=True).splitlines()]
+        actual = client.snapshot_records(nodes, str(self.home), str(self.home / client.MANIFEST))
+        self.assertEqual(set(actual), set(expected))
+        for kept in ('Dropbox/ccs.kdbx', 'src/.cargo/registry/keep', 'Library/0f-9/tomb/a', 'deep/one/two/leaf/a'):
+            self.assertIn(kept, actual)
+        for dropped in ('Library/Cloud/Dropbox/ccs.kdbx.bak', 'Dropbox/other', 'Library/0F-9/tomb', 'deep/one/leaf'):
+            self.assertNotIn(dropped, actual)
+
     def test_receipt_required_even_without_drift_and_late_completion_recovers(self):
         self.tolerate(5)
         sid = self.snapshot()
