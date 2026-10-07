@@ -466,6 +466,27 @@ spec:
           annotations:
             description: The md3 consistency check has made no block progress for at least 45 minutes.
             summary: RAID consistency check is stalled
+        - alert: RaidCheckNotCompleted
+          expr: |
+            (day_of_month() >= 12 and day_of_month() <= 15)
+            unless on()
+            (
+              max by (instance, device) (
+                max_over_time((
+                  node_md_blocks_synced{device="md3"}
+                  and on(instance, device)
+                  node_md_state{device="md3",state="check"} == 1
+                )[12d:10m])
+              )
+              >= on(instance, device)
+              0.95 * node_md_blocks{device="md3"} / (node_md_raid_disks{device="md3"} - 2)
+            )
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            description: No md3 consistency check has reached the end of the array since the first Sunday of this month. Inspect the mdcheck timers, /var/lib/mdcheck state, and the kernel log on minis.
+            summary: Monthly RAID consistency check has not completed
         - alert: GluetunRestarted
           expr: increase(kube_pod_container_status_restarts_total{namespace="media",container="gluetun"}[15m]) > 0
           labels:

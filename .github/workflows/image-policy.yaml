@@ -48,6 +48,7 @@ jobs:
           python3 runbooks/backups/test-prune-alerts.py
           python3 runbooks/backups/test-workstation-alerts.py
           python3 runbooks/backups/test-offline-alerts.py
+          python3 runbooks/phase5/test-raid-check-alerts.py
 
       - name: Test workstation repositories and append-only server
         env:

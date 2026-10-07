@@ -435,8 +435,13 @@ The upstream `NodeRAIDDegraded` and `NodeRAIDDiskFailure` rules cover array/devi
 failure. Repo-owned `BulkStorageMountSetIncomplete` and
 `BulkStorageFilesystemDeviceError` rules cover the exact direct mount layer;
 `RaidCheckStalled` warns when an active check has made no synced-block progress for
-45 minutes. Treat HBA resets, I/O errors, a nonzero degraded count, or an unexpected
-resync/recovery as immediate investigation conditions.
+45 minutes. `RaidCheckNotCompleted` warns from the 12th through the 15th (UTC) when no
+check has reached 95% of the member size in the preceding 12 days, which covers both a
+check that never started and one that never finished; the window and lookback are
+bounded by Prometheus's 15-day retention, so the alert clears by itself on the 16th.
+A normal capped check needs four six-hour windows and finishes by the 10th. Treat HBA
+resets, I/O errors, a nonzero degraded count, or an unexpected resync/recovery as
+immediate investigation conditions.
 
 ## NFS exports
 
