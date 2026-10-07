@@ -7,7 +7,10 @@ backed up by the real Ryze client, validated, copied to B2, and independently re
 from both destinations; its xattr, symlink-target, ownership, mode, timestamp, and
 representative-file results are recorded in the [recovery evidence](evidence/ryze-recovery-20260912.json).
 The live activation gates and their evidence are tracked in the [activation record](evidence/ryze-activation-20260912.json).
-Both workstation v1 and v2 contracts are released. `infrastructure/monitoring/workstations/`
+Both workstation v1 and v2 contracts are released. M5c v3, released 2026-10-07, omits
+intermittently unreadable macOS system state (see the [host notes](../../host/m5c/README.md)
+and [measurement](evidence/m5c-measured-v3-20261007.json)); its client installation and
+first accepted v3 snapshot are pending. `infrastructure/monitoring/workstations/`
 is in the active monitoring Kustomization. Both hosts' four CronJobs are enabled.
 Both hosts' NAS/B2 repositories are initialized. M5c has accepted NAS snapshots and
 a successful B2 copy. Native NAS and B2 content and metadata verification passed on

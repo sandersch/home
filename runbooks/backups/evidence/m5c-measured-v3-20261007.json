@@ -1,0 +1,47 @@
+{
+  "contract": "workstation-m5c-v3",
+  "hostname": "m5c",
+  "enrollment_status": "measured-unreleased",
+  "source_roots": [
+    "/Users/charlessanders"
+  ],
+  "exclusion_sha256": "28d3d352b02465faa7b060d4bab2ed1772245ab0ceaa647c4745e222c8903dec",
+  "manifest": "/Users/charlessanders/.workstation-backup-manifest.json",
+  "required_content": [
+    "Documents",
+    "Dropbox/ccs.kdbx"
+  ],
+  "kdbx_path": "Library/CloudStorage/Dropbox/ccs.kdbx",
+  "measured": {
+    "": {
+      "files": 267716,
+      "bytes": 26563191060
+    },
+    "Documents/": {
+      "files": 13,
+      "bytes": 3404476
+    }
+  },
+  "floors": {
+    "": {
+      "files": 214173,
+      "bytes": 21250552848
+    },
+    "Documents/": {
+      "files": 11,
+      "bytes": 2723581
+    }
+  },
+  "churn_tolerance": {
+    "maximum_paths": 1000,
+    "protected_paths": [
+      "Documents",
+      "Library/CloudStorage/Dropbox/ccs.kdbx"
+    ]
+  },
+  "kdbx_minimum_bytes": 102400,
+  "shrink_baseline_samples": 7,
+  "maximum_shrink_percent": 20,
+  "measured_at": "2026-10-07T03:45:32.803220+00:00",
+  "platform": "Darwin"
+}
