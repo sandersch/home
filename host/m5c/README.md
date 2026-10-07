@@ -13,7 +13,7 @@ is excluded. Settings stored in this file are outside the recovery promise; othe
 preferences remain in scope. Do not change its permissions or elevate the backup
 client to recover this omission.
 
-Pending recovery limitation (working exclusions, not yet in a released contract):
+Approved recovery limitation (released in contract v3 on 2026-10-07):
 macOS intermittently denies the launchd client some OS-generated files with
 `Operation not permitted`, even though the same client reads them at other times.
 Observed items were the `Safari.PageLoad` stream under

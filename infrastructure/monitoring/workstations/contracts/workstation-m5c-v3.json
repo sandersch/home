@@ -1,0 +1,69 @@
+{
+  "churn_tolerance": {
+    "maximum_paths": 1000,
+    "protected_paths": [
+      "Documents",
+      "Library/CloudStorage/Dropbox/ccs.kdbx"
+    ]
+  },
+  "contract": "workstation-m5c-v3",
+  "enrollment_evidence": {
+    "capacity_reviewed": true,
+    "dropbox_materialized": true,
+    "execution_path": "launchd gui job run.worm.workstation-measure-v3 using /opt/homebrew/bin/python3 (3.14.7), exit code 0",
+    "fda_launchd_passed": true,
+    "host": "m5c",
+    "icloud_optimize_disabled": true,
+    "inventory_reviewed": true,
+    "notes": [
+      "v3 adds three exclusions to v2: Library/Biome, Library/DuetExpertCenter, and Library/Daemon Containers/*/Data/com.apple.milod. macOS intermittently denied the launchd client files in these locations (EPERM), failing 116 inventories and one Restic run between 2026-09-17 and 2026-10-07.",
+      "The operator approved omitting Library/Biome and Library/DuetExpertCenter in full on 2026-10-07; the cause of the intermittent denial is not established.",
+      "Measured through launchd with the merged client (repository commit e175095) at 2026-10-07T03:45:32.803220+00:00: 267,716 files / 26,563,191,060 bytes; Documents 13 files / 3,404,476 bytes.",
+      "iCloud Optimize Mac Storage was found enabled on 2026-10-07 and disabled by the operator; `defaults read com.apple.bird optimize-storage` then returned 0 and the measurement was repeated. The earlier run the same day measured 267,692 files / 26,563,633,652 bytes.",
+      "The operator confirmed on 2026-10-07 that Photos and Mail hold no unique data, Dropbox content is materialized, and the measured inventory and capacity are accepted.",
+      "Capacity at measurement: NAS /mnt/backups 244G used of 1008G (26%); m5c NAS repository 25G; m5c data volume 83Gi used of 460Gi."
+    ],
+    "operator": "Charlie Sanders",
+    "os": "macOS 26.6.2 (arm64), FileVault on",
+    "photos_mail_no_unique_data": true,
+    "recorded_at": "2026-10-07",
+    "required_content_readable": true
+  },
+  "enrollment_status": "released",
+  "exclusion_sha256": "28d3d352b02465faa7b060d4bab2ed1772245ab0ceaa647c4745e222c8903dec",
+  "floors": {
+    "": {
+      "bytes": 21250552848,
+      "files": 214173
+    },
+    "Documents/": {
+      "bytes": 2723581,
+      "files": 11
+    }
+  },
+  "hostname": "m5c",
+  "kdbx_minimum_bytes": 102400,
+  "kdbx_path": "Library/CloudStorage/Dropbox/ccs.kdbx",
+  "manifest": "/Users/charlessanders/.workstation-backup-manifest.json",
+  "maximum_shrink_percent": 20,
+  "measured": {
+    "": {
+      "bytes": 26563191060,
+      "files": 267716
+    },
+    "Documents/": {
+      "bytes": 3404476,
+      "files": 13
+    }
+  },
+  "measured_at": "2026-10-07T03:45:32.803220+00:00",
+  "platform": "Darwin",
+  "required_content": [
+    "Documents",
+    "Dropbox/ccs.kdbx"
+  ],
+  "shrink_baseline_samples": 7,
+  "source_roots": [
+    "/Users/charlessanders"
+  ]
+}
