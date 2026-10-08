@@ -439,7 +439,14 @@ failure. Repo-owned `BulkStorageMountSetIncomplete` and
 check has reached 95% of the member size in the preceding 12 days, which covers both a
 check that never started and one that never finished; the window and lookback are
 bounded by Prometheus's 15-day retention, so the alert clears by itself on the 16th.
-A normal capped check needs four six-hour windows and finishes by the 10th. Treat HBA
+A normal capped check needs four six-hour windows and finishes by the 10th.
+
+The chart's `NodeDiskIOSaturation` rule is disabled and replaced by a repo-owned copy,
+because a capped check holds every active member far above the queue threshold for the
+whole window. The copy is identical except that `sd*` devices are ignored while `md3`
+is in `check`; `md3` itself, the LVM volumes, and NVMe still alert during a check, so
+workload queueing on the array remains visible. Chart upgrades no longer update this
+rule; compare it with upstream when the chart's node-exporter rules change. Treat HBA
 resets, I/O errors, a nonzero degraded count, or an unexpected resync/recovery as
 immediate investigation conditions.
 

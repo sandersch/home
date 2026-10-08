@@ -33,6 +33,9 @@ spec:
     defaultRules:
       disabled:
         CPUThrottlingHigh: true
+        # Replaced by a repo-owned copy in configs/alert-rules.yaml that ignores
+        # md3 member disks while a scheduled consistency check is running.
+        NodeDiskIOSaturation: true
       rules:
         etcd: false
         kubeControllerManager: false
