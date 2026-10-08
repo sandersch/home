@@ -34,6 +34,8 @@ step "Phase 0 scripted steps complete"
 cat <<'EOF'
   Remaining manual / off-host items:
     - 0.7 Router DNS: add wildcard *.worm.run -> 10.137.20.10 on the router.
-    - Reboot once so the lan0/cam0 rename takes effect, then re-confirm addressing.
+    - Reboot once for lan0/cam0 naming and the NVMe APST workaround; re-confirm addressing.
+    - Verify /proc/cmdline includes nvme_core.default_ps_max_latency_us=0 and
+      /sys/module/nvme_core/parameters/default_ps_max_latency_us reads 0.
   Next: Phase 1 (camera-segment isolation) — see docs/build-plan.md.
 EOF

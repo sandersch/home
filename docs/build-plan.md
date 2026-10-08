@@ -265,6 +265,17 @@ Netplan must be mode `600`. Then `sudo netplan generate && sudo netplan apply` a
 confirm both interfaces are up.
 
 **0.3 System prep + hardware checks.**
+Persist the validated NVMe sleep/wake workaround before package upgrades:
+`bash runbooks/phase0/03-nvme-power.sh` (also called by `03-system-prep.sh`). It
+installs [`99-homelab-nvme.cfg`](../host/minis/etc/default/grub.d/99-homelab-nvme.cfg),
+appending `nvme_core.default_ps_max_latency_us=0` to `GRUB_CMDLINE_LINUX`, then
+regenerates and validates GRUB. This disables NVMe APST for normal and recovery
+boots. The boot-menu trial was accepted as the fix on 2026-10-07 after 23 days of
+uptime. After the Phase 0 reboot, confirm the parameter in `/proc/cmdline` and
+`0` in `/sys/module/nvme_core/parameters/default_ps_max_latency_us` before
+continuing. See the [Phase 0 runbook](../runbooks/phase0/README.md#nvme-sleepwake-workaround)
+for standalone application and rollback.
+
 ```bash
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y curl git vim sqlite3 jq age nftables dnsmasq nut chrony mdadm lvm2 \

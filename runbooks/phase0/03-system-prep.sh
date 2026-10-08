@@ -10,6 +10,8 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 require_not_root; require_sudo; require_host_etc
 require_tools sysctl ss
 
+bash "$(dirname "${BASH_SOURCE[0]}")/03-nvme-power.sh"
+
 step "apt update + upgrade"
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y

@@ -24,7 +24,8 @@ open** across steps 01–02 (they restart sshd and reconfigure the network).
 | `00-preflight.sh` | — | Read-only sanity checks (OS, NIC MACs, sudo, repo) | no |
 | `01-hostname-ssh.sh` | 0.1 | hostname → `minis`; install key-only-auth drop-in; `sshd -t`; restart sshd | restart prompt |
 | `02-networking.sh` | 0.2 | static netplan (lan0/cam0 by MAC); disable cloud-init net; `netplan apply` | apply prompt |
-| `03-system-prep.sh` | 0.3 | apt upgrade; packages; tz `America/Chicago`; inotify limits; swap-off; hw checks; rfkill wifi/bt | swap-removal prompt |
+| `03-system-prep.sh` | 0.3 | persist NVMe APST workaround; apt upgrade; packages; tz `America/Chicago`; inotify limits; swap-off; hw checks; rfkill wifi/bt | swap-removal prompt |
+| `03-nvme-power.sh` | 0.3 helper | called by system prep; can run alone to install the NVMe GRUB drop-in, back up and regenerate GRUB, and validate all Linux entries; no reboot | no |
 | `04-bulk-storage-mounts.sh` | 0.4 | install md3 identity, attended check timers, and check-only speed cap; append four UUID mounts without overwriting the EFI-UUID fstab; verify exact LVM/ext4 mappings | no |
 | `05-ups-nut.sh` | 0.5 | install NUT configs; restore redacted password (prompt); enable stack; `upsc` | password prompt |
 | `06-coral-udev.sh` | 0.6 | install Coral udev rule; reload/trigger; check USB | no |
@@ -59,8 +60,55 @@ open** across steps 01–02 (they restart sshd and reconfigure the network).
   so non-secret NUT config changes still apply without rotating the secret.
 - **0.7 Router DNS is off-host and not scripted.** Add the wildcard
   `*.worm.run → 10.137.20.10` on the router manually.
-- After Phase 0, **reboot once** to settle the interface rename, then proceed to
-  Phase 1 (camera-segment isolation).
+- After Phase 0, **reboot once** to settle the interface rename and activate the
+  NVMe workaround. Verify the checks below before Phase 1 (camera-segment isolation).
+
+## NVMe sleep/wake workaround
+
+`nvme_core.default_ps_max_latency_us=0` disables NVMe autonomous power state
+transitions (APST). The operator accepted the boot-menu trial as the fix on
+2026-10-07; minis had 23 days of uptime with the parameter active. Preserve this
+setting on rebuilds and kernel updates. Disabling APST trades idle power savings
+for reliable storage access. The Linux driver's
+[APST implementation](https://code.googlesource.com/linux/torvalds/linux/+/a406b8b424fa01f244c1aab02ba186258448c36b/drivers/nvme/host/core.c)
+defines the zero-value behavior.
+
+For an existing host, run only this helper from the checkout on minis:
+
+```bash
+bash runbooks/phase0/03-nvme-power.sh
+```
+
+It installs the canonical `99-homelab-nvme.cfg` drop-in and runs `update-grub`.
+The drop-in appends to `GRUB_CMDLINE_LINUX`, preserving other flags and covering
+normal and recovery entries ([GRUB documentation](https://www.gnu.org/software/grub/manual/grub/html_node/Simple-configuration.html)).
+It never reboots or changes the running kernel. Do not rerun the full system-prep
+script just to apply this fix: that script also upgrades packages and disables
+services as part of initial provisioning.
+
+After the next attended reboot, verify persistence without editing the boot menu:
+
+```bash
+cat /proc/cmdline  # must include nvme_core.default_ps_max_latency_us=0
+cat /sys/module/nvme_core/parameters/default_ps_max_latency_us  # must print 0
+```
+
+The helper saves the previous defaults, drop-ins (if present), and generated
+`grub.cfg` under the printed `/var/backups/homelab-grub.*` directory. To undo a
+first installation, move `/etc/default/grub.d/99-homelab-nvme.cfg` outside
+`/etc/default/grub.d/`, then run `sudo update-grub` and
+`sudo grub-script-check /boot/grub/grub.cfg`. If replacing an earlier drop-in,
+restore its saved copy instead. If generation fails, restore the saved `grub.cfg`
+to `/boot/grub/grub.cfg` before rebooting. Rollback affects the next boot; the
+running kernel retains its current setting.
+
+**Live application, 2026-10-07:** installed the canonical drop-in on minis as
+`root:root 0644`, regenerated GRUB, and passed `grub-script-check`. All five
+generated Linux entries (kernels `6.8.0-139-generic` and `6.8.0-142-generic`,
+including recovery) contain the parameter. The running `6.8.0-139-generic` kernel
+already had the parameter and sysfs value `0`. Previous GRUB configuration is at
+`/var/backups/homelab-grub.XPuSZn09` on minis. No reboot was performed; the
+post-reboot persistence check above remains for the next attended reboot.
 
 ## Keeping in sync
 
