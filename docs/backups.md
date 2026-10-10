@@ -16,11 +16,12 @@
 > validations succeeded, and the attended Ryze one-off prune completed successfully.
 > The v3 promotion evidence, fresh Ryze/M5c deliveries, and 24-hour observation are
 > recorded in `runbooks/backups/evidence/vault-v3-promotion-20260916.json`; the scheduled
-> prune completion is recorded in the drill table below. Offline SSD tooling and staged
+> prune completion is recorded in the drill table below. Offline SSD tooling and
 > monitoring are implemented; drive A was enrolled on 2026-10-02 and passed its independent
-> recovery drill on 2026-10-03, while drive B enrollment and alert activation remain pending.
+> recovery drill on 2026-10-03, and drive B was enrolled and passed its drill on 2026-10-10;
+> both drives were confirmed off-site and the alert rules were activated in git that day.
 > Follow [the attended SSD runbook](../runbooks/backups/offline-ssd.md). Mail archival remains
-> draft. Updated 2026-10-03.
+> draft. Updated 2026-10-10.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
@@ -420,7 +421,8 @@ The local vault foundation, migrated photo archive, and vault B2 replication des
 the remaining proposed extensions; imperative language in the completed phases is historical
 rebuild guidance. Workstation repositories are live. Offline SSD tooling is implemented
 in [the attended runbook](../runbooks/backups/offline-ssd.md); drive A is enrolled and
-passed independent recovery, while drive B and monitoring activation are still pending.
+passed independent recovery, and drive B is enrolled and passed independent recovery; both drives are
+confirmed off-site and the alert rules are included in the monitoring configuration.
 The mail archive remains unimplemented.
 
 ### 1. A dedicated home for irreplaceable data: `/mnt/vault`
@@ -2325,7 +2327,9 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | Frigate exports restore (local + B2) | *not yet* | — |
 | Offline drive rotation (drive A) | *not yet* | — |
 | Offline drive rotation (drive B) | *not yet* | — |
-| Annual offline data check + representative restore | 2026-10-02 (drive A, initial) | passed — enrollment ran `check --read-data` on all three repositories plus the vault, appstate and legacy restore checks. See `runbooks/backups/evidence/offline-ssd-A-enrollment-20261002.json`. Drive B not yet enrolled. |
+| Annual offline data check + representative restore | 2026-10-02 (drive A, initial) | passed — enrollment ran `check --read-data` on all three repositories plus the vault, appstate and legacy restore checks. See `runbooks/backups/evidence/offline-ssd-A-enrollment-20261002.json`. |
+| Offline drive B initial data check + representative restore | 2026-10-10 | passed — enrollment ran `check --read-data` on all three repositories plus the vault, appstate and legacy restore checks, with checkpoints tagged `offline-checkpoint-2026-Q4`. See `runbooks/backups/evidence/offline-ssd-B-enrollment-20261010.json`. |
+| Offline drive B independent recovery, break-glass only | 2026-10-10 | passed — restored on `ryze` from the SSD and break-glass card alone, without `minis`, the NAS, or control records. All three snapshot IDs matched enrollment; full vault, appstate and legacy restores passed `--verify`; KDBX, sample vault files and legacy files opened; appstate hot-dump contract v3 artifacts were readable. RomM import and DR steps were not run. See `runbooks/backups/evidence/offline-ssd-B-recovery-20261010.json`. |
 | Offline drive A independent recovery, break-glass only | 2026-10-03 | passed — restored on `ryze` from the SSD and break-glass card alone, without `minis`, the NAS, or control records. All three snapshot IDs matched enrollment; full vault, appstate and legacy restores passed `--verify`; KDBX, documents, photos and legacy files opened; appstate hot-dump contract v3 artifacts were readable. RomM import and DR steps were not run. See `runbooks/backups/evidence/offline-ssd-A-recovery-20261003.json`. |
 | Recurring online repository checks (all NAS + B2 repos) | 2026-09-07 | passed — structural checks plus September's rotating `9/12` read-data subset completed without errors for appstate NAS/B2 and vault NAS/B2. Vault B2 checked 8 snapshots and read 93 of 1,135 packs. |
 | Quarterly online restore program | *not yet* | — |

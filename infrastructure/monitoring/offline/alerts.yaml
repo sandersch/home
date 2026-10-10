@@ -1,4 +1,4 @@
-# Staged: add ../offline to configs/kustomization.yaml only after both enrollments.
+# Included by ../configs/kustomization.yaml since 2026-10-10, after both enrollments.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
