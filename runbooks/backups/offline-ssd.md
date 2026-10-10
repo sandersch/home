@@ -3,7 +3,8 @@
 The tooling is implemented. **Drive A was enrolled on 2026-10-02 and passed its
 independent recovery drill on 2026-10-03; drive B was enrolled and passed its
 independent recovery drill on 2026-10-10.**
-Do not enable the staged alerts until the acceptance checklist below is complete.
+Both drives were confirmed off-site on 2026-10-10 and the acceptance checklist below is
+complete, so the alert rules are included in the monitoring configuration.
 Run on `minis` with exactly one selected USB SSD attached. This workflow does not
 change production schedules, online retention, or the original rsnapshot tree.
 There is no SSD timer, automount, fstab entry, `forget`, `prune`, or automatic unlock.
@@ -202,12 +203,13 @@ After the clean-unmount completion record is durable, a metrics write failure is
 reported as a warning and does not change the successful checkpoint result. Rebuild
 the textfile metrics with `status --rebuild-metrics` after repairing the metrics path.
 
-After both genuine enrollment successes, verify the metric file is collected by
-node-exporter, then add `../offline` to
-`infrastructure/monitoring/configs/kustomization.yaml` in a reviewed GitOps commit.
-The staged rules warn if the newest drive exceeds 210 days or all metrics are absent,
+Both genuine enrollment successes are recorded, and on 2026-10-10 Prometheus showed
+node-exporter collecting the rotation timestamp for A and B, each matching its
+enrollment success time. `../offline` is therefore included in
+`infrastructure/monitoring/configs/kustomization.yaml`. The rules warn if the newest drive exceeds 210 days or all metrics are absent,
 and if either drive exceeds 300 days or its series is absent. Do not synthesize
-initial timestamps. Alert activation is deliberately pending physical acceptance.
+initial timestamps. After Flux reconciles the change, confirm the `restic-offline`
+rules are loaded and neither alert is pending or firing.
 
 ## Independent recovery on Linux
 
@@ -288,11 +290,11 @@ Unmount the retrieved drive normally when finished and return it off-site.
 | Exact checkpoint seed and legacy copy | passed 2026-10-02 | passed 2026-10-10 |
 | Full reads, representative restores, Strongbox open | passed 2026-10-02 | passed 2026-10-10 |
 | Independent recovery drill and sanitized evidence | passed 2026-10-03 | passed 2026-10-10 |
-| Clean unmount and return off-site | pending (clean unmount recorded 2026-10-02; off-site return not recorded) | pending (clean unmount recorded 2026-10-10; off-site return not recorded) |
+| Clean unmount and return off-site | passed (clean unmount recorded 2026-10-02; off-site operator-confirmed 2026-10-10) | passed (clean unmount recorded 2026-10-10; off-site operator-confirmed 2026-10-10) |
 
 Drive A evidence: [enrollment](./evidence/offline-ssd-A-enrollment-20261002.json) and
 [card-only recovery on `ryze`](./evidence/offline-ssd-A-recovery-20261003.json).
 Drive B evidence: [enrollment](./evidence/offline-ssd-B-enrollment-20261010.json) and
 [card-only recovery on `ryze`](./evidence/offline-ssd-B-recovery-20261010.json).
-Monitoring activation remains pending both columns. Mail archival, workstation-home
+Both columns are complete and monitoring is activated in git. Mail archival, workstation-home
 SSD copies, online retention changes and rsnapshot source deletion are out of scope.

@@ -16,10 +16,10 @@
 > validations succeeded, and the attended Ryze one-off prune completed successfully.
 > The v3 promotion evidence, fresh Ryze/M5c deliveries, and 24-hour observation are
 > recorded in `runbooks/backups/evidence/vault-v3-promotion-20260916.json`; the scheduled
-> prune completion is recorded in the drill table below. Offline SSD tooling and staged
+> prune completion is recorded in the drill table below. Offline SSD tooling and
 > monitoring are implemented; drive A was enrolled on 2026-10-02 and passed its independent
 > recovery drill on 2026-10-03, and drive B was enrolled and passed its drill on 2026-10-10;
-> off-site return records and alert activation remain pending.
+> both drives were confirmed off-site and the alert rules were activated in git that day.
 > Follow [the attended SSD runbook](../runbooks/backups/offline-ssd.md). Mail archival remains
 > draft. Updated 2026-10-10.
 >
@@ -421,8 +421,8 @@ The local vault foundation, migrated photo archive, and vault B2 replication des
 the remaining proposed extensions; imperative language in the completed phases is historical
 rebuild guidance. Workstation repositories are live. Offline SSD tooling is implemented
 in [the attended runbook](../runbooks/backups/offline-ssd.md); drive A is enrolled and
-passed independent recovery, and drive B is enrolled and passed independent recovery; off-site return records
-and monitoring activation are still pending.
+passed independent recovery, and drive B is enrolled and passed independent recovery; both drives are
+confirmed off-site and the alert rules are included in the monitoring configuration.
 The mail archive remains unimplemented.
 
 ### 1. A dedicated home for irreplaceable data: `/mnt/vault`

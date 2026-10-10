@@ -9,6 +9,7 @@ resources:
 - flux-podmonitor.yaml
 - deadmanssnitch
 - pushover
+- ../offline
 configMapGenerator:
 - name: nut-exporter-dashboard
   namespace: monitoring
