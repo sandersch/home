@@ -1,0 +1,83 @@
+{
+  "drive": "B",
+  "kind": "independent-recovery-drill",
+  "recorded_date": "2026-10-10",
+  "host": "ryze",
+  "platform": "Linux",
+  "restic_version": "0.19.1",
+  "evidence_source": "Attended session command results and operator confirmations",
+  "result": "passed",
+  "independence": {
+    "credential_source": "break-glass card",
+    "password_manager_used": false,
+    "minis_nas_or_control_records_used": false,
+    "ssd_mount": "ext4 ro,noload,nodev,nosuid,noexec",
+    "restic_options": "--no-lock --no-cache",
+    "restore_target": "temporary LUKS2 container on the recovery machine; no plaintext outside it"
+  },
+  "repositories": {
+    "vault": {
+      "snapshot_id": "7f44fc2a124c79b3450331c7828880bfd82cad4e530f5747ac696335af8ee084",
+      "snapshot_time": "2026-10-10T15:15:36.112945312Z",
+      "host": "minis-vault",
+      "tag": "offline-checkpoint-2026-Q4",
+      "snapshots_in_repository": 1,
+      "matches_enrollment_evidence": true,
+      "restore": "full, restic --verify",
+      "restored_gib_reported": 31.942,
+      "files_verified": 15811,
+      "kdbx_manually_opened": true,
+      "sample_files_manually_opened": true
+    },
+    "appstate": {
+      "snapshot_id": "138ee8ab237fd557ba0aa5af9b8c019f7e7be305650e7548a362be648fe914a4",
+      "snapshot_time": "2026-10-10T08:15:17.862456978Z",
+      "host": "minis",
+      "tag": "offline-checkpoint-2026-Q4",
+      "snapshots_in_repository": 1,
+      "matches_enrollment_evidence": true,
+      "restore": "full excluding /data/opt/romm/db, restic --verify",
+      "restored_gib_reported": 16.055,
+      "files_verified": 119428,
+      "contract_version": 3,
+      "export_created_at": "2026-10-10T08:15:16Z",
+      "k3s_datastore_integrity_check": "ok",
+      "k3s_kine_rows": 3501,
+      "required_sqlite_exports": {
+        "integrity_check_ok": 5,
+        "plex_schema_readability_ok": 2,
+        "note": "Stock sqlite3 cannot run integrity_check on the Plex databases (custom FTS tokenizer); they received the same schema-readability check as the backup job and DR validator."
+      },
+      "home_assistant_archive_listed": true,
+      "home_assistant_archive_members": 2,
+      "romm_dump_present_and_complete": true,
+      "romm_import_run": false,
+      "live_romm_db_directory_absent": true
+    },
+    "legacy-rsnapshot": {
+      "snapshot_id": "2e40ecaef38f53d12718a540a7f80fdfef051dbaab1223ec4222e30c1a19ee36",
+      "snapshot_time": "2026-09-20T14:23:52.257529711-05:00",
+      "host": "minis",
+      "snapshots_in_repository": 1,
+      "matches_enrollment_evidence": true,
+      "restore": "full, restic --verify",
+      "restored_gib_reported": 111.312,
+      "files_verified": 668539,
+      "hardlinks_preserved": true,
+      "symlink_targets_spot_checked": true,
+      "non_root_numeric_ownership_spot_checked": true,
+      "files_manually_opened": true
+    }
+  },
+  "not_covered": [
+    "RomM import/check and DR steps 00-07, which run on a rebuilt minis."
+  ],
+  "notes": [
+    "No repository credentials, file contents, document names, or private paths are included in this record."
+  ],
+  "teardown": {
+    "ssd_unmounted_normally": true,
+    "luks_mapping_closed": true,
+    "container_and_key_file_removed": true
+  }
+}

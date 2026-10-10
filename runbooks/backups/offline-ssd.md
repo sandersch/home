@@ -1,8 +1,9 @@
 # Attended offline SSD backups
 
 The tooling is implemented. **Drive A was enrolled on 2026-10-02 and passed its
-independent recovery drill on 2026-10-03; drive B is not enrolled.**
-Do not enable the staged alerts until A and B have real successful enrollments.
+independent recovery drill on 2026-10-03; drive B was enrolled and passed its
+independent recovery drill on 2026-10-10.**
+Do not enable the staged alerts until the acceptance checklist below is complete.
 Run on `minis` with exactly one selected USB SSD attached. This workflow does not
 change production schedules, online retention, or the original rsnapshot tree.
 There is no SSD timer, automount, fstab entry, `forget`, `prune`, or automatic unlock.
@@ -282,14 +283,16 @@ Unmount the retrieved drive normally when finished and return it off-site.
 
 | Gate | A | B |
 |---|---|---|
-| Physical identity and guarded provisioning | passed 2026-10-02 | pending |
-| Six unique passwords saved in manager and both cards | pending (cross-drive uniqueness is checked at B enrollment) | pending |
-| Exact checkpoint seed and legacy copy | passed 2026-10-02 | pending |
-| Full reads, representative restores, Strongbox open | passed 2026-10-02 | pending |
-| Independent recovery drill and sanitized evidence | passed 2026-10-03 | pending |
-| Clean unmount and return off-site | pending (clean unmount recorded 2026-10-02; off-site return not recorded) | pending |
+| Physical identity and guarded provisioning | passed 2026-10-02 | passed 2026-10-10 |
+| Six unique passwords saved in manager and both cards | passed 2026-10-10 (six-way uniqueness checked at B enrollment) | passed 2026-10-10 (operator-confirmed at the enrollment prompt) |
+| Exact checkpoint seed and legacy copy | passed 2026-10-02 | passed 2026-10-10 |
+| Full reads, representative restores, Strongbox open | passed 2026-10-02 | passed 2026-10-10 |
+| Independent recovery drill and sanitized evidence | passed 2026-10-03 | passed 2026-10-10 |
+| Clean unmount and return off-site | pending (clean unmount recorded 2026-10-02; off-site return not recorded) | pending (clean unmount recorded 2026-10-10; off-site return not recorded) |
 
 Drive A evidence: [enrollment](./evidence/offline-ssd-A-enrollment-20261002.json) and
 [card-only recovery on `ryze`](./evidence/offline-ssd-A-recovery-20261003.json).
+Drive B evidence: [enrollment](./evidence/offline-ssd-B-enrollment-20261010.json) and
+[card-only recovery on `ryze`](./evidence/offline-ssd-B-recovery-20261010.json).
 Monitoring activation remains pending both columns. Mail archival, workstation-home
 SSD copies, online retention changes and rsnapshot source deletion are out of scope.
