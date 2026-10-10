@@ -30,8 +30,9 @@
 > prune is enabled and its first scheduled run succeeded. Workstation backup is active for
 > Ryze and m5c. The vault v3 promotion observation passed; separate workstation
 > acceptance passed for M5c on September 26; Ryze observation/weekly-cycle and both
-> natural monthly-check gates remain open as described in § 4. Offline
-> copies and mail archival are not active. The `appstate` pipeline is
+> natural monthly-check gates remain open as described in § 4. Both offline
+> SSDs are enrolled and accepted, with normal rotation beginning with drive A in Q4 2026;
+> mail archival is not active. The `appstate` pipeline is
 > described under [What exists today](#what-exists-today):
 > `restic-nas-backup` nightly and `restic-b2-backup` weekly, covering `/opt`, the k3s
 > datastore, and validated hot dumps.
@@ -104,9 +105,9 @@ vault pipeline:
   contract version or inventory differs
 
 That anti-false-success contract is the most valuable pattern in the repo and everything
-proposed below reuses it. Vault B2 replication has passed its attended gates; the remaining
-gaps are workstation operational acceptance gates, offline copies, mail archival, and
-Frigate export ingestion.
+proposed below reuses it. Vault B2 replication has passed its attended gates, and both
+offline SSDs are enrolled and accepted; the remaining gaps are workstation operational
+acceptance gates, mail archival, and Frigate export ingestion.
 
 ## The data policy (proposed)
 
@@ -120,9 +121,9 @@ One table is the contract. Every proposed manifest points back to it.
 | *(none)* | disk images, Frigate **recordings**, `/mnt/media`, `/mnt/games` | 18 TiB+ | local only, GC'd | — | — |
 
 The migrated photos currently have their source on the encrypted vault filesystem, a
-validated local Restic copy on `/mnt/backups`, and a seeded/validated B2 copy. The offline
-drive remains the undeployed 3-2-1 target. Both workstation NAS/B2 destinations are
-active; mail archival remains undeployed.
+validated local Restic copy on `/mnt/backups`, a seeded/validated B2 copy, and offline
+copies on both enrolled SSDs (drive A on 2026-10-02, drive B on 2026-10-10). Both
+workstation NAS/B2 destinations are active; mail archival remains undeployed.
 
 The vault cadence starts only after data reaches `/mnt/vault`; it is not an ingestion
 guarantee. The Strongbox database has its own source-to-vault contract (§ 1c):
@@ -554,7 +555,7 @@ the mail process has no reason to read:
 ```
 
 Reserve numeric UID/GID **`2000:2000`** for the mail archive. The mail-archive preflight
-(phase 7 of [Phasing](#phasing-proposed)) fails if
+(phase 7 of [Phasing](#phasing-vault-v3-rollout-complete)) fails if
 `getent passwd 2000` or `getent group 2000` finds an unrelated host identity; no login
 account is required on the host, because hostPath permissions use the numeric IDs directly.
 The mounted vault filesystem root is `root:root` `0711`: UID 2000 can traverse a known path
@@ -1917,7 +1918,7 @@ joins `direct-attached-storage-migration/`, `disaster-recovery/`, `bastion/`, an
 `runbooks/README.md`. That is the right shape here: this work spans host, cluster, and
 workstation surfaces and is run in stages over months, rather than once from an SSH-ready
 host in build-plan order. So `docs/build-plan.md` stays at Phase 5 and gains nothing, and
-the numbered phases in [Phasing](#phasing-proposed) below are stages *within* this
+the numbered phases in [Phasing](#phasing-vault-v3-rollout-complete) below are stages *within* this
 workflow — they are **not** `runbooks/phaseN/` directories, and they do not correspond to
 the existing `runbooks/phase5/` scripts this document cites.
 
@@ -2044,15 +2045,18 @@ Ordered so the highest-value, least-reversible data is protected first.
    This static repository is exempt from automated check enrollment: no unattended credential,
    CronJob, freshness metric, retention or pruning. Historical Unix socket entries are omitted
    by Restic with operator acceptance on 2026-09-20; their metadata remains in the private
-   inventory. Until independently validated SSD copies exist, array loss destroys this
-   local archive. B2 replication is outside this implementation.
+   inventory. Independently validated copies exist on both offline SSDs (drive A enrolled
+   2026-10-02, drive B 2026-10-10), so array loss no longer destroys the only copy. B2
+   replication is outside this implementation.
 7. **Mail archive** — fail preflight if host UID or GID 2000 is already assigned, build and
    immutably pin the dedicated mail image, verify the mounted vault root and create the mail
    paths with the exact ownership and modes in § 1b, write the Gmail app password with a
    silent prompt, save its independent copy in the external password manager, deploy the
    `2000:2000` mbsync app without a Kubernetes Secret or `fsGroup`, and prove a successful
    sync, least-privilege boundary, and credential exclusion from the next vault snapshot.
-8. **Offline drives** — init **both** drives `--from-repo <NAS> --copy-chunker-params`
+8. **Offline drives** — **both drives enrolled and accepted; alerts active; normal rotation
+   begins with A in Q4 2026**. The enrollment procedure is:
+   init **both** drives `--from-repo <NAS> --copy-chunker-params`
    (with their own distinct password, § 8) on the two existing portable USB SSDs (A 2 TB,
    B 500 GB), record
    their labels and filesystem UUIDs, and install the single-command attended rotation

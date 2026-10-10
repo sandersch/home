@@ -15,13 +15,20 @@ This plan now describes both the target build and the implementation already com
 to this repo. Most of Phases 0-4 are represented as executable runbooks and/or Flux
 manifests.
 
-The local encrypted-vault backup is now deployed and validated separately from the
-appstate pipeline. Contract v2 requires the imported photos; snapshot
+The local encrypted-vault backup is deployed and validated separately from the
+appstate pipeline. Under contract v2, snapshot
 `878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe` passed a full restore
 and SHA-256 comparison for all 15,206 photos on 2026-09-06. Vault B2 enrollment, seed,
 on-host and card-only off-host restores, authorization separation, and repository
-verification passed on 2026-09-07; its reviewed CronJob activation commit awaits live
-Flux/CronJob confirmation. Workstation backups and offline copies remain future work.
+verification passed on 2026-09-07; Flux applied activation commit `eb02a61`, and the
+recurring copy and prune CronJobs are live. The active contract is now v3 (baseline
+generation 2); its rollout and the first scheduled NAS/B2 prune completed on 2026-09-20.
+Workstation backups are active for Ryze (2026-09-12) and m5c (2026-09-15), with the
+remaining operational gates tracked in
+[attended enrollment and recovery](../runbooks/backups/workstations.md). Offline SSD
+drive A was enrolled on 2026-10-02 and passed its independent recovery drill on
+2026-10-03; drive B was enrolled and passed its drill on 2026-10-10. Mail archival
+remains draft; see [backups.md](./backups.md).
 
 | Phase | Repo status | Remaining work |
 |---|---|---|

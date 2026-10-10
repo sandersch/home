@@ -212,13 +212,15 @@ comparison, representative restore and manual inspection remain mandatory. Check
 are recorded per run. No claim is made to preserve atime/ctime, inode numbers, physical sparse
 layout, or every hardlink relationship after restore; xattrs and hardlinks are sampled.
 
-The future offline-drive design adds a third, separate `legacy-rsnapshot` repository on
-each SSD. Initialize format 2 with `--from-repo /mnt/backups/legacy-rsnapshot
---copy-chunker-params` and a distinct password per drive, then copy only the accepted exact
-source ID. Record the destination ID and source lineage; do not assume IDs remain identical.
-Independently run `check --read-data` and the same inventory/sample restore comparisons on
-each destination during enrollment. Include this repository in annual offline checks and
-restores. The static archive needs no quarterly recopy or freshness metric. Never prune it.
+Each offline SSD carries a third, separate `legacy-rsnapshot` repository, created during
+enrollment by the [attended offline SSD tooling](offline-ssd.md) (drive A on 2026-10-02,
+drive B on 2026-10-10). Enrollment initializes format 2 with `--from-repo
+/mnt/backups/legacy-rsnapshot --copy-chunker-params` and a distinct password per drive, then
+copies only the accepted exact source ID. It records the destination ID and source lineage;
+do not assume IDs remain identical. It also runs `check --read-data` and verifies legacy
+metadata, symlinks, xattrs and sample hashes on each destination against the saved NAS
+acceptance evidence. The annual offline checks and restores include this repository. The
+static archive needs no quarterly recopy or freshness metric. Never prune it.
 
 Tests: `PYTHONDONTWRITEBYTECODE=1 python3 runbooks/backups/test-legacy-rsnapshot.py` uses
 real Restic 0.19.1 on disposable fixtures plus injected failures; no live storage is touched.

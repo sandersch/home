@@ -79,8 +79,10 @@ mounted or consumed by the current platform. The array identity is pinned to
 
 The encrypted `vaultlv` at `/mnt/vault` provides the host-local source root for
 irreplaceable data (photos, documents, credentials, mail archive). Its four-hour Restic
-backup is deployed with the v2 content contract and has passed a full photo restore drill.
-Vault B2 replication and offline copies remain proposed in [backups.md](./backups.md).
+backup runs under the v3 content contract, whose rollout (including NAS/B2 recovery)
+completed on 2026-09-20; a full photo restore drill passed on 2026-09-06. Daily vault B2
+replication is live, and both offline SSDs are enrolled and accepted; see
+[backups.md](./backups.md).
 
 Rationale for the splits:
 
@@ -220,8 +222,9 @@ The rule: **latency-sensitive state on local NVMe; bulk data on the direct array
 **Backup coverage of the above is partial.** Everything on `/opt` is captured by the nightly
 Restic pipeline plus the weekly B2 copy. The direct-array media, games, and Frigate recording
 trees remain local-only. Migrated personal pictures now live under `/mnt/vault/photos` and
-are covered by the validated four-hour local vault Restic pipeline; vault B2 replication and
-offline copies remain draft work in [backups.md](./backups.md).
+are covered by the validated four-hour local vault Restic pipeline and its daily B2 copy.
+The vault and appstate repositories are also checkpointed to the two enrolled offline SSDs;
+see [backups.md](./backups.md).
 
 The four UUID-based ext4 mounts use `nofail,x-systemd.automount` plus bounded device
 and mount timeouts. This lets the host boot if the enclosure is absent while exact

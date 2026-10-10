@@ -208,8 +208,9 @@ node-exporter collecting the rotation timestamp for A and B, each matching its
 enrollment success time. `../offline` is therefore included in
 `infrastructure/monitoring/configs/kustomization.yaml`. The rules warn if the newest drive exceeds 210 days or all metrics are absent,
 and if either drive exceeds 300 days or its series is absent. Do not synthesize
-initial timestamps. After Flux reconciles the change, confirm the `restic-offline`
-rules are loaded and neither alert is pending or firing.
+initial timestamps. Flux reconciled the change at `5f67695` on 2026-10-10; Prometheus
+then showed the `homelab-restic-offline` group loaded, both rules healthy, and neither
+alert pending or firing.
 
 ## Independent recovery on Linux
 
