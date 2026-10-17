@@ -26,6 +26,17 @@ backup from 2026-09-27 to 2026-10-07. The operator approved excluding all of
 and prediction caches, plus the `com.apple.milod` data directory; other daemon
 containers remain in scope. The cause of the denial is not established.
 
+Approved recovery limitation (released in contract v4 on 2026-10-17): regenerable
+application caches are excluded. After an intentional 4.92 GB deletion, every v3 run
+from 2026-10-15 failed its home floor; an attended audit then found 13.47 GB of the
+remaining 20.25 GB scope was cache whose own eviction could trip the 80% floors. v4
+omits Chrome, Dropbox and Slack Service Worker cache storage, Discord and Slack
+`Cache`/`Code Cache`/`GPUCache`, updater and Chrome component `crx_cache`, Spotify's
+`PersistentCache`, sandboxed `Library/Containers/*/Data/Library/Caches` and `Data/tmp`,
+the Spotlight index, and Claude Code release binaries. Browser profiles, cookies, local
+storage and app settings remain in scope; cached web content and offline app data must
+be re-downloaded after a restore.
+
 The Google Drive account tree at `Library/CloudStorage/GoogleDrive-sanderscharlie@gmail.com`
 is excluded on m5c: the operator confirmed it is fully present on ryze and intended
 to be backed up there. Verify its actual ryze path and included, locally readable

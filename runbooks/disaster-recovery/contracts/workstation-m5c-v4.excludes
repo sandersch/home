@@ -1,0 +1,87 @@
+# Preserve Library/Application Support, projects and hidden application state.
+# Approved omission: entire unused iCloud Mobile Documents tree.
+Library/Mobile Documents
+# Approved omission: root-owned mode-0600 Control Center preferences; not recoverable.
+Library/Group Containers/group.com.apple.secure-control-center-preferences/Library/Preferences/group.com.apple.secure-control-center-preferences.av.plist
+# Generated CoreSpeech compilation cache; preserve other group-container state.
+Library/Group Containers/group.com.apple.CoreSpeech/Caches/onDeviceCompilationCaches
+# Attended inventory: root-owned mode-0600 Google updater statistics, not user data.
+Library/Google/GoogleSoftwareUpdate/Stats/Keystone.stats
+# Attended confirmation: this Google Drive tree is fully present and backed up on ryze.
+Library/CloudStorage/GoogleDrive-sanderscharlie@gmail.com
+# Shared Dropbox is backed up in full by ryze; Mac retains only the required KDBX.
+only-file:Library/CloudStorage/Dropbox/ccs.kdbx
+only-file:Dropbox/ccs.kdbx
+# Attended inventory: two UUID instances have an empty, mode-000 tombstone/a.
+# Match only UUID-named instances and this exact subtree, not other provider state.
+Library/Application Support/FileProvider/[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]-[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/wharf/tombstone/a
+# Client log 2026-09-17..2026-10-07: macOS intermittently denies the launchd client
+# OS-generated telemetry, prediction and location files here (EPERM), failing 116
+# inventories and one Restic run. Approved omission: both OS-managed trees in full
+# and the micro-location daemon's data; other daemon containers stay in scope.
+Library/Biome
+Library/DuetExpertCenter
+Library/Daemon Containers/*/Data/com.apple.milod
+.cache
+# Attended inventory: NordVPN Realm runtime FIFO, not database contents.
+Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.management/access_control.new_commit.cv
+Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.management/access_control.pick_writer.cv
+Library/Application Support/com.nordvpn.macos/default.encrypted_v2.realm.note
+.local/state/workstation-backup
+.config/workstation-backup
+.config/vault-ingest
+Library/Caches
+Library/Logs
+Library/Mail
+Library/Containers/com.apple.mail
+Library/Developer/Xcode/DerivedData
+Library/Developer/CoreSimulator
+Library/Containers/com.docker.docker
+Library/Application Support/Steam
+Pictures/Photos Library.photoslibrary
+.Trash
+Downloads
+node_modules
+.venv
+venv
+__pycache__
+.tox
+.gradle
+target
+build
+dist
+.next
+.npm
+.cargo/registry
+.rustup/toolchains
+restore-scratch
+.restore-tests
+*.dmg
+*.pkg
+*.iso
+# Attended audit 2026-10-17: 13.47 GB of the 20.25 GB scope was regenerable
+# application cache whose own eviction can trip the 80% floors. Omit only these
+# cache subtrees; profiles, cookies, local storage and app settings stay in scope.
+Library/Application Support/Google/Chrome/*/Service Worker/CacheStorage
+Library/Application Support/Google/Chrome/*/Service Worker/ScriptCache
+Library/Application Support/Google/Chrome/component_crx_cache
+Library/Application Support/Google/GoogleUpdater/crx_cache
+Library/Application Support/Dropbox/DropboxUpdater/crx_cache
+Library/Application Support/Dropbox/Partitions/*/Service Worker/CacheStorage
+Library/Application Support/discord/Cache
+Library/Application Support/discord/Code Cache
+Library/Application Support/discord/GPUCache
+Library/Application Support/Slack/Cache
+Library/Application Support/Slack/Code Cache
+Library/Application Support/Slack/Service Worker/CacheStorage
+Library/Containers/com.tinyspeck.slackmacgap/Data/Library/Application Support/Slack/Cache
+Library/Containers/com.tinyspeck.slackmacgap/Data/Library/Application Support/Slack/Code Cache
+Library/Containers/com.tinyspeck.slackmacgap/Data/Library/Application Support/Slack/Service Worker/CacheStorage
+Library/Application Support/Spotify/PersistentCache
+# Sandboxed counterparts of the excluded Library/Caches; other container data stays.
+Library/Containers/*/Data/Library/Caches
+Library/Containers/*/Data/tmp
+# Spotlight index, rebuilt by macOS.
+Library/Metadata/CoreSpotlight
+# Claude Code release binaries, reinstalled by its installer.
+.local/share/claude/versions

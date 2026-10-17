@@ -9,8 +9,10 @@ representative-file results are recorded in the [recovery evidence](evidence/ryz
 The live activation gates and their evidence are tracked in the [activation record](evidence/ryze-activation-20260912.json).
 Both workstation v1 and v2 contracts are released. M5c v3, released 2026-10-07, omits
 intermittently unreadable macOS system state (see the [host notes](../../host/m5c/README.md)
-and [measurement](evidence/m5c-measured-v3-20261007.json)); its client installation and
-first accepted v3 snapshot are pending. `infrastructure/monitoring/workstations/`
+and [measurement](evidence/m5c-measured-v3-20261007.json)). M5c v4, released 2026-10-17,
+omits regenerable application caches after an intentional 4.92 GB deletion left every v3
+run below its home floor (see the [measurement](evidence/m5c-measured-v4-20261017.json));
+its client installation and first accepted v4 snapshot are pending. `infrastructure/monitoring/workstations/`
 is in the active monitoring Kustomization. Both hosts' four CronJobs are enabled.
 Both hosts' NAS/B2 repositories are initialized. M5c has accepted NAS snapshots and
 a successful B2 copy. Native NAS and B2 content and metadata verification passed on
