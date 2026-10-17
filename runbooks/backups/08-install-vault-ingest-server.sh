@@ -66,6 +66,9 @@ grep -qx 'kbdinteractiveauthentication no' <<<"$effective_sshd" \
   || die "the ingestion listener unexpectedly permits keyboard-interactive authentication"
 grep -qx 'forcecommand internal-sftp -d /upload' <<<"$effective_sshd" \
   || die "the ingestion identity does not have the expected forced SFTP command"
+grep -qx 'ExecStartPre=/usr/bin/install -d -m 0755 /run/sshd' \
+  /etc/systemd/system/vault-ingest-sshd@.service \
+  || die "the ingestion listener does not create /run/sshd independently of ssh.service"
 sudo systemd-analyze verify \
   /etc/systemd/system/vault-ingest-sshd.socket \
   /etc/systemd/system/vault-ingest-sshd@.service \
