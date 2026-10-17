@@ -344,6 +344,21 @@ never propagates client deletions. Identical successful deliveries refresh the
 promotion heartbeat. Enable the promoter's hourly retry timer after its ingestion
 tests pass. Ryze remains the only Strongbox uploader.
 
+The socket-activated listener runs `sshd -i`, which aborts with `fatal: Missing
+privilege separation directory: /run/sshd` when that directory is absent. Ubuntu's
+`ssh.service` owns `/run/sshd` as its `RuntimeDirectory` and deletes it whenever it
+stops; with `ssh.socket` activation it then stays stopped until the next admin login.
+On 2026-10-15 an unattended openssh upgrade did exactly this, every upload was reset
+during key exchange (client exit 255), and the outage surfaced only as
+`StrongboxVaultIngestionStale` 36 hours later. `vault-ingest-sshd@.service` therefore
+creates `/run/sshd` in `ExecStartPre`; a tmpfiles.d entry would not help, because
+systemd removes the directory again on the next `ssh.service` stop. After reinstalling
+the units, confirm the installed template matches the repository with `cmp`, then
+verify the listener independently of `ssh.service` from ryze:
+`echo pwd | sftp -b - -P 2222 -i ~/.config/vault-ingest/id_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=~/.config/vault-ingest/known_hosts vault-ingest-ryze@10.137.20.5`
+must print `Remote working directory: /upload`. If uploads fail with exit 255, check
+`journalctl -g 'vault-ingest-sshd|sshd\['` on minis first.
+
 ## Vault v3 activation
 
 **Completed 2026-09-20.** The active vault contract is v3 at baseline generation 2;

@@ -2,6 +2,9 @@
 Description=Restricted vault-ingestion SFTP connection
 
 [Service]
+# ssh.service owns /run/sshd as its RuntimeDirectory and removes it whenever it
+# stops (e.g. an openssh upgrade); sshd -i aborts without it.
+ExecStartPre=/usr/bin/install -d -m 0755 /run/sshd
 ExecStart=-/usr/sbin/sshd -i -f /etc/ssh/sshd_config_vault_ingest
 StandardInput=socket
 StandardOutput=inherit
