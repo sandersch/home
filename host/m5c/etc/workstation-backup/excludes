@@ -59,3 +59,29 @@ restore-scratch
 *.dmg
 *.pkg
 *.iso
+# Attended audit 2026-10-17: 13.47 GB of the 20.25 GB scope was regenerable
+# application cache whose own eviction can trip the 80% floors. Omit only these
+# cache subtrees; profiles, cookies, local storage and app settings stay in scope.
+Library/Application Support/Google/Chrome/*/Service Worker/CacheStorage
+Library/Application Support/Google/Chrome/*/Service Worker/ScriptCache
+Library/Application Support/Google/Chrome/component_crx_cache
+Library/Application Support/Google/GoogleUpdater/crx_cache
+Library/Application Support/Dropbox/DropboxUpdater/crx_cache
+Library/Application Support/Dropbox/Partitions/*/Service Worker/CacheStorage
+Library/Application Support/discord/Cache
+Library/Application Support/discord/Code Cache
+Library/Application Support/discord/GPUCache
+Library/Application Support/Slack/Cache
+Library/Application Support/Slack/Code Cache
+Library/Application Support/Slack/Service Worker/CacheStorage
+Library/Containers/com.tinyspeck.slackmacgap/Data/Library/Application Support/Slack/Cache
+Library/Containers/com.tinyspeck.slackmacgap/Data/Library/Application Support/Slack/Code Cache
+Library/Containers/com.tinyspeck.slackmacgap/Data/Library/Application Support/Slack/Service Worker/CacheStorage
+Library/Application Support/Spotify/PersistentCache
+# Sandboxed counterparts of the excluded Library/Caches; other container data stays.
+Library/Containers/*/Data/Library/Caches
+Library/Containers/*/Data/tmp
+# Spotlight index, rebuilt by macOS.
+Library/Metadata/CoreSpotlight
+# Claude Code release binaries, reinstalled by its installer.
+.local/share/claude/versions
