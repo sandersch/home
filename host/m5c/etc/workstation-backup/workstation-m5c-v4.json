@@ -1,0 +1,70 @@
+{
+  "churn_tolerance": {
+    "maximum_paths": 637,
+    "protected_paths": [
+      "Documents",
+      "Library/CloudStorage/Dropbox/ccs.kdbx"
+    ]
+  },
+  "contract": "workstation-m5c-v4",
+  "enrollment_evidence": {
+    "capacity_reviewed": true,
+    "dropbox_materialized": true,
+    "execution_path": "launchd gui job run.worm.workstation-measure-v4b using /opt/homebrew/bin/python3 (3.14.7), exit code 0",
+    "fda_launchd_passed": true,
+    "host": "m5c",
+    "icloud_optimize_disabled": true,
+    "inventory_reviewed": true,
+    "notes": [
+      "v4 adds regenerable application-cache exclusions to v3: Chrome, Dropbox and Slack Service Worker CacheStorage (plus Chrome ScriptCache), Discord and Slack Cache/Code Cache/GPUCache, updater and Chrome component crx_cache, Spotify PersistentCache, Library/Containers/*/Data/Library/Caches and Data/tmp, Library/Metadata/CoreSpotlight, and .local/share/claude/versions.",
+      "Trigger: the operator intentionally deleted a 4.92 GB archive (Desktop/2025-1-001.zip) between 2026-10-14T23:44Z and 2026-10-15T02:23Z, after which every v3 run failed 'below released floor: home' (about 20.34 GB in scope against a 21.25 GB floor). Last accepted v3 snapshot: 2026-10-10T14:10:17Z.",
+      "Attended audit on 2026-10-17 found 13.47 GB of the remaining 20.25 GB scope was regenerable application cache whose own eviction could trip the 80% floors; the operator approved excluding all audited cache subtrees.",
+      "An interim measurement with the unchanged v3 exclusions (263,328 files / 20,344,527,513 bytes) was superseded by the exclusion change and not released.",
+      "Measured through launchd with the installed client (identical to repository host/workstations/workstation.py, SHA-256 24426a9e...d416) at 2026-10-17T16:32:19.256649+00:00: 127,494 files / 6,874,531,393 bytes; Documents 13 files / 3,404,476 bytes.",
+      "FileVault on; `defaults read com.apple.bird optimize-storage` returned 0. The operator confirmed on 2026-10-17 that Photos and Mail hold no unique data, Dropbox content is materialized, and the measured inventory and capacity are accepted.",
+      "Capacity at measurement: NAS /mnt/backups 762 GB free of 1,082 GB; m5c NAS repository 27.5 GB (100 GiB cap); m5c B2 repository 26.8 GB (50 GB ceiling); m5c data volume 82Gi used of 460Gi."
+    ],
+    "operator": "Charlie Sanders",
+    "os": "macOS 26.6.2 (arm64), FileVault on",
+    "photos_mail_no_unique_data": true,
+    "recorded_at": "2026-10-17",
+    "required_content_readable": true
+  },
+  "enrollment_status": "released",
+  "exclusion_sha256": "62d9833cf7f9099db306f5ab08845dd4b0d5fee470cc6e7f624642856bf66dfd",
+  "floors": {
+    "": {
+      "bytes": 5499625115,
+      "files": 101996
+    },
+    "Documents/": {
+      "bytes": 2723581,
+      "files": 11
+    }
+  },
+  "hostname": "m5c",
+  "kdbx_minimum_bytes": 102400,
+  "kdbx_path": "Library/CloudStorage/Dropbox/ccs.kdbx",
+  "manifest": "/Users/charlessanders/.workstation-backup-manifest.json",
+  "maximum_shrink_percent": 20,
+  "measured": {
+    "": {
+      "bytes": 6874531393,
+      "files": 127494
+    },
+    "Documents/": {
+      "bytes": 3404476,
+      "files": 13
+    }
+  },
+  "measured_at": "2026-10-17T16:32:19.256649+00:00",
+  "platform": "Darwin",
+  "required_content": [
+    "Documents",
+    "Dropbox/ccs.kdbx"
+  ],
+  "shrink_baseline_samples": 7,
+  "source_roots": [
+    "/Users/charlessanders"
+  ]
+}
