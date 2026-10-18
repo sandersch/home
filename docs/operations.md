@@ -226,6 +226,11 @@ Phase one is deliberately metrics-first:
 - **nut-exporter** anonymously polls the host NUT server for the `cp1500` UPS. Its
   ServiceMonitor records charge, runtime, voltage, load, and status every 30 seconds;
   a repo-owned Grafana dashboard uses only telemetry exposed by this CyberPower model.
+- **smartctl-exporter** runs as a privileged DaemonSet with the host's `/dev` and
+  polls SMART data for the 17 disks behind the HBA and the NVMe every 15 minutes,
+  without waking a disk in standby. Prometheus scrapes the cached result every 60
+  seconds. It is pinned to v0.14.0: v0.15.0 returns HTTP 500 on every scrape once SAS
+  disks are present (upstream PR #397), and Renovate skips that release.
 - A Flux `PodMonitor` exposes GitOps controller health. Local rules cover blackbox
   failures and certificate expiry, `/opt`, exact direct bulk-storage mounts,
   filesystem errors, stalled md checks, Gluetun restarts, and Restic failures,
@@ -298,6 +303,13 @@ and its functionality moved to Grafana Alloy.
 | NFS pre-v4 request served | any NFSv2/v3 request is answered, meaning the NFSv4-only lockdown regressed | deployed and live-validated 2026-08-29, including explicit NFSv3 refusal |
 | NFS collector failing | TCP 2049 answers but node-exporter cannot read `/proc/net/rpc/nfsd`, so the two rules above cannot evaluate | deployed and live-validated 2026-08-29 |
 | NFS endpoint down | blackbox TCP probe of `10.137.20.5:2049` fails beyond the standard tier window | deployed and live-validated 2026-08-29 |
+| Disk SMART health failed | any disk fails its SMART overall-health self-assessment for 10 minutes (critical) | committed |
+| Disk sectors degrading | a SATA disk's raw reallocated, pending, or offline-uncorrectable count rose within 24 hours | committed |
+| SAS disk defects increasing | a SAS disk's grown defect list or uncorrected read/write errors rose within 24 hours | committed |
+| Disk pending sectors | any SATA disk has had pending sectors for one hour | committed |
+| Disk temperature high | an HBA disk above 50 C, or the NVMe above 70 C, for 30 minutes | committed |
+| NVMe critical warning / wear / media errors | critical-warning flags set (critical), more than 80% endurance used, or new media errors within 24 hours | committed |
+| SMART device missing | fewer than 18 devices report SMART data while the exporter target is healthy, or the target is gone; a failing scrape is left to upstream `TargetDown` | committed |
 
 ### External dead-man and actionable notification routing
 
@@ -401,6 +413,26 @@ confirmation before and after manually disconnecting **only the UPS mains input*
 checks the transition to `OB=1`, the firing critical alert, return to online state,
 and resolution. Confirm the critical firing and quiet recovery notifications on the
 iPhone and that Dead Man's Snitch remains healthy.
+
+### SMART telemetry validation
+
+After the disk rules reconcile, run the non-disruptive validation with an admin
+kubeconfig context:
+
+```bash
+flux reconcile kustomization monitoring-configs --with-source
+./runbooks/phase5/16-validate-smartctl-exporter.sh
+```
+
+It checks that all 18 expected serials report healthy SMART data and that the SATA
+disks expose ATA attributes through the HBA. It also confirms the single Prometheus
+target is healthy and every `homelab.disks` rule is healthy and inactive.
+`SMART_ALERT_DRILL=1` adds an attended Pushover delivery drill through a temporary
+PrometheusRule. The rules are change-based because several disks are a decade old;
+the per-disk baseline is in
+[the storage migration worklog](./direct-attached-storage-migration-worklog.md#smart-telemetry-baseline-2026-10-18).
+Adding or removing a disk requires updating the expected count in
+`SmartctlDeviceMissing`, the validator, and the baseline.
 
 ## Direct-attached bulk storage
 

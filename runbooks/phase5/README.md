@@ -26,6 +26,7 @@ available as `/dev/mapper/hoardvg-backuplv` at `/mnt/backups`.
 | `13-validate-nut-exporter.sh` | Validate UPS telemetry, Prometheus/Grafana integration, and optionally run the physical mains-loss alert drill |
 | `14-audit-resources.sh` | Audit current reservations and historical CPU, throttling, memory, and OOM metrics |
 | `15-validate-zigbee2mqtt-monitoring.sh` | Validate Zigbee2MQTT's critical ingress/coordinator probes, MQTT exporter, Prometheus metrics, and alerts |
+| `16-validate-smartctl-exporter.sh` | Validate SMART telemetry for all 18 disks, the Prometheus target, and `homelab.disks` rules, and optionally run a Pushover drill |
 
 Both repositories have passed initialization, manual backup, and representative restore
 validation. The nightly local and first naturally scheduled weekly B2 backups both
@@ -183,6 +184,35 @@ the alert resolves. Confirm the quiet recovery notification arrives within the
 inherited five-minute Alertmanager group interval and Dead Man's Snitch stays healthy.
 If the script is interrupted after the drill begins, restore mains before doing
 anything else.
+
+## SMART disk-health validation
+
+smartctl-exporter needs no Secret. After the rules are committed and pushed, switch
+explicitly to an admin kubeconfig context, which the port-forwards need, then
+reconcile and run the non-disruptive checks:
+
+```bash
+flux reconcile kustomization monitoring-configs --with-source
+./runbooks/phase5/16-validate-smartctl-exporter.sh
+```
+
+The helper verifies the rendered DaemonSet, ServiceMonitor, and rule invariants. It
+reads the exporter directly and requires the 15 md3 serials from
+`runbooks/direct-attached-storage-migration/01-start-smart-tests.sh`, the two blank SAS
+disks, and the NVMe, each reporting SMART health passed. It then requires one
+healthy Prometheus target and nine healthy, inactive `homelab.disks` rules. The rule
+logic is unit-tested in CI by `test-disk-health-alerts.py`.
+
+The Pushover drill is opt-in:
+
+```bash
+SMART_ALERT_DRILL=1 ./runbooks/phase5/16-validate-smartctl-exporter.sh
+```
+
+It applies an unmanaged `monitoring/smartctl-alert-drill` PrometheusRule that fires a
+warning for the NVMe's current temperature, waits for it to fire, and asks you to
+confirm the Pushover notification. It then deletes the rule, also on interruption,
+and waits for the alert to clear.
 
 ## External monitoring heartbeat
 
