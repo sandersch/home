@@ -392,7 +392,7 @@ spec:
         # minimum instead. Several disks are a decade old and carry history (UDMA CRC errors
         # on two members, historical error-log entries on WD-WCC4E7KFCARZ), which is why
         # only change -- never an absolute count -- pages, except for pending sectors,
-        # which the 2026-10-18 baseline recorded as zero on every disk.
+        # which the 2026-10-17 baseline recorded as zero on every disk.
         - alert: DiskSmartHealthFailed
           expr: |
             max by (instance, device, model_name, serial_number) (
