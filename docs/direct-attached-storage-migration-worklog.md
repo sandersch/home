@@ -419,3 +419,41 @@ Representative content hashes:
 | `/mnt/games` | `bios/ps2/SCPH-30000_BIOS_V4_JAP_150.ROM1` | `42cd213f274ca06f8ed37f5781a1b1e075e4e45dfd26bbeeceb6666328145001` |
 | `/mnt/frigate` | `clips/amcrest_105_50-1785789581.394572-pgokdg.jpg` | `1dbe5f58dc383f710baf3510486fba2cb91441d7658daf8aab78bd9ffc1ffba2` |
 | `/mnt/backups` | `snapshots/daily.6/ryze/var/.updated` | `29306e2388433747903747f00172bc91a80bc1ae1a1719b05fa0438532089bde` |
+
+## SMART telemetry baseline (2026-10-18)
+
+Captured from the live smartctl-exporter (v0.14.0) after
+`infrastructure/monitoring/configs/smartctl-exporter.yaml` reconciled. All 18
+devices report SMART overall health passed. Kernel names are as observed on this
+date only; the `homelab.disks` rules key every disk by serial. Raw ATA values are
+shown for the 15 md3 disks (13 members and 2 spares).
+
+| Kernel name | Serial | Model | Power-on hours | Temp (C) | Realloc | Pending | Offline uncorr. | UDMA CRC |
+|---|---|---|---:|---:|---:|---:|---:|---:|
+| `sda` | `WD-WCC4E7KFCARZ` | WDC WD40EFRX-68WT0N0 | 93,415 | 34 | 0 | 0 | 0 | 0 |
+| `sdb` | `WD-WX42D642T1VE` | WDC WD40EFPX-68C6CN0 | 14,776 | 31 | 0 | 0 | 0 | 0 |
+| `sdc` | `WD-WCC4E0631383` | WDC WD40EFRX-68WT0N0 | 77,942 | 33 | 0 | 0 | 0 | 1 |
+| `sdd` | `S300RM4M` | ST4000DM000-1F2168 | 24,770 | 31 | 0 | 0 | 0 | 0 |
+| `sde` | `WD-WCC4E0624669` | WDC WD40EFRX-68WT0N0 | 95,746 | 33 | 0 | 0 | 0 | 1 |
+| `sdf` | `PK1334PEHGXSTS` | HGST HDN724040ALE640 | 90,849 | 34 | 0 | 0 | 0 | 0 |
+| `sdg` | `Z4F07WQV` | ST4000NM0024-1HT178 | 31,048 | 39 | 0 | 0 | 0 | 0 |
+| `sdh` | `Z4F08A4E` | ST4000NM0024-1HT178 | 31,048 | 42 | 0 | 0 | 0 | 0 |
+| `sdi` | `PN1334PCKAJ33S` | HGST HUS724040ALA640 | 83,381 | 44 | 0 | 0 | 0 | 0 |
+| `sdj` | `PN2334PCKRNVJB` | HGST HUS724040ALA640 | 83,401 | 41 | 0 | 0 | 0 | 0 |
+| `sdk` | `WD-WCC7K2UFNUDN` | WDC WD40EFRX-68N32N0 | 68,109 | 33 | 0 | 0 | 0 | 0 |
+| `sdl` | `WD-WCC7K5TY8U9P` | WDC WD40EFRX-68N32N0 | 68,108 | 29 | 0 | 0 | 0 | 0 |
+| `sdm` | `ZC141NXL0000C814H7CH` | SEAGATE ST4000NM0095 (SAS) | 44,211 | 38 | grown defects 0 | — | uncorrected read 0 / write 0 | — |
+| `sdn` | `Z4F1DZAP` | NETAPP X477_SMKRE04TA07 (SAS) | 1,351 | 39 | grown defects 0 | — | uncorrected read 0 / write 0 | — |
+| `sdo` | `WD-WX42D540749F` | WDC WD40EFPX-68C6CN0 | 14,401 | 31 | 0 | 0 | 0 | 0 |
+| `sdp` | `WD-WXJ2AB2HYH10` | WDC WD40EFPX-68C6CN0 | 15,734 | 29 | 0 | 0 | 0 | 0 |
+| `sdq` | `WD-WX52AA2RSJYC` | WDC WD40EFPX-68C6CN0 | 15,734 | 27 | 0 | 0 | 0 | 0 |
+| `nvme0` | `50026B73843A92E9` | KINGSTON OM8TAP41024K1-A00 (NVMe) | — | 40 | wear 5% | — | media errors 0 | critical warning 0 |
+
+- Every disk has zero reallocated, pending, and offline-uncorrectable sectors, so
+  `DiskPendingSectors` alerts on any pending sector. The single historical UDMA CRC
+  error on `WD-WCC4E0631383` and `WD-WCC4E0624669` is not alerted on.
+- `sdm` and `sdn` are native SAS disks behind the same HBA. They are blank (no
+  partition table or filesystem) and are not md3 members, but they count toward the
+  18 devices that `SmartctlDeviceMissing` expects.
+- The hottest disk was `PN1334PCKAJ33S` at 44 C, against the 50 C HBA-disk threshold.
+- The exporter reports an implausible NVMe power-on time, so it is not recorded.

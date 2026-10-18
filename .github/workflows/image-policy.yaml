@@ -96,6 +96,7 @@ jobs:
           python3 runbooks/backups/test-workstation-alerts.py
           python3 runbooks/backups/test-offline-alerts.py
           python3 runbooks/phase5/test-raid-check-alerts.py
+          python3 runbooks/phase5/test-disk-health-alerts.py
 
   repositories:
     needs: checks

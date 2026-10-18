@@ -15,6 +15,8 @@ PHASE5_NUT_EXPORTER_CONFIG="$PHASE5_OBSERVABILITY_CONFIG_DIR/nut-exporter.yaml"
 # shellcheck disable=SC2034
 PHASE5_NUT_EXPORTER_DASHBOARD="$PHASE5_OBSERVABILITY_CONFIG_DIR/nut-exporter-dashboard.json"
 # shellcheck disable=SC2034
+PHASE5_SMARTCTL_EXPORTER_CONFIG="$PHASE5_OBSERVABILITY_CONFIG_DIR/smartctl-exporter.yaml"
+# shellcheck disable=SC2034
 PHASE5_DEADMANS_SNITCH_DIR="$PHASE5_OBSERVABILITY_CONFIG_DIR/deadmanssnitch"
 # shellcheck disable=SC2034
 PHASE5_DEADMANS_SNITCH_SECRET="$PHASE5_DEADMANS_SNITCH_DIR/deadmanssnitch.sops.yaml"
@@ -73,6 +75,54 @@ assert_phase5_observability_builds() {
     kustomize build "$REPO_ROOT/$target" >/dev/null
     ok "kustomize build $target"
   done
+}
+
+assert_phase5_smartctl_invariants() {
+  # shellcheck disable=SC2016 # $pod/$container are jq variables, not shell variables.
+  yq -e '
+    select(.kind == "DaemonSet" and .metadata.name == "smartctl-exporter") |
+    .spec.template.spec as $pod |
+    $pod.priorityClassName == "homelab-standard" and
+    $pod.automountServiceAccountToken == false and
+    ($pod.hostPID // false) == false and
+    ($pod.hostNetwork // false) == false and
+    any($pod.volumes[]; .name == "dev" and .hostPath.path == "/dev") and
+    ($pod.containers[0] as $container |
+      # renovate: datasource=docker depName=quay.io/prometheuscommunity/smartctl-exporter
+      $container.image == "quay.io/prometheuscommunity/smartctl-exporter:v0.14.0@sha256:cfe22c36d7d2fac48ebf619707305acb65eb0fb670656eb80f356e606d782bc1" and
+      $container.securityContext.privileged == true and
+      $container.securityContext.readOnlyRootFilesystem == true and
+      ($container.args | index("--smartctl.interval=15m") != null) and
+      ($container.args | index("--smartctl.powermode-check=standby") != null) and
+      $container.resources.requests.cpu == "10m" and
+      $container.resources.limits.memory == "128Mi")
+  ' "$PHASE5_SMARTCTL_EXPORTER_CONFIG" >/dev/null \
+    || die "smartctl-exporter image, polling, resources, or device access changed unexpectedly"
+  yq -e '
+    select(.kind == "ServiceMonitor" and .metadata.name == "smartctl-exporter") |
+    .spec.endpoints[0].port == "http" and
+    .spec.endpoints[0].interval == "60s" and
+    any(.spec.endpoints[0].relabelings[];
+      .sourceLabels == ["__meta_kubernetes_pod_node_name"] and .targetLabel == "instance")
+  ' "$PHASE5_SMARTCTL_EXPORTER_CONFIG" >/dev/null \
+    || die "smartctl-exporter ServiceMonitor no longer scrapes or labels the node as expected"
+  yq -e '.resources | index("smartctl-exporter.yaml") != null' \
+    "$PHASE5_OBSERVABILITY_CONFIG_DIR/kustomization.yaml" >/dev/null \
+    || die "smartctl-exporter resources are not included in monitoring-configs"
+  yq -e '
+    select(.kind == "PrometheusRule" and .metadata.name == "homelab-alerts") |
+    any(.spec.groups[];
+      .name == "homelab.disks" and
+      ([.rules[].alert] | sort) == ([
+        "DiskPendingSectors", "DiskSectorsDegrading", "DiskSmartHealthFailed",
+        "DiskTemperatureHigh", "NVMeCriticalWarning", "NVMeMediaErrorsIncreasing",
+        "NVMeWearHigh", "SASDiskDefectsIncreasing", "SmartctlDeviceMissing"] | sort) and
+      any(.rules[];
+        .alert == "SmartctlDeviceMissing" and
+        (.expr | contains("< 18")) and
+        (.expr | contains("absent(up{job=\"smartctl-exporter\"})"))))
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
+    || die "the homelab.disks SMART alerts or the 18-device guard changed unexpectedly"
 }
 
 assert_phase5_observability_invariants() {
@@ -331,10 +381,11 @@ assert_phase5_observability_invariants() {
         (.data | has("nut-exporter-dashboard.json"))
       ' >/dev/null \
     || die "nut-exporter dashboard ConfigMap is not rendered for Grafana discovery"
+  assert_phase5_smartctl_invariants
   yq -e '.data["admin-password"] | startswith("ENC[AES256_GCM")' \
     "$PHASE5_GRAFANA_SECRET" >/dev/null \
     || die "Grafana administrator password is missing or not SOPS-encrypted"
-  ok "observability versions, probes, Zigbee2MQTT/UPS/RAID/storage alerts, dashboard, and encrypted Grafana credentials are intact"
+  ok "observability versions, probes, Zigbee2MQTT/UPS/RAID/storage/disk alerts, dashboard, and encrypted Grafana credentials are intact"
 }
 
 assert_phase5_pushover_invariants() {
