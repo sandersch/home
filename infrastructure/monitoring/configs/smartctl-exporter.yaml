@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: smartctl-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: smartctl-exporter
+    app.kubernetes.io/part-of: homelab-monitoring
+spec:
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: smartctl-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: smartctl-exporter
+        app.kubernetes.io/part-of: homelab-monitoring
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      priorityClassName: homelab-standard
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: smartctl-exporter
+          image: quay.io/prometheuscommunity/smartctl-exporter:v0.15.0@sha256:a76e08dbf5db4781fefd1ed81c65ad46ae8d2849dae6b6d3acebcde2fc4e59d6
+          imagePullPolicy: IfNotPresent
+          args:
+            # SMART data changes slowly; a long poll keeps HBA passthrough I/O negligible,
+            # including during the monthly md check. Scrapes only read the cached result.
+            - --smartctl.interval=15m
+            - --smartctl.powermode-check=standby
+            - --smartctl.device-exclude=^(dm-|md|loop)
+            - --web.listen-address=:9633
+          ports:
+            - name: http
+              containerPort: 9633
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          # SMART ioctls and SAT passthrough through mpt2sas need a privileged root
+          # container with the host's block devices.
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: dev
+              mountPath: /dev
+      volumes:
+        - name: dev
+          hostPath:
+            path: /dev
+            type: Directory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smartctl-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: smartctl-exporter
+    app.kubernetes.io/part-of: homelab-monitoring
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: smartctl-exporter
+  ports:
+    - name: http
+      port: 9633
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: smartctl-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: smartctl-exporter
+    app.kubernetes.io/part-of: homelab-monitoring
+spec:
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 60s
+      scrapeTimeout: 10s
+      relabelings:
+        # Match node-exporter's instance="minis" so disk rules can join on instance.
+        - sourceLabels:
+            - __meta_kubernetes_pod_node_name
+          targetLabel: instance
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: smartctl-exporter

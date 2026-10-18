@@ -411,6 +411,7 @@ requests, then pod priority, then usage relative to requests.)
 | MariaDB (RomM sidecar) | 100m / 500m | 256Mi / 768Mi | `homelab-standard` |
 | Valkey (RomM sidecar) | 50m / 250m | 64Mi / 256Mi | `homelab-standard` |
 | Monitoring stack | 0.5 / 2 | 1Gi / 3Gi | `homelab-standard` |
+| smartctl-exporter (DaemonSet) | 10m / 200m | 32Mi / 128Mi | `homelab-standard`; privileged for SMART ioctls |
 | Restic CronJob | 0.25 / 1 | 256Mi / 1Gi | `homelab-low` |
 
 These request/limit pairs produce Burstable QoS. Priority class and QoS are separate:
