@@ -126,11 +126,13 @@ assert_phase5_smartctl_invariants() {
 }
 
 assert_phase5_observability_invariants() {
+  # renovate: datasource=helm depName=kube-prometheus-stack registryUrl=https://prometheus-community.github.io/helm-charts
   yq -e '.spec.chart.spec.version == "92.10.1" and
     .spec.install.crds == "CreateReplace" and
     .spec.upgrade.crds == "CreateReplace"' \
     "$PHASE5_MONITORING_DIR/controllers/kube-prometheus-stack.yaml" >/dev/null \
     || die "kube-prometheus-stack version or CRD policy changed unexpectedly"
+  # renovate: datasource=helm depName=prometheus-blackbox-exporter registryUrl=https://prometheus-community.github.io/helm-charts
   yq -e '.spec.chart.spec.version == "11.20.0"' \
     "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-exporter.yaml" >/dev/null \
     || die "blackbox exporter version changed unexpectedly"

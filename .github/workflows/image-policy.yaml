@@ -65,6 +65,11 @@ jobs:
       - run: kustomize build infrastructure/monitoring/workstations >/dev/null
       - run: kustomize build infrastructure/monitoring/offline >/dev/null
 
+      # Renovate updates the annotated chart checks with their HelmReleases; this
+      # fails any PR that moves one without the other.
+      - name: Check Phase 5 observability invariants
+        run: bash -c 'source runbooks/phase5/lib.sh && assert_phase5_observability_invariants'
+
       - name: Select integration coverage
         id: scope
         env:
