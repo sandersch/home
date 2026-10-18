@@ -126,12 +126,12 @@ assert_phase5_smartctl_invariants() {
 }
 
 assert_phase5_observability_invariants() {
-  yq -e '.spec.chart.spec.version == "87.17.0" and
+  yq -e '.spec.chart.spec.version == "92.10.1" and
     .spec.install.crds == "CreateReplace" and
     .spec.upgrade.crds == "CreateReplace"' \
     "$PHASE5_MONITORING_DIR/controllers/kube-prometheus-stack.yaml" >/dev/null \
     || die "kube-prometheus-stack version or CRD policy changed unexpectedly"
-  yq -e '.spec.chart.spec.version == "11.15.1"' \
+  yq -e '.spec.chart.spec.version == "11.20.0"' \
     "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-exporter.yaml" >/dev/null \
     || die "blackbox exporter version changed unexpectedly"
   yq -e 'select(.kind == "Probe" and .metadata.name == "critical-ingress") |
