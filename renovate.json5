@@ -83,6 +83,11 @@
       "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-[0-9a-f]+-ls(?<revision>\\d+)$"
     },
     {
+      "description": "smartctl-exporter v0.15.0 omits the SCSI verify descriptors, so every scrape returns HTTP 500 once SAS disks are present (upstream PR #397)",
+      "matchPackageNames": ["quay.io/prometheuscommunity/smartctl-exporter"],
+      "allowedVersions": "!/^v0\\.15\\.0$/"
+    },
+    {
       "description": "The custom Restic image is published only through its attended workflow",
       "matchPackageNames": ["ghcr.io/sandersch/restic-backup"],
       "enabled": false
