@@ -77,6 +77,10 @@ The nut-exporter, CP1500 dashboard, and `UPSOnBattery` rule passed live validati
 transition, critical Pushover firing notification, return to online state, alert
 resolution, and quiet recovery notification.
 
+smartctl-exporter and the nine `homelab.disks` rules passed live validation on
+2026-10-17. All 18 expected disks reported healthy SMART data, and the attended drill
+delivered a Pushover notification from a temporary rule, which was then removed.
+
 Zigbee2MQTT's critical HTTPS probe, coordinator TCP probe, and MQTT-native
 bridge-health monitoring passed live validation on 2026-08-16. The exporter endpoint
 reported retained online state, an active MQTT connection, and current one-minute

@@ -30,7 +30,7 @@ done
 [[ "$alert_drill" =~ ^[01]$ ]] || die "SMART_ALERT_DRILL must be 0 or 1"
 
 # The 15 md3 disks come from the migration SMART-test list; the other three are the
-# blank SAS disks sdm and sdn and the NVMe, recorded in the 2026-10-18 baseline.
+# blank SAS disks sdm and sdn and the NVMe, recorded in the 2026-10-17 baseline.
 expected_serials=(ZC141NXL0000C814H7CH Z4F1DZAP 50026B73843A92E9)
 while IFS= read -r serial; do
   expected_serials+=("$serial")
@@ -138,14 +138,20 @@ curl --fail --silent --show-error \
       length == 1
     ' >/dev/null \
   || die "Prometheus does not have exactly one healthy smartctl-exporter target on minis"
-curl --fail --silent --show-error \
-  "http://127.0.0.1:$prometheus_port/api/v1/rules?type=alert" >"$tmpdir/rules.json"
-jq -e '
+# Rules report health "unknown" until their first evaluation, so a run straight after a
+# reconcile waits for one before judging them.
+deadline=$((SECONDS + 180))
+until curl --fail --silent --show-error \
+    "http://127.0.0.1:$prometheus_port/api/v1/rules?type=alert" >"$tmpdir/rules.json" \
+  && jq -e '
     [.data.groups[] | select(.name == "homelab.disks") | .rules[]] as $rules |
     ($rules | length) == 9 and
     all($rules[]; .health == "ok" and .state == "inactive")
-  ' "$tmpdir/rules.json" >/dev/null \
-  || die "homelab.disks rules are missing, unhealthy, pending, or firing; inspect Prometheus /alerts"
+  ' "$tmpdir/rules.json" >/dev/null; do
+  [ "$SECONDS" -lt "$deadline" ] \
+    || die "homelab.disks rules are missing, unhealthy, pending, or firing; inspect Prometheus /alerts"
+  sleep 10
+done
 ok "Prometheus scrapes smartctl-exporter and every homelab.disks rule is healthy and quiet"
 
 if [ "$alert_drill" -eq 1 ]; then

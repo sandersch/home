@@ -420,7 +420,7 @@ Representative content hashes:
 | `/mnt/frigate` | `clips/amcrest_105_50-1785789581.394572-pgokdg.jpg` | `1dbe5f58dc383f710baf3510486fba2cb91441d7658daf8aab78bd9ffc1ffba2` |
 | `/mnt/backups` | `snapshots/daily.6/ryze/var/.updated` | `29306e2388433747903747f00172bc91a80bc1ae1a1719b05fa0438532089bde` |
 
-## SMART telemetry baseline (2026-10-18)
+## SMART telemetry baseline (2026-10-17)
 
 Captured from the live smartctl-exporter (v0.14.0) after
 `infrastructure/monitoring/configs/smartctl-exporter.yaml` reconciled. All 18

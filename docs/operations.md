@@ -303,13 +303,13 @@ and its functionality moved to Grafana Alloy.
 | NFS pre-v4 request served | any NFSv2/v3 request is answered, meaning the NFSv4-only lockdown regressed | deployed and live-validated 2026-08-29, including explicit NFSv3 refusal |
 | NFS collector failing | TCP 2049 answers but node-exporter cannot read `/proc/net/rpc/nfsd`, so the two rules above cannot evaluate | deployed and live-validated 2026-08-29 |
 | NFS endpoint down | blackbox TCP probe of `10.137.20.5:2049` fails beyond the standard tier window | deployed and live-validated 2026-08-29 |
-| Disk SMART health failed | any disk fails its SMART overall-health self-assessment for 10 minutes (critical) | committed |
-| Disk sectors degrading | a SATA disk's raw reallocated, pending, or offline-uncorrectable count rose within 24 hours | committed |
-| SAS disk defects increasing | a SAS disk's grown defect list or uncorrected read/write errors rose within 24 hours | committed |
-| Disk pending sectors | any SATA disk has had pending sectors for one hour | committed |
-| Disk temperature high | an HBA disk above 50 C, or the NVMe above 70 C, for 30 minutes | committed |
-| NVMe critical warning / wear / media errors | critical-warning flags set (critical), more than 80% endurance used, or new media errors within 24 hours | committed |
-| SMART device missing | fewer than 18 devices report SMART data while the exporter target is healthy, or the target is gone; a failing scrape is left to upstream `TargetDown` | committed |
+| Disk SMART health failed | any disk fails its SMART overall-health self-assessment for 10 minutes (critical) | deployed and live-validated 2026-10-17 |
+| Disk sectors degrading | a SATA disk's raw reallocated, pending, or offline-uncorrectable count rose within 24 hours | deployed and live-validated 2026-10-17 |
+| SAS disk defects increasing | a SAS disk's grown defect list or uncorrected read/write errors rose within 24 hours | deployed and live-validated 2026-10-17 |
+| Disk pending sectors | any SATA disk has had pending sectors for one hour | deployed and live-validated 2026-10-17 |
+| Disk temperature high | an HBA disk above 50 C, or the NVMe above 70 C, for 30 minutes | deployed and live-validated 2026-10-17 |
+| NVMe critical warning / wear / media errors | critical-warning flags set (critical), more than 80% endurance used, or new media errors within 24 hours | deployed and live-validated 2026-10-17 |
+| SMART device missing | fewer than 18 devices report SMART data while the exporter target is healthy, or the target is gone; a failing scrape is left to upstream `TargetDown` | deployed and live-validated 2026-10-17 |
 
 ### External dead-man and actionable notification routing
 
@@ -428,9 +428,9 @@ It checks that all 18 expected serials report healthy SMART data and that the SA
 disks expose ATA attributes through the HBA. It also confirms the single Prometheus
 target is healthy and every `homelab.disks` rule is healthy and inactive.
 `SMART_ALERT_DRILL=1` adds an attended Pushover delivery drill through a temporary
-PrometheusRule. The rules are change-based because several disks are a decade old;
+PrometheusRule. Both the automated validation and the drill passed on 2026-10-17. The rules are change-based because several disks are a decade old;
 the per-disk baseline is in
-[the storage migration worklog](./direct-attached-storage-migration-worklog.md#smart-telemetry-baseline-2026-10-18).
+[the storage migration worklog](./direct-attached-storage-migration-worklog.md#smart-telemetry-baseline-2026-10-17).
 Adding or removing a disk requires updating the expected count in
 `SmartctlDeviceMissing`, the validator, and the baseline.
 

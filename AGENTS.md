@@ -34,7 +34,9 @@ Hosted Pushover routing also passed live validation on 2026-07-20 with synthetic
 warning/critical firing and resolved notifications delivered to the iPhone.
 The nut-exporter workload, CP1500 Grafana dashboard, and critical on-battery rule
 passed live validation on 2026-07-25, including the controlled physical mains-loss
-drill and Pushover firing and recovery notifications. Zigbee2MQTT's critical HTTPS,
+drill and Pushover firing and recovery notifications. SMART monitoring for all 18
+disks (smartctl-exporter v0.14.0 and the `homelab.disks` rules) passed live validation
+on 2026-10-17, including a Pushover delivery drill. Zigbee2MQTT's critical HTTPS,
 SLZB coordinator TCP, and MQTT-native bridge-health monitoring passed live validation
 on 2026-08-16, including fresh retained health metrics, successful blackbox paths,
 and healthy rules with no active Zigbee2MQTT alert. Zigbee device pairing, Home
