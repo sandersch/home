@@ -25,6 +25,14 @@
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s*\\n[^\\n]*?(?<currentValue>[^\\s:@'\\\"]+)@(?<currentDigest>sha256:[a-f0-9]{64})"
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}docker{{/if}}"
+    },
+    {
+      "customType": "regex",
+      "description": "Helm chart version assertions in runbook invariants",
+      "managerFilePatterns": ["/^runbooks\\/.*\\.sh$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>helm) depName=(?<depName>\\S+) registryUrl=(?<registryUrl>\\S+)\\s*\\n[^\\n]*?\\.spec\\.chart\\.spec\\.version == \"(?<currentValue>[^\"]+)\""
+      ]
     }
   ],
   "packageRules": [

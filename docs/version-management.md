@@ -109,6 +109,11 @@ enabled for the Kubernetes, Dockerfile, and custom regex managers.
 # renovate: datasource=docker depName=busybox
 ```
 
+The Phase 5 runbook's kube-prometheus-stack and blackbox-exporter chart version checks
+carry `datasource=helm` annotations, so Renovate updates them on the same branch as
+their `HelmRelease`, and the always-on CI checks job runs
+`assert_phase5_observability_invariants` to fail any PR where they drift apart.
+
 Renovate never auto-merges, allows at most five concurrent PRs, and creates routine
 PRs Sunday 00:00–05:59 America/Chicago. Major versions require Dependency Dashboard
 approval. Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr are grouped into
