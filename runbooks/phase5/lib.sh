@@ -127,7 +127,7 @@ assert_phase5_smartctl_invariants() {
 
 assert_phase5_observability_invariants() {
   # renovate: datasource=helm depName=kube-prometheus-stack registryUrl=https://prometheus-community.github.io/helm-charts
-  yq -e '.spec.chart.spec.version == "92.10.1" and
+  yq -e '.spec.chart.spec.version == "92.11.0" and
     .spec.install.crds == "CreateReplace" and
     .spec.upgrade.crds == "CreateReplace"' \
     "$PHASE5_MONITORING_DIR/controllers/kube-prometheus-stack.yaml" >/dev/null \
