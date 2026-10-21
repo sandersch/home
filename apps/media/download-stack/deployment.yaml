@@ -96,7 +96,7 @@ spec:
             - name: media
               mountPath: /media
         - name: qbittorrent
-          image: lscr.io/linuxserver/qbittorrent:5.3.0_v2.1.2-ls483@sha256:ff5dfcab7e91edcce8cfa1041ba9b129bf218e9b86ca1c10d6bb841ab29a2760
+          image: lscr.io/linuxserver/qbittorrent:5.3.0_v2.1.2-ls484@sha256:e887804fa9de4c60f5f0fb1f3a7e4febe40a8f69fe736f70c4e8589b1f868dab
           env:
             - name: PUID
               value: "1000"
