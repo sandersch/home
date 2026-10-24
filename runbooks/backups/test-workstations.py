@@ -203,6 +203,64 @@ class MaintenanceProgressTests(unittest.TestCase):
             manager.run('nas', 'check', raw=True)
         self.assertEqual(commands[0][4], '--verbose')
 
+    def test_cache_dir_is_opt_in_and_never_used_by_check(self):
+        real_popen = subprocess.Popen
+        commands = []
+
+        def fixture_command(command, **kwargs):
+            commands.append(command)
+            for key in ('user', 'group', 'extra_groups'):
+                kwargs.pop(key)
+            return real_popen([sys.executable, '-c', ''], **kwargs)
+
+        manager = object.__new__(server.Manager)
+        manager.host = 'ryze'
+        manager.credentials = {'b2': {}}
+        log = io.StringIO()
+        with patch.object(server.subprocess, 'Popen', fixture_command), patch.object(server.sys, 'stderr', log):
+            with patch.dict(os.environ, {server.CACHE_ENV: '/cache'}):
+                manager.run('b2', 'ls', '--json', 'a' * 64, raw=True)
+                manager.run('b2', 'check', raw=True)
+            with patch.dict(os.environ):
+                os.environ.pop(server.CACHE_ENV, None)
+                manager.run('b2', 'ls', '--json', 'a' * 64, raw=True)
+        self.assertEqual(commands[0][1:3], ['--cache-dir', '/cache'])
+        self.assertNotIn('--no-cache', commands[0])
+        self.assertEqual(commands[1][1], '--no-cache')
+        self.assertNotIn('--cache-dir', commands[1])
+        self.assertEqual(commands[2][1], '--no-cache')
+
+    def test_cache_guard_requires_an_empty_writable_directory(self):
+        self.assertIsNone(server.cache_guard({}))
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            cache = base / 'cache'
+            env = {server.CACHE_ENV: str(cache)}
+            with self.assertRaisesRegex(ValueError, 'absent'):
+                server.cache_guard(env)
+            cache.write_text('')
+            with self.assertRaisesRegex(ValueError, 'not a directory'):
+                server.cache_guard(env)
+            cache.unlink()
+            (base / 'target').mkdir(mode=0o777)
+            cache.symlink_to(base / 'target')
+            with self.assertRaisesRegex(ValueError, 'not a directory'):
+                server.cache_guard(env)
+            cache.unlink()
+            cache.mkdir()
+            cache.chmod(0o700)
+            with self.assertRaisesRegex(ValueError, 'not writable'):
+                server.cache_guard(env)
+            # Kubernetes creates the emptyDir as 2777 with the fsGroup owner.
+            cache.chmod(0o2777)
+            self.assertEqual(server.cache_guard(env), cache)
+            (cache / 'stale').mkdir()
+            with self.assertRaisesRegex(ValueError, 'not empty'):
+                server.cache_guard(env)
+            # Attended Jobs construct a Manager directly; it must not skip the guard.
+            with patch.dict(os.environ, env), self.assertRaisesRegex(ValueError, 'not empty'):
+                server.Manager('ryze', root=base / 'absent', contracts=base / 'absent')
+
 
 class FixtureManager(server.Manager):
     def __init__(self, fixture):
@@ -233,6 +291,40 @@ class FixtureManager(server.Manager):
 
     def restart(self):
         self.commands.append(('server', ('restart',)))
+
+
+@unittest.skipUnless(Path(RESTIC).is_file(), 'set WORKSTATION_RESTIC to checksum-verified Restic 0.19.1')
+class CacheRepositoryTests(unittest.TestCase):
+    def test_production_command_populates_and_reuses_the_run_cache(self):
+        real_popen = subprocess.Popen
+
+        def fixture_restic(command, **kwargs):
+            # The production launcher, but with the fixture binary and no uid switch.
+            for key in ('user', 'group', 'extra_groups'):
+                kwargs.pop(key)
+            return real_popen([RESTIC, *command[1:]], **kwargs)
+
+        with tempfile.TemporaryDirectory(prefix='workstation-cache-') as directory:
+            base = Path(directory)
+            shutil.copytree(REPOSITORIES / 'b2', base / 'b2')
+            cache = base / 'cache'
+            cache.mkdir(mode=0o777)
+            cache.chmod(0o777)
+            manager = object.__new__(server.Manager)
+            manager.host = 'ryze'
+            manager.credentials = {'b2': {'RESTIC_REPOSITORY': str(base / 'b2'),
+                                          'RESTIC_PASSWORD': 'disposable-test-password'}}
+            env = {server.CACHE_ENV: str(cache)}
+            self.assertEqual(server.cache_guard(env), cache)
+            log = io.StringIO()
+            with patch.dict(os.environ, env), patch.object(server.subprocess, 'Popen', fixture_restic), \
+                    patch.object(server.sys, 'stderr', log):
+                self.assertEqual(manager.run('b2', 'snapshots', '--json'), [])
+                populated = sorted(path.relative_to(cache) for path in cache.rglob('*'))
+                self.assertEqual(manager.run('b2', 'snapshots', '--json'), [])
+            self.assertTrue(any(path.name == 'index' for path in populated))
+            with self.assertRaisesRegex(ValueError, 'not empty'):
+                server.cache_guard(env)
 
 
 @unittest.skipUnless(Path(RESTIC).is_file(), 'set WORKSTATION_RESTIC to checksum-verified Restic 0.19.1')
