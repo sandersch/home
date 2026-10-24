@@ -486,24 +486,13 @@ class Manager:
         self.save()
 
     def validate_pair(self, source, destination):
+        # Acceptance already checked the source contents, and the root tree hash
+        # binds every descendant and file-content reference, so a matching tree
+        # is the same content. Listing B2 cost hours per snapshot over uncached
+        # round trips; repository checks and restore drills establish readability.
         if not self.same_snapshot(source, destination):
             self.hold(destination['id'], 'counterpart identity mismatch', 'b2')
             raise ValueError('recorded B2 counterpart differs from exact source snapshot')
-        try:
-            nas_content = self.content('nas', source)
-        except (ValueError, KeyError, subprocess.CalledProcessError) as error:
-            self.hold(source['id'], str(error))
-            raise
-        try:
-            with phase('destination-verification', host=self.host, destination='b2',
-                       snapshot=destination['id']):
-                b2_content = self.content('b2', destination)
-        except (ValueError, KeyError, subprocess.CalledProcessError) as error:
-            self.hold(destination['id'], str(error), 'b2')
-            raise
-        if nas_content != b2_content:
-            self.hold(destination['id'], 'counterpart content mismatch', 'b2')
-            raise ValueError('destination content differs')
 
     def candidates(self, destination):
         result = self.run(destination, 'forget', '--dry-run', '--json',
@@ -594,7 +583,6 @@ class Manager:
         for sid in b2_candidates:
             if sid not in tracked or sid not in destination:
                 raise ValueError('B2 removal candidate lacks exact-ID validation')
-            self.content('b2', destination[sid])
             self.run('b2', 'forget', '--group-by', 'host', sid, raw=True)
         self.run('b2', 'prune', raw=True)
         self.state['prune_success'] = time.time()

@@ -756,6 +756,32 @@ class RepositoryTests(unittest.TestCase):
                 self.manager.prune()
         self.assertIn(sid, self.manager.listing('nas'))
 
+    def test_prune_relies_on_tree_identity_without_rescan(self):
+        sid = self.snapshot()
+        self.manager.copy()
+        target = self.manager.state['copies'][sid]
+        self.manager.commands.clear()
+        with patch.object(server, 'mount_guard'), patch.object(self.manager, 'restart'), \
+                patch.object(self.manager, 'content', side_effect=AssertionError('unexpected rescan')), \
+                patch.object(self.manager, 'candidates',
+                             side_effect=lambda destination: [sid] if destination == 'nas' else [target]):
+            self.manager.prune()
+        self.assertNotIn(sid, self.manager.listing('nas'))
+        self.assertNotIn(target, self.manager.listing('b2'))
+        self.assertTrue(self.manager.state['prune_success'])
+        self.assertFalse(any(args[0] in ('ls', 'dump') for _, args in self.manager.commands))
+
+    def test_tree_mismatch_blocks_nas_deletion(self):
+        sid = self.snapshot()
+        self.manager.copy()
+        target = self.manager.state['copies'][sid]
+        with patch.object(server, 'mount_guard'), patch.object(self.manager, 'same_snapshot', return_value=False), \
+                patch.object(self.manager, 'candidates', return_value=[sid]):
+            with self.assertRaisesRegex(ValueError, 'differs from exact source'):
+                self.manager.prune()
+        self.assertIn(sid, self.manager.listing('nas'))
+        self.assertIn('b2:' + target, self.manager.state['holds'])
+
     def test_restart_failure_does_not_advance_prune_success(self):
         self.snapshot()
         self.manager.copy()

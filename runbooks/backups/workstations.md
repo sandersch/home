@@ -286,9 +286,12 @@ Copy success means every accepted source has a matching destination snapshot; it
 does not certify that every referenced B2 object is currently readable. The separate
 monthly `check` jobs run structural verification and a rotating `--read-data-subset`
 on both repositories, while attended restore drills exercise recovery. NAS retention
-still performs full source/destination contract validation before deleting a source
-snapshot (`destination-verification` in prune logs). This preserves the stronger
-deletion gate while removing repeated full inventories from routine copy runs.
+uses the same identity rule: before deleting a NAS snapshot it requires the recorded B2
+counterpart to be physically present with the same tree hash, hostname, paths and
+timestamp, and B2 deletions require the root-owned exact-ID record. Neither side is
+re-listed. Until 2026-10-24 prune also listed and compared both contents, but uncached
+B2 listings took about two hours per Ryze snapshot and twice pushed the weekly prune
+past its deadline; the tree hash already binds that content.
 
 For attended diagnostics, set `WORKSTATION_RESTIC_VERBOSE=1` on a temporary
 `check` Job. The client adds Restic's `--verbose` flag only to repository checks;
@@ -483,7 +486,7 @@ Retention is `--group-by host --keep-within 30d --keep-within-daily 30d
 --keep-within-weekly 84d --keep-within-monthly 12m`. Restic 0.19.1 rejects `12w`;
 84d expresses the intended twelve weeks. `--keep-within` is relative to the newest
 snapshot, not wall clock. Each NAS candidate requires a physically present,
-content-validated B2 counterpart before explicit-ID forget. Snapshot-set changes
+B2 counterpart with a matching tree identity before explicit-ID forget. Snapshot-set changes
 during planning abort the pass. NAS prune precedes B2 prune, with a required server
 restart and readiness wait to refresh quota accounting before prune success advances.
 
