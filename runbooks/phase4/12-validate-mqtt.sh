@@ -63,7 +63,7 @@ spec:
   containers:
     - name: mqtt-validation
       # renovate: datasource=docker depName=eclipse-mosquitto
-      image: eclipse-mosquitto:2.1.2-alpine@sha256:847b8594cd4928734bda3c5daad42fea5c79de50d87a568798552e60eea2e970
+      image: eclipse-mosquitto:2.1.2-alpine@sha256:860aeb5d63ce509508f6dcfb2bc8a1c1dd2bc60555b562b45ce90e52d8dabb0f
       envFrom:
         - secretRef:
             name: mosquitto-auth
