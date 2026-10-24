@@ -487,6 +487,36 @@ content-validated B2 counterpart before explicit-ID forget. Snapshot-set changes
 during planning abort the pass. NAS prune precedes B2 prune, with a required server
 restart and readiness wait to refresh quota accounting before prune success advances.
 
+### Restic cache
+
+The validate, copy, prune and check CronJobs set `WORKSTATION_RESTIC_CACHE_DIR=/cache`
+on a memory-backed `emptyDir` (`sizeLimit: 1Gi`). Before any Restic command,
+`maintenance.py` refuses to run unless that directory exists, is not a symlink, is
+writable by the Restic user (uid 65534), and is **empty**. Every object a validation
+relies on is therefore read from its backend during the same Pod, and Restic
+authenticates cached blobs on each later read. The cache disappears with the Pod.
+Repository `check` always runs with `--no-cache`, so monthly structural and
+read-data verification stays independent of anything cached during the run. Attended
+Jobs and fixtures that omit the variable keep the previous `--no-cache` behaviour;
+removing it from the CronJobs is the rollback.
+
+Without a cache, each `restic ls --json` fetched every B2 tree blob individually: a
+~620k-entry Ryze listing took about two hours and the 2026-10-23 manual Ryze prune
+took 14h50m, almost all of it in seven B2 listings. The 2026-10-24 measurement Job
+(`restic-ryze-cache-measure-20261024`) listed Ryze B2 snapshots with an empty
+memory-backed cache:
+
+| Listing | Time | Cache after | Container peak memory |
+|---|---|---|---|
+| newest, cold | 16.3 s | 100 MB | 1.91 GB |
+| newest, warm | 12.4 s | 100 MB | 1.91 GB |
+| middle (2026-10-04) | 12.2 s | 100 MB | 1.91 GB |
+| oldest (2026-09-11) | 14.7 s | 148 MB | 1.95 GB |
+
+Peak memory includes the memory-backed cache and the Python listing decode, so the
+existing 4 GiB limits are unchanged. Re-measure if the cache approaches the 1 GiB
+volume limit or a home grows substantially.
+
 Rollback suspends new CronJobs and client schedules, disables the two Ingress
 endpoints, and retains repositories, SOPS credentials and root control state.
 Do not remove the entire Flux-managed directory with pruning enabled: that would

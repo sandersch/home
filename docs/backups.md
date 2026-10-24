@@ -1296,6 +1296,10 @@ makes overlap safe, not free. The recurring vault copy and prune jobs use a boun
 `--retry-lock`; the two-hour vault backup Job uses a 90-minute bound, and passes that bound to
 shared snapshot validation. A legitimate overlap therefore waits without allowing a backup
 Job to outlive its deadline. Workstation prune scheduling remains separate from this policy.
+Workstation maintenance Jobs give Restic a per-Pod, memory-backed cache that must be
+empty at start; repository checks stay uncached. This cut a cold ~620k-entry B2 listing
+from about two hours to 16 seconds without reusing state across runs. See
+[the workstation runbook](../runbooks/backups/workstations.md#restic-cache).
 
 There is one non-obvious quota consequence. rest-server accounts repository size in memory;
 a direct hostPath prune bypasses that accounting, so the server continues to believe the

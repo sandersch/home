@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import selectors
 import ssl
+import stat
 import statistics
 import subprocess
 import sys
@@ -36,6 +37,8 @@ RETENTION = ['--group-by', 'host', '--keep-within', '30d', '--keep-within-daily'
 
 PROGRESS_SECONDS = 30
 LOG_LOCK = threading.Lock()
+CACHE_ENV = 'WORKSTATION_RESTIC_CACHE_DIR'
+RESTIC_UID = 65534
 
 
 @contextmanager
@@ -75,7 +78,7 @@ def captured_command(command, env, counters):
     """Drain both streams continuously; log counts, never contents or argv."""
     chunks = []
     with subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                          user=65534, group=65534, extra_groups=[]) as process:
+                          user=RESTIC_UID, group=RESTIC_UID, extra_groups=[]) as process:
         streams = selectors.DefaultSelector()
         streams.register(process.stdout, selectors.EVENT_READ, 'stdout')
         streams.register(process.stderr, selectors.EVENT_READ, 'stderr')
@@ -193,8 +196,37 @@ def mount_guard(root='/repo/nas', mountinfo='/proc/self/mountinfo'):
         raise ValueError('backup sentinel UUID mismatch')
 
 
+def cache_guard(environ=os.environ):
+    """Require the optional Restic cache to start empty in this Pod.
+
+    Every object a validation relies on is then read from its backend during
+    this run; Restic authenticates cached blobs on every later read. Unset keeps
+    Restic uncached for attended Jobs and fixtures.
+    """
+    value = environ.get(CACHE_ENV)
+    if not value:
+        return None
+    path = Path(value)
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        raise ValueError('restic cache directory is absent') from None
+    if not stat.S_ISDIR(info.st_mode):
+        raise ValueError('restic cache is not a directory')
+    if any(path.iterdir()):
+        raise ValueError('restic cache is not empty at start')
+    mode = info.st_mode
+    if not (mode & 0o003 == 0o003 or
+            (info.st_gid == RESTIC_UID and mode & 0o030 == 0o030) or
+            (info.st_uid == RESTIC_UID and mode & 0o300 == 0o300)):
+        raise ValueError('restic cache is not writable by the Restic user')
+    return path
+
+
 class Manager:
     def __init__(self, host, root=Path('/repo/nas'), contracts=Path('/contracts')):
+        # Also covers attended Jobs that construct a Manager without main().
+        cache_guard()
         self.host = host
         self.root = root
         self.control = root / '.control' / ('workstation-' + host)
@@ -222,7 +254,10 @@ class Manager:
         if extra_env:
             env.update(extra_env)
         operation = str(args[0])
-        command = ['/tools/restic', '--no-cache', '--retry-lock', '30m']
+        cache = env.get(CACHE_ENV)
+        # Repository checks stay independent of anything cached in this run.
+        cache_args = ['--cache-dir', cache] if cache and operation != 'check' else ['--no-cache']
+        command = ['/tools/restic', *cache_args, '--retry-lock', '30m']
         if operation == 'check' and env.get('WORKSTATION_RESTIC_VERBOSE') == '1':
             command.append('--verbose')
         command.extend(map(str, args))

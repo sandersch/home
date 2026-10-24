@@ -51,6 +51,7 @@ spec:
             command: ["python3", "/scripts/maintenance.py", "validate", "--host", "m5c"]
             env:
             - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: WORKSTATION_RESTIC_CACHE_DIR, value: /cache}
             resources:
               requests: {cpu: 250m, memory: 512Mi}
               limits: {cpu: "1", memory: 4Gi}
@@ -67,6 +68,7 @@ spec:
             - {name: credentials, mountPath: /credentials, readOnly: true}
             - {name: backups, mountPath: /repo/nas}
             - {name: metrics, mountPath: /metrics}
+            - {name: restic-cache, mountPath: /cache}
             - {name: tmp, mountPath: /tmp}
           volumes:
           - name: tools
@@ -85,6 +87,9 @@ spec:
             hostPath: {path: /mnt/backups, type: Directory}
           - name: metrics
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
+          # Starts empty per Pod; maintenance.py refuses a non-empty cache.
+          - name: restic-cache
+            emptyDir: {medium: Memory, sizeLimit: 1Gi}
           - name: tmp
             emptyDir: {medium: Memory, sizeLimit: 512Mi}
 ---
@@ -141,6 +146,7 @@ spec:
             command: ["python3", "/scripts/maintenance.py", "copy", "--host", "m5c"]
             env:
             - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: WORKSTATION_RESTIC_CACHE_DIR, value: /cache}
             resources:
               requests: {cpu: 250m, memory: 512Mi}
               limits: {cpu: "1", memory: 8Gi}
@@ -157,6 +163,7 @@ spec:
             - {name: credentials, mountPath: /credentials, readOnly: true}
             - {name: backups, mountPath: /repo/nas}
             - {name: metrics, mountPath: /metrics}
+            - {name: restic-cache, mountPath: /cache}
             - {name: tmp, mountPath: /tmp}
           volumes:
           - name: tools
@@ -175,6 +182,9 @@ spec:
             hostPath: {path: /mnt/backups, type: Directory}
           - name: metrics
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
+          # Starts empty per Pod; maintenance.py refuses a non-empty cache.
+          - name: restic-cache
+            emptyDir: {medium: Memory, sizeLimit: 1Gi}
           - name: tmp
             emptyDir: {medium: Memory, sizeLimit: 2Gi}
 ---
@@ -231,6 +241,7 @@ spec:
             command: ["python3", "/scripts/maintenance.py", "prune", "--host", "m5c"]
             env:
             - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: WORKSTATION_RESTIC_CACHE_DIR, value: /cache}
             resources:
               requests: {cpu: 250m, memory: 512Mi}
               limits: {cpu: "1", memory: 4Gi}
@@ -247,6 +258,7 @@ spec:
             - {name: credentials, mountPath: /credentials, readOnly: true}
             - {name: backups, mountPath: /repo/nas}
             - {name: metrics, mountPath: /metrics}
+            - {name: restic-cache, mountPath: /cache}
             - {name: tmp, mountPath: /tmp}
             - {name: api, mountPath: /var/run/secrets/kubernetes.io/serviceaccount, readOnly: true}
           volumes:
@@ -266,6 +278,9 @@ spec:
             hostPath: {path: /mnt/backups, type: Directory}
           - name: metrics
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
+          # Starts empty per Pod; maintenance.py refuses a non-empty cache.
+          - name: restic-cache
+            emptyDir: {medium: Memory, sizeLimit: 1Gi}
           - name: tmp
             emptyDir: {medium: Memory, sizeLimit: 512Mi}
           - name: api
@@ -332,6 +347,7 @@ spec:
             command: ["python3", "/scripts/maintenance.py", "check", "--host", "m5c"]
             env:
             - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
+            - {name: WORKSTATION_RESTIC_CACHE_DIR, value: /cache}
             resources:
               requests: {cpu: 250m, memory: 512Mi}
               limits: {cpu: "1", memory: 4Gi}
@@ -348,6 +364,7 @@ spec:
             - {name: credentials, mountPath: /credentials, readOnly: true}
             - {name: backups, mountPath: /repo/nas}
             - {name: metrics, mountPath: /metrics}
+            - {name: restic-cache, mountPath: /cache}
             - {name: tmp, mountPath: /tmp}
           volumes:
           - name: tools
@@ -366,5 +383,8 @@ spec:
             hostPath: {path: /mnt/backups, type: Directory}
           - name: metrics
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
+          # Starts empty per Pod; maintenance.py refuses a non-empty cache.
+          - name: restic-cache
+            emptyDir: {medium: Memory, sizeLimit: 1Gi}
           - name: tmp
             emptyDir: {medium: Memory, sizeLimit: 512Mi}
