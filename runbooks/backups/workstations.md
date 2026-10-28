@@ -489,8 +489,12 @@ restart and readiness wait to refresh quota accounting before prune success adva
 
 ### Restic cache
 
-The validate, copy, prune and check CronJobs set `WORKSTATION_RESTIC_CACHE_DIR=/cache`
-on a memory-backed `emptyDir` (`sizeLimit: 1Gi`). Before any Restic command,
+The validate and check CronJobs set `WORKSTATION_RESTIC_CACHE_DIR=/cache` on a
+memory-backed `emptyDir` (`sizeLimit: 1Gi`). The copy and prune CronJobs instead mount a
+per-Pod generic ephemeral volume (8 GiB `topolvm-scratch` ext4 LV) at `/cache`; their
+`binary` init container creates `/cache/restic` (mode `2770`, fsGroup gid 65534) because
+a fresh ext4 filesystem already holds `lost+found`, and the Jobs set
+`WORKSTATION_RESTIC_CACHE_DIR=/cache/restic`. Before any Restic command,
 `maintenance.py` refuses to run unless that directory exists, is not a symlink, is
 writable by the Restic user (uid 65534), and is **empty**. Every object a validation
 relies on is therefore read from its backend during the same Pod, and Restic
@@ -514,8 +518,18 @@ memory-backed cache:
 | oldest (2026-09-11) | 14.7 s | 148 MB | 1.95 GB |
 
 Peak memory includes the memory-backed cache and the Python listing decode, so the
-existing 4 GiB limits are unchanged. Re-measure if the cache approaches the 1 GiB
-volume limit or a home grows substantially.
+existing 4 GiB limits are unchanged. Re-measure if the validate cache approaches the
+1 GiB volume limit or a home grows substantially.
+
+Copy and prune need more than listings: they also cache the tree packs they write and
+read in both repositories. The first cached scheduled copy,
+`restic-m5c-copy-29883525` on 2026-10-26, failed after 96 s with `no space left on
+device` in the 1 GiB tmpfs; that week's m5c snapshot was not copied to B2. Their cache
+therefore lives on TopoLVM rather than tmpfs or the root filesystem (about 22 GiB
+free, below which kubelet disk-pressure eviction would hit production pods). Each
+LV is released when its Pod is deleted, so up to one successful and three failed
+Pods per CronJob can hold 8 GiB each. Record `du -sh /cache/restic` from the first
+cached copy and prune of each host and resize if the peak approaches 8 GiB.
 
 Rollback suspends new CronJobs and client schedules, disables the two Ingress
 endpoints, and retains repositories, SOPS credentials and root control state.
