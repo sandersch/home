@@ -129,7 +129,9 @@ spec:
           initContainers:
           - name: binary
             image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
-            command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic"]
+            # A fresh ext4 volume holds lost+found, so Restic gets an empty subdirectory;
+            # it inherits the fsGroup gid that maintenance.py requires.
+            command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic && mkdir -m 2770 /cache/restic"]
             resources:
               requests: {cpu: 10m, memory: 16Mi}
               limits: {cpu: 100m, memory: 64Mi}
@@ -140,13 +142,14 @@ spec:
                 drop: [ALL]
             volumeMounts:
             - {name: tools, mountPath: /tools}
+            - {name: restic-cache, mountPath: /cache}
           containers:
           - name: maintenance
             image: python:3.14.5-alpine3.22@sha256:1a5f0303fd8941565b5bbda3fac2345148a9fd8245d575c2971ccefcd77c78f6
             command: ["python3", "/scripts/maintenance.py", "copy", "--host", "m5c"]
             env:
             - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
-            - {name: WORKSTATION_RESTIC_CACHE_DIR, value: /cache}
+            - {name: WORKSTATION_RESTIC_CACHE_DIR, value: /cache/restic}
             resources:
               requests: {cpu: 250m, memory: 512Mi}
               limits: {cpu: "1", memory: 8Gi}
@@ -182,9 +185,16 @@ spec:
             hostPath: {path: /mnt/backups, type: Directory}
           - name: metrics
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
-          # Starts empty per Pod; maintenance.py refuses a non-empty cache.
+          # A fresh TopoLVM LV per Pod, so the cache starts empty and stays off the
+          # root filesystem; copy and prune outgrew a 1 GiB memory-backed cache.
           - name: restic-cache
-            emptyDir: {medium: Memory, sizeLimit: 1Gi}
+            ephemeral:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: [ReadWriteOnce]
+                  storageClassName: topolvm-scratch
+                  resources:
+                    requests: {storage: 8Gi}
           - name: tmp
             emptyDir: {medium: Memory, sizeLimit: 2Gi}
 ---
@@ -224,7 +234,9 @@ spec:
           initContainers:
           - name: binary
             image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
-            command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic"]
+            # A fresh ext4 volume holds lost+found, so Restic gets an empty subdirectory;
+            # it inherits the fsGroup gid that maintenance.py requires.
+            command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic && mkdir -m 2770 /cache/restic"]
             resources:
               requests: {cpu: 10m, memory: 16Mi}
               limits: {cpu: 100m, memory: 64Mi}
@@ -235,13 +247,14 @@ spec:
                 drop: [ALL]
             volumeMounts:
             - {name: tools, mountPath: /tools}
+            - {name: restic-cache, mountPath: /cache}
           containers:
           - name: maintenance
             image: python:3.14.5-alpine3.22@sha256:1a5f0303fd8941565b5bbda3fac2345148a9fd8245d575c2971ccefcd77c78f6
             command: ["python3", "/scripts/maintenance.py", "prune", "--host", "m5c"]
             env:
             - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
-            - {name: WORKSTATION_RESTIC_CACHE_DIR, value: /cache}
+            - {name: WORKSTATION_RESTIC_CACHE_DIR, value: /cache/restic}
             resources:
               requests: {cpu: 250m, memory: 512Mi}
               limits: {cpu: "1", memory: 4Gi}
@@ -278,9 +291,16 @@ spec:
             hostPath: {path: /mnt/backups, type: Directory}
           - name: metrics
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
-          # Starts empty per Pod; maintenance.py refuses a non-empty cache.
+          # A fresh TopoLVM LV per Pod, so the cache starts empty and stays off the
+          # root filesystem; copy and prune outgrew a 1 GiB memory-backed cache.
           - name: restic-cache
-            emptyDir: {medium: Memory, sizeLimit: 1Gi}
+            ephemeral:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: [ReadWriteOnce]
+                  storageClassName: topolvm-scratch
+                  resources:
+                    requests: {storage: 8Gi}
           - name: tmp
             emptyDir: {medium: Memory, sizeLimit: 512Mi}
           - name: api
