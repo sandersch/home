@@ -10,11 +10,13 @@ import datetime as dt
 import fcntl
 import hashlib
 import hmac
+import itertools
 import json
 import os
 from pathlib import Path
 import re
 import selectors
+import shutil
 import ssl
 import stat
 import statistics
@@ -38,6 +40,7 @@ RETENTION = ['--group-by', 'host', '--keep-within', '30d', '--keep-within-daily'
 PROGRESS_SECONDS = 30
 LOG_LOCK = threading.Lock()
 CACHE_ENV = 'WORKSTATION_RESTIC_CACHE_DIR'
+CACHE_RUNS = itertools.count(1)
 RESTIC_UID = 65534
 
 
@@ -197,11 +200,12 @@ def mount_guard(root='/repo/nas', mountinfo='/proc/self/mountinfo'):
 
 
 def cache_guard(environ=os.environ):
-    """Require the optional Restic cache to start empty in this Pod.
+    """Require the optional Restic cache root to start empty in this Pod.
 
-    Every object a validation relies on is then read from its backend during
-    this run; Restic authenticates cached blobs on every later read. Unset keeps
-    Restic uncached for attended Jobs and fixtures.
+    Each Restic command then gets its own new subdirectory, removed when the
+    command ends, so every object a validation relies on is read from its
+    backend by that command and the cache peaks at one command's working set.
+    Unset keeps Restic uncached for attended Jobs and fixtures.
     """
     value = environ.get(CACHE_ENV)
     if not value:
@@ -221,6 +225,11 @@ def cache_guard(environ=os.environ):
             (info.st_uid == RESTIC_UID and mode & 0o300 == 0o300)):
         raise ValueError('restic cache is not writable by the Restic user')
     return path
+
+
+def tree_bytes(path):
+    return sum(os.lstat(os.path.join(directory, name)).st_size
+               for directory, _, names in os.walk(path) for name in names)
 
 
 class Manager:
@@ -254,9 +263,14 @@ class Manager:
         if extra_env:
             env.update(extra_env)
         operation = str(args[0])
-        cache = env.get(CACHE_ENV)
+        cache = None
         # Repository checks stay independent of anything cached in this run.
-        cache_args = ['--cache-dir', cache] if cache and operation != 'check' else ['--no-cache']
+        if env.get(CACHE_ENV) and operation != 'check':
+            # Restic creates this directory as its own uid; it must not exist yet.
+            cache = Path(env[CACHE_ENV]) / f'{next(CACHE_RUNS):04d}'
+            if os.path.lexists(cache):
+                raise ValueError('restic command cache already exists')
+        cache_args = ['--cache-dir', str(cache)] if cache else ['--no-cache']
         command = ['/tools/restic', *cache_args, '--retry-lock', '30m']
         if operation == 'check' and env.get('WORKSTATION_RESTIC_VERBOSE') == '1':
             command.append('--verbose')
@@ -270,7 +284,12 @@ class Manager:
         sid = next((str(arg) for arg in args[1:] if ID.fullmatch(str(arg))), None)
         with phase(name, host=self.host, destination=destination, snapshot=sid) as counters:
             counters.update(stdout_bytes=0, stdout_lines=0, stderr_bytes=0, stderr_lines=0)
-            output = captured_command(command, env, counters)
+            try:
+                output = captured_command(command, env, counters)
+            finally:
+                if cache and os.path.lexists(cache):
+                    counters['cache_bytes'] = tree_bytes(cache)
+                    shutil.rmtree(cache)
         return output if raw else json.loads(output or b'null')
 
     def listing(self, destination):
