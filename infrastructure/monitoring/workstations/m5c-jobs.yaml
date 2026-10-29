@@ -186,7 +186,7 @@ spec:
           - name: metrics
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
           # A fresh TopoLVM LV per Pod, so the cache starts empty and stays off the
-          # root filesystem; copy and prune outgrew a 1 GiB memory-backed cache.
+          # root filesystem. Copy adds ~1 GiB per snapshot; 24 GiB covers ~3 weeks.
           - name: restic-cache
             ephemeral:
               volumeClaimTemplate:
@@ -194,7 +194,7 @@ spec:
                   accessModes: [ReadWriteOnce]
                   storageClassName: topolvm-scratch
                   resources:
-                    requests: {storage: 8Gi}
+                    requests: {storage: 24Gi}
           - name: tmp
             emptyDir: {medium: Memory, sizeLimit: 2Gi}
 ---

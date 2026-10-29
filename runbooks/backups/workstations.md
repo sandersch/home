@@ -491,7 +491,8 @@ restart and readiness wait to refresh quota accounting before prune success adva
 
 The validate and check CronJobs set `WORKSTATION_RESTIC_CACHE_DIR=/cache` on a
 memory-backed `emptyDir` (`sizeLimit: 1Gi`). The copy and prune CronJobs instead mount a
-per-Pod generic ephemeral volume (8 GiB `topolvm-scratch` ext4 LV) at `/cache`; their
+per-Pod generic ephemeral volume (`topolvm-scratch` ext4 LV: 24 GiB for copy, 8 GiB for
+prune) at `/cache`; their
 `binary` init container creates `/cache/restic` (mode `2770`, fsGroup gid 65534) because
 a fresh ext4 filesystem already holds `lost+found`, and the Jobs set
 `WORKSTATION_RESTIC_CACHE_DIR=/cache/restic`. Before any Restic command,
@@ -528,8 +529,17 @@ device` in the 1 GiB tmpfs; that week's m5c snapshot was not copied to B2. Their
 therefore lives on TopoLVM rather than tmpfs or the root filesystem (about 22 GiB
 free, below which kubelet disk-pressure eviction would hit production pods). Each
 LV is released when its Pod is deleted, so up to one successful and three failed
-Pods per CronJob can hold 8 GiB each. Record `du -sh /cache/restic` from the first
-cached copy and prune of each host and resize if the peak approaches 8 GiB.
+Pods per CronJob keep their LV allocated.
+
+Copy cache grows with the number of snapshots copied rather than staying bounded per run.
+The 2026-10-28 attended catch-up (`restic-m5c-copy-manual-20261028`) copied eight m5c
+snapshots in 13 min, adding about 1 GiB of cache per snapshot to a sampled peak of
+7.8 GiB. It filled the original 8 GiB LV during the eighth snapshot; Restic retried the
+failing source read and finished after an online PVC expansion to 20 GiB. Copy volumes
+are therefore 24 GiB, enough for about three weeks of daily snapshots. A longer backlog
+needs a larger volume or an attended expansion of the running Pod's PVC (`allowVolumeExpansion`
+grows ext4 online). Prune stays at 8 GiB until the first cached scheduled prune of each
+host is measured; resize either volume if its peak approaches the limit.
 
 Rollback suspends new CronJobs and client schedules, disables the two Ingress
 endpoints, and retains repositories, SOPS credentials and root control state.
