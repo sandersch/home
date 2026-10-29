@@ -90,13 +90,11 @@ def candidate_files(root: Path) -> list[Path]:
 
 
 def annotation_name(lines: list[str], index: int) -> str:
-    for comment_index in (index, index - 1, index - 2):
-        if comment_index < 0:
-            continue
-        match = RENOVATE_RE.search(lines[comment_index])
-        if match:
-            return normalize_repository(match.group("name"))
-    return ""
+    # Renovate's runbook regex only matches the line directly after the comment.
+    if index < 1:
+        return ""
+    match = RENOVATE_RE.search(lines[index - 1])
+    return normalize_repository(match.group("name")) if match else ""
 
 
 def has_upstream_version(lines: list[str], index: int) -> bool:
