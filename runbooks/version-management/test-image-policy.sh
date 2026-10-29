@@ -7,7 +7,7 @@ fixtures="$script_dir/fixtures"
 
 "$validator" check --quiet --root "$fixtures/accepted"
 
-for fixture in latest floating tag-only bad-digest digest-only indirection unannotated-shell coupled-drift; do
+for fixture in latest floating tag-only bad-digest digest-only indirection unannotated-shell detached-annotation coupled-drift; do
   if "$validator" check --quiet --root "$fixtures/$fixture" >/dev/null 2>&1; then
     echo "fixture unexpectedly passed: $fixture" >&2
     exit 1
