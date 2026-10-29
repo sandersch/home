@@ -34,7 +34,7 @@ kubectl -n media exec deploy/plex -- sh -c 'ls -l /dev/dri && su -s /bin/sh abc 
 
 step "Verify Plex HTTP endpoint through the pod loopback"
 # renovate: datasource=docker depName=busybox
-kubectl -n media run plex-http-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e \
+kubectl -n media run plex-http-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4 \
   -- wget -qO- http://plex:32400/identity \
   | grep -q '<MediaContainer'
 ok "Plex identity endpoint responded through its Kubernetes Service"
