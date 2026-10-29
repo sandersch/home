@@ -491,14 +491,17 @@ restart and readiness wait to refresh quota accounting before prune success adva
 
 The validate and check CronJobs set `WORKSTATION_RESTIC_CACHE_DIR=/cache` on a
 memory-backed `emptyDir` (`sizeLimit: 1Gi`). The copy and prune CronJobs instead mount a
-per-Pod generic ephemeral volume (8 GiB `topolvm-scratch` ext4 LV) at `/cache`; their
+per-Pod generic ephemeral volume (4 GiB `topolvm-scratch` ext4 LV) at `/cache`; their
 `binary` init container creates `/cache/restic` (mode `2770`, fsGroup gid 65534) because
 a fresh ext4 filesystem already holds `lost+found`, and the Jobs set
 `WORKSTATION_RESTIC_CACHE_DIR=/cache/restic`. Before any Restic command,
 `maintenance.py` refuses to run unless that directory exists, is not a symlink, is
-writable by the Restic user (uid 65534), and is **empty**. Every object a validation
-relies on is therefore read from its backend during the same Pod, and Restic
-authenticates cached blobs on each later read. The cache disappears with the Pod.
+writable by the Restic user (uid 65534), and is **empty**. Each cached Restic command
+then gets its own new numbered subdirectory, which Restic creates as uid 65534 and the
+parent removes when the command ends, including on failure. Every object a validation
+relies on is therefore read from its backend by the same command, and Restic
+authenticates cached blobs on each later read. The cache never outgrows one command's
+working set; each command's `complete` or `failed` log line records it as `cache_bytes`.
 Repository `check` always runs with `--no-cache`, so monthly structural and
 read-data verification stays independent of anything cached during the run. Attended
 Jobs and fixtures that omit the variable keep the previous `--no-cache` behaviour;
@@ -528,8 +531,15 @@ device` in the 1 GiB tmpfs; that week's m5c snapshot was not copied to B2. Their
 therefore lives on TopoLVM rather than tmpfs or the root filesystem (about 22 GiB
 free, below which kubelet disk-pressure eviction would hit production pods). Each
 LV is released when its Pod is deleted, so up to one successful and three failed
-Pods per CronJob can hold 8 GiB each. Record `du -sh /cache/restic` from the first
-cached copy and prune of each host and resize if the peak approaches 8 GiB.
+Pods per CronJob keep their 4 GiB allocated: 64 GiB across the four CronJobs at worst.
+
+A run-wide cache grew with every command. The 2026-10-28 attended catch-up
+(`restic-m5c-copy-manual-20261028`) copied eight m5c snapshots in 13 min, adding about
+1 GiB per snapshot to a sampled 7.8 GiB peak; it filled the then 8 GiB LV during the
+eighth snapshot and finished only after an online PVC expansion to 20 GiB. The
+per-command cache bounds that at about one snapshot's copy regardless of backlog, at
+the cost of each command fetching the repository index again. Resize if the largest
+`cache_bytes` in copy or prune logs approaches 4 GiB.
 
 Rollback suspends new CronJobs and client schedules, disables the two Ingress
 endpoints, and retains repositories, SOPS credentials and root control state.

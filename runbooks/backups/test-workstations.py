@@ -221,14 +221,19 @@ class MaintenanceProgressTests(unittest.TestCase):
             with patch.dict(os.environ, {server.CACHE_ENV: '/cache'}):
                 manager.run('b2', 'ls', '--json', 'a' * 64, raw=True)
                 manager.run('b2', 'check', raw=True)
+                manager.run('b2', 'ls', '--json', 'a' * 64, raw=True)
             with patch.dict(os.environ):
                 os.environ.pop(server.CACHE_ENV, None)
                 manager.run('b2', 'ls', '--json', 'a' * 64, raw=True)
-        self.assertEqual(commands[0][1:3], ['--cache-dir', '/cache'])
+        first, second = Path(commands[0][2]), Path(commands[2][2])
+        self.assertEqual(commands[0][1], '--cache-dir')
+        self.assertEqual((first.parent, second.parent), (Path('/cache'), Path('/cache')))
+        # Every cached command gets its own directory under the guarded root.
+        self.assertNotEqual(first, second)
         self.assertNotIn('--no-cache', commands[0])
         self.assertEqual(commands[1][1], '--no-cache')
         self.assertNotIn('--cache-dir', commands[1])
-        self.assertEqual(commands[2][1], '--no-cache')
+        self.assertEqual(commands[3][1], '--no-cache')
 
     def test_cache_guard_requires_an_empty_writable_directory(self):
         self.assertIsNone(server.cache_guard({}))
@@ -295,14 +300,20 @@ class FixtureManager(server.Manager):
 
 @unittest.skipUnless(Path(RESTIC).is_file(), 'set WORKSTATION_RESTIC to checksum-verified Restic 0.19.1')
 class CacheRepositoryTests(unittest.TestCase):
-    def test_production_command_populates_and_reuses_the_run_cache(self):
+    def test_production_command_populates_then_removes_its_own_cache(self):
         real_popen = subprocess.Popen
+        real_rmtree = shutil.rmtree
+        removed = []
 
         def fixture_restic(command, **kwargs):
             # The production launcher, but with the fixture binary and no uid switch.
             for key in ('user', 'group', 'extra_groups'):
                 kwargs.pop(key)
             return real_popen([RESTIC, *command[1:]], **kwargs)
+
+        def observed_rmtree(path):
+            removed.append((Path(path), sorted(p.name for p in Path(path).rglob('*'))))
+            real_rmtree(path)
 
         with tempfile.TemporaryDirectory(prefix='workstation-cache-') as directory:
             base = Path(directory)
@@ -318,13 +329,22 @@ class CacheRepositoryTests(unittest.TestCase):
             self.assertEqual(server.cache_guard(env), cache)
             log = io.StringIO()
             with patch.dict(os.environ, env), patch.object(server.subprocess, 'Popen', fixture_restic), \
-                    patch.object(server.sys, 'stderr', log):
+                    patch.object(server.shutil, 'rmtree', observed_rmtree), patch.object(server.sys, 'stderr', log):
                 self.assertEqual(manager.run('b2', 'snapshots', '--json'), [])
-                populated = sorted(path.relative_to(cache) for path in cache.rglob('*'))
+                self.assertEqual(list(cache.iterdir()), [])
                 self.assertEqual(manager.run('b2', 'snapshots', '--json'), [])
-            self.assertTrue(any(path.name == 'index' for path in populated))
-            with self.assertRaisesRegex(ValueError, 'not empty'):
-                server.cache_guard(env)
+                manager.credentials['b2']['RESTIC_REPOSITORY'] = str(base / 'absent')
+                with self.assertRaises(subprocess.CalledProcessError):
+                    manager.run('b2', 'snapshots', '--json')
+            # Each command populated a distinct directory, removed even on failure.
+            self.assertEqual([path.parent for path, _ in removed[:2]], [cache, cache])
+            self.assertNotEqual(removed[0][0], removed[1][0])
+            self.assertIn('index', removed[0][1])
+            self.assertEqual(list(cache.iterdir()), [])
+            self.assertEqual(server.cache_guard(env), cache)
+            sizes = [json.loads(line).get('cache_bytes') for line in log.getvalue().splitlines()
+                     if line.startswith('{') and '"event": "complete"' in line]
+            self.assertTrue(sizes[:2] and all(size > 0 for size in sizes[:2]))
 
 
 @unittest.skipUnless(Path(RESTIC).is_file(), 'set WORKSTATION_RESTIC to checksum-verified Restic 0.19.1')

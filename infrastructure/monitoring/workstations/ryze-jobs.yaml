@@ -186,7 +186,8 @@ spec:
           - name: metrics
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
           # A fresh TopoLVM LV per Pod, so the cache starts empty and stays off the
-          # root filesystem; copy and prune outgrew a 1 GiB memory-backed cache.
+          # root filesystem. maintenance.py gives each Restic command its own cache
+          # and removes it afterwards; one m5c snapshot copy needed about 1 GiB.
           - name: restic-cache
             ephemeral:
               volumeClaimTemplate:
@@ -194,7 +195,7 @@ spec:
                   accessModes: [ReadWriteOnce]
                   storageClassName: topolvm-scratch
                   resources:
-                    requests: {storage: 8Gi}
+                    requests: {storage: 4Gi}
           - name: tmp
             emptyDir: {medium: Memory, sizeLimit: 512Mi}
 ---
@@ -292,7 +293,8 @@ spec:
           - name: metrics
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
           # A fresh TopoLVM LV per Pod, so the cache starts empty and stays off the
-          # root filesystem; copy and prune outgrew a 1 GiB memory-backed cache.
+          # root filesystem. maintenance.py gives each Restic command its own cache
+          # and removes it afterwards; one m5c snapshot copy needed about 1 GiB.
           - name: restic-cache
             ephemeral:
               volumeClaimTemplate:
@@ -300,7 +302,7 @@ spec:
                   accessModes: [ReadWriteOnce]
                   storageClassName: topolvm-scratch
                   resources:
-                    requests: {storage: 8Gi}
+                    requests: {storage: 4Gi}
           - name: tmp
             emptyDir: {medium: Memory, sizeLimit: 512Mi}
           - name: api
