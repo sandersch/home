@@ -1,0 +1,66 @@
+{
+  "churn_tolerance": {
+    "maximum_paths": 454,
+    "protected_paths": [
+      "Documents",
+      "Dropbox/ccs.kdbx"
+    ]
+  },
+  "contract": "workstation-ryze-v3",
+  "enrollment_evidence": {
+    "capacity_reviewed": true,
+    "execution_path": "python3 host/workstations/workstation.py measure as charlie on ryze (Python 3.14.8); installed client /usr/local/lib/workstation-backup/workstation.py is identical (SHA-256 24426a9e...d416)",
+    "host": "ryze",
+    "inventory_reviewed": true,
+    "notes": [
+      "v3 adds exclusions to v2 for self-managed downloads whose own cleanup or rotation can trip the 80% shrink rule: .codex/packages and .local/share/claude/versions; Discord app-* builds and numbered update staging; Chrome Service Worker CacheStorage/ScriptCache, component_crx_cache and optimization_guide_model_store; NVIDIA .nv GLCache/ComputeCache; .rbenv/versions, .nvm/versions, go/pkg/mod, .yarn/berry/cache and .magefile; Lutris runners and runtime; and .paradoxlauncher launcher-v* builds.",
+      "Trigger: Codex removed 9.67 GB of old releases from .codex/packages between snapshots 9be55bd7 (2026-10-28T14:05Z, 34.95 GB) and 9dfe00c7 (2026-10-29T15:04Z, 25.68 GB), below the 27.56 GB shrink threshold. The operator resolved that hold with an attended accept-shrink on 2026-10-30, starting baseline generation 3.",
+      "Attended audit on 2026-10-30 of accepted snapshot 9fa930c4 (26.20 GB, 528,104 files) found 16.89 GB and 437,204 files in the v3 subtrees; .rbenv/versions alone held 345,382 files. The operator approved the updater, toolchain/dependency-cache and game-runtime groups; src/kapi/log, game saves, .wine and Lutris pga.db stay in scope.",
+      "Measured at 2026-10-30T22:50:53.842174+00:00: 90,986 files / 8,718,073,636 bytes; Documents 542 files / 298,089,929 bytes. Measurement reads every included regular file and checks Documents and the local KDBX.",
+      "Capacity at measurement: NAS /mnt/backups 754 GB free of 1,082 GB; ryze NAS repository 17.6 GB (150 GiB cap); ryze B2 repository 16.3 GB (100 GB ceiling); ryze home filesystem 75G used of 197G.",
+      "This releases the contract only; client reinstallation and the first accepted v3 snapshot are pending."
+    ],
+    "operator": "Charlie Sanders",
+    "os": "Arch Linux, kernel 7.2.9-arch1-1 x86_64",
+    "platform": "Linux",
+    "recorded_at": "2026-10-30",
+    "required_content_readable": true
+  },
+  "enrollment_status": "released",
+  "exclusion_sha256": "9c7a749c1870526013638436769e9e0f1edaab681f89d10b25fccca28fe9a6ba",
+  "floors": {
+    "": {
+      "bytes": 6974458909,
+      "files": 72789
+    },
+    "Documents/": {
+      "bytes": 238471944,
+      "files": 434
+    }
+  },
+  "hostname": "ryze",
+  "kdbx_minimum_bytes": 102400,
+  "kdbx_path": "Dropbox/ccs.kdbx",
+  "manifest": "/home/charlie/.workstation-backup-manifest.json",
+  "maximum_shrink_percent": 20,
+  "measured": {
+    "": {
+      "bytes": 8718073636,
+      "files": 90986
+    },
+    "Documents/": {
+      "bytes": 298089929,
+      "files": 542
+    }
+  },
+  "measured_at": "2026-10-30T22:50:53.842174+00:00",
+  "platform": "Linux",
+  "required_content": [
+    "Documents",
+    "Dropbox/ccs.kdbx"
+  ],
+  "shrink_baseline_samples": 7,
+  "source_roots": [
+    "/home/charlie"
+  ]
+}

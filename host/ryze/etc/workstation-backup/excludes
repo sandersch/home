@@ -68,3 +68,29 @@ restore-scratch
 .codex/models_cache.json
 .codex/tmp
 .codex/.tmp
+# Contract v3 (2026-10-30): self-managed downloads whose own cleanup or rotation can
+# trip the 80% shrink rule, as Codex's 9.67 GB release cleanup did on 2026-10-29.
+# Agent CLI release binaries, reinstalled by their installers.
+.codex/packages
+.local/share/claude/versions
+# Discord app builds and update staging, rotated on every update.
+.config/discord/app-*
+.config/discord/[0-9]*.[0-9]*.[0-9]*
+# Chrome downloaded components and Service Worker caches; profiles stay in scope.
+.config/google-chrome/*/Service Worker/CacheStorage
+.config/google-chrome/*/Service Worker/ScriptCache
+.config/google-chrome/component_crx_cache
+.config/google-chrome/optimization_guide_model_store
+# NVIDIA shader caches, rebuilt by the driver.
+.nv/GLCache
+.nv/ComputeCache
+# Language toolchains and dependency caches, reinstalled like .rustup/toolchains.
+.rbenv/versions
+.nvm/versions
+go/pkg/mod
+.yarn/berry/cache
+.magefile
+# Downloadable game runtimes, like .local/share/Steam; saves and wine prefixes stay.
+.local/share/lutris/runners
+.local/share/lutris/runtime
+.paradoxlauncher/launcher-v*

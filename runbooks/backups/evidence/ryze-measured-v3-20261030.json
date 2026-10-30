@@ -1,0 +1,47 @@
+{
+  "contract": "workstation-ryze-v3",
+  "hostname": "ryze",
+  "enrollment_status": "measured-unreleased",
+  "source_roots": [
+    "/home/charlie"
+  ],
+  "exclusion_sha256": "9c7a749c1870526013638436769e9e0f1edaab681f89d10b25fccca28fe9a6ba",
+  "manifest": "/home/charlie/.workstation-backup-manifest.json",
+  "required_content": [
+    "Documents",
+    "Dropbox/ccs.kdbx"
+  ],
+  "kdbx_path": "Dropbox/ccs.kdbx",
+  "measured": {
+    "": {
+      "files": 90986,
+      "bytes": 8718073636
+    },
+    "Documents/": {
+      "files": 542,
+      "bytes": 298089929
+    }
+  },
+  "floors": {
+    "": {
+      "files": 72789,
+      "bytes": 6974458909
+    },
+    "Documents/": {
+      "files": 434,
+      "bytes": 238471944
+    }
+  },
+  "churn_tolerance": {
+    "maximum_paths": 454,
+    "protected_paths": [
+      "Documents",
+      "Dropbox/ccs.kdbx"
+    ]
+  },
+  "kdbx_minimum_bytes": 102400,
+  "shrink_baseline_samples": 7,
+  "maximum_shrink_percent": 20,
+  "measured_at": "2026-10-30T22:50:53.842174+00:00",
+  "platform": "Linux"
+}
