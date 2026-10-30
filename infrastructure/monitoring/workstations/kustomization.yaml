@@ -27,6 +27,8 @@ configMapGenerator:
   - workstation-ryze-v1.excludes=contracts/workstation-ryze-v1.excludes
   - workstation-ryze-v2.json=contracts/workstation-ryze-v2.json
   - workstation-ryze-v2.excludes=contracts/workstation-ryze-v2.excludes
+  - workstation-ryze-v3.json=contracts/workstation-ryze-v3.json
+  - workstation-ryze-v3.excludes=contracts/workstation-ryze-v3.excludes
   - workstation-m5c-v1.json=contracts/workstation-m5c-v1.json
   - workstation-m5c-v1.excludes=contracts/workstation-m5c-v1.excludes
   - workstation-m5c-v2.json=contracts/workstation-m5c-v2.json

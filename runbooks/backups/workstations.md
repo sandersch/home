@@ -12,7 +12,11 @@ intermittently unreadable macOS system state (see the [host notes](../../host/m5
 and [measurement](evidence/m5c-measured-v3-20261007.json)). M5c v4, released 2026-10-17,
 omits regenerable application caches after an intentional 4.92 GB deletion left every v3
 run below its home floor (see the [measurement](evidence/m5c-measured-v4-20261017.json));
-its client installation and first accepted v4 snapshot are pending. `infrastructure/monitoring/workstations/`
+its client installation and first accepted v4 snapshot are pending. Ryze v3, released
+2026-10-30, omits self-managed release binaries, toolchains, dependency caches and game
+runtimes after Codex's own 9.67 GB release cleanup tripped the shrink hold (see the
+[host notes](../../host/ryze/README.md) and [measurement](evidence/ryze-measured-v3-20261030.json));
+its client installation and first accepted v3 snapshot are pending. `infrastructure/monitoring/workstations/`
 is in the active monitoring Kustomization. Both hosts' four CronJobs are enabled.
 Both hosts' NAS/B2 repositories are initialized. M5c has accepted NAS snapshots and
 a successful B2 copy. Native NAS and B2 content and metadata verification passed on
