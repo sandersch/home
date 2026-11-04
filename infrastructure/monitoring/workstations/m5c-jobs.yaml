@@ -294,8 +294,8 @@ spec:
             hostPath: {path: /var/lib/node-exporter/textfile, type: Directory}
           # A fresh TopoLVM LV per Pod, so the cache starts empty and stays off the
           # root filesystem. maintenance.py gives each Restic command its own cache
-          # and removes it afterwards. The 2026-11-03 NAS prune filled a 4 GiB
-          # cache (3.98 GB) and failed, so prune gets 16 GiB.
+          # and removes it afterwards. The 2026-11-03 NAS prune failed after filling
+          # a 4 GiB cache; the 2026-11-04 rerun used 12.24 GB, so prune gets 24 GiB.
           - name: restic-cache
             ephemeral:
               volumeClaimTemplate:
@@ -303,7 +303,7 @@ spec:
                   accessModes: [ReadWriteOnce]
                   storageClassName: topolvm-scratch
                   resources:
-                    requests: {storage: 16Gi}
+                    requests: {storage: 24Gi}
           - name: tmp
             emptyDir: {medium: Memory, sizeLimit: 512Mi}
           - name: api
