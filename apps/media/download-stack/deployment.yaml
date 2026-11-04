@@ -96,7 +96,7 @@ spec:
             - name: media
               mountPath: /media
         - name: qbittorrent
-          image: lscr.io/linuxserver/qbittorrent:5.3.0_v2.1.2-ls485@sha256:75ecbb1c89ab7b0a21c4bde40b4820e4f1649d2d56d83b91913422155e8d2a5f
+          image: lscr.io/linuxserver/qbittorrent:5.3.0_v2.1.2-ls486@sha256:05c1454f9a32967affc1f34f67f8cc0cc57dd805dca45489fe797095a6286556
           env:
             - name: PUID
               value: "1000"
@@ -148,7 +148,7 @@ spec:
             - name: prowlarr-config
               mountPath: /config
         - name: radarr
-          image: lscr.io/linuxserver/radarr:6.4.4.10685-ls324@sha256:084b3b2ab1d0ef930660727259546a241f2bdf67c9ed085d54bf1486a6887c9b
+          image: lscr.io/linuxserver/radarr:6.4.4.10685-ls325@sha256:ade5937813c6ae415b29db729386e53fea3ecf067a019849bafbe2d2a6ec02ba
           env:
             - name: PUID
               value: "1000"
