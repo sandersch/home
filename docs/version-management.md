@@ -114,9 +114,11 @@ carry `datasource=helm` annotations, so Renovate updates them on the same branch
 their `HelmRelease`, and the always-on CI checks job runs
 `assert_phase5_observability_invariants` to fail any PR where they drift apart.
 
-Renovate never auto-merges, allows at most five concurrent PRs, and creates routine
-PRs Sunday 00:00–05:59 America/Chicago. Major versions require Dependency Dashboard
-approval. Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr are grouped into
+Renovate never auto-merges, allows at most five concurrent PRs, and creates at most
+five PRs per hour (overriding Renovate's default of two). It extends the built-in
+`schedule:weekends` preset, so routine branch and PR work runs any time on Saturday or
+Sunday in the configured America/Chicago timezone. Major versions require Dependency
+Dashboard approval. Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr are grouped into
 one download-stack PR; unrelated applications remain separate. Updates for
 `ghcr.io/sandersch/restic-backup` itself are disabled because its attended workflow
 owns that artifact, while `restic/restic` base updates remain enabled.
@@ -125,6 +127,37 @@ Every image PR warns that merge changes production through Flux and links to the
 4/5 validators and rollback procedure. Before accepting normal PRs, confirm the
 Dependency Dashboard finds each external dependency once logically, keeps the download
 stack grouped, and gates majors.
+
+### Weekend schedule interactions
+
+The schedule controls only when Renovate creates new branches and PRs. Merging is
+still attended, so it never starts a cluster change on its own. Renovate's default
+`updateNotScheduled: true` keeps updating existing PRs on any day, including newer
+releases of the same dependency. Re-read a PR's current version before merging rather
+than relying on an earlier review. `main` does not require branches to be up to date,
+so `rebaseWhen: "auto"` rebases a PR only when it conflicts with `main`. A clean PR
+that falls behind `main` is not re-tested against it until merge, and then the full
+suite runs on the `main` push. The Dependency Dashboard is refreshed on every run and
+can create pending PRs before their scheduled time. Five concurrent PRs that each run
+the full image-policy suite use more Actions minutes per weekend than the old six-hour
+window did.
+
+PRs can now arrive while weekend jobs on `minis` are running. When choosing when to
+merge stateful or critical updates, avoid these windows (America/Chicago):
+
+- Saturday 23:30 onward: the exclusive vault NAS/B2 prune
+  ([backups runbook](../runbooks/backups/README.md)).
+- Sunday 02:15–about 06:00: the vault backup, the 03:15 nightly appstate backup,
+  the 04:30 appstate B2 copy, the 04:45 vault B2 copy, and the 05:30 workstation
+  validations. Restarting Home Assistant or RomM during the appstate run can fail its
+  required API backup or MariaDB dump.
+- The first Sunday of each month, from 10:00: the md3 consistency check. It is known to
+  stall Frigate I/O, which would confuse validation of a Frigate or storage-sensitive
+  update.
+
+Daytime Saturday and Sunday afternoon or evening leave a fresh nightly backup in place
+before the merge, as the routine workflow below requires, and leave the 24-hour
+observation running into the week.
 
 ## Attended custom Restic image
 
