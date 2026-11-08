@@ -3,7 +3,7 @@
   "enabledManagers": ["kubernetes", "flux", "dockerfile", "custom.regex"],
   "ignorePaths": ["runbooks/version-management/fixtures/**"],
   "timezone": "America/Chicago",
-  "schedule": ["* 0-5 * * 0"],
+  "schedule": ["* * * * 6"],
   "automerge": false,
   "prConcurrentLimit": 5,
   "dependencyDashboard": true,

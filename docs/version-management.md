@@ -115,7 +115,7 @@ their `HelmRelease`, and the always-on CI checks job runs
 `assert_phase5_observability_invariants` to fail any PR where they drift apart.
 
 Renovate never auto-merges, allows at most five concurrent PRs, and creates routine
-PRs Sunday 00:00–05:59 America/Chicago. Major versions require Dependency Dashboard
+PRs all day Saturday (America/Chicago). Major versions require Dependency Dashboard
 approval. Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr are grouped into
 one download-stack PR; unrelated applications remain separate. Updates for
 `ghcr.io/sandersch/restic-backup` itself are disabled because its attended workflow
