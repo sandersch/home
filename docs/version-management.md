@@ -114,8 +114,10 @@ carry `datasource=helm` annotations, so Renovate updates them on the same branch
 their `HelmRelease`, and the always-on CI checks job runs
 `assert_phase5_observability_invariants` to fail any PR where they drift apart.
 
-Renovate never auto-merges, allows at most five concurrent PRs, and creates routine
-PRs all day Saturday (America/Chicago). Major versions require Dependency Dashboard
+Renovate never auto-merges, allows at most ten concurrent PRs, and creates routine
+PRs all weekend, Saturday and Sunday (America/Chicago). The window is deliberately
+wide because the hosted Renovate app runs on an irregular cadence and missed narrower
+windows entirely. Major versions require Dependency Dashboard
 approval. Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr are grouped into
 one download-stack PR; unrelated applications remain separate. Updates for
 `ghcr.io/sandersch/restic-backup` itself are disabled because its attended workflow

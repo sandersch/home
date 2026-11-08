@@ -3,9 +3,12 @@
   "enabledManagers": ["kubernetes", "flux", "dockerfile", "custom.regex"],
   "ignorePaths": ["runbooks/version-management/fixtures/**"],
   "timezone": "America/Chicago",
-  "schedule": ["* * * * 6"],
+  // Keep this window wide. The hosted Renovate app runs on an irregular cadence, and
+  // narrow windows (such as Sunday 00:00-05:59) were missed entirely, leaving updates
+  // in "Awaiting Schedule" for another week.
+  "schedule": ["* * * * 0,6"],
   "automerge": false,
-  "prConcurrentLimit": 5,
+  "prConcurrentLimit": 10,
   "dependencyDashboard": true,
   "pinDigests": true,
   "kubernetes": {
