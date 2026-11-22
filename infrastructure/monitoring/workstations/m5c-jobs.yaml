@@ -33,7 +33,7 @@ spec:
               type: RuntimeDefault
           initContainers:
           - name: binary
-            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            image: restic/restic:0.20.0@sha256:93999df80d4ac6cb148e82d2ef1fe6a81996f17ff535e772723538211b31555a
             command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic"]
             resources:
               requests: {cpu: 10m, memory: 16Mi}
@@ -128,7 +128,7 @@ spec:
               type: RuntimeDefault
           initContainers:
           - name: binary
-            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            image: restic/restic:0.20.0@sha256:93999df80d4ac6cb148e82d2ef1fe6a81996f17ff535e772723538211b31555a
             # A fresh ext4 volume holds lost+found, so Restic gets an empty subdirectory;
             # it inherits the fsGroup gid that maintenance.py requires.
             command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic && mkdir -m 2770 /cache/restic"]
@@ -234,7 +234,7 @@ spec:
               type: RuntimeDefault
           initContainers:
           - name: binary
-            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            image: restic/restic:0.20.0@sha256:93999df80d4ac6cb148e82d2ef1fe6a81996f17ff535e772723538211b31555a
             # A fresh ext4 volume holds lost+found, so Restic gets an empty subdirectory;
             # it inherits the fsGroup gid that maintenance.py requires.
             command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic && mkdir -m 2770 /cache/restic"]
@@ -352,7 +352,7 @@ spec:
               type: RuntimeDefault
           initContainers:
           - name: binary
-            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            image: restic/restic:0.20.0@sha256:93999df80d4ac6cb148e82d2ef1fe6a81996f17ff535e772723538211b31555a
             command: ["/bin/sh", "-ec", "cp /usr/bin/restic /tools/restic"]
             resources:
               requests: {cpu: 10m, memory: 16Mi}
