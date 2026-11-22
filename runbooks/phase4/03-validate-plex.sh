@@ -33,10 +33,12 @@ step "Verify Quick Sync device is visible and openable in the Plex pod"
 kubectl -n media exec deploy/plex -- sh -c 'ls -l /dev/dri && su -s /bin/sh abc -c "test -r /dev/dri/renderD128 && test -w /dev/dri/renderD128"'
 
 step "Verify Plex HTTP endpoint through the pod loopback"
+# Capture before matching: under pipefail, `kubectl run --rm | grep -q` fails with
+# SIGPIPE when grep exits before kubectl writes its trailing pod-deleted line.
 # renovate: datasource=docker depName=busybox
-kubectl -n media run plex-http-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4 \
-  -- wget -qO- http://plex:32400/identity \
-  | grep -q '<MediaContainer'
+identity="$(kubectl -n media run plex-http-test --restart=Never --rm -i --image=busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4 \
+  -- wget -qO- http://plex:32400/identity)"
+[[ "$identity" == *'<MediaContainer'* ]] || die "Plex identity endpoint did not return a MediaContainer"
 ok "Plex identity endpoint responded through its Kubernetes Service"
 
 cat <<'EOF'

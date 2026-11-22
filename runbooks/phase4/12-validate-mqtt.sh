@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Phase 4 validation - check Mosquitto and the complete Frigate/Home Assistant
-# MQTT path. Run this after configuring MQTT, HACS, and Frigate in Home Assistant.
+# MQTT path. Run this after configuring MQTT, HACS (core Marketplace since HA
+# 2026.11), and Frigate in Home Assistant.
 # shellcheck source=runbooks/phase4/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -142,17 +143,29 @@ fi
 kubectl -n mqtt logs "$validation_pod"
 ok "MQTT authentication and Frigate availability are operational"
 
-step "Verify Home Assistant has MQTT, HACS, and Frigate configured"
-for integration in mqtt hacs frigate; do
+step "Verify Home Assistant has MQTT, HACS/Marketplace, and Frigate configured"
+ha_has_entry() {
   kubectl -n home-assistant exec deploy/home-assistant -c home-assistant -- sh -c \
-    "grep -Eq '\"domain\"[[:space:]]*:[[:space:]]*\"$integration\"' /config/.storage/core.config_entries" \
-    || die "Home Assistant does not have a $integration config entry"
+    "grep -Eq '\"domain\"[[:space:]]*:[[:space:]]*\"$1\"' /config/.storage/core.config_entries"
+}
+for integration in mqtt frigate; do
+  ha_has_entry "$integration" || die "Home Assistant does not have a $integration config entry"
 done
+# Home Assistant 2026.11 absorbed HACS into core as the marketplace integration,
+# migrating the HACS config entry and removing custom_components/hacs. Installs
+# restored from before that release still carry the custom HACS integration.
+if ha_has_entry marketplace; then
+  store="core Marketplace"
+elif ha_has_entry hacs && kubectl -n home-assistant exec deploy/home-assistant -c home-assistant -- \
+    test -d /config/custom_components/hacs; then
+  store="custom HACS"
+else
+  die "Home Assistant has neither a marketplace nor a HACS config entry with its integration files"
+fi
 kubectl -n home-assistant exec deploy/home-assistant -c home-assistant -- \
-  test -d /config/custom_components/hacs
-kubectl -n home-assistant exec deploy/home-assistant -c home-assistant -- \
-  test -d /config/custom_components/frigate
-ok "Home Assistant has MQTT, HACS, and Frigate integrations"
+  test -d /config/custom_components/frigate \
+  || die "the Frigate custom integration is missing from /config/custom_components"
+ok "Home Assistant has MQTT, $store, and Frigate integrations"
 
 step "Verify Home Assistant can reach Frigate through valid HTTPS"
 frigate_status="$(kubectl -n home-assistant exec deploy/home-assistant -c home-assistant -- sh -c \
