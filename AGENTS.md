@@ -66,7 +66,7 @@ Standard-tier media resource tuning passed its seven-day gate on
 2026-08-22; Frigate tuning and deferred apps follow the migration.
 Repo-authored runtime, init, validation, recovery, and container-build images are
 immutably pinned and guarded by CI; hosted Renovate configuration proposes attended
-updates without auto-merge. The validated live k3s baseline is `v1.36.3+k3s1`;
+updates without auto-merge, except the CI-only Renovate config validator. The validated live k3s baseline is `v1.36.3+k3s1`;
 the attended upgrade and initial Phase 2-5 validation passed on 2026-08-22. The
 24-hour observation closed successfully and rollback artifacts were removed on
 2026-08-23. Later changes follow the gate in
