@@ -320,6 +320,9 @@ and its functionality moved to Grafana Alloy.
 | Disk temperature high | an HBA disk above 50 C, or the NVMe above 70 C, for 30 minutes | deployed and live-validated 2026-10-17 |
 | NVMe critical warning / wear / media errors | critical-warning flags set (critical), more than 80% endurance used, or new media errors within 24 hours | deployed and live-validated 2026-10-17 |
 | SMART device missing | fewer than 18 devices report SMART data while the exporter target is healthy, or the target is gone; a failing scrape is left to upstream `TargetDown` | deployed and live-validated 2026-10-17 |
+| Flux resource not reconciling | a Kustomization, HelmRelease, GitRepository, HelmRepository, or OCIRepository has not been Ready for 30 minutes and is not suspended | deployed 2026-11-22; rules evaluate cleanly, not yet exercised by a live failure ([incident](#2026-11-14-flux-stalled-for-eight-days-without-alerting)) |
+| Flux resource left suspended | a Flux object stays suspended for 8 hours | deployed 2026-11-22 |
+| Flux metrics missing | kube-state-metrics stops exporting `gotk_resource_info` for 30 minutes, so the two rules above cannot evaluate | deployed 2026-11-22 |
 
 ### External dead-man and actionable notification routing
 
@@ -773,6 +776,96 @@ destructive commands). Operationally useful surfaces to expose to the session:
 
 `flux reconcile kustomization apps --with-source` gives a tight edit→apply loop instead
 of waiting for the default interval.
+
+## Incidents
+
+Record incidents here, newest first. Times are UTC.
+
+### 2026-11-14: Flux stalled for eight days without alerting
+
+**Summary.** Renovate's MetalLB chart bump from 0.16.1 to 0.16.2 could not roll out
+on this single node. helm-controller rolled it back and stopped retrying, which left
+`infra-controllers` unhealthy. Every Kustomization that depends on it (`infra-configs`,
+`apps`, and all four monitoring Kustomizations) stopped applying git changes for
+7 days 18 hours. No alert fired, and the stall was noticed by hand on 2026-11-22.
+Clearing it also deployed the queued updates all at once. One of them,
+Alertmanager v0.35.0, dropped about a quarter of alert batches until it was held back.
+
+**Impact.**
+
+- Services stayed up. MetalLB's pods restarted about eight times during the four
+  upgrade attempts and rollbacks (23:28 to 23:51 on 2026-11-14), but no blackbox
+  probe failed, and MetalLB kept running 0.16.1.
+- 19 merged Renovate PRs sat undeployed: 6 merged on 2026-11-15, 12 between 04:52 and
+  05:02 on 2026-11-22, and #195 at 17:00 on 2026-11-22. Only `infra-controllers`'
+  own HelmReleases (TopoLVM, Tailscale) applied, because Flux applies a
+  Kustomization before its health check fails. Application images, kube-prometheus-stack,
+  and the blackbox exporter waited.
+- From 17:33 to 18:31 on 2026-11-22, Prometheus failed to deliver 9 of 33 alert
+  batches to Alertmanager. Each dropped batch went out again on the next resend, so
+  alerts were delayed rather than lost.
+
+**Timeline.**
+
+| Time | Event |
+|---|---|
+| 11-14 23:28 | Renovate PR #178 (MetalLB 0.16.2) merged. `infra-controllers` starts the upgrade, and its dependents report `DependencyNotReady`. |
+| 11-14 23:29 to 23:50 | Four upgrade attempts. Each new `metallb-frr-k8s-statuscleaner` pod stays unschedulable until Helm's 5-minute wait times out, and helm-controller rolls back to 0.16.1. The final rollback completes at 23:50. |
+| 11-15 06:50 and 11-22 04:52 to 05:02 | Two batches of Renovate PRs merged. None reach the cluster. |
+| 11-22 04:53 | helm-controller restarts, which coincides with the Flux 2.x update in #187, and marks the MetalLB HelmRelease `Stalled / RetriesExceeded`. |
+| 11-22 | Stall noticed by hand and diagnosed. |
+| 11-22 17:19 | #210 merged. MetalLB 0.16.2 rolls out with the statuscleaner fix, and the chain recovers. The backlog deploys over the next minutes, including Mosquitto, Home Assistant, Z-Wave JS UI, and Frigate restarts at about 17:21 (probe blips of 30 to 45 seconds, inside their alert windows) and kube-prometheus-stack 93.6.1 at 17:26. |
+| 11-22 17:33 | First `Error sending alerts ... EOF` from Prometheus to the new Alertmanager v0.35.0. |
+| 11-22 18:04 to 18:09 | #211 merged. Flux object metrics and the `homelab.flux` rules are live and evaluating cleanly. |
+| 11-22 18:28 to 18:31 | #213 merged. Alertmanager is back on v0.34.2 and Ready at 18:31. |
+| 11-22 19:33 | One hour on v0.34.2 with 41 batches sent, 0 failed, and Dead Man's Snitch webhooks delivered. Closed. |
+
+**Root causes.**
+
+1. **MetalLB rollout deadlock.** The chart's frr-k8s statuscleaner Deployment uses
+   `hostNetwork`, so its webhook port 19443 is also a host port. Its default rolling
+   update (one replica: surge 1, unavailable 0) starts the replacement before removing
+   the old pod. On a single node the replacement can never schedule, because the old
+   pod holds the port. Chart 0.16.2 was the first release since installation to
+   change the frr-k8s image (v0.0.25 to v0.0.27), so earlier upgrades never had to roll
+   this Deployment. CI could not catch it, because the manifests render correctly.
+2. **No alerting on Flux state.** The Flux `PodMonitor` scraped only controller runtime
+   metrics. Current Flux controllers no longer export per-object readiness, no rule
+   watched Flux, and Flux notification-controller alerts were not configured. The
+   controllers stayed healthy and MetalLB's rollback succeeded, so nothing else had a
+   symptom to catch.
+3. **Alertmanager v0.35.0 regression** (exposed by the backlog, not a cause of the
+   stall). Its new 90-second HTTP idle timeout matches Prometheus's resend interval
+   for long-firing alerts such as `Watchdog` (30-second evaluation, 1-minute resend
+   delay). Posts sent just as the connection closes fail with `EOF` and are not
+   retried ([prometheus/alertmanager#5743](https://github.com/prometheus/alertmanager/issues/5743)).
+
+**Fixes.**
+
+- #210: a Flux post-renderer sets the statuscleaner Deployment to `maxSurge: 0`,
+  `maxUnavailable: 1`, so it stops the old pod first. Future frr-k8s image bumps roll
+  out normally.
+- #211: kube-state-metrics exports `gotk_resource_info` for every Flux object.
+  `FluxResourceNotReady` (30 minutes), `FluxResourceSuspended` (8 hours), and
+  `FluxResourceMetricsMissing` route to Pushover, with promtool tests and a Phase 5
+  invariant. See [Monitoring & alerting](#monitoring--alerting).
+- #213: Alertmanager held at v0.34.2. Renovate skips only v0.35.0 and will propose the
+  fixed release. The [follow-up](#follow-ups) covers removing the override.
+
+**Lessons.**
+
+- A Helm chart bump can pass every CI check and still fail on the live cluster.
+  Merging a Renovate PR deploys it, so after merging infrastructure chart bumps,
+  watch them reconcile (`flux get kustomizations`, `flux get helmreleases -A`) rather
+  than assuming success. `FluxResourceNotReady` is now the backstop.
+- Everything that depends on `infra-controllers` stops when it does, including
+  delivery of new alert rules. An alert for this kind of failure therefore has to be
+  deployed before the failure starts. The `homelab.flux` rules are now in place, but
+  changes to them still wait for that chain to recover.
+- An eight-day backlog deployed at once makes regressions harder to attribute. The
+  Alertmanager problem was isolated because only the Alertmanager version changed in
+  that release (Prometheus stayed at v3.16.0), and because the notifier error counter
+  had a clean seven-day history to compare against.
 
 ## Follow-ups
 
