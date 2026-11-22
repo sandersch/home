@@ -110,6 +110,13 @@
       dependencyDashboardApproval: true,
     },
     {
+      description: 'Flux HelmRepository indexes refresh every 12h, so a chart bump merged within hours of its release fails with SourceNotReady until the cache catches up (2026-11-22, #208). Waiting a day keeps proposals behind every Flux cache and gives fresh releases time to surface regressions. Applies to HelmRelease versions and the matching Phase 5 runbook assertions alike',
+      matchDatasources: [
+        'helm',
+      ],
+      minimumReleaseAge: '1 day',
+    },
+    {
       description: 'Update the shared-network download pod as one reviewed unit',
       matchPackageNames: [
         'ghcr.io/qdm12/gluetun',
