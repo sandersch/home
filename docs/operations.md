@@ -235,7 +235,7 @@ Phase one is deliberately metrics-first:
   no longer export per-object readiness. kube-state-metrics therefore exports
   `gotk_resource_info` for every Kustomization, HelmRelease, GitRepository,
   HelmRepository, and OCIRepository. The `homelab.flux` rules warn when an object has
-  not been Ready for 30 minutes (`FluxResourceNotReady`), stays suspended for a day
+  not been Ready for 30 minutes (`FluxResourceNotReady`), stays suspended for 8 hours
   (`FluxResourceSuspended`), or the export itself disappears
   (`FluxResourceMetricsMissing`). This was added after a stalled MetalLB upgrade
   blocked every downstream Kustomization unnoticed from 2026-11-14. Because the rules

@@ -53,11 +53,11 @@ spec:
             max by (customresource_kind, exported_namespace, name) (
               gotk_resource_info{suspended="true"}
             )
-          for: 24h
+          for: 8h
           labels:
             severity: warning
           annotations:
-            description: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been suspended for over 24 hours. Resume it with flux resume once manifest work is done."
+            description: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been suspended for over 8 hours. Resume it with flux resume once manifest work is done."
             summary: Flux resource has been left suspended
         - alert: FluxResourceMetricsMissing
           expr: absent(gotk_resource_info{customresource_kind="Kustomization",exported_namespace="flux-system",name="flux-system"})
