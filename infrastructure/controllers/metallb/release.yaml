@@ -22,3 +22,30 @@ spec:
   upgrade:
     remediation:
       retries: 3
+  postRenderers:
+    # The frr-k8s statuscleaner runs with hostNetwork, so its webhook port
+    # (19443) is also a host port. The default rolling update starts the
+    # replacement pod before removing the old one, and on this single node the
+    # replacement can never schedule: the 0.16.2 upgrade (frr-k8s v0.0.25 ->
+    # v0.0.27) hung until the Helm wait timed out and rolled back on
+    # 2026-11-14. The chart has no strategy value for this Deployment, so stop
+    # the old pod first. Keeping the RollingUpdate type rather than Recreate
+    # lets Helm's merge patch the live object, which already carries a
+    # defaulted rollingUpdate block. The webhook only validates FRRConfiguration
+    # objects, which this L2-only setup does not use, so the brief gap during a
+    # rollout is harmless.
+    - kustomize:
+        patches:
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: metallb-frr-k8s-statuscleaner
+            patch: |
+              - op: add
+                path: /spec/strategy
+                value:
+                  type: RollingUpdate
+                  rollingUpdate:
+                    maxSurge: 0
+                    maxUnavailable: 1
