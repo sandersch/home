@@ -298,7 +298,7 @@ class FixtureManager(server.Manager):
         self.commands.append(('server', ('restart',)))
 
 
-@unittest.skipUnless(Path(RESTIC).is_file(), 'set WORKSTATION_RESTIC to checksum-verified Restic 0.19.1')
+@unittest.skipUnless(Path(RESTIC).is_file(), 'set WORKSTATION_RESTIC to checksum-verified Restic 0.20.0')
 class CacheRepositoryTests(unittest.TestCase):
     def test_production_command_populates_then_removes_its_own_cache(self):
         real_popen = subprocess.Popen
@@ -347,7 +347,7 @@ class CacheRepositoryTests(unittest.TestCase):
             self.assertTrue(sizes[:2] and all(size > 0 for size in sizes[:2]))
 
 
-@unittest.skipUnless(Path(RESTIC).is_file(), 'set WORKSTATION_RESTIC to checksum-verified Restic 0.19.1')
+@unittest.skipUnless(Path(RESTIC).is_file(), 'set WORKSTATION_RESTIC to checksum-verified Restic 0.20.0')
 class RepositoryTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='workstation-fixture-')

@@ -38,8 +38,8 @@ def main():
     allowed = {'RESTIC_REPOSITORY', 'RESTIC_PASSWORD', 'RESTIC_REST_USERNAME', 'RESTIC_REST_PASSWORD'}
     if set(credentials) != allowed or credentials['RESTIC_REST_USERNAME'] != args.host:
         raise ValueError('client may receive only its own NAS credentials')
-    if not subprocess.check_output(['/usr/local/bin/restic', 'version']).startswith(b'restic 0.19.1 '):
-        raise ValueError('install checksum-verified Restic 0.19.1 first')
+    if not subprocess.check_output(['/usr/local/bin/restic', 'version']).startswith(b'restic 0.20.0 '):
+        raise ValueError('install checksum-verified Restic 0.20.0 first')
     library = Path('/usr/local/lib/workstation-backup')
     subprocess.run(['sudo', 'install', '-d', '-m', '0755', str(library)], check=True)
     for name in ('workstation.py', 'documents.py'):

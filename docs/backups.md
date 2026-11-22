@@ -638,7 +638,7 @@ own longer deadline). Increase measured limits together if necessary; do not mov
 plaintext validation output to the root filesystem.
 Memory-backed volume usage counts toward container memory
 ([Kubernetes emptyDir documentation](https://kubernetes.io/docs/concepts/storage/volumes/#emptydir));
-Restic's [cache format](https://github.com/restic/restic/blob/v0.19.1/doc/cache.rst)
+Restic's [cache format](https://github.com/restic/restic/blob/v0.20.0/doc/cache.rst)
 stores repository objects as read, while our validation listings are decrypted.
 
 Both `.backup-credentials` and `.mail-credentials` are excluded by exact,
@@ -1228,7 +1228,7 @@ porting back.
 
 ### 4. Workstations push via append-only REST server
 
-Executable retention uses `84d` for twelve weeks: Restic 0.19.1 rejects `12w`.
+Executable retention uses `84d` for twelve weeks: Restic (0.19.1 and 0.20.0) rejects `12w`.
 The existing vault prune command received the same correction during workstation
 fixture verification; the first scheduled vault NAS/B2 prune passed on 2026-09-20.
 

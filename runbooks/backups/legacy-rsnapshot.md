@@ -10,8 +10,9 @@ including `check --read-data` and manual inspection; see the
 accepted repository and snapshot IDs, measured sizes, and original verification results are
 in the [sanitized evidence](evidence/legacy-rsnapshot-20260920.json). Run the helper from a
 reviewed checkout (`runbooks/backups/legacy-rsnapshot.py`); the installed copy used for the
-original archive was retired on 2026-09-27. Checksum-verified Restic 0.19.1 remains
-installed at `/usr/local/lib/legacy-rsnapshot/restic`. The operator confirmed that the source is retired,
+original archive was retired on 2026-09-27. The helper now requires Restic 0.20.0; the binary at
+`/usr/local/lib/legacy-rsnapshot/restic` was installed as 0.19.1, so reinstall it with the
+checksum-verifying installer before the next helper run. The operator confirmed that the source is retired,
 including remote writers, and approved an attended
 low-I/O window. A live scan found historical Unix sockets. The operator explicitly accepted
 Restic's inherent omission of those entries; their paths and metadata remain in the private
@@ -45,7 +46,7 @@ sudo python3 runbooks/backups/workstation-install-restic.py --directory /usr/loc
 sudo /usr/local/lib/legacy-rsnapshot/restic version
 ```
 
-The existing installer downloads Restic **0.19.1**, verifies the release archive against
+The existing installer downloads Restic **0.20.0**, verifies the release archive against
 upstream SHA256SUMS over HTTPS, and installs it at a dedicated path. Record the checksum
 output. Never substitute an unverified binary. The helper requires that exact version.
 
@@ -96,7 +97,7 @@ Every nonzero backup exit, including 3, fails. Before/after inventories must mat
 (excluding atime, which reads can change). Only then is a candidate full snapshot ID recorded.
 Verification checks that exact ID's host/tag/path, runs `check --read-data`, and compares the
 entire supported path/type/size/owner/mode/mtime inventory. All symlink targets are checked through an additional long listing;
-representative symlinks are also restored. Restic 0.19.1 JSON listings omit targets, so
+representative symlinks are also restored. Restic JSON listings (0.19.1 and 0.20.0) omit targets, so
 unprintable symlink names/targets or names containing ` -> ` fail closed for an attended
 alternative verification instead of accepting ambiguous text. Samples cover every top-level historical directory plus hidden
 files, executables, hardlink pairs, and xattrs where present. Scratch has a private parent
@@ -223,7 +224,7 @@ acceptance evidence. The annual offline checks and restores include this reposit
 static archive needs no quarterly recopy or freshness metric. Never prune it.
 
 Tests: `PYTHONDONTWRITEBYTECODE=1 python3 runbooks/backups/test-legacy-rsnapshot.py` uses
-real Restic 0.19.1 on disposable fixtures plus injected failures; no live storage is touched.
+real Restic 0.20.0 on disposable fixtures plus injected failures; no live storage is touched.
 Install `cryptography==50.0.1` in the test Python environment first (CI uses a temporary
 venv). Most fixtures reuse the workstation fixture helper to lower only the disposable
 key's scrypt cost after a real `restic init`. Each test still gets a fresh repository,

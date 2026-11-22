@@ -728,7 +728,7 @@ def main():
         elif args.command == 'provision':
             provision(args)
         else:
-            require(run(BINARY, 'version').startswith('restic 0.19.1 '), 'Restic 0.19.1 required')
+            require(run(BINARY, 'version').startswith('restic 0.20.0 '), 'Restic 0.20.0 required')
             operate(args)
 
 
