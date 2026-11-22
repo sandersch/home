@@ -15,7 +15,7 @@ spec:
       metricRelabelings:
         - sourceLabels:
             - __name__
-          regex: mqtt_(state|response_time|mqtt_connected)
+          regex: mqtt_(state|response_time|mqtt_connected|zigbee_availability)
           action: keep
   namespaceSelector:
     matchNames:

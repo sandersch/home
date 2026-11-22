@@ -93,6 +93,31 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: Probe
 metadata:
+  name: zwave-coordinator
+  namespace: monitoring
+spec:
+  interval: 30s
+  jobName: blackbox-zwave-coordinator
+  module: tcp_connect
+  prober:
+    path: /probe
+    scheme: http
+    url: blackbox-exporter.monitoring.svc.cluster.local:9115
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      # Same appliance as the Zigbee coordinator, separate radio and socket. Z-Wave
+      # JS UI is critical tier. tcp_connect sends no bytes; the Phase 4 Z-Wave
+      # validator already opens connect-only sessions alongside the live driver.
+      labels:
+        probe_scope: zwave-coordinator
+        service_tier: critical
+      static:
+        - slzb-mrw10u.iot.matrix:6638
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
   name: nfs
   namespace: monitoring
 spec:

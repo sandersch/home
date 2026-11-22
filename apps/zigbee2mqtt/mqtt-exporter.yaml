@@ -37,7 +37,11 @@ spec:
             - name: MQTT_PORT
               value: "1883"
             - name: MQTT_TOPIC
-              value: zigbee2mqtt/bridge/state,zigbee2mqtt/bridge/health
+              value: zigbee2mqtt/bridge/state,zigbee2mqtt/bridge/health,zigbee2mqtt/+/availability
+            # Moves the /availability suffix into the metric name, giving
+            # mqtt_zigbee_availability{topic="zigbee2mqtt_<friendly name>"} = 1 or 0.
+            - name: ZIGBEE2MQTT_AVAILABILITY
+              value: "True"
             - name: MQTT_CLIENT_ID
               value: prometheus-zigbee2mqtt-health
             - name: MQTT_USERNAME

@@ -18,15 +18,19 @@ SLZB-MRW10U Zigbee coordinator into the existing authenticated Mosquitto broker.
 - The frontend is available at `https://zigbee2mqtt.worm.run` and requires the token
   in `zigbee2mqtt-auth.sops.yaml`. No public ingress is exposed.
 - A critical-priority MQTT exporter reuses that encrypted broker account, subscribes
-  only to `zigbee2mqtt/bridge/state` and `zigbee2mqtt/bridge/health`, and exposes the
-  retained bridge state, Zigbee2MQTT's MQTT connection status, and health timestamp
-  to Prometheus. The deployment override publishes health every minute; a critical
-  alert fires when the combined signal remains unhealthy for five minutes.
-- A separate critical blackbox TCP probe checks
-  `slzb-mrw10u.iot.matrix:7638` every 30 seconds and uses the shared
-  `CriticalEndpointDown` rule after three minutes. This covers coordinator DNS,
-  routing, appliance, and socket failures that the frontend and MQTT health signals
-  can miss.
+  only to `zigbee2mqtt/bridge/state`, `zigbee2mqtt/bridge/health`, and
+  `zigbee2mqtt/+/availability`, and exposes the retained bridge state, Zigbee2MQTT's
+  MQTT connection status, health timestamp, and per-device availability to
+  Prometheus. The deployment override publishes health every minute; a critical
+  alert fires when the combined bridge signal remains unhealthy for five minutes.
+  A second critical alert fires when at least half of the tracked devices and groups
+  stay unavailable for five minutes. That catches a radio that accepts commands but
+  delivers nothing while the bridge still looks healthy.
+- Separate critical blackbox TCP probes check the coordinator's Zigbee socket
+  `slzb-mrw10u.iot.matrix:7638` and Z-Wave socket `slzb-mrw10u.iot.matrix:6638`
+  every 30 seconds and use the shared `CriticalEndpointDown` rule after three
+  minutes. This covers coordinator DNS, routing, appliance, and socket failures that
+  the frontend and MQTT health signals can miss.
 
 After Flux reconciles, run `./runbooks/phase4/14-validate-zigbee2mqtt.sh`. Then open
 the frontend, enable joining only for the time needed to pair each device, give each
@@ -35,13 +39,39 @@ Home Assistant. Keep joining disabled otherwise.
 
 Run `./runbooks/phase5/15-validate-zigbee2mqtt-monitoring.sh` after monitoring changes
 and during periodic monitoring drills. The non-disruptive helper validates the live
-critical ingress and coordinator TCP probes, MQTT exporter target and metrics, and
-inactive bridge-health/endpoint alerts without publishing synthetic retained state.
+critical ingress and Zigbee/Z-Wave coordinator TCP probes, MQTT exporter target,
+bridge-health and device-availability metrics, and inactive Zigbee2MQTT/endpoint
+alerts without publishing synthetic retained state.
 
 The workload, coordinator connection, broker connection, frontend, exporter, and
 monitoring paths passed live validation on 2026-08-16. Device pairing and Home
 Assistant MQTT discovery are also complete, and discovered Zigbee devices have been
 used successfully in Home Assistant automations.
+
+## Coordinator firmware
+
+The SLZB-MRW10U carries three pieces of firmware. Expected versions as of 2026-11-22:
+
+| Component | Version | Reported by |
+|---|---|---|
+| SLZB-OS (appliance) | `v3.3.1`, update channel `release` | SLZB web UI, `http://slzb-mrw10u.iot.matrix/ha_info` (`sw_version`, `fw_channel`) |
+| Zigbee radio, TI CC2674P10 | Z-Stack `20261113` | Zigbee2MQTT startup log (`Coordinator firmware version`), `ha_info` radio `chip_index` 1 |
+| Z-Wave radio, Silicon Labs EFR32ZG23 | `20260402` (Z-Wave SDK 7.24.3) | Z-Wave JS UI controller info, `ha_info` radio `chip_index` 0 |
+
+Firmware changes are attended, like k3s and chart upgrades. Keep the appliance on
+the `release` channel with automatic updates off. Before changing any of the three,
+request a fresh Zigbee2MQTT backup and a Z-Wave NVM backup, and plan for both radios
+to drop. Afterwards, restart Zigbee2MQTT so it registers its endpoints with the
+radio again, then run the Phase 4 Zigbee2MQTT and Z-Wave validators and the Phase 5
+monitoring validator. Update the table in the same change.
+
+A 2026-11-22 unattended update from the `dev` channel left the Zigbee radio
+rejecting every send while the bridge still reported online. See the
+[incident record](../../docs/operations.md#2026-11-22-zigbee-down-for-78-minutes-after-an-unattended-coordinator-firmware-update).
+The Zigbee radio kept the `20261113` build from that update; it has run cleanly
+since Zigbee2MQTT was restarted.
+
+## Backups
 
 Back up `coordinator_backup.json`, `database.db`, and `configuration.yaml` after
 pairing devices and before coordinator firmware or Zigbee network changes. A fresh

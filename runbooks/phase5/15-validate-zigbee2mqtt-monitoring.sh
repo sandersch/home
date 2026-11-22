@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Phase 5.15 - validate the live Zigbee2MQTT ingress and MQTT-native bridge
-# monitoring path without interrupting the service or publishing synthetic MQTT state.
+# Phase 5.15 - validate the live Zigbee2MQTT ingress, MQTT-native bridge and
+# device-availability monitoring, and the SLZB-MRW10U Zigbee and Z-Wave coordinator
+# TCP probes without interrupting the service or publishing synthetic MQTT state.
 #
 # Optional:
 #   ZIGBEE2MQTT_EXPORTER_LOCAL_PORT=19100
@@ -104,6 +105,7 @@ kubectl -n zigbee2mqtt get service zigbee2mqtt-mqtt-exporter >/dev/null
 kubectl -n monitoring get servicemonitor zigbee2mqtt-mqtt-health >/dev/null
 kubectl -n monitoring get probe critical-ingress >/dev/null
 kubectl -n monitoring get probe zigbee-coordinator >/dev/null
+kubectl -n monitoring get probe zwave-coordinator >/dev/null
 kubectl -n monitoring get prometheusrule homelab-alerts >/dev/null
 exporter_pod="$({
   kubectl -n zigbee2mqtt get pods \
@@ -139,6 +141,20 @@ jq -en --arg value "$health_timestamp_ms" \
   '($value | tonumber) > 0' >/dev/null \
   || die "Zigbee2MQTT health timestamp is not numeric and positive"
 ok "exporter reports bridge online, MQTT connected, and a health timestamp"
+
+availability_counts="$({
+  awk '
+    $1 ~ /^mqtt_zigbee_availability\{/ { total += 1; if ($NF + 0 == 1) online += 1 }
+    END { printf "%d %d\n", online, total }
+  ' "$tmpdir/exporter-metrics.txt"
+})"
+availability_online="${availability_counts%% *}"
+availability_total="${availability_counts##* }"
+[ "$availability_total" -gt 0 ] \
+  || die "exporter exposes no mqtt_zigbee_availability samples"
+[ $((availability_online * 2)) -gt "$availability_total" ] \
+  || die "only $availability_online of $availability_total Zigbee2MQTT devices and groups report online"
+ok "exporter reports $availability_online of $availability_total Zigbee2MQTT devices and groups online"
 
 step "Verify Prometheus target, ingress probe, metrics, and alert rule"
 kubectl -n monitoring port-forward service/kube-prometheus-stack-prometheus \
@@ -190,6 +206,14 @@ prom_query \
     ' >/dev/null \
   || die "Prometheus does not have Zigbee2MQTT health data newer than three minutes"
 
+prom_query "count(mqtt_zigbee_availability{namespace=\"zigbee2mqtt\",pod=\"$exporter_pod\"})" \
+  | jq -e --argjson total "$availability_total" '
+      .status == "success" and
+      (.data.result | length) == 1 and
+      (.data.result[0].value[1] | tonumber) == $total
+    ' >/dev/null \
+  || die "Prometheus does not see the exporter's $availability_total device-availability series"
+
 prom_query 'probe_success{instance="https://zigbee2mqtt.worm.run",service_tier="critical"}' \
   | jq -e '
       .status == "success" and
@@ -209,6 +233,16 @@ prom_query 'probe_success{instance="slzb-mrw10u.iot.matrix:7638",service_tier="c
     ' >/dev/null \
   || die "the critical TCP probe for slzb-mrw10u.iot.matrix:7638 is not successful"
 
+prom_query 'probe_success{instance="slzb-mrw10u.iot.matrix:6638",service_tier="critical"}' \
+  | jq -e '
+      .status == "success" and
+      (.data.result | length) == 1 and
+      .data.result[0].metric.job == "blackbox-zwave-coordinator" and
+      .data.result[0].metric.probe_scope == "zwave-coordinator" and
+      (.data.result[0].value[1] | tonumber) == 1
+    ' >/dev/null \
+  || die "the critical TCP probe for slzb-mrw10u.iot.matrix:6638 is not successful"
+
 curl --fail --silent --show-error \
   "http://127.0.0.1:$prometheus_port/api/v1/rules?type=alert" \
   >"$tmpdir/prometheus-alert-rules.json"
@@ -222,6 +256,16 @@ jq -e '
       $rules[0].duration == 300
     ' "$tmpdir/prometheus-alert-rules.json" >/dev/null \
   || die "Zigbee2MQTTBridgeUnhealthy is missing, unhealthy, active, or has the wrong delay"
+jq -e '
+      [.data.groups[].rules[] |
+        select(.name == "Zigbee2MQTTDevicesUnavailable")] as $rules |
+      ($rules | length) == 1 and
+      $rules[0].health == "ok" and
+      $rules[0].state == "inactive" and
+      ($rules[0].lastError == null or $rules[0].lastError == "") and
+      $rules[0].duration == 300
+    ' "$tmpdir/prometheus-alert-rules.json" >/dev/null \
+  || die "Zigbee2MQTTDevicesUnavailable is missing, unhealthy, active, or has the wrong delay"
 jq -e '
       [.data.groups[].rules[] |
         select(.name == "CriticalEndpointDown")] as $rules |
@@ -246,11 +290,12 @@ jq -e '
       [.data.alerts[] |
         select(
           .labels.alertname == "CriticalEndpointDown" and
-          .labels.instance == "slzb-mrw10u.iot.matrix:7638"
+          (.labels.instance == "slzb-mrw10u.iot.matrix:7638" or
+            .labels.instance == "slzb-mrw10u.iot.matrix:6638")
         )] |
       length == 0
     ' "$tmpdir/prometheus-alerts.json" >/dev/null \
-  || die "the Zigbee coordinator CriticalEndpointDown alert is unexpectedly pending or firing"
+  || die "a coordinator CriticalEndpointDown alert is unexpectedly pending or firing"
 
-ok "Prometheus sees healthy ingress, coordinator TCP, and MQTT paths and evaluates both critical alerts cleanly"
+ok "Prometheus sees healthy ingress, Zigbee and Z-Wave coordinator TCP, MQTT, and device-availability paths and evaluates the critical alerts cleanly"
 ok "Zigbee2MQTT monitoring live validation complete"

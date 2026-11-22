@@ -168,6 +168,17 @@ assert_phase5_observability_invariants() {
   ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
     || die "Zigbee coordinator critical TCP probe changed unexpectedly"
   yq -e '
+    select(.kind == "Probe" and .metadata.name == "zwave-coordinator") |
+    .spec.interval == "30s" and
+    .spec.jobName == "blackbox-zwave-coordinator" and
+    .spec.module == "tcp_connect" and
+    .spec.scrapeTimeout == "10s" and
+    .spec.targets.staticConfig.labels.probe_scope == "zwave-coordinator" and
+    .spec.targets.staticConfig.labels.service_tier == "critical" and
+    .spec.targets.staticConfig.static == ["slzb-mrw10u.iot.matrix:6638"]
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-probes.yaml" >/dev/null \
+    || die "Z-Wave coordinator critical TCP probe changed unexpectedly"
+  yq -e '
     select(.kind == "PrometheusRule" and .metadata.name == "homelab-alerts") |
     any(.spec.groups[];
       .name == "homelab.blackbox" and
@@ -210,7 +221,9 @@ assert_phase5_observability_invariants() {
         .value == "mosquitto.mqtt.svc.cluster.local") and
       any($container.env[];
         .name == "MQTT_TOPIC" and
-        .value == "zigbee2mqtt/bridge/state,zigbee2mqtt/bridge/health") and
+        .value == "zigbee2mqtt/bridge/state,zigbee2mqtt/bridge/health,zigbee2mqtt/+/availability") and
+      any($container.env[];
+        .name == "ZIGBEE2MQTT_AVAILABILITY" and .value == "True") and
       any($container.env[];
         .name == "MQTT_USERNAME" and
         .valueFrom.secretKeyRef.name == "zigbee2mqtt-auth" and
@@ -230,7 +243,7 @@ assert_phase5_observability_invariants() {
     .spec.endpoints[0].scrapeTimeout == "10s" and
     any(.spec.endpoints[0].metricRelabelings[];
       .sourceLabels == ["__name__"] and
-      .regex == "mqtt_(state|response_time|mqtt_connected)" and
+      .regex == "mqtt_(state|response_time|mqtt_connected|zigbee_availability)" and
       .action == "keep")
   ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/zigbee2mqtt-mqtt-health.yaml" >/dev/null \
     || die "Zigbee2MQTT MQTT health ServiceMonitor changed unexpectedly"
@@ -248,6 +261,18 @@ assert_phase5_observability_invariants() {
       (.expr | contains("kube_deployment_status_replicas_available")))
   ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
     || die "Zigbee2MQTT MQTT bridge-health alert changed unexpectedly"
+  yq -e '
+    select(.kind == "PrometheusRule" and .metadata.name == "homelab-alerts") |
+    any(.spec.groups[].rules[];
+      .alert == "Zigbee2MQTTDevicesUnavailable" and
+      .for == "5m" and
+      .labels.severity == "critical" and
+      (.expr | contains("count(mqtt_zigbee_availability == 0)")) and
+      (.expr | contains(">= 0.5")) and
+      (.expr | contains("absent(mqtt_zigbee_availability)")) and
+      (.expr | contains("kube_deployment_status_replicas_available")))
+  ' "$PHASE5_OBSERVABILITY_CONFIG_DIR/alert-rules.yaml" >/dev/null \
+    || die "Zigbee2MQTT device-availability alert changed unexpectedly"
   yq -e '.resources | index("zigbee2mqtt-mqtt-health.yaml") != null' \
     "$PHASE5_OBSERVABILITY_CONFIG_DIR/kustomization.yaml" >/dev/null \
     || die "Zigbee2MQTT MQTT health ServiceMonitor is not included in monitoring-configs"

@@ -212,17 +212,21 @@ Phase one is deliberately metrics-first:
   nonexistent control-plane scrape targets are disabled.
 - **prometheus-blackbox-exporter** checks the authenticated/user-facing ingress path
   for Home Assistant, Frigate, Zigbee2MQTT, Plex, Seerr, and RomM, plus the internal
-  MQTT broker and SLZB-MRW10U Zigbee coordinator TCP paths. These probes exercise DNS,
+  MQTT broker and SLZB-MRW10U Zigbee and Z-Wave coordinator TCP paths. These probes exercise DNS,
   ingress, TLS, Services, applications, and the coordinator network socket instead of
-  only observing that pods exist. Zigbee2MQTT is in the critical tier, so both its
-  HTTPS path and coordinator socket are checked every 30 seconds and alert after three
-  minutes of continuous failure.
-- A dedicated **MQTT exporter** subscribes only to Zigbee2MQTT's retained bridge state
-  and one-minute health topic. Prometheus alerts when the bridge reports offline, its
-  own MQTT client reports disconnected, or health publication is missing or more
-  than five minutes old. This distinguishes an available frontend from a broken
-  Zigbee2MQTT-to-broker application path; the separate coordinator TCP probe covers
-  SLZB name resolution, routing, appliance availability, and the radio socket.
+  only observing that pods exist. Zigbee2MQTT and Z-Wave JS UI are in the critical
+  tier, so the Zigbee2MQTT HTTPS path and both coordinator sockets are checked every
+  30 seconds and alert after three minutes of continuous failure.
+- A dedicated **MQTT exporter** subscribes only to Zigbee2MQTT's retained bridge state,
+  one-minute health topic, and per-device availability topics. Prometheus alerts when
+  the bridge reports offline, its own MQTT client reports disconnected, or health
+  publication is missing or more than five minutes old. This distinguishes an
+  available frontend from a broken Zigbee2MQTT-to-broker application path; the
+  separate coordinator TCP probe covers SLZB name resolution, routing, appliance
+  availability, and the radio socket. None of those signals sees a radio that accepts
+  the connection but rejects every send, so a second rule alerts when at least half
+  of the devices and groups Zigbee2MQTT tracks are unavailable
+  ([2026-11-22 incident](#2026-11-22-zigbee-down-for-78-minutes-after-an-unattended-coordinator-firmware-update)).
 - **nut-exporter** anonymously polls the host NUT server for the `cp1500` UPS. Its
   ServiceMonitor records charge, runtime, voltage, load, and status every 30 seconds;
   a repo-owned Grafana dashboard uses only telemetry exposed by this CyberPower model.
@@ -295,8 +299,9 @@ and its functionality moved to Grafana Alloy.
 
 | Alert | Trigger | State |
 |---|---|---|
-| Critical/standard endpoint down | blackbox HTTPS, MQTT TCP, or Zigbee coordinator TCP probe fails beyond its tier window | deployed; coordinator TCP live-validated 2026-08-16 |
+| Critical/standard endpoint down | blackbox HTTPS, MQTT TCP, or Zigbee/Z-Wave coordinator TCP probe fails beyond its tier window | deployed; Zigbee coordinator TCP live-validated 2026-08-16; Z-Wave coordinator TCP committed 2026-11-22 |
 | Zigbee2MQTT bridge unhealthy | retained state is offline, MQTT is disconnected, or one-minute health data is missing/stale | deployed and live-validated 2026-08-16 |
+| Zigbee devices unavailable | at least half of the devices and groups Zigbee2MQTT tracks are unavailable for 5 minutes, or availability metrics are missing while the exporter runs | committed 2026-11-22; promtool-tested against the incident's pattern, not yet live-validated |
 | Ingress certificate expiring | blackbox sees fewer than 14 days remaining | committed |
 | NVMe usage > 80% | `/opt` filling | committed |
 | Bulk-storage mount lost/error | an expected `hoardvg` ext4 mount disappears, maps incorrectly, or reports a device error | committed |
@@ -781,6 +786,83 @@ of waiting for the default interval.
 
 Record incidents here, newest first. Times are UTC.
 
+### 2026-11-22: Zigbee down for 78 minutes after an unattended coordinator firmware update
+
+**Summary.** The SLZB-MRW10U coordinator was on SLZB-OS `v3.4.5.dev0` with its update
+channel set to `dev`. It hung, dropped both radio sockets, and came back with
+different Zigbee radio firmware. Zigbee2MQTT reconnected and reported the bridge
+online, but the radio rejected every send, so every mains-powered Zigbee device went
+unavailable. No alert fired. The outage was found during a manual cluster health
+check and fixed by restarting Zigbee2MQTT. The appliance was then moved to the
+`release` channel and SLZB-OS was flashed back to `v3.3.1`.
+
+**Impact.**
+
+- Zigbee control failed from 21:31:47 to 22:49:55 (78 minutes). All six router devices
+  and the `Office Lights` group were marked unavailable from 21:43 until 22:49:55, and
+  no device reported state in that window. The battery-powered `Office Presence`
+  sensor stayed marked online because Zigbee2MQTT waits much longer before declaring
+  battery devices unavailable.
+- Z-Wave lost its controller from 21:30:31 to 21:33:56 and again for 32 seconds during
+  the attended SLZB-OS reflash at 22:56:40. Z-Wave node 256 has been marked dead since
+  21:33:56 (see [Follow-ups](#follow-ups)).
+- The coordinator TCP probe failed one sample at 21:32, well under the three-minute
+  `CriticalEndpointDown` window. `Zigbee2MQTTBridgeUnhealthy` stayed inactive
+  throughout, because bridge state, the MQTT session, and health publication were all
+  normal.
+
+**Timeline.**
+
+| Time | Event |
+|---|---|
+| 21:30:31 | The Z-Wave radio stops acknowledging frames while its TCP session stays open. Z-Wave JS UI soft-reset attempts time out every 30 seconds. |
+| 21:31:47 | Zigbee2MQTT availability pings start timing out. |
+| 21:32:57 | The SLZB resets the Zigbee TCP session (`ECONNRESET`). Zigbee2MQTT exits with code 2 and Kubernetes restarts it. |
+| 21:33:00 | Zigbee2MQTT resumes the network. The coordinator reports Z-Stack revision `20260310`. |
+| 21:33:56 | Z-Wave JS UI reopens the socket and a soft reset succeeds. Node 256 fails its first ping and is presumed dead. |
+| 21:43:17 to 21:43:45 | All router devices and the group go unavailable. Later sends fail with `AF dataRequest ... INVALID_PARAM`. |
+| about 22:37 | Found during a manual cluster health check. The SLZB status page reports the Zigbee radio (CC2674P10) on `20261113`, not the `20260310` read at 21:33:00, with `sw_version v3.4.5.dev0` and `fw_channel dev`. |
+| 22:49:55 | SLZB update channel set to `release` and Zigbee2MQTT restarted. It resumes on radio firmware `20261113` and all devices report again. |
+| 22:56:33 | Flux's `apps` reconcile reverts the `kubectl rollout restart` annotation, restarting Zigbee2MQTT a second time. |
+| 22:56:40 to 22:57:57 | SLZB-OS flashed back to `v3.3.1`. Z-Wave reconnects at 22:57:12; Zigbee2MQTT resumes at 22:57:57. |
+| 23:32 | 35 minutes with no failed pings or unavailable devices, and no Z-Wave controller faults. Closed. |
+
+**Root causes.**
+
+1. **Unattended firmware change on the coordinator.** The appliance's own update log
+   was not retrieved, so the mechanism is inferred: it was on the `dev` channel and
+   on a dev build, both radios stopped together, and the Zigbee radio's firmware
+   revision changed after Zigbee2MQTT connected at 21:33:00. Reflashing the radio
+   under a live session would discard the endpoint registrations Zigbee2MQTT makes at
+   startup, which matches every later send failing with `INVALID_PARAM` until
+   Zigbee2MQTT restarted and registered them again.
+2. **No alert on device availability.** The exporter subscribed only to bridge state
+   and health. The bridge stayed online with a healthy MQTT session while the radio
+   behind it refused to send, and the coordinator socket stayed reachable. Z-Wave had
+   no probe at all.
+
+**Fixes.**
+
+- SLZB update channel moved to `release` and SLZB-OS reflashed to `v3.3.1`. The
+  expected firmware and the attended-update policy are now recorded in
+  [the Zigbee2MQTT README](../apps/zigbee2mqtt/README.md#coordinator-firmware).
+- The MQTT exporter now also subscribes to `zigbee2mqtt/+/availability`.
+  `Zigbee2MQTTDevicesUnavailable` fires when at least half of the tracked devices and
+  groups stay unavailable for five minutes. `runbooks/phase5/test-zigbee2mqtt-alerts.py`
+  replays this incident's pattern in promtool, with the bridge staying healthy.
+- A critical blackbox TCP probe now covers the Z-Wave socket
+  `slzb-mrw10u.iot.matrix:6638`.
+
+**Lessons.**
+
+- Bridge-level health is not radio health. A coordinator can accept connections and
+  commands while delivering nothing, so the alert has to watch the devices.
+- Network-attached coordinators are firmware-bearing infrastructure. Their updates
+  need the same attended gate as k3s or chart upgrades, with Zigbee2MQTT and Z-Wave
+  NVM backups taken first.
+- Flux reverts `kubectl rollout restart` on its next `apps` reconcile, which restarts
+  the workload a second time. Expect that, or restart by deleting the pod.
+
 ### 2026-11-14: Flux stalled for eight days without alerting
 
 **Summary.** Renovate's MetalLB chart bump from 0.16.1 to 0.16.2 could not roll out
@@ -881,6 +963,7 @@ exception remain absent.
 | Item | When to do it |
 |---|---|
 | **Alertmanager override in kube-prometheus-stack** | Since 2026-11-22, `kube-prometheus-stack.yaml` holds Alertmanager at v0.34.2. v0.35.0's 90-second HTTP idle timeout races Prometheus's 90-second resend cadence and drops alert batches with `EOF` ([prometheus/alertmanager#5743](https://github.com/prometheus/alertmanager/issues/5743)). Renovate tracks the override and skips only v0.35.0 (`renovate.json5`), so it opens a PR once the release carrying the fix ([#5744](https://github.com/prometheus/alertmanager/pull/5744)) ships. That PR is the cue to remove the override rather than keep pinning. If the pinned chart already defaults to that Alertmanager version or later, close the PR and delete the `alertmanagerSpec.image` block. Otherwise merge it, and delete the block once the chart catches up. Afterwards, confirm `increase(prometheus_notifications_errors_total[1h])` stays at 0. |
+| **Z-Wave node 256 after the 2026-11-22 coordinator incident** | Z-Wave JS UI marked node 256 dead at 21:33:56 UTC, right after the first coordinator reset, and nothing has contacted it since. Ping it from Z-Wave JS UI, or wake it if it is battery-powered. If it stays dead, re-interview it and check the Home Assistant automations that use it. Then remove this row. |
 | **Whole-estate/off-site backup plan** | **Partially complete.** Vault B2 enrollment, seed, on-host and card-only off-host restores, authorization separation, and repository verification passed on 2026-09-07. Flux applied activation commit `eb02a61`; copy/prune CronJobs are live with `SUSPEND=false`, and the first copy run completed successfully. Workstation clients are active. [Offline SSD tooling](../runbooks/backups/offline-ssd.md) and warning rules are implemented; drive A was enrolled on 2026-10-02 and passed independent recovery on 2026-10-03; drive B was enrolled and passed independent recovery on 2026-10-10; both drives were confirmed off-site and the alert rules were activated in git that day. Rotate A in Q2/Q4 and B in Q1/Q3, starting A in Q4 2026. Mail archival remains draft. Do not describe the RAID array itself as a backup. |
 | **Move SLZB-MRW10U to IoT VLAN 60** | The dual-radio coordinator currently resides on Trusted/VLAN 30. Follow the ordered migration checklist in [network.md](./network.md#network-step-1-unifi-dream-machine-configuration): record its current IP/MAC, assign a stable VLAN 60 address, stage the narrow `minis` TCP `6638`/`7638` allow, preserve `slzb-mrw10u.iot.matrix`, and rerun the Z-Wave, Zigbee, and monitoring validators. mDNS reflection is neither enabled nor required for this fixed DNS/TCP path. |
 | **Second node** | Only on a *measured* need: HA must survive main-node maintenance, or Frigate outgrows the Coral/CPU budget. Repo layout already supports it via `nodeSelector`/affinity. |

@@ -111,6 +111,7 @@ jobs:
           python3 runbooks/phase5/test-raid-check-alerts.py
           python3 runbooks/phase5/test-disk-health-alerts.py
           python3 runbooks/phase5/test-flux-alerts.py
+          python3 runbooks/phase5/test-zigbee2mqtt-alerts.py
 
   repositories:
     needs: checks
