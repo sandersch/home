@@ -159,6 +159,16 @@
       allowedVersions: '!/^v0\\.15\\.0$/',
     },
     {
+      description: 'MetalLB chart 0.16.2 timed out on the metallb-frr-k8s-statuscleaner rollout and was rolled back (2026-11-14); it stalled every downstream Flux Kustomization until reverted',
+      matchDatasources: [
+        'helm',
+      ],
+      matchPackageNames: [
+        'metallb',
+      ],
+      allowedVersions: '!/^0\\.16\\.2$/',
+    },
+    {
       description: 'The custom Restic image is published only through its attended workflow',
       matchPackageNames: [
         'ghcr.io/sandersch/restic-backup',
