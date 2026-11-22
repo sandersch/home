@@ -31,6 +31,42 @@ spec:
           annotations:
             description: "The TLS certificate seen at {{ $labels.instance }} expires in less than 14 days."
             summary: Ingress certificate is close to expiry
+    - name: homelab.flux
+      # gotk_resource_info comes from the kube-state-metrics customResourceState
+      # config in controllers/kube-prometheus-stack.yaml. Aggregating by object
+      # keeps the "for" timer running while the ready label moves between False
+      # and Unknown across retries, and while revisions change.
+      rules:
+        - alert: FluxResourceNotReady
+          expr: |
+            max by (customresource_kind, exported_namespace, name) (
+              gotk_resource_info{ready!="True",suspended!="true"}
+            )
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            description: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has not been Ready for 30 minutes, so git changes it owns (and anything that depends on it) are not being applied. Objects reporting DependencyNotReady recover once the root object does; find it with kubectl get kustomizations,helmreleases,gitrepositories,helmrepositories -A."
+            summary: Flux resource is not reconciling
+        - alert: FluxResourceSuspended
+          expr: |
+            max by (customresource_kind, exported_namespace, name) (
+              gotk_resource_info{suspended="true"}
+            )
+          for: 8h
+          labels:
+            severity: warning
+          annotations:
+            description: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been suspended for over 8 hours. Resume it with flux resume once manifest work is done."
+            summary: Flux resource has been left suspended
+        - alert: FluxResourceMetricsMissing
+          expr: absent(gotk_resource_info{customresource_kind="Kustomization",exported_namespace="flux-system",name="flux-system"})
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            description: kube-state-metrics has not exported gotk_resource_info for the flux-system Kustomization for 30 minutes, so FluxResourceNotReady cannot fire. Check the kube-state-metrics custom resource config, its RBAC, and its logs.
+            summary: Flux reconciliation metrics are missing
     - name: homelab.zigbee2mqtt
       rules:
         - alert: Zigbee2MQTTBridgeUnhealthy
