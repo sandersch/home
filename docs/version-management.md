@@ -83,7 +83,9 @@ after this workflow runs on GitHub.
 
 `.github/workflows/renovate-config.yaml` strictly validates the Renovate configuration,
 running only when `renovate.json5` or that workflow (which pins the validator version)
-changes.
+changes. The validator pin carries a `# renovate: datasource=npm depName=renovate`
+annotation, and a workflow regex manager keeps it current so the strict check accepts
+config forms that hosted Renovate's own migrations produce.
 
 ## Renovate proposal policy
 

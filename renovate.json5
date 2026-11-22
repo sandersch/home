@@ -34,6 +34,14 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>helm) depName=(?<depName>\\S+) registryUrl=(?<registryUrl>\\S+)\\s*\\n[^\\n]*?\\.spec\\.chart\\.spec\\.version == \"(?<currentValue>[^\"]+)\""
       ]
+    },
+    {
+      "customType": "regex",
+      "description": "Annotated tool version pins in GitHub Actions workflow env blocks, such as the Renovate config validator",
+      "managerFilePatterns": ["/^\\.github\\/workflows\\/.*\\.ya?ml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s*\\n\\s*[A-Z][A-Z0-9_]*: ['\"]?(?<currentValue>[^\\s'\"]+)['\"]?"
+      ]
     }
   ],
   "packageRules": [
