@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Prepare a custom Restic image release without hand edits.
 
-  version --base REF   When the Containerfile differs from REF but VERSION does
-                       not, write the next release: <upstream>-1 for a new
+  version --base REF   When the Containerfile differs from the last release (REF,
+                       or the branch commit after REF that last changed VERSION),
+                       write the next release: <upstream>-1 for a new
                        restic/restic version, otherwise the next revision.
+                       Rerunning on a released branch changes nothing.
   next-revision        Increment VERSION's revision (its tag is already taken).
   pin IMAGE@DIGEST     Point every custom image reference that image_policy.py
                        finds at the published release.
@@ -52,18 +54,38 @@ def git_show(root: Path, ref: str, path: Path) -> str:
     ).stdout
 
 
+def last_release(root: Path, base: str) -> str | None:
+    """Return the newest branch commit after BASE that changed VERSION."""
+    out = subprocess.run(
+        ["git", "-C", str(root), "log", "-1", "--format=%H", f"{base}..HEAD", "--", VERSION_FILE.as_posix()],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    return out or None
+
+
 def version(root: Path, base: str) -> str:
+    """Write and return the next VERSION, or return the current one unchanged.
+
+    VERSION changes only when the Containerfile differs from the last release:
+    the base branch, or the branch commit that last bumped VERSION. Rerunning
+    on an already released branch is therefore a no-op.
+    """
     containerfile = (root / CONTAINERFILE).read_text()
     current = (root / VERSION_FILE).read_text().strip()
     upstream = upstream_of(containerfile)
     base_version = git_show(root, base, VERSION_FILE).strip()
-    if containerfile == git_show(root, base, CONTAINERFILE) or current != base_version:
-        # Nothing to release, or VERSION was already bumped on this branch.
-        if parse_version(current)[0] != upstream:
+    if current == base_version:
+        previous = git_show(root, base, CONTAINERFILE)
+    elif release := last_release(root, base):
+        previous = git_show(root, release, CONTAINERFILE)
+    else:
+        previous = containerfile  # uncommitted manual bump: keep it
+    if containerfile == previous:
+        if current != base_version and parse_version(current)[0] != upstream:
             raise SystemExit(f"VERSION {current!r} does not match restic/restic {upstream}")
         return current
-    base_upstream, base_revision = parse_version(base_version)
-    revision = base_revision + 1 if base_upstream == upstream else 1
+    previous_upstream, previous_revision = parse_version(current)
+    revision = previous_revision + 1 if previous_upstream == upstream else 1
     new = f"{upstream}-{revision}"
     (root / VERSION_FILE).write_text(new + "\n")
     return new

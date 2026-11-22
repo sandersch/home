@@ -206,6 +206,12 @@ with the PR base SHA; the dispatched run always selects the full integration sui
 The PR is then ready for the normal attended merge below. Publishing from an open PR
 is safe because Flux watches only `main`.
 
+GitHub still creates `pull_request` runs for that pushed commit but holds them for
+approval. They are redundant with the dispatched run and can be left unapproved.
+Approving or re-running them is harmless: `restic-release.py version` compares the
+Containerfile with the last release commit on the branch, so an already released
+branch is a no-op and nothing is published.
+
 `renovate.json5` lists `github-actions[bot]` in `gitIgnoredAuthors`, so Renovate keeps
 managing the branch. When it rebases or picks up a newer Restic release it rewrites
 its own commit, which reruns the job and publishes another tag; superseded tags remain
