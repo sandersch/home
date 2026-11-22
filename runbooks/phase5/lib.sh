@@ -133,7 +133,7 @@ assert_phase5_observability_invariants() {
     "$PHASE5_MONITORING_DIR/controllers/kube-prometheus-stack.yaml" >/dev/null \
     || die "kube-prometheus-stack version or CRD policy changed unexpectedly"
   # renovate: datasource=helm depName=prometheus-blackbox-exporter registryUrl=https://prometheus-community.github.io/helm-charts
-  yq -e '.spec.chart.spec.version == "11.21.3"' \
+  yq -e '.spec.chart.spec.version == "11.22.0"' \
     "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-exporter.yaml" >/dev/null \
     || die "blackbox exporter version changed unexpectedly"
   yq -e 'select(.kind == "Probe" and .metadata.name == "critical-ingress") |
