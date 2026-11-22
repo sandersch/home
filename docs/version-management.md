@@ -141,7 +141,12 @@ five concurrent PRs and creates at most
 five PRs per hour (overriding Renovate's default of two). It extends the built-in
 `schedule:weekends` preset, so routine branch and PR work runs any time on Saturday or
 Sunday in the configured America/Chicago timezone. Major versions require Dependency
-Dashboard approval. Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr are grouped into
+Dashboard approval. Helm chart updates wait one day after release (`minimumReleaseAge`).
+Flux refreshes each `HelmRepository` index only every 12 hours, so a chart bump merged
+sooner can fail with `SourceNotReady` until the cache catches up, as #208 did on
+2026-11-22. Until a release is a day old, Renovate offers the newest older release that
+qualifies, or opens no PR. The Dependency Dashboard lists the pending update and can open
+it early. Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr are grouped into
 one download-stack PR; unrelated applications remain separate. Updates for
 `ghcr.io/sandersch/restic-backup` itself are disabled because the
 `restic-backup-image` workflow owns that artifact, while `restic/restic` base updates
