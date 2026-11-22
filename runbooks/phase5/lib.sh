@@ -132,6 +132,15 @@ assert_phase5_observability_invariants() {
     .spec.upgrade.crds == "CreateReplace"' \
     "$PHASE5_MONITORING_DIR/controllers/kube-prometheus-stack.yaml" >/dev/null \
     || die "kube-prometheus-stack version or CRD policy changed unexpectedly"
+  yq -e '.spec.values."kube-state-metrics" as $ksm |
+    $ksm.customResourceState.enabled == true and
+    ([$ksm.customResourceState.config.spec.resources[] |
+      select(.metricNamePrefix == "gotk") | .groupVersionKind.kind] | sort) ==
+      ["GitRepository", "HelmRelease", "HelmRepository", "Kustomization", "OCIRepository"] and
+    any($ksm.rbac.extraRules[]; .apiGroups == ["kustomize.toolkit.fluxcd.io"]) and
+    any($ksm.rbac.extraRules[]; .apiGroups == ["helm.toolkit.fluxcd.io"])' \
+    "$PHASE5_MONITORING_DIR/controllers/kube-prometheus-stack.yaml" >/dev/null \
+    || die "kube-state-metrics no longer exports Flux object state for the homelab.flux alerts"
   # renovate: datasource=helm depName=prometheus-blackbox-exporter registryUrl=https://prometheus-community.github.io/helm-charts
   yq -e '.spec.chart.spec.version == "11.22.0"' \
     "$PHASE5_OBSERVABILITY_CONFIG_DIR/blackbox-exporter.yaml" >/dev/null \

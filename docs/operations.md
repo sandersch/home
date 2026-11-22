@@ -231,7 +231,17 @@ Phase one is deliberately metrics-first:
   without waking a disk in standby. Prometheus scrapes the cached result every 60
   seconds. It is pinned to v0.14.0: v0.15.0 returns HTTP 500 on every scrape once SAS
   disks are present (upstream PR #397), and Renovate skips that release.
-- A Flux `PodMonitor` exposes GitOps controller health. Local rules cover blackbox
+- A Flux `PodMonitor` scrapes the controllers' runtime metrics, but Flux controllers
+  no longer export per-object readiness. kube-state-metrics therefore exports
+  `gotk_resource_info` for every Kustomization, HelmRelease, GitRepository,
+  HelmRepository, and OCIRepository. The `homelab.flux` rules warn when an object has
+  not been Ready for 30 minutes (`FluxResourceNotReady`), stays suspended for a day
+  (`FluxResourceSuspended`), or the export itself disappears
+  (`FluxResourceMetricsMissing`). This was added after a stalled MetalLB upgrade
+  blocked every downstream Kustomization unnoticed from 2026-11-14. Because the rules
+  ship through `monitoring-configs`, which depends on the infrastructure chain, a
+  stall only alerts if these rules were already deployed before it started; fixes to
+  the rules themselves wait for the chain to recover. Local rules cover blackbox
   failures and certificate expiry, `/opt`, exact direct bulk-storage mounts,
   filesystem errors, stalled md checks, Gluetun restarts, and Restic failures,
   suspension, and overdue schedules; upstream rules cover degraded/failing RAID,
