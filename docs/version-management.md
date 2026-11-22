@@ -81,11 +81,27 @@ runs from roughly 5–7 minutes to roughly 3 minutes plus runner queueing, while
 unrelated PRs need only the quick checks and final gate. Confirm actual timings
 after this workflow runs on GitHub.
 
-`.github/workflows/renovate-config.yaml` strictly validates the Renovate configuration,
+`.github/workflows/renovate-config.yaml` validates the Renovate configuration,
 running only when `renovate.json5` or that workflow (which pins the validator version)
 changes. The validator pin carries a `# renovate: datasource=npm depName=renovate`
-annotation, and a workflow regex manager keeps it current so the strict check accepts
-config forms that hosted Renovate's own migrations produce.
+annotation, and a workflow regex manager keeps it current so the check accepts
+config forms that hosted Renovate's own migrations produce. Validator updates merge
+automatically; see the proposal policy below.
+
+The check deliberately omits `--strict`. Strict mode fails on any pending config
+migration, so a newer validator rejects the old config format while the old validator
+rejects Renovate's migrated format, and neither PR can pass alone. Without it, real
+validation errors still fail the check, and a pending migration produces a
+`Config migration necessary` warning annotation instead. When Renovate changes its
+config format:
+
+1. Renovate's validator bump passes (with the migration warning) and auto-merges.
+2. Renovate's config migration PR then passes against the new validator; review and
+   merge it.
+
+If the migration PR arrives before the validator bump has merged, it fails until the
+bump lands. Then tick the rebase checkbox on the migration PR; re-running the failed
+job reuses the old merge commit and fails again.
 
 ## Renovate proposal policy
 
@@ -116,7 +132,12 @@ carry `datasource=helm` annotations, so Renovate updates them on the same branch
 their `HelmRelease`, and the always-on CI checks job runs
 `assert_phase5_observability_invariants` to fail any PR where they drift apart.
 
-Renovate never auto-merges, allows at most five concurrent PRs, and creates at most
+Renovate auto-merges only updates to the `renovate` npm package that pins the CI config
+validator. That tool never reaches the cluster, and Renovate merges those PRs itself
+(`platformAutomerge: false`) only after every check on the PR passes, since `main` has no
+required status checks. Major validator updates still need Dependency Dashboard approval
+before Renovate creates the PR. Every other update is attended. Renovate allows at most
+five concurrent PRs and creates at most
 five PRs per hour (overriding Renovate's default of two). It extends the built-in
 `schedule:weekends` preset, so routine branch and PR work runs any time on Saturday or
 Sunday in the configured America/Chicago timezone. Major versions require Dependency

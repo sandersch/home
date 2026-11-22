@@ -43,5 +43,17 @@ jobs:
           path: ~/.npm
           key: renovate-${{ runner.os }}-node${{ env.NODE_VERSION }}-${{ env.RENOVATE_VERSION }}
 
-      - name: Validate Renovate configuration strictly
-        run: npm exec --yes --package="renovate@$RENOVATE_VERSION" -- renovate-config-validator --strict renovate.json5
+      # Not --strict: strict mode fails on any pending config migration, which
+      # deadlocks a validator bump against Renovate's own migration PR. Real
+      # validation errors still fail; a pending migration is surfaced as a
+      # warning annotation and resolved by merging Renovate's migration PR.
+      # An explicit `shell: bash` runs with pipefail, so tee keeps the exit code.
+      - name: Validate Renovate configuration
+        shell: bash
+        run: |
+          log="$RUNNER_TEMP/renovate-config-validator.log"
+          npm exec --yes --package="renovate@$RENOVATE_VERSION" -- \
+            renovate-config-validator renovate.json5 2>&1 | tee "$log"
+          if grep -q 'Config migration necessary' "$log"; then
+            echo "::warning file=renovate.json5::Renovate config migration pending; merge Renovate's config migration PR"
+          fi

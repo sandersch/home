@@ -110,6 +110,15 @@
       "enabled": false
     },
     {
+      "description": "The Renovate config validator runs only in CI and never reaches the cluster, so its updates merge automatically once every check passes. Renovate merges itself (not GitHub auto-merge) because main has no required status checks",
+      "matchManagers": ["custom.regex"],
+      "matchDatasources": ["npm"],
+      "matchPackageNames": ["renovate"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false
+    },
+    {
       "description": "Every dependency merge is a production change through Flux",
       "matchManagers": ["kubernetes", "flux", "dockerfile", "custom.regex"],
       "prBodyNotes": [
