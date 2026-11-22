@@ -95,6 +95,33 @@ spec:
           annotations:
             description: Zigbee2MQTT reports an offline bridge or disconnected MQTT client, or its one-minute health publication has been missing or stale for at least five minutes.
             summary: Zigbee2MQTT bridge health is degraded
+        # The bridge can stay online with a working MQTT session while the radio
+        # rejects every send (2026-11-22 incident). Per-device availability is the
+        # signal that catches that. Battery devices use a much longer availability
+        # timeout than routers, so require half the tracked entities rather than all.
+        - alert: Zigbee2MQTTDevicesUnavailable
+          expr: |
+            max(
+              (
+                count(mqtt_zigbee_availability == 0)
+                  / count(mqtt_zigbee_availability)
+                  >= 0.5
+              )
+              or (
+                absent(mqtt_zigbee_availability)
+                and on()
+                  kube_deployment_status_replicas_available{
+                    namespace="zigbee2mqtt",
+                    deployment="zigbee2mqtt-mqtt-exporter"
+                  } > 0
+              )
+            )
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            description: At least half of the devices and groups Zigbee2MQTT tracks have been unavailable for five minutes, or per-device availability metrics are missing while the exporter is running. The bridge may still report online; check the coordinator radio.
+            summary: Most Zigbee devices are unavailable
     - name: homelab.backups
       rules:
         - alert: ResticBackupFailed

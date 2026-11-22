@@ -25,7 +25,7 @@ available as `/dev/mapper/hoardvg-backuplv` at `/mnt/backups`.
 | `12-test-pushover.sh` | Inject and resolve synthetic warning/critical alerts through Alertmanager |
 | `13-validate-nut-exporter.sh` | Validate UPS telemetry, Prometheus/Grafana integration, and optionally run the physical mains-loss alert drill |
 | `14-audit-resources.sh` | Audit current reservations and historical CPU, throttling, memory, and OOM metrics |
-| `15-validate-zigbee2mqtt-monitoring.sh` | Validate Zigbee2MQTT's critical ingress/coordinator probes, MQTT exporter, Prometheus metrics, and alerts |
+| `15-validate-zigbee2mqtt-monitoring.sh` | Validate Zigbee2MQTT's critical ingress probe, the Zigbee and Z-Wave coordinator TCP probes, the MQTT exporter's bridge-health and device-availability metrics, and alerts |
 | `16-validate-smartctl-exporter.sh` | Validate SMART telemetry for all 18 disks, the Prometheus target, and `homelab.disks` rules, and optionally run a Pushover drill |
 
 Both repositories have passed initialization, manual backup, and representative restore
@@ -101,10 +101,15 @@ The helper verifies the rendered safety invariants and both critical-priority
 Deployments, reads the exporter endpoint, and queries Prometheus for exactly one
 healthy scrape target. It requires the retained bridge state to be online,
 Zigbee2MQTT's MQTT client to be connected, health data to be newer than three
-minutes, and the critical HTTPS blackbox probe to be successful. It also confirms
-that the SLZB coordinator's critical TCP probe succeeds and that both
-`Zigbee2MQTTBridgeUnhealthy` and its shared `CriticalEndpointDown` rule are loaded
-with the expected delays and evaluate without errors or an active coordinator alert.
+minutes, and the critical HTTPS blackbox probe to be successful. It requires
+per-device availability series in both the exporter and Prometheus, with more than
+half of the tracked devices and groups online. It also confirms that the SLZB
+coordinator's Zigbee (`7638`) and Z-Wave (`6638`) critical TCP probes succeed and
+that `Zigbee2MQTTBridgeUnhealthy`, `Zigbee2MQTTDevicesUnavailable`, and the shared
+`CriticalEndpointDown` rule are loaded with the expected delays and evaluate without
+errors or an active coordinator alert. The `homelab.zigbee2mqtt` rule logic is
+unit-tested in CI by `test-zigbee2mqtt-alerts.py`, including a replay of the
+2026-11-22 coordinator incident.
 
 This gate is non-disruptive: it does not change retained MQTT state, restart a
 workload, or inject an alert. Notification delivery is covered independently by
