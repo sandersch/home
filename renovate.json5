@@ -20,6 +20,12 @@
     enabled: true,
   },
   pinDigests: true,
+  // The restic-backup-image workflow commits the custom image release onto
+  // Renovate's restic/restic branches. Ignoring that author keeps Renovate
+  // managing the branch (newer releases, rebases) instead of treating it as edited.
+  gitIgnoredAuthors: [
+    '41898282+github-actions[bot]@users.noreply.github.com',
+  ],
   kubernetes: {
     managerFilePatterns: [
       '/(^|/)(apps|infrastructure)/.*\\.ya?ml$/',

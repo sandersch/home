@@ -143,8 +143,10 @@ five PRs per hour (overriding Renovate's default of two). It extends the built-i
 Sunday in the configured America/Chicago timezone. Major versions require Dependency
 Dashboard approval. Gluetun, SABnzbd, qBittorrent, Prowlarr, Radarr, and Sonarr are grouped into
 one download-stack PR; unrelated applications remain separate. Updates for
-`ghcr.io/sandersch/restic-backup` itself are disabled because its attended workflow
-owns that artifact, while `restic/restic` base updates remain enabled.
+`ghcr.io/sandersch/restic-backup` itself are disabled because the
+`restic-backup-image` workflow owns that artifact, while `restic/restic` base updates
+remain enabled and are released automatically on their PR branch (see
+[custom Restic image](#custom-restic-image)).
 
 Every image PR warns that merge changes production through Flux and links to the Phase
 4/5 validators and rollback procedure. Before accepting normal PRs, confirm the
@@ -182,20 +184,49 @@ Daytime Saturday and Sunday afternoon or evening leave a fresh nightly backup in
 before the merge, as the routine workflow below requires, and leave the 24-hour
 observation running into the week.
 
-## Attended custom Restic image
+## Custom Restic image
 
 `containers/restic-backup/VERSION` is the canonical unique release/revision, such as
 `0.19.0-1`. The Containerfile pins `restic/restic` by exact release and digest.
+`runbooks/version-management/restic-release.py` performs the release bookkeeping:
+`version --base <ref>` writes the next VERSION (`<upstream>-1` for a new Restic
+release, the next revision for a digest-only base rebuild), `next-revision` skips a
+taken tag, and `pin <image>@<digest>` rewrites every custom image reference that
+`image_policy.py` finds.
 
-The `restic-backup-image` workflow builds pull requests without publishing. To publish
-a reviewed change:
+### Renovate base updates (automatic)
 
-1. Bump the version/revision on the reviewed branch; never reuse a tag for changed
-   build inputs.
+When Renovate opens or updates a `restic/restic` PR, the `restic-backup-image`
+workflow's `renovate-release` job checks out the PR head, bumps VERSION, publishes a
+fresh GHCR tag (never overwriting one; an existing tag moves to the next revision),
+pins its digest into every CronJob and recovery helper, and pushes that commit to the
+PR branch as `github-actions[bot]`. Because pushes made with `GITHUB_TOKEN` do not
+trigger `pull_request` workflows, it then dispatches `image-policy` for the new head
+with the PR base SHA; the dispatched run always selects the full integration suite.
+The PR is then ready for the normal attended merge below. Publishing from an open PR
+is safe because Flux watches only `main`.
+
+`renovate.json5` lists `github-actions[bot]` in `gitIgnoredAuthors`, so Renovate keeps
+managing the branch. When it rebases or picks up a newer Restic release it rewrites
+its own commit, which reruns the job and publishes another tag; superseded tags remain
+in GHCR unused. The job only runs for PRs authored by `renovate[bot]` from this
+repository. If the push is rejected because Renovate pushed meanwhile, that push
+starts a new run.
+
+Host-installed Restic is separate: workstation clients, offline SSD, and legacy
+rsnapshot tooling pin `0.19.1` in their own scripts and require an attended reinstall
+via `workstation-install-restic.py`, so a cluster image update does not change them.
+
+### Human changes (attended)
+
+Pull requests from people build without publishing. To publish a reviewed change:
+
+1. Bump the version/revision on the reviewed branch (or run `restic-release.py
+   version --base origin/main`); never reuse a tag for changed build inputs.
 2. Manually dispatch the workflow for that branch. It validates and builds first,
    refuses an already-existing GHCR tag, and then publishes.
-3. Copy the reported publisher digest into every CronJob and recovery helper on the
-   same branch before merge.
+3. Run the `restic-release.py pin ...` command from the run summary on the same branch
+   and commit the result before merge.
 4. Rerun image-policy CI. It enforces version-file/tag consistency and identical custom
    image references.
 

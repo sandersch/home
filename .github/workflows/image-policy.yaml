@@ -2,6 +2,13 @@ name: image-policy
 
 on:
   pull_request:
+  # The restic-backup-image workflow dispatches this for the commit it pushes to
+  # a Renovate branch, because GITHUB_TOKEN pushes do not trigger pull_request.
+  workflow_dispatch:
+    inputs:
+      base_sha:
+        description: PR base commit for changed-file checks
+        required: false
   push:
     branches:
       - main
@@ -36,6 +43,7 @@ jobs:
         run: |
           python3 runbooks/version-management/test-ci-integration-scope.py
           runbooks/version-management/test-image-policy.sh
+          runbooks/version-management/test-restic-release.sh
           runbooks/version-management/image_policy.py check
           runbooks/phase2/test-k3s-version.sh
           runbooks/phase2/test-k3s-upgrade.sh
@@ -48,7 +56,7 @@ jobs:
 
       - name: Check changed shell scripts
         env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
         run: |
           base="${PR_BASE_SHA:-HEAD^}"
           git diff --name-only --diff-filter=ACMRT -z "$base" -- '*.sh' > "$RUNNER_TEMP/changed-shell-scripts"
@@ -73,7 +81,7 @@ jobs:
       - name: Select integration coverage
         id: scope
         env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
         run: python3 runbooks/version-management/ci-integration-scope.py >> "$GITHUB_OUTPUT"
 
   alerts:
@@ -113,7 +121,7 @@ jobs:
         suite: [offline, legacy, workstations]
     env:
       PYTHONDONTWRITEBYTECODE: "1"
-      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.base_sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
