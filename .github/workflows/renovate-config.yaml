@@ -20,6 +20,7 @@ permissions:
 
 env:
   NODE_VERSION: 24
+  # renovate: datasource=npm depName=renovate
   RENOVATE_VERSION: 44.32.5
 
 jobs:
