@@ -328,12 +328,13 @@ this script, commit/reconcile `monitoring`, and rerun `04-run-manual-backup.sh`.
 
 The backup CronJobs and recovery helpers use the same immutable custom image reference.
 Its canonical tag is in `containers/restic-backup/VERSION`, and the base image is
-pinned by exact tag and digest in the Containerfile. Pull requests build without
-publishing. To release a reviewed revision, bump the version/revision, manually run
-the `restic-backup-image` workflow on that reviewed branch, and copy the reported
-publisher digest into every CronJob and recovery helper before merge. The workflow
-refuses to overwrite an existing GHCR tag, and the image-policy CI check rejects tag,
-digest, or version-file drift.
+pinned by exact tag and digest in the Containerfile. Renovate `restic/restic` PRs are
+released automatically on their branch: the `restic-backup-image` workflow bumps
+VERSION, publishes the image, and pins its digest into every CronJob and recovery
+helper. Other pull requests build without publishing; release those by hand as
+described in [version-management.md](../../docs/version-management.md#custom-restic-image).
+The workflow refuses to overwrite an existing GHCR tag, and the image-policy CI check
+rejects tag, digest, or version-file drift.
 
 ## Backblaze B2 offsite repository
 
