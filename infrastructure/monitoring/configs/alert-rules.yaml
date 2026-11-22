@@ -46,8 +46,10 @@ spec:
           labels:
             severity: warning
           annotations:
-            description: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has not been Ready for 30 minutes, so git changes it owns (and anything that depends on it) are not being applied. Objects reporting DependencyNotReady recover once the root object does; find it with kubectl get kustomizations,helmreleases,gitrepositories,helmrepositories -A."
-            summary: Flux resource is not reconciling
+            # The description only identifies the object; Pushover prints the
+            # shared summary once per group (configs/pushover).
+            description: "{{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }}"
+            summary: "Flux resource not Ready for 30 minutes, so its git changes (and its dependents') are not applied. Fix the object that is not reporting DependencyNotReady first."
         - alert: FluxResourceSuspended
           expr: |
             max by (customresource_kind, exported_namespace, name) (
@@ -57,8 +59,8 @@ spec:
           labels:
             severity: warning
           annotations:
-            description: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} has been suspended for over 8 hours. Resume it with flux resume once manifest work is done."
-            summary: Flux resource has been left suspended
+            description: "{{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }}"
+            summary: Flux resource left suspended for over 8 hours; resume it with flux resume once manifest work is done.
         - alert: FluxResourceMetricsMissing
           expr: absent(gotk_resource_info{customresource_kind="Kustomization",exported_namespace="flux-system",name="flux-system"})
           for: 30m

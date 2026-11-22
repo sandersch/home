@@ -27,15 +27,25 @@ spec:
             name: severity
             value: critical
         receiver: pushover-critical
+  # The message lists firing and resolved alerts in separate sections. When
+  # every alert in the group shares a summary (the usual case, since groups
+  # are per alertname), it is printed once and each line carries only the
+  # description, which keeps multi-object groups under Pushover's
+  # 1,024-character message limit.
   receivers:
     - name: pushover-warning
       pushoverConfigs:
         - message: |-
-            {{ range .Alerts }}{{ with .Annotations.summary }}{{ . }}{{ end }}{{ with .Annotations.description }}
-            {{ . }}{{ end }}{{ with .Labels.namespace }}
-            Namespace: {{ . }}{{ end }}{{ with .Labels.instance }}
-            Instance: {{ . }}{{ end }}
-            {{ end }}
+            {{- $common := .CommonAnnotations.summary -}}
+            {{- with .Alerts.Firing }}Firing{{ with $common }}: {{ . }}{{ end }}
+            {{- range . }}
+            - {{ if or (not $common) (not .Annotations.description) }}{{ .Annotations.summary }}{{ with .Annotations.description }}: {{ end }}{{ end }}{{ .Annotations.description }}{{ with .Labels.namespace }} [{{ . }}]{{ end }}{{ with .Labels.instance }} ({{ . }}){{ end }}
+            {{- end }}{{ end }}
+            {{- with .Alerts.Resolved }}{{ if $.Alerts.Firing }}
+            {{ end }}Resolved{{ if not $.Alerts.Firing }}{{ with $common }}: {{ . }}{{ end }}{{ end }}
+            {{- range . }}
+            - {{ if or (not $common) (not .Annotations.description) }}{{ .Annotations.summary }}{{ with .Annotations.description }}: {{ end }}{{ end }}{{ .Annotations.description }}{{ with .Labels.namespace }} [{{ . }}]{{ end }}{{ with .Labels.instance }} ({{ . }}){{ end }}
+            {{- end }}{{ end }}
           priority: '{{ if eq .Status "firing" }}0{{ else }}-1{{ end }}'
           sendResolved: true
           title: '{{ .Status }} [{{ .CommonLabels.severity }}] {{ .CommonLabels.alertname }}'
@@ -50,11 +60,16 @@ spec:
     - name: pushover-critical
       pushoverConfigs:
         - message: |-
-            {{ range .Alerts }}{{ with .Annotations.summary }}{{ . }}{{ end }}{{ with .Annotations.description }}
-            {{ . }}{{ end }}{{ with .Labels.namespace }}
-            Namespace: {{ . }}{{ end }}{{ with .Labels.instance }}
-            Instance: {{ . }}{{ end }}
-            {{ end }}
+            {{- $common := .CommonAnnotations.summary -}}
+            {{- with .Alerts.Firing }}Firing{{ with $common }}: {{ . }}{{ end }}
+            {{- range . }}
+            - {{ if or (not $common) (not .Annotations.description) }}{{ .Annotations.summary }}{{ with .Annotations.description }}: {{ end }}{{ end }}{{ .Annotations.description }}{{ with .Labels.namespace }} [{{ . }}]{{ end }}{{ with .Labels.instance }} ({{ . }}){{ end }}
+            {{- end }}{{ end }}
+            {{- with .Alerts.Resolved }}{{ if $.Alerts.Firing }}
+            {{ end }}Resolved{{ if not $.Alerts.Firing }}{{ with $common }}: {{ . }}{{ end }}{{ end }}
+            {{- range . }}
+            - {{ if or (not $common) (not .Annotations.description) }}{{ .Annotations.summary }}{{ with .Annotations.description }}: {{ end }}{{ end }}{{ .Annotations.description }}{{ with .Labels.namespace }} [{{ . }}]{{ end }}{{ with .Labels.instance }} ({{ . }}){{ end }}
+            {{- end }}{{ end }}
           priority: '{{ if eq .Status "firing" }}1{{ else }}-1{{ end }}'
           sendResolved: true
           title: '{{ .Status }} [{{ .CommonLabels.severity }}] {{ .CommonLabels.alertname }}'
