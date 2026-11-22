@@ -87,11 +87,11 @@ spec:
         # delay), so about a third of alert batches were dropped with EOF:
         # https://github.com/prometheus/alertmanager/issues/5743. Renovate's
         # Flux manager tracks this tag and skips only v0.35.0 (see
-        # renovate.json5), so it proposes the release carrying the fix
-        # (prometheus/alertmanager#5744) once it ships. The tag is not
-        # digest-pinned: Renovate edits only this field and would leave a
-        # chart "sha" value stale. Remove the block to return to the chart's
-        # default image once the chart ships a fixed Alertmanager.
+        # renovate.json5). Its PR for the release carrying the fix
+        # (prometheus/alertmanager#5744) is the cue to delete this block and
+        # return to the chart's default image; the PR explains when. The tag
+        # is not digest-pinned: Renovate edits only this field and would
+        # leave a chart "sha" value stale.
         image:
           registry: quay.io
           repository: prometheus/alertmanager

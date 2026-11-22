@@ -165,6 +165,9 @@
       ],
       allowedVersions: '!/^v0\\.35\\.0$/',
       pinDigests: false,
+      prBodyNotes: [
+        ':no_entry: This override exists only to hold Alertmanager below v0.35.0 (prometheus/alertmanager#5743); do not keep pinning past the fix. If the pinned kube-prometheus-stack chart already defaults to this Alertmanager version or later, close this PR and delete the `alertmanagerSpec.image` block in `infrastructure/monitoring/controllers/kube-prometheus-stack.yaml` instead. Otherwise merge it to get the fix now, and delete the block once the chart catches up. Afterwards, confirm `increase(prometheus_notifications_errors_total[1h])` stays at 0.',
+      ],
     },
     {
       description: 'The custom Restic image is published only through its attended workflow',
