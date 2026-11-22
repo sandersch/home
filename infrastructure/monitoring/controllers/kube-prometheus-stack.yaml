@@ -81,21 +81,21 @@ spec:
         alertmanagerConfigSelector:
           matchLabels:
             app.kubernetes.io/part-of: homelab-monitoring
-        # Temporary hold on Alertmanager v0.34.2 (the exact image that ran here
-        # without errors before chart 93.6.1). v0.35.0 closes idle HTTP
+        # Hold Alertmanager below v0.35.0. That release closes idle HTTP
         # connections after 90s, which matches Prometheus's resend cadence for
         # long-firing alerts such as Watchdog (30s evaluation, 1m resend
         # delay), so about a third of alert batches were dropped with EOF:
-        # https://github.com/prometheus/alertmanager/issues/5743. The fix
-        # (prometheus/alertmanager#5744) is merged but unreleased. Remove this
-        # block, returning to the chart's default image, once a release
-        # containing it ships and the chart picks it up; Renovate does not
-        # manage this override.
+        # https://github.com/prometheus/alertmanager/issues/5743. Renovate's
+        # Flux manager tracks this tag and skips only v0.35.0 (see
+        # renovate.json5), so it proposes the release carrying the fix
+        # (prometheus/alertmanager#5744) once it ships. The tag is not
+        # digest-pinned: Renovate edits only this field and would leave a
+        # chart "sha" value stale. Remove the block to return to the chart's
+        # default image once the chart ships a fixed Alertmanager.
         image:
           registry: quay.io
           repository: prometheus/alertmanager
           tag: v0.34.2
-          sha: 39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b
         priorityClassName: homelab-standard
         resources:
           requests:

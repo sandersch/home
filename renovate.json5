@@ -159,6 +159,14 @@
       allowedVersions: '!/^v0\\.15\\.0$/',
     },
     {
+      description: 'Alertmanager v0.35.0 closes idle HTTP connections after 90s, racing Prometheus resends and dropping alert batches with EOF (prometheus/alertmanager#5743). The kube-prometheus-stack values override is tag-only because the chart keeps the digest in a separate sha field that Renovate would leave stale',
+      matchPackageNames: [
+        'quay.io/prometheus/alertmanager',
+      ],
+      allowedVersions: '!/^v0\\.35\\.0$/',
+      pinDigests: false,
+    },
+    {
       description: 'The custom Restic image is published only through its attended workflow',
       matchPackageNames: [
         'ghcr.io/sandersch/restic-backup',
