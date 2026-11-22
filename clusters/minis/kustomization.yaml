@@ -9,3 +9,5 @@ resources:
   - monitoring-configs.yaml
   - apps.yaml
   - monitoring.yaml
+  # Temporary FluxResourceNotReady drill; remove with flux-alert-drill.yaml.
+  - flux-alert-drill.yaml
