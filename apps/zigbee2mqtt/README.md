@@ -59,7 +59,8 @@ The SLZB-MRW10U carries three pieces of firmware. Expected versions as of 2026-1
 | Z-Wave radio, Silicon Labs EFR32ZG23 | `20260402` (Z-Wave SDK 7.24.3) | Z-Wave JS UI controller info, `ha_info` radio `chip_index` 0 |
 
 Firmware changes are attended, like k3s and chart upgrades. Keep the appliance on
-the `release` channel with automatic updates off. Before changing any of the three,
+the `release` channel with automatic updates off (both confirmed in the SLZB UI on
+2026-11-22). Before changing any of the three,
 request a fresh Zigbee2MQTT backup and a Z-Wave NVM backup, and plan for both radios
 to drop. Afterwards, restart Zigbee2MQTT so it registers its endpoints with the
 radio again, then run the Phase 4 Zigbee2MQTT and Z-Wave validators and the Phase 5

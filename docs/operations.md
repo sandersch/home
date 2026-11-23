@@ -804,8 +804,7 @@ check and fixed by restarting Zigbee2MQTT. The appliance was then moved to the
   sensor stayed marked online because Zigbee2MQTT waits much longer before declaring
   battery devices unavailable.
 - Z-Wave lost its controller from 21:30:31 to 21:33:56 and again for 32 seconds during
-  the attended SLZB-OS reflash at 22:56:40. Z-Wave node 256 has been marked dead since
-  21:33:56 (see [Follow-ups](#follow-ups)).
+  the attended SLZB-OS reflash at 22:56:40.
 - The coordinator TCP probe failed one sample at 21:32, well under the three-minute
   `CriticalEndpointDown` window. `Zigbee2MQTTBridgeUnhealthy` stayed inactive
   throughout, because bridge state, the MQTT session, and health publication were all
@@ -819,7 +818,7 @@ check and fixed by restarting Zigbee2MQTT. The appliance was then moved to the
 | 21:31:47 | Zigbee2MQTT availability pings start timing out. |
 | 21:32:57 | The SLZB resets the Zigbee TCP session (`ECONNRESET`). Zigbee2MQTT exits with code 2 and Kubernetes restarts it. |
 | 21:33:00 | Zigbee2MQTT resumes the network. The coordinator reports Z-Stack revision `20260310`. |
-| 21:33:56 | Z-Wave JS UI reopens the socket and a soft reset succeeds. Node 256 fails its first ping and is presumed dead. |
+| 21:33:56 | Z-Wave JS UI reopens the socket and a soft reset succeeds. |
 | 21:43:17 to 21:43:45 | All router devices and the group go unavailable. Later sends fail with `AF dataRequest ... INVALID_PARAM`. |
 | about 22:37 | Found during a manual cluster health check. The SLZB status page reports the Zigbee radio (CC2674P10) on `20261113`, not the `20260310` read at 21:33:00, with `sw_version v3.4.5.dev0` and `fw_channel dev`. |
 | 22:49:55 | SLZB update channel set to `release` and Zigbee2MQTT restarted. It resumes on radio firmware `20261113` and all devices report again. |
@@ -963,7 +962,6 @@ exception remain absent.
 | Item | When to do it |
 |---|---|
 | **Alertmanager override in kube-prometheus-stack** | Since 2026-11-22, `kube-prometheus-stack.yaml` holds Alertmanager at v0.34.2. v0.35.0's 90-second HTTP idle timeout races Prometheus's 90-second resend cadence and drops alert batches with `EOF` ([prometheus/alertmanager#5743](https://github.com/prometheus/alertmanager/issues/5743)). Renovate tracks the override and skips only v0.35.0 (`renovate.json5`), so it opens a PR once the release carrying the fix ([#5744](https://github.com/prometheus/alertmanager/pull/5744)) ships. That PR is the cue to remove the override rather than keep pinning. If the pinned chart already defaults to that Alertmanager version or later, close the PR and delete the `alertmanagerSpec.image` block. Otherwise merge it, and delete the block once the chart catches up. Afterwards, confirm `increase(prometheus_notifications_errors_total[1h])` stays at 0. |
-| **Z-Wave node 256 after the 2026-11-22 coordinator incident** | Z-Wave JS UI marked node 256 dead at 21:33:56 UTC, right after the first coordinator reset, and nothing has contacted it since. Ping it from Z-Wave JS UI, or wake it if it is battery-powered. If it stays dead, re-interview it and check the Home Assistant automations that use it. Then remove this row. |
 | **Whole-estate/off-site backup plan** | **Partially complete.** Vault B2 enrollment, seed, on-host and card-only off-host restores, authorization separation, and repository verification passed on 2026-09-07. Flux applied activation commit `eb02a61`; copy/prune CronJobs are live with `SUSPEND=false`, and the first copy run completed successfully. Workstation clients are active. [Offline SSD tooling](../runbooks/backups/offline-ssd.md) and warning rules are implemented; drive A was enrolled on 2026-10-02 and passed independent recovery on 2026-10-03; drive B was enrolled and passed independent recovery on 2026-10-10; both drives were confirmed off-site and the alert rules were activated in git that day. Rotate A in Q2/Q4 and B in Q1/Q3, starting A in Q4 2026. Mail archival remains draft. Do not describe the RAID array itself as a backup. |
 | **Move SLZB-MRW10U to IoT VLAN 60** | The dual-radio coordinator currently resides on Trusted/VLAN 30. Follow the ordered migration checklist in [network.md](./network.md#network-step-1-unifi-dream-machine-configuration): record its current IP/MAC, assign a stable VLAN 60 address, stage the narrow `minis` TCP `6638`/`7638` allow, preserve `slzb-mrw10u.iot.matrix`, and rerun the Z-Wave, Zigbee, and monitoring validators. mDNS reflection is neither enabled nor required for this fixed DNS/TCP path. |
 | **Second node** | Only on a *measured* need: HA must survive main-node maintenance, or Frigate outgrows the Coral/CPU budget. Repo layout already supports it via `nodeSelector`/affinity. |
