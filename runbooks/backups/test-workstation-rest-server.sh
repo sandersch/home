@@ -12,7 +12,7 @@ cleanup() {
 trap cleanup EXIT
 mkdir "$fixture/repository" "$fixture/source"
 # renovate: datasource=docker depName=restic/rest-server
-image=restic/rest-server:0.14.0@sha256:e117e428e511e3ffdeb6d0e578adf4b468803c77ad500993bb8f15038b2d9db3
+image=restic/rest-server:0.15.0@sha256:cc52902e6d55bbb01eeb8f56b5e7f6993c474db825187c85c4e44b6a00ad4beb
 printf 'fixture-http-password\n' | docker run --rm -i --entrypoint /usr/bin/htpasswd \
   "$image" -niB ryze >"$fixture/htpasswd"
 docker run -d --name "$container" --user "$(id -u):$(id -g)" \
