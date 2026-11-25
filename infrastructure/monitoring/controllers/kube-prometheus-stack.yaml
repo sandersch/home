@@ -95,7 +95,7 @@ spec:
         image:
           registry: quay.io
           repository: prometheus/alertmanager
-          tag: v0.34.2
+          tag: v0.35.1
         priorityClassName: homelab-standard
         resources:
           requests:
