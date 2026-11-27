@@ -106,6 +106,7 @@ jobs:
             quay.io/prometheus/prometheus:v3.13.1-distroless@sha256:214f8427c8fba80c327bb94a75feb802ae12f2d6ca30812aa6e7d22f09bbea80
         run: |
           python3 runbooks/backups/test-prune-alerts.py
+          python3 runbooks/backups/test-restore-drill-alerts.py
           python3 runbooks/backups/test-workstation-alerts.py
           python3 runbooks/backups/test-offline-alerts.py
           python3 runbooks/phase5/test-raid-check-alerts.py
