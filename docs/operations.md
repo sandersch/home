@@ -5,11 +5,12 @@ practices, and deferred work. Built out in [Phase 5](./build-plan.md#phase-5--ob
 
 ## Backups
 
-Workstation backups for ryze/m5c are active, with client schedules enabled on
-2026-09-12 and 2026-09-15 respectively. Both hosts passed native NAS/B2 recovery;
-all eight maintenance CronJobs are enabled. Follow
-[workstation enrollment and recovery](../runbooks/backups/workstations.md) for
-remaining observation, scheduled weekly copy/prune, and monthly-check gates. Monthly
+Workstation backups for ryze (`workstation-ryze-v3`) and m5c (`workstation-m5c-v4`)
+are active, with client schedules enabled on 2026-09-12 and 2026-09-15 respectively.
+Both hosts passed native NAS/B2 recovery, all eight maintenance CronJobs are enabled,
+and operational acceptance (seven-day observation, natural weekly copy/prune, and
+natural monthly checks) closed on 2026-11-27; see
+[workstation enrollment and recovery](../runbooks/backups/workstations.md). Monthly
 per-host checks and quarterly/annual restores are part of the operating calendar.
 The maintenance jobs are
 independent of the locked vault; document alerts defer while it is locked. All

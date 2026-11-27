@@ -12,11 +12,11 @@ intermittently unreadable macOS system state (see the [host notes](../../host/m5
 and [measurement](evidence/m5c-measured-v3-20261007.json)). M5c v4, released 2026-10-17,
 omits regenerable application caches after an intentional 4.92 GB deletion left every v3
 run below its home floor (see the [measurement](evidence/m5c-measured-v4-20261017.json));
-its client installation and first accepted v4 snapshot are pending. Ryze v3, released
+it is installed on m5c and accepted on minis (generation 4, zero holds). Ryze v3, released
 2026-10-30, omits self-managed release binaries, toolchains, dependency caches and game
 runtimes after Codex's own 9.67 GB release cleanup tripped the shrink hold (see the
 [host notes](../../host/ryze/README.md) and [measurement](evidence/ryze-measured-v3-20261030.json));
-its client installation and first accepted v3 snapshot are pending. `infrastructure/monitoring/workstations/`
+it is installed on ryze and accepted on minis (generation 4, zero holds). `infrastructure/monitoring/workstations/`
 is in the active monitoring Kustomization. Both hosts' four CronJobs are enabled.
 Both hosts' NAS/B2 repositories are initialized. M5c has accepted NAS snapshots and
 a successful B2 copy. Native NAS and B2 content and metadata verification passed on
@@ -28,11 +28,11 @@ promotion, the 24-hour observation, guarded manual retention, and the first sche
 NAS/B2 prune all passed. See the [promotion evidence](evidence/vault-v3-promotion-20260916.json)
 and [backup policy status](../../docs/backups.md#phasing-vault-v3-rollout-complete).
 The September 26 [operational acceptance audit](evidence/workstation-acceptance-20260926.json)
-closes M5c’s seven-day observation and natural weekly copy/prune gates. Ryze is
-currently healthy, but its September 21 copy and September 22 prune failed; manual
-September 23 recovery does not close its observation or natural weekly-cycle gates.
-Both hosts have fresh NAS/B2 check-success evidence from September 16; natural
-monthly-check acceptance remains separate and open. See [Checks and evidence](#checks-and-evidence).
+closed M5c's seven-day observation and natural weekly copy/prune gates, while leaving
+Ryze's weekly/observation gates and both hosts' natural monthly-check gates open. The
+November 27 [operational acceptance closure](evidence/workstation-acceptance-20261127.json)
+closes every remaining workstation acceptance gate for both hosts. See
+[Checks and evidence](#checks-and-evidence).
 
 | Host | NAS cap | B2 ceiling | Client schedule | Documents |
 | --- | ---: | ---: | --- | --- |
@@ -553,6 +553,33 @@ historical restores even if active vault configuration is reverted in an attende
 suspended window.
 
 ## Checks and evidence
+
+### 2026-11-27 operational acceptance closure
+
+The [sanitized closure evidence](evidence/workstation-acceptance-20261127.json) combines
+read-only Kubernetes status, Prometheus 7-day metric/alert and 14-day Job histories,
+sanitized `minis` control-state summaries, and local client contract checks on `ryze`
+and `m5c`. A ~32.9-hour Prometheus scrape gap inside the 7-day window reflects the
+2026-11-26/27 power outage (`UPSOnBattery` at `2026-11-26T09:22Z`, reboot at
+`2026-11-27T18:18Z`).
+
+| Gate | M5c | Ryze |
+| --- | --- | --- |
+| Active contract installed & accepted on `minis` | Passed (`workstation-m5c-v4`, gen 4, 32 accepted, 0 holds) | Passed (`workstation-ryze-v3`, gen 4, 73 accepted, 0 holds) |
+| Current freshness, ingestion, holds, capacity, enrollment | Passed (NAS 30.56 GB / 107.37 GB, B2 29.89 GB / 50 GB) | Passed (NAS 19.46 GB / 161.06 GB, B2 19.20 GB / 100 GB) |
+| Seven-day operational observation | Passed (closed 2026-09-26; 0 failed Jobs in 14d) | Passed (0 failed Jobs in 14d; 0 firing workstation alerts in 7d) |
+| Natural weekly copy/prune | Passed (Nov 9/10, Nov 16/17, Nov 23/24) | Passed (Nov 9/10, Nov 16/17, Nov 23/24) |
+| Natural monthly-check acceptance (NAS & B2) | Passed (Oct 15 `29867490` & Nov 15 `29912190`) | Passed (Oct 15 `29867490` & Nov 15 `29912190`) |
+
+Both hosts' CronJob-owned monthly checks succeeded across two consecutive cycles
+(October 15 and November 15, covering both NAS and B2), and Ryze completed three
+consecutive natural weekly copy/prune cycles (`29903745`/`29904870`,
+`29913825`/`29914950`, and `29923905`/`29925030`) with zero failed maintenance Jobs
+and zero firing workstation alerts across the 7-day observation window. Transient
+`ResticWorkstationBackupStale`/`ResticWorkstationCopyOverdue` warnings on M5c
+(2026-11-20 to 2026-11-22 while the laptop was away/asleep) cleared cleanly after
+its 2026-11-22 backup and copy, followed by natural Nov 23 copy and Nov 24 prune runs.
+All workstation operational acceptance gates are now closed.
 
 ### 2026-09-26 operational acceptance audit
 

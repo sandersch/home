@@ -113,9 +113,10 @@ for Plex, and Immich.
 **The encrypted-vault backup and its B2 off-site copy are implemented and validated.**
 [docs/backups.md](./docs/backups.md) records the 2026-09-07 activation: Flux applied
 `eb02a61`, the vault B2 copy and prune CronJobs are live with `SUSPEND=false`, and the
-first copy run completed successfully. Ryze and m5c workstation clients and maintenance
-schedules are active, with native NAS/B2
-recovery gates passed; remaining observation and scheduled maintenance gates are tracked in
+first copy run completed successfully. Ryze (`workstation-ryze-v3`) and m5c (`workstation-m5c-v4`) workstation clients and
+maintenance schedules are active, with native NAS/B2 recovery and all operational
+acceptance gates (seven-day observation, natural weekly copy/prune, and natural
+monthly checks) closed on 2026-11-27 in
 [attended enrollment and recovery](./runbooks/backups/workstations.md). The vault v3 rollout
 and first scheduled NAS/B2 prune completed on 2026-09-20. Offline SSD tooling and
 monitoring are implemented; drive A was enrolled on 2026-10-02 and passed its independent
@@ -229,5 +230,5 @@ kubectl exec -n media deploy/gluetun -c sabnzbd -- sh -c 'wget -qO- ifconfig.me'
 5. [docs/architecture.md](./docs/architecture.md) — the design and its rationale.
 6. [docs/migration-runbook.md](./docs/migration-runbook.md) — historical Plex + *arr migration path.
 7. [docs/operations.md](./docs/operations.md) — backups, monitoring, tuning, follow-ups.
-8. [docs/backups.md](./docs/backups.md) — vault/appstate backup status,
-   remaining workstation gates, offline SSD acceptance, and the draft mail tier.
+8. [docs/backups.md](./docs/backups.md) — vault/appstate/workstation backup status,
+   offline SSD acceptance, and the draft mail tier.

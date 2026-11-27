@@ -1,0 +1,1631 @@
+{
+  "recorded_date": "2026-11-27",
+  "queried_at": "2026-11-27T21:58:05.467050+00:00",
+  "repository_revision": "b3ac9bf4a505f93f225388327792058e636a1a6f",
+  "scope": "Read-only cluster and Prometheus audit; no production mutation or new backup/restore run.",
+  "hosts": {
+    "ryze": {
+      "current_metrics": [
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795815290.0,
+          "kind": "documents",
+          "stage": "promotion"
+        },
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795815279.0,
+          "kind": "strongbox",
+          "stage": "promotion"
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 100000000000.0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 161061273600.0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1794734290.5552073,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1794731430.3615248,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_copy_success_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795434405.7424684
+        },
+        {
+          "metric": "homelab_workstation_enrolled",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1.0
+        },
+        {
+          "metric": "homelab_workstation_enrollment_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1789166064.725831
+        },
+        {
+          "metric": "homelab_workstation_prune_success_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795503979.9464726
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 19201057865.0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 19457613870.0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1.0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1.0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_snapshot_time_invalid",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 0.0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795356229.399546,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795619137.811675,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_validation_hold",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 0.0
+        },
+        {
+          "metric": "homelab_workstation_validation_success_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795803587.2440646
+        }
+      ],
+      "seven_day_metrics": [
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1795356258.0,
+          "maximum": 1795815290.0,
+          "value_changes": 4,
+          "kind": "documents",
+          "stage": "promotion",
+          "maximum_age_seconds": 196095.204
+        },
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1795176315.0,
+          "maximum": 1795356258.0,
+          "value_changes": 2,
+          "kind": "documents",
+          "stage": "promotion",
+          "maximum_age_seconds": 90043.316
+        },
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1795356736.0,
+          "maximum": 1795815279.0,
+          "value_changes": 23,
+          "kind": "strongbox",
+          "stage": "promotion",
+          "maximum_age_seconds": 142144.204
+        },
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1795198096.0,
+          "maximum": 1795356736.0,
+          "value_changes": 11,
+          "kind": "strongbox",
+          "stage": "promotion",
+          "maximum_age_seconds": 14682.316
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 100000000000.0,
+          "maximum": 100000000000.0,
+          "value_changes": 0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 100000000000.0,
+          "maximum": 100000000000.0,
+          "value_changes": 0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 161061273600.0,
+          "maximum": 161061273600.0,
+          "value_changes": 0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 161061273600.0,
+          "maximum": 161061273600.0,
+          "value_changes": 0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1794734290.5552073,
+          "maximum": 1794734290.5552073,
+          "value_changes": 0,
+          "destination": "b2",
+          "maximum_age_seconds": 1082379.65
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1794734290.5552073,
+          "maximum": 1794734290.5552073,
+          "value_changes": 0,
+          "destination": "b2",
+          "maximum_age_seconds": 634037.761
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1794731430.3615248,
+          "maximum": 1794731430.3615248,
+          "value_changes": 0,
+          "destination": "nas",
+          "maximum_age_seconds": 1085239.843
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1794731430.3615248,
+          "maximum": 1794731430.3615248,
+          "value_changes": 0,
+          "destination": "nas",
+          "maximum_age_seconds": 636897.954
+        },
+        {
+          "metric": "homelab_workstation_copy_success_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1794829674.5716946,
+          "maximum": 1795434405.7424684,
+          "value_changes": 1,
+          "maximum_age_seconds": 604733.681
+        },
+        {
+          "metric": "homelab_workstation_copy_success_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1794829674.5716946,
+          "maximum": 1794829674.5716946,
+          "value_changes": 0,
+          "maximum_age_seconds": 538653.744
+        },
+        {
+          "metric": "homelab_workstation_enrolled",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_enrolled",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_enrollment_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1789166064.725831,
+          "maximum": 1789166064.725831,
+          "value_changes": 0,
+          "maximum_age_seconds": 6650605.479
+        },
+        {
+          "metric": "homelab_workstation_enrollment_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1789166064.725831,
+          "maximum": 1789166064.725831,
+          "value_changes": 0,
+          "maximum_age_seconds": 6202263.59
+        },
+        {
+          "metric": "homelab_workstation_prune_success_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1794898980.1251533,
+          "maximum": 1795503979.9464726,
+          "value_changes": 1,
+          "maximum_age_seconds": 604998.128
+        },
+        {
+          "metric": "homelab_workstation_prune_success_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1794898980.1251533,
+          "maximum": 1794898980.1251533,
+          "value_changes": 0,
+          "maximum_age_seconds": 469348.191
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 18983107486.0,
+          "maximum": 19202157105.0,
+          "value_changes": 2,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 18983107486.0,
+          "maximum": 18983107486.0,
+          "value_changes": 0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 19395639360.0,
+          "maximum": 19475813538.0,
+          "value_changes": 4,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 19357019434.0,
+          "maximum": 19433064614.0,
+          "value_changes": 2,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_snapshot_time_invalid",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_time_invalid",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1794823412.043096,
+          "maximum": 1795356229.399546,
+          "value_changes": 1,
+          "destination": "b2",
+          "maximum_age_seconds": 610996.21
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1794823412.043096,
+          "maximum": 1794823412.043096,
+          "value_changes": 0,
+          "destination": "b2",
+          "maximum_age_seconds": 544916.273
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1795266347.450909,
+          "maximum": 1795619137.811675,
+          "value_changes": 4,
+          "destination": "nas",
+          "maximum_age_seconds": 271002.49
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1795089812.849323,
+          "maximum": 1795266347.450909,
+          "value_changes": 2,
+          "destination": "nas",
+          "maximum_age_seconds": 170815.467
+        },
+        {
+          "metric": "homelab_workstation_validation_hold",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_validation_hold",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_validation_success_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1795347030.1624281,
+          "maximum": 1795803587.2440646,
+          "value_changes": 6,
+          "maximum_age_seconds": 197388.851
+        },
+        {
+          "metric": "homelab_workstation_validation_success_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1795174229.6418307,
+          "maximum": 1795347030.1624281,
+          "value_changes": 2,
+          "maximum_age_seconds": 86398.674
+        }
+      ],
+      "jobs_14d": [
+        {
+          "job_name": "restic-ryze-validate-v2-20260911",
+          "owner_name": null,
+          "owner_kind": null,
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-09-11T22:52:57+00:00"
+        },
+        {
+          "job_name": "restic-ryze-check-activation-20260912",
+          "owner_name": null,
+          "owner_kind": null,
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-09-12T21:43:22+00:00"
+        },
+        {
+          "job_name": "restic-ryze-b2-unlock-20260923",
+          "owner_name": null,
+          "owner_kind": null,
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-09-23T04:28:05+00:00"
+        },
+        {
+          "job_name": "restic-ryze-check-29867490",
+          "owner_name": "restic-ryze-check",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-10-15T08:18:44+00:00"
+        },
+        {
+          "job_name": "restic-ryze-copy-29903745",
+          "owner_name": "restic-ryze-copy",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-09T11:58:42+00:00"
+        },
+        {
+          "job_name": "restic-ryze-prune-29904870",
+          "owner_name": "restic-ryze-prune",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-10T07:05:57+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29909490",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-13T11:30:38+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29910930",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-14T11:30:39+00:00"
+        },
+        {
+          "job_name": "restic-ryze-check-29912190",
+          "owner_name": "restic-ryze-check",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-15T09:18:21+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29912370",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-15T11:30:40+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29913810",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-16T11:30:40+00:00"
+        },
+        {
+          "job_name": "restic-ryze-copy-29913825",
+          "owner_name": "restic-ryze-copy",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-16T11:48:02+00:00"
+        },
+        {
+          "job_name": "restic-ryze-prune-29914950",
+          "owner_name": "restic-ryze-prune",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-17T07:03:08+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29915250",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-17T11:30:39+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29916690",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-18T11:30:39+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29918130",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-19T11:30:13+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29919570",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-20T11:30:39+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29921010",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-21T11:30:39+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29922450",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-22T11:30:39+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29923890",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-23T11:30:40+00:00"
+        },
+        {
+          "job_name": "restic-ryze-copy-29923905",
+          "owner_name": "restic-ryze-copy",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-23T11:46:52+00:00"
+        },
+        {
+          "job_name": "restic-ryze-prune-29925030",
+          "owner_name": "restic-ryze-prune",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-24T07:06:28+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29925330",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-24T11:30:14+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29926770",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-25T11:30:40+00:00"
+        },
+        {
+          "job_name": "restic-ryze-validate-29929650",
+          "owner_name": "restic-ryze-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-27T18:20:45+00:00"
+        }
+      ],
+      "failed_jobs_7d": [],
+      "operational_acceptance_passed": true,
+      "seven_day_observation_passed": true,
+      "natural_weekly_copy_prune_passed": true,
+      "natural_monthly_check_passed": true,
+      "active_contract": {
+        "installed_contract": "workstation-ryze-v3",
+        "server_accepted_contract": "workstation-ryze-v3",
+        "generation": 4,
+        "accepted_snapshots": 73,
+        "holds": 0,
+        "latest_accepted_prefix": "b4836dcd8cdc",
+        "latest_accepted_time": "2026-11-25T15:05:37.811675+00:00"
+      },
+      "workstation_alerts_firing_7d": [],
+      "remaining_gates": [],
+      "notes": [
+        "Zero failed restic-ryze-* Jobs and zero firing workstation alerts over the 7-day window (2026-11-20 to 2026-11-27).",
+        "Three consecutive natural weekly copy/prune cycles succeeded (Nov 9/10, Nov 16/17, Nov 23/24).",
+        "Two consecutive natural monthly checks succeeded (Oct 15 restic-ryze-check-29867490 and Nov 15 restic-ryze-check-29912190, NAS and B2).",
+        "workstation-ryze-v3 is installed and accepted on minis (generation 4, 0 holds). A ~33h Prometheus scrape gap reflects the 2026-11-26/27 power outage (UPSOnBattery at 2026-11-26T09:22Z; reboot at 2026-11-27T18:18Z)."
+      ]
+    },
+    "m5c": {
+      "current_metrics": [
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795569146.0,
+          "kind": "documents",
+          "stage": "promotion"
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 50000000000.0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 107374182400.0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1794732573.9765236,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1794731571.3450983,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_copy_success_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795434309.9680893
+        },
+        {
+          "metric": "homelab_workstation_enrolled",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1.0
+        },
+        {
+          "metric": "homelab_workstation_enrollment_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1789330599.249674
+        },
+        {
+          "metric": "homelab_workstation_prune_success_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795503698.0699856
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 29886086430.0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 30559584603.0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1.0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1.0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_snapshot_time_invalid",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 0.0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795325650.394894,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795576619.526261,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_validation_hold",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 0.0
+        },
+        {
+          "metric": "homelab_workstation_validation_success_timestamp_seconds",
+          "queried_at": "2026-11-27T21:58:05.492000+00:00",
+          "value": 1795803559.5986974
+        }
+      ],
+      "seven_day_metrics": [
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1795323468.0,
+          "maximum": 1795569146.0,
+          "value_changes": 2,
+          "kind": "documents",
+          "stage": "promotion",
+          "maximum_age_seconds": 247524.205
+        },
+        {
+          "metric": "homelab_vault_ingestion_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1794800952.0,
+          "maximum": 1795323468.0,
+          "value_changes": 1,
+          "kind": "documents",
+          "stage": "promotion",
+          "maximum_age_seconds": 522496.316
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 50000000000.0,
+          "maximum": 50000000000.0,
+          "value_changes": 0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 50000000000.0,
+          "maximum": 50000000000.0,
+          "value_changes": 0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 107374182400.0,
+          "maximum": 107374182400.0,
+          "value_changes": 0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_ceiling_bytes",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 107374182400.0,
+          "maximum": 107374182400.0,
+          "value_changes": 0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1794732573.9765236,
+          "maximum": 1794732573.9765236,
+          "value_changes": 0,
+          "destination": "b2",
+          "maximum_age_seconds": 1084096.228
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1794732573.9765236,
+          "maximum": 1794732573.9765236,
+          "value_changes": 0,
+          "destination": "b2",
+          "maximum_age_seconds": 635754.339
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1794731571.3450983,
+          "maximum": 1794731571.3450983,
+          "value_changes": 0,
+          "destination": "nas",
+          "maximum_age_seconds": 1085098.86
+        },
+        {
+          "metric": "homelab_workstation_check_success_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1794731571.3450983,
+          "maximum": 1794731571.3450983,
+          "value_changes": 0,
+          "destination": "nas",
+          "maximum_age_seconds": 636756.971
+        },
+        {
+          "metric": "homelab_workstation_copy_success_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1795326386.3393497,
+          "maximum": 1795434309.9680893,
+          "value_changes": 1,
+          "maximum_age_seconds": 382360.237
+        },
+        {
+          "metric": "homelab_workstation_copy_success_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1794829514.4260077,
+          "maximum": 1795326386.3393497,
+          "value_changes": 1,
+          "maximum_age_seconds": 496873.89
+        },
+        {
+          "metric": "homelab_workstation_enrolled",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_enrolled",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_enrollment_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1789330599.249674,
+          "maximum": 1789330599.249674,
+          "value_changes": 0,
+          "maximum_age_seconds": 6486070.955
+        },
+        {
+          "metric": "homelab_workstation_enrollment_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1789330599.249674,
+          "maximum": 1789330599.249674,
+          "value_changes": 0,
+          "maximum_age_seconds": 6037729.066
+        },
+        {
+          "metric": "homelab_workstation_prune_success_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1794897589.283682,
+          "maximum": 1795503698.0699856,
+          "value_changes": 1,
+          "maximum_age_seconds": 606088.969
+        },
+        {
+          "metric": "homelab_workstation_prune_success_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1794897589.283682,
+          "maximum": 1794897589.283682,
+          "value_changes": 0,
+          "maximum_age_seconds": 470739.032
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 29886086430.0,
+          "maximum": 34358549997.0,
+          "value_changes": 1,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 32600657575.0,
+          "maximum": 34358549997.0,
+          "value_changes": 1,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 29936755308.0,
+          "maximum": 34810995853.0,
+          "value_changes": 2,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_repository_bytes",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 33053104943.0,
+          "maximum": 34810995853.0,
+          "value_changes": 1,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0,
+          "destination": "b2"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_size_collection_success",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1.0,
+          "maximum": 1.0,
+          "value_changes": 0,
+          "destination": "nas"
+        },
+        {
+          "metric": "homelab_workstation_snapshot_time_invalid",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_time_invalid",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1795325650.394894,
+          "maximum": 1795325650.394894,
+          "value_changes": 0,
+          "destination": "b2",
+          "maximum_age_seconds": 491019.81
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1793598471.450004,
+          "maximum": 1795325650.394894,
+          "value_changes": 1,
+          "destination": "b2",
+          "maximum_age_seconds": 1727916.866
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1795325650.394894,
+          "maximum": 1795576619.526261,
+          "value_changes": 2,
+          "destination": "nas",
+          "maximum_age_seconds": 240050.679
+        },
+        {
+          "metric": "homelab_workstation_snapshot_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1793598471.450004,
+          "maximum": 1795325650.394894,
+          "value_changes": 1,
+          "destination": "nas",
+          "maximum_age_seconds": 1727706.866
+        },
+        {
+          "metric": "homelab_workstation_validation_hold",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_validation_hold",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 0.0,
+          "maximum": 0.0,
+          "value_changes": 0
+        },
+        {
+          "metric": "homelab_workstation_validation_success_timestamp_seconds",
+          "first_sample": "2026-11-22T17:26:18.253000+00:00",
+          "last_sample": "2026-11-27T21:57:50.205000+00:00",
+          "samples": 10998,
+          "maximum_scrape_gap_seconds": 118410.0,
+          "minimum": 1795347003.5551505,
+          "maximum": 1795803559.5986974,
+          "value_changes": 6,
+          "maximum_age_seconds": 197368.781
+        },
+        {
+          "metric": "homelab_workstation_validation_success_timestamp_seconds",
+          "first_sample": "2026-11-20T21:58:28.316000+00:00",
+          "last_sample": "2026-11-22T17:25:28.316000+00:00",
+          "samples": 5215,
+          "maximum_scrape_gap_seconds": 30.003,
+          "minimum": 1795174203.4573677,
+          "maximum": 1795347003.5551505,
+          "value_changes": 4,
+          "maximum_age_seconds": 86394.859
+        }
+      ],
+      "jobs_14d": [
+        {
+          "job_name": "restic-m5c-check-29867490",
+          "owner_name": "restic-m5c-check",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-10-15T07:44:57+00:00"
+        },
+        {
+          "job_name": "restic-m5c-copy-29903745",
+          "owner_name": "restic-m5c-copy",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-09T11:54:38+00:00"
+        },
+        {
+          "job_name": "restic-m5c-prune-29904870",
+          "owner_name": "restic-m5c-prune",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-10T06:40:01+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29909490",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-13T11:30:11+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29910930",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-14T11:30:12+00:00"
+        },
+        {
+          "job_name": "restic-m5c-check-29912190",
+          "owner_name": "restic-m5c-check",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-15T08:49:41+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29912370",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-15T11:30:13+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29913810",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-16T11:30:13+00:00"
+        },
+        {
+          "job_name": "restic-m5c-copy-29913825",
+          "owner_name": "restic-m5c-copy",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-16T11:45:21+00:00"
+        },
+        {
+          "job_name": "restic-m5c-prune-29914950",
+          "owner_name": "restic-m5c-prune",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-17T06:39:58+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29915250",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-17T11:30:12+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29916690",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-18T11:30:12+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29918130",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-19T11:30:12+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29919570",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-20T11:30:11+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29921010",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-21T11:30:12+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-manual-20261121",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-22T05:43:29+00:00"
+        },
+        {
+          "job_name": "restic-m5c-copy-manual-20261121",
+          "owner_name": "restic-m5c-copy",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-22T05:46:33+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29922450",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-22T11:30:12+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29923890",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-23T11:30:13+00:00"
+        },
+        {
+          "job_name": "restic-m5c-copy-29923905",
+          "owner_name": "restic-m5c-copy",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-23T11:45:15+00:00"
+        },
+        {
+          "job_name": "restic-m5c-prune-29925030",
+          "owner_name": "restic-m5c-prune",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-24T07:01:45+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29925330",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-24T11:30:11+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29926770",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-25T11:30:57+00:00"
+        },
+        {
+          "job_name": "restic-m5c-validate-29929650",
+          "owner_name": "restic-m5c-validate",
+          "owner_kind": "CronJob",
+          "max_succeeded": 1.0,
+          "max_failed": 0.0,
+          "completion_time": "2026-11-27T18:20:45+00:00"
+        }
+      ],
+      "failed_jobs_7d": [],
+      "operational_acceptance_passed": true,
+      "seven_day_observation_passed": true,
+      "natural_weekly_copy_prune_passed": true,
+      "natural_monthly_check_passed": true,
+      "active_contract": {
+        "installed_contract": "workstation-m5c-v4",
+        "server_accepted_contract": "workstation-m5c-v4",
+        "generation": 4,
+        "accepted_snapshots": 32,
+        "holds": 0,
+        "latest_accepted_prefix": "de01f2880f53",
+        "latest_accepted_time": "2026-11-25T03:16:59.526261+00:00"
+      },
+      "workstation_alerts_firing_7d": [
+        {
+          "alertname": "ResticWorkstationBackupStale",
+          "severity": "warning",
+          "namespace": "monitoring",
+          "host": "m5c",
+          "first_firing": "2026-11-20T21:58:24.901000+00:00",
+          "last_firing": "2026-11-22T05:43:24.901000+00:00",
+          "samples": 3811
+        },
+        {
+          "alertname": "ResticWorkstationCopyOverdue",
+          "severity": "warning",
+          "namespace": "monitoring",
+          "host": "m5c",
+          "first_firing": "2026-11-20T21:58:24.901000+00:00",
+          "last_firing": "2026-11-22T05:46:54.901000+00:00",
+          "samples": 3818
+        }
+      ],
+      "remaining_gates": [],
+      "notes": [
+        "Operational acceptance and natural weekly copy/prune closed on 2026-09-26 and remain healthy (Nov 9/10, Nov 16/17, Nov 23/24 natural cycles succeeded; zero failed restic-m5c-* Jobs over 14 days).",
+        "Two consecutive natural monthly checks succeeded (Oct 15 restic-m5c-check-29867490 and Nov 15 restic-m5c-check-29912190, NAS and B2), closing the remaining monthly-check gate.",
+        "workstation-m5c-v4 is installed on m5c and accepted on minis (generation 4, 0 holds).",
+        "Transient ResticWorkstationBackupStale/ResticWorkstationCopyOverdue warnings fired 2026-11-20 to 2026-11-22 while the laptop was away/asleep and cleared after the 2026-11-22 backup/validate/copy."
+      ]
+    }
+  },
+  "cronjobs": [
+    {
+      "name": "restic-m5c-check",
+      "schedule": "30 2 15 * *",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "lastScheduleTime": "2026-11-15T08:30:00Z",
+      "lastSuccessfulTime": "2026-11-15T08:49:41Z"
+    },
+    {
+      "name": "restic-m5c-copy",
+      "schedule": "45 5 * * 1",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "lastScheduleTime": "2026-11-23T11:45:00Z",
+      "lastSuccessfulTime": "2026-11-23T11:45:15Z"
+    },
+    {
+      "name": "restic-m5c-prune",
+      "schedule": "30 0 * * 2",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "lastScheduleTime": "2026-11-24T06:30:00Z",
+      "lastSuccessfulTime": "2026-11-24T07:01:45Z"
+    },
+    {
+      "name": "restic-m5c-validate",
+      "schedule": "30 5 * * *",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "lastScheduleTime": "2026-11-27T11:30:00Z",
+      "lastSuccessfulTime": "2026-11-27T18:20:45Z"
+    },
+    {
+      "name": "restic-ryze-check",
+      "schedule": "30 2 15 * *",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "lastScheduleTime": "2026-11-15T08:30:00Z",
+      "lastSuccessfulTime": "2026-11-15T09:18:21Z"
+    },
+    {
+      "name": "restic-ryze-copy",
+      "schedule": "45 5 * * 1",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "lastScheduleTime": "2026-11-23T11:45:00Z",
+      "lastSuccessfulTime": "2026-11-23T11:46:52Z"
+    },
+    {
+      "name": "restic-ryze-prune",
+      "schedule": "30 0 * * 2",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "lastScheduleTime": "2026-11-24T06:30:00Z",
+      "lastSuccessfulTime": "2026-11-24T07:06:28Z"
+    },
+    {
+      "name": "restic-ryze-validate",
+      "schedule": "30 5 * * *",
+      "timeZone": "America/Chicago",
+      "suspend": false,
+      "lastScheduleTime": "2026-11-27T11:30:00Z",
+      "lastSuccessfulTime": "2026-11-27T18:20:45Z"
+    }
+  ],
+  "rest_servers": [
+    {
+      "name": "restic-m5c",
+      "annotations": {
+        "worm.run/quota-recount": "1795502891345519755"
+      },
+      "readyReplicas": 1,
+      "availableReplicas": 1,
+      "observedGeneration": 16
+    },
+    {
+      "name": "restic-ryze",
+      "annotations": {
+        "worm.run/quota-recount": "1795503271684234349"
+      },
+      "readyReplicas": 1,
+      "availableReplicas": 1,
+      "observedGeneration": 16
+    }
+  ],
+  "workstation_alerts_firing_7d": [
+    {
+      "alertname": "ResticWorkstationBackupStale",
+      "severity": "warning",
+      "namespace": "monitoring",
+      "host": "m5c",
+      "first_firing": "2026-11-20T21:58:24.901000+00:00",
+      "last_firing": "2026-11-22T05:43:24.901000+00:00",
+      "samples": 3811
+    },
+    {
+      "alertname": "ResticWorkstationCopyOverdue",
+      "severity": "warning",
+      "namespace": "monitoring",
+      "host": "m5c",
+      "first_firing": "2026-11-20T21:58:24.901000+00:00",
+      "last_firing": "2026-11-22T05:46:54.901000+00:00",
+      "samples": 3818
+    }
+  ],
+  "sources": {
+    "current": "Prometheus /api/v1/query workstation and ingestion metrics; Kubernetes homelab-readonly CronJobs, Jobs and Deployments; sanitized minis state.json contract/generation summary; local client contract.json checks on ryze and m5c",
+    "history": "Prometheus 7-day range vectors for workstation/ingestion metrics and firing ALERTS; 14-day range vectors for kube_job_owner, kube_job_status_succeeded, kube_job_status_failed, and kube_job_status_completion_time",
+    "limits": "A ~33h Prometheus scrape gap occurs inside the 7-day window due to the 2026-11-26/27 power outage (2026-11-26T09:26Z to 2026-11-27T18:18Z)."
+  }
+}

@@ -21,16 +21,18 @@
 > recovery drill on 2026-10-03, and drive B was enrolled and passed its drill on 2026-10-10;
 > both drives were confirmed off-site and the alert rules were activated in git that day.
 > Follow [the attended SSD runbook](../runbooks/backups/offline-ssd.md). Mail archival remains
-> draft. Updated 2026-10-10.
+> draft. Updated 2026-11-27.
 >
 > The repository now contains the reviewed Phase 1 foundation: fail-closed backup and vault
 > mount guards, attended LUKS2 provisioning, a local vault CronJob and monthly
 > verifier, a restricted `ryze` ingestion path, versioned contracts, alerts, and restore
 > runbooks. The local vault, `appstate`, and vault B2 copy pipelines run today; vault B2
 > prune is enabled and its first scheduled run succeeded. Workstation backup is active for
-> Ryze and m5c. The vault v3 promotion observation passed; separate workstation
-> acceptance passed for M5c on September 26; Ryze observation/weekly-cycle and both
-> natural monthly-check gates remain open as described in § 4. Both offline
+> Ryze (`workstation-ryze-v3`) and m5c (`workstation-m5c-v4`). The vault v3 promotion
+> observation passed; M5c operational acceptance closed on 2026-09-26, and Ryze's
+> observation/weekly-cycle gates plus both hosts' natural monthly-check gates closed on
+> 2026-11-27 ([closure evidence](../runbooks/backups/evidence/workstation-acceptance-20261127.json)).
+> Both offline
 > SSDs are enrolled and accepted, with normal rotation beginning with drive A in Q4 2026;
 > mail archival is not active. The `appstate` pipeline is
 > described under [What exists today](#what-exists-today):
@@ -47,8 +49,10 @@
 > passed content and manual KDBX checks; a real-client supplemental Linux fixture was
 > then independently restored from NAS and B2 with xattr, symlink-target, ownership,
 > mode, timestamp, and representative-file checks. Ryze activation and schedule enablement
-> passed on 2026-09-12; its seven-day observation gate remains open. See the [Ryze activation
-> record](../runbooks/backups/evidence/ryze-activation-20260912.json).
+> passed on 2026-09-12; its seven-day observation, natural weekly copy/prune, and monthly
+> check gates closed on 2026-11-27. See the [Ryze activation
+> record](../runbooks/backups/evidence/ryze-activation-20260912.json) and the
+> [workstation acceptance closure](../runbooks/backups/evidence/workstation-acceptance-20261127.json).
 >
 > The broader off-site and whole-estate follow-up remains open in
 > [operations.md → Follow-ups](./operations.md#follow-ups).
@@ -105,9 +109,9 @@ vault pipeline:
   contract version or inventory differs
 
 That anti-false-success contract is the most valuable pattern in the repo and everything
-proposed below reuses it. Vault B2 replication has passed its attended gates, and both
-offline SSDs are enrolled and accepted; the remaining gaps are workstation operational
-acceptance gates, mail archival, and Frigate export ingestion.
+proposed below reuses it. Vault B2 replication, workstation operational acceptance, and both
+offline SSD enrollments have passed their attended gates; the remaining gaps are mail archival,
+Frigate export ingestion, and the quarterly online restore program.
 
 ## The data policy (proposed)
 
@@ -2026,7 +2030,8 @@ Ordered so the highest-value, least-reversible data is protected first.
    repository verifier before activation. Enrollment records durable non-secret intent in
    `/etc/homelab/vault-b2.enrolled`; this keeps rejection fail-closed after credential loss
    while permitting local rejection during suspended, never-enrolled staging.
-5. **Workstations** — **active; remaining operational gates are listed in § 4**. The
+5. **Workstations** — **active; operational acceptance closed 2026-11-27**
+   ([closure evidence](../runbooks/backups/evidence/workstation-acceptance-20261127.json)). The
    enrollment procedure uses **two** rest-server Deployments, each with `--append-only` and a
    per-client repo path, htpasswd credential, and repo password (§ 4). Do **not** pass
    `--private-repos`: one shared process would make `--max-size` a server-wide limit and
@@ -2342,7 +2347,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | Offline drive A independent recovery, break-glass only | 2026-10-03 | passed — restored on `ryze` from the SSD and break-glass card alone, without `minis`, the NAS, or control records. All three snapshot IDs matched enrollment; full vault, appstate and legacy restores passed `--verify`; KDBX, documents, photos and legacy files opened; appstate hot-dump contract v3 artifacts were readable. RomM import and DR steps were not run. See `runbooks/backups/evidence/offline-ssd-A-recovery-20261003.json`. |
 | Recurring online repository checks (all NAS + B2 repos) | 2026-09-07 | passed — structural checks plus September's rotating `9/12` read-data subset completed without errors for appstate NAS/B2 and vault NAS/B2. Vault B2 checked 8 snapshots and read 93 of 1,135 packs. |
 | Quarterly online restore program | *not yet* | — |
-| Locked-vault degraded boot (§ 1b) | *not yet* | — |
+| Locked-vault degraded boot (§ 1b) | 2026-11-27 | passed (real power-outage boot at 12:18:46 America/Chicago) — `vault-mountpoint-guard.service` hardened `/mnt/vault` at boot; vault stayed locked for 2h51m until 15:10:28 unlock while the host and cluster ran degraded. `VaultLocked` fired at `18:50:02Z` (~31m after boot) and cleared at `21:10:32Z` on unlock with no `BulkStorageMountSetIncomplete` or `VaultFilesystemDeviceError` alerts; both `ryze` and `m5c` document uploads failed closed (SFTP exit 255) while locked. Post-unlock `restic-nas-backup-manual-202611271526` (74s), `restic-vault-backup-manual-202611271526` (30s, validated snapshot `ffd559cd28ea125748f4488ea518a94f137bd9dad38ec26c9db265e5f551bf25`), and `restic-vault-copy-manual-202611271529` (3m25s, replicated 7 snapshots to B2) all succeeded. The boot also surfaced a `sockets.target` ordering cycle in `vault-ingest-sshd.socket` that skipped `network.target`/`nut-server`/`nfs-server`; fixed in `ecf7607` (`FreeBind=yes`), installed live, and verified over SFTP from `ryze` (cycle-free boot to be re-confirmed on next reboot). |
 
 ## Deferred (documented, not built)
 

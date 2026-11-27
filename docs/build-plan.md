@@ -23,8 +23,9 @@ on-host and card-only off-host restores, authorization separation, and repositor
 verification passed on 2026-09-07; Flux applied activation commit `eb02a61`, and the
 recurring copy and prune CronJobs are live. The active contract is now v3 (baseline
 generation 2); its rollout and the first scheduled NAS/B2 prune completed on 2026-09-20.
-Workstation backups are active for Ryze (2026-09-12) and m5c (2026-09-15), with the
-remaining operational gates tracked in
+Workstation backups are active for Ryze (2026-09-12, `workstation-ryze-v3`) and m5c
+(2026-09-15, `workstation-m5c-v4`), with all operational acceptance gates (including
+natural weekly copy/prune and monthly checks) closed on 2026-11-27 in
 [attended enrollment and recovery](../runbooks/backups/workstations.md). Offline SSD
 drive A was enrolled on 2026-10-02 and passed its independent recovery drill on
 2026-10-03; drive B was enrolled and passed its drill on 2026-10-10. Mail archival
