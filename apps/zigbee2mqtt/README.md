@@ -46,7 +46,10 @@ alerts without publishing synthetic retained state.
 The workload, coordinator connection, broker connection, frontend, exporter, and
 monitoring paths passed live validation on 2026-08-16. Device pairing and Home
 Assistant MQTT discovery are also complete, and discovered Zigbee devices have been
-used successfully in Home Assistant automations.
+used successfully in Home Assistant automations. The added Z-Wave coordinator TCP
+probe (`slzb-mrw10u.iot.matrix:6638`) and per-device availability monitoring
+(`Zigbee2MQTTDevicesUnavailable`, 8 of 8 tracked devices and groups online) passed
+live validation on 2026-11-27.
 
 ## Coordinator firmware
 

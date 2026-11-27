@@ -39,7 +39,9 @@ disks (smartctl-exporter v0.14.0 and the `homelab.disks` rules) passed live vali
 on 2026-10-17, including a Pushover delivery drill. Zigbee2MQTT's critical HTTPS,
 SLZB coordinator TCP, and MQTT-native bridge-health monitoring passed live validation
 on 2026-08-16, including fresh retained health metrics, successful blackbox paths,
-and healthy rules with no active Zigbee2MQTT alert. Zigbee device pairing, Home
+and healthy rules with no active Zigbee2MQTT alert; the added Z-Wave coordinator TCP
+probe and Zigbee device-availability monitoring passed live validation on 2026-11-27.
+Zigbee device pairing, Home
 Assistant MQTT discovery, and real automation use are also validated. The NFSv4-only
 `/mnt/media` and `/mnt/games` exports passed attended server, VLAN 30 client, squash,
 NFSv3-refusal, VLAN 105/IoT/Guest/Tailnet isolation, neighbouring host-state, and
