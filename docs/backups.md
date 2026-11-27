@@ -330,9 +330,8 @@ observable rather than aspirational:
 | `workstations/ryze` (B2) | 100 GB | alert only |
 | `workstations/m5c` (B2) | 50 GB | alert only |
 
-That totals 750 GiB locally against 1 TiB, before accounting for the permanent
-legacy-rsnapshot archive. Phase 6 measured the archive; removal of the original tree still
-requires a separate review before crediting any net space gain. Only the workstation caps are
+That totals 750 GiB locally against 1 TiB, alongside the permanent
+legacy-rsnapshot archive. Only the workstation caps are
 hard limits — they are the
 ones facing an untrusted client. The rest are alerts, because a cluster-side job hitting a
 hard cap would fail a backup to protect disk space, which is the wrong trade for data the
@@ -340,32 +339,28 @@ cluster itself produces. A separate filesystem-level alert fires when `/mnt/back
 less than 20% free (warning) or 10% free (critical), independently of the per-repository
 measurements; the sum of soft ceilings is not itself an enforcement mechanism.
 
-**The 750 GiB is a ceiling sum, not a forecast, and part of the margin is not yet freed.**
+**The 750 GiB is a ceiling sum, not a forecast.**
 Expected steady-state occupancy is far lower — `appstate` is ~20 GB of source today, and
 even the pessimistic 50 GB / 20 GB workstation budgets are well under their caps — so the
-ceilings are headroom against growth rather than a prediction. What makes them safe to
-grant must be re-evaluated using fresh source, archive and filesystem measurements.
-Historical context only: `~177 GiB` was whole-filesystem usage in the migration worklog;
-`119 GiB` was the direct rsnapshot-tree measurement on 2026-08-30, with roughly 58 GiB
-of other LV content. Neither is a current free-space or reclaimable-space figure.
-The permanent archive consumes part of any eventual original-tree reclamation. Archive
-acceptance and the measured source/repository comparison are complete; both copies remain
-until a separate deletion review. Measure the net change after any approved cleanup before
-revising the ceiling margin. The 150/100 GiB workstation split is intentional;
-raising both to 200 GiB would consume another 150 GiB.
+ceilings are headroom against growth rather than a prediction. Following the attended
+2026-11-27 retirement of the original `/mnt/backups/snapshots` tree, `/mnt/backups` holds
+`148,201,283,584 B` used (`15%`) and `878,869,131,264 B` (~818.5 GiB) free out of
+`1,082,050,662,400 B`, leaving comfortable margin above the full 750 GiB combined ceiling
+sum. The 150/100 GiB workstation split remains intentional; raising both to 200 GiB would
+consume another 150 GiB.
 
 On 2026-09-20, the operator confirmed reviewing the disk images in `/mnt/backups`,
 determining they were no longer necessary, and deleting them. That cleanup also deleted
 the legacy archive's private control directory by accident; it was reconstructed on
-2026-09-27 (see the validation table). No reclaimed-byte total or
-fresh filesystem usage was recorded, so the historical figures above are not updated by
-this cleanup. The accepted legacy rsnapshot archive uses snapshot
-`208d5fcdbb4d4e045dedd296290dc8c36aff08ec7a33d67907d88d7c8f57da94`; the original tree is
-retained pending a separate attended deletion review (see the
-[archive runbook](../runbooks/backups/legacy-rsnapshot.md)). The repository occupies
-27,512,586,240 bytes against 127,204,077,568 allocated source bytes; this size comparison
-does not claim a net reclaimable total while verification scratch and control inventories
-remain on the filesystem.
+2026-09-27 (see the validation table). The accepted legacy rsnapshot archive uses snapshot
+`208d5fcdbb4d4e045dedd296290dc8c36aff08ec7a33d67907d88d7c8f57da94` (`27,512,586,240 B`
+allocated plus `6,469,464,064 B` for the retained control inventory under
+`/mnt/backups/.legacy-rsnapshot-control`). After both offline SSD copies passed
+independent break-glass recovery, the original `/mnt/backups/snapshots` tree was retired
+under attended review on 2026-11-27, reclaiming exactly `127,204,077,568 B` (`93.22 GB`
+net reduction vs. keeping the unarchived tree); see
+[the archive runbook](../runbooks/backups/legacy-rsnapshot.md) and
+[deletion evidence](../runbooks/backups/evidence/legacy-rsnapshot-source-deletion-20261127.json).
 
 **The B2 ceilings are split rather than shared, because a shared one hides which dataset
 is growing.** Under the earlier single `vault` + `appstate` 150 GB ceiling, the vault —
@@ -2050,16 +2045,17 @@ Ordered so the highest-value, least-reversible data is protected first.
    `/mnt/backups`, determining they were no longer necessary, and deleting them. The
    dedicated encrypted `legacy-rsnapshot` archive was accepted on 2026-09-20; its full
    verification and measured source/repository sizes are recorded in the
-   [attended runbook](../runbooks/backups/legacy-rsnapshot.md). The original tree remains
-   pending a separate deletion review. Do not budget the historical 119 GiB as a current
-   reclaimable total. Keep the archive indefinitely,
-   with annual attended full-data checks/restores and its password in the external manager.
+   [attended runbook](../runbooks/backups/legacy-rsnapshot.md). After independently
+   validated copies were confirmed on both offline SSDs (drive A enrolled 2026-10-02,
+   drive B 2026-10-10), the original `/mnt/backups/snapshots` tree was retired under
+   attended review on 2026-11-27, reclaiming `127,204,077,568 B` (`878.87 GB` free /
+   `15%` used on `/mnt/backups`). Keep the archive and `/mnt/backups/.legacy-rsnapshot-control`
+   indefinitely, with annual attended full-data checks/restores and its password in the
+   external manager.
    This static repository is exempt from automated check enrollment: no unattended credential,
    CronJob, freshness metric, retention or pruning. Historical Unix socket entries are omitted
    by Restic with operator acceptance on 2026-09-20; their metadata remains in the private
-   inventory. Independently validated copies exist on both offline SSDs (drive A enrolled
-   2026-10-02, drive B 2026-10-10), so array loss no longer destroys the only copy. B2
-   replication is outside this implementation.
+   inventory. B2 replication is outside this implementation.
 7. **Mail archive** — fail preflight if host UID or GID 2000 is already assigned, build and
    immutably pin the dedicated mail image, verify the mounted vault root and create the mail
    paths with the exact ownership and modes in § 1b, write the Gmail app password with a
@@ -2339,6 +2335,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | `m5c` workstation local + B2 restore | 2026-09-15 (recovery gates passed) | NAS and B2 content/metadata verification passed; 361,195 nodes restored and both restored KDBX copies opened successfully. The FileProvider domain identifier xattr was excluded from both scratch restores; selected FinderInfo/ResourceFork checks passed. See the [recovery records](../runbooks/backups/workstations.md#2026-09-14-m5c-nas-restore-verification). |
 | Legacy rsnapshot archive acceptance | 2026-09-20 | passed — snapshot `208d5fcdbb4d4e045dedd296290dc8c36aff08ec7a33d67907d88d7c8f57da94`; full data check, source/path/metadata and symlink checks, restored sample hashes, and manual inspection passed. Repository 27,512,586,240 B; source allocation 127,204,077,568 B. Original tree retained for separate deletion review. |
 | Legacy rsnapshot control-record reconstruction | 2026-09-27 | passed — the private control directory, deleted by accident during the 2026-09-20 disk-image cleanup, was found missing (repository intact). `reconstruct` recreated candidate and enrollment records after repository identity, single-snapshot, scope, and source-inventory gates matched the 2026-09-20 evidence; a full `verify` (data check, listing/metadata/symlink checks, 44 restored samples, fresh-source comparison, manual inspection) re-accepted the same snapshot. See `runbooks/backups/evidence/legacy-rsnapshot-reconstruction-20260927.json`. |
+| Legacy rsnapshot source retirement | 2026-11-27 | completed — after verifying NAS + offline SSD A (`39fc357a...`) + offline SSD B (`2e40ecae...`) copies and intact control records/inventory (`6.47 GB`), deleted `/mnt/backups/snapshots` explicitly (`16m48s`, `ionice -c 3 nice -n 19`), reclaiming `127,204,077,568 B` (exact match to source allocation; `/mnt/backups` dropped from 27% to 15% used, `878.87 GB` free). See `runbooks/backups/evidence/legacy-rsnapshot-source-deletion-20261127.json`. |
 | Mail archive restore (local + B2) | *not yet* | — |
 | Frigate exports restore (local + B2) | *not yet* | — |
 | Offline drive rotation (drive A) | 2026-11-27 | passed (`2026-Q4`, lightweight — annual verification already satisfied on 2026-10-02) — completed in 196s with `clean_unmount: true`; copied `offline-checkpoint-2026-Q4` for `vault` (`4928e6dc...`, lineage `ffd559cd...`) and `appstate` (`198bcff9...`, lineage `39b0c264...`); 1,798,773,567,488 B free. See `runbooks/backups/evidence/offline-ssd-A-rotation-20261127.json`. |

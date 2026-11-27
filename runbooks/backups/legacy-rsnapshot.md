@@ -1,33 +1,35 @@
 # Legacy rsnapshot archive
 
-Status: the archive was accepted on 2026-09-20. The original tree remains in place pending a
-separate attended deletion review. The private control directory was found missing on
-2026-09-27; it had been deleted by accident during the 2026-09-20 disk-image cleanup (the
-repository was intact). Its records were recreated the
-same day with [`reconstruct`](#lost-control-records) and re-accepted after a full `verify`,
-including `check --read-data` and manual inspection; see the
-[reconstruction evidence](evidence/legacy-rsnapshot-reconstruction-20260927.json). The
-accepted repository and snapshot IDs, measured sizes, and original verification results are
-in the [sanitized evidence](evidence/legacy-rsnapshot-20260920.json). Run the helper from a
-reviewed checkout (`runbooks/backups/legacy-rsnapshot.py`); the installed copy used for the
-original archive was retired on 2026-09-27. Checksum-verified Restic 0.19.1 remains
-installed at `/usr/local/lib/legacy-rsnapshot/restic`. The operator confirmed that the source is retired,
-including remote writers, and approved an attended
-low-I/O window. A live scan found historical Unix sockets. The operator explicitly accepted
-Restic's inherent omission of those entries; their paths and metadata remain in the private
-inventory. No regular files or other supported types may be omitted. No original data has
-been deleted by this workflow.
+Status: the archive was accepted on 2026-09-20 and its private control directory was
+reconstructed and re-accepted on 2026-09-27 after an accidental deletion during the
+2026-09-20 disk-image cleanup (the repository remained intact); see the
+[original evidence](evidence/legacy-rsnapshot-20260920.json) and
+[reconstruction evidence](evidence/legacy-rsnapshot-reconstruction-20260927.json).
+After both offline SSD copies (drive A on 2026-10-02/03, drive B on 2026-10-10) passed
+independent break-glass recovery and `/mnt/backups/.legacy-rsnapshot-control` was
+verified intact, the original `/mnt/backups/snapshots` tree was retired under attended
+review on **2026-11-27**, reclaiming `127,204,077,568 B` (`148.20 GB` used / `878.87 GB`
+free, `15%` on `/mnt/backups`); see the
+[source-deletion evidence](evidence/legacy-rsnapshot-source-deletion-20261127.json).
+Run the helper from a reviewed checkout (`runbooks/backups/legacy-rsnapshot.py`); the
+installed copy used for the original archive was retired on 2026-09-27. Checksum-verified
+Restic 0.19.1 remains installed at `/usr/local/lib/legacy-rsnapshot/restic`. The operator
+confirmed that the source was retired, including remote writers, and approved an attended
+low-I/O window. A live scan found 513 historical Unix sockets; the operator explicitly
+accepted Restic's inherent omission of those entries, and their paths and metadata remain
+in the private inventory under `/mnt/backups/.legacy-rsnapshot-control`. No regular files
+or other supported types were omitted.
 
 This static archive contains `/mnt/backups/snapshots` in the dedicated encrypted
 `/mnt/backups/legacy-rsnapshot` repository. Keep it indefinitely: no scheduled backups,
 forget, prune, unattended credential, CronJob, or freshness metric. It is an explicit
 exception to automated repository-check enrollment. An attended annual full-data check
-and representative restore replace automated checking. [Offline SSD tooling](offline-ssd.md) now copies the accepted exact snapshot during
-each drive’s enrollment and validates metadata, symlinks, hashes, xattrs and sampled
-hardlinks against accepted evidence without changing this archive’s acceptance record.
-Keep the saved inventory, candidate and acceptance records even if the original tree
-is separately retired. Physical A/B enrollment is pending; until both SSD copies are
-seeded and independently validated, array loss can destroy the archive. B2 is outside this
+and representative restore replace automated checking. [Offline SSD tooling](offline-ssd.md) copied the accepted exact snapshot during
+each drive's enrollment (drive A on 2026-10-02, drive B on 2026-10-10) and validated metadata, symlinks, hashes, xattrs and sampled
+hardlinks against accepted evidence without changing this archive's acceptance record.
+Preserve `/mnt/backups/.legacy-rsnapshot-control` (saved inventory, candidate, and acceptance
+records) indefinitely — `reconstruct` can no longer be used now that the original source tree
+has been retired, and annual `verify` relies on those records. B2 is outside this
 implementation.
 
 ## Prepare and measure

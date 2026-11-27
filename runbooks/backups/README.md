@@ -4,11 +4,13 @@ The [legacy rsnapshot archive](./legacy-rsnapshot.md) was accepted on 2026-09-20
 exact snapshot ID and validation evidence are recorded in the runbook and
 [sanitized evidence](./evidence/legacy-rsnapshot-20260920.json). Its lost private control
 records were reconstructed and re-accepted on 2026-09-27
-([evidence](./evidence/legacy-rsnapshot-reconstruction-20260927.json)). The original tree remains
-in place pending a separate attended deletion review. The 513 historical Unix sockets were
-omitted with operator acceptance; their paths and metadata remain in the private inventory.
-The archive has annual attended checks, no automated retention, and no off-array copy yet;
-independent SSD copies are planned.
+([evidence](./evidence/legacy-rsnapshot-reconstruction-20260927.json)). After independent
+copies on both offline SSDs (drive A and drive B) passed break-glass recovery, the
+original `/mnt/backups/snapshots` tree was retired under attended review on 2026-11-27,
+reclaiming `127,204,077,568 B` ([evidence](./evidence/legacy-rsnapshot-source-deletion-20261127.json)).
+The 513 historical Unix sockets were omitted with operator acceptance; their paths and
+metadata remain in the private inventory. The archive has annual attended checks, no
+automated retention, and independent copies on both offline SSDs.
 
 The [workstation workflow](./workstations.md) covers active ryze/m5c clients,
 append-only servers, replication, guarded retention, documents and recovery. Both hosts
