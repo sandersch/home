@@ -1,10 +1,14 @@
 [Unit]
 Description=Restricted vault-ingestion SFTP socket
-After=network-online.target
-Wants=network-online.target
 
 [Socket]
+# FreeBind=yes lets the socket bind 10.137.20.5:2222 during sockets.target
+# before lan0 has its address. Ordering a sockets.target unit After=
+# network-online.target creates a boot cycle through basic.target and
+# network.target, leaving network.target inactive and skipping services with
+# Requires=network.target (such as nut-server and nfs-server).
 ListenStream=10.137.20.5:2222
+FreeBind=yes
 Accept=yes
 NoDelay=true
 
