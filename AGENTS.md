@@ -22,9 +22,11 @@ integration have passed live validation. Z-Wave controller connectivity, device
 inclusion, and the Home Assistant integration passed live validation on 2026-08-16.
 The vault contract v3 rollout (baseline generation 2) completed on 2026-09-20, including
 NAS/B2 recovery, ingestion promotion, 24-hour observation, guarded manual retention, and
-the first scheduled prune. Separately, the appstate manifests use backup contract v3;
-the recorded 2026-08-22 local/B2 backup and restore drills used contract v2. Appstate
-requires the current application-aware SQLite exports, a readable
+the first scheduled prune. Separately, the appstate manifests use backup contract v3 and passed live local and B2
+restore drills on 2026-11-22 (following the earlier contract-v2 drills on 2026-08-22);
+the first quarterly online restore drill (`2026-Q4`, attended `vault/b2` semantic restore)
+passed on 2026-11-27 alongside 100d quarterly / 400d annual restore-drill alerting.
+Appstate requires the current application-aware SQLite exports, a readable
 Home Assistant archive, a successful RomM import/check, and a transactionally consistent
 k3s SQLite datastore artifact; both validated snapshots contained the expected k3s schema
 and data and no server-token artifact. The initial observability stack (Prometheus, Grafana,

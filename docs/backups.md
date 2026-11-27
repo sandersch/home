@@ -109,9 +109,10 @@ vault pipeline:
   contract version or inventory differs
 
 That anti-false-success contract is the most valuable pattern in the repo and everything
-proposed below reuses it. Vault B2 replication, workstation operational acceptance, and both
-offline SSD enrollments have passed their attended gates; the remaining gaps are mail archival,
-Frigate export ingestion, and the quarterly online restore program.
+proposed below reuses it. Vault B2 replication, workstation operational acceptance, both
+offline SSD enrollments, and the first quarterly online restore drill (`2026-Q4`) have
+passed their attended gates; the remaining gaps are mail archival and Frigate export
+ingestion.
 
 ## The data policy (proposed)
 
@@ -1645,7 +1646,8 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticReplicationLag` | prune reports unreplicated or unvalidated NAS candidates awaiting B2 (warning) |
 | `ResticRepoNearCeiling` | repo size above 80% of its ceiling (warning) |
 | `ResticRepositoryCheckOverdue` | no successful monthly structural + rotating data check in 40d (warning) — per NAS/B2 repo; vault destinations arm only while mounted |
-| `ResticRestoreDrillOverdue` | quarterly program older than 100d, or a repo/destination without its required annual semantic drill in 400d (warning); vault destinations arm only while mounted |
+| `ResticQuarterlyRestoreDrillOverdue` | newest recorded online semantic restore drill older than 100d, or drill metrics absent while vault is enrolled and mounted (warning) |
+| `ResticRestoreDrillOverdue` | individual vault destination (`nas` or `b2`) without a recorded annual semantic drill in 400d, or metric absent while enrolled and mounted (warning) |
 | `VaultLocked` | `/mnt/vault` not mounted for 30m (warning) — see below |
 | `VaultFilesystemDeviceError` | `node_filesystem_device_error` on a **mounted** `/mnt/vault` for 5m (critical) — see below |
 
@@ -2326,10 +2328,10 @@ Backups are only worth what a restore proves, so every phase ends with one.
 
 | Drill | Last run | Result |
 |---|---|---|
-| `appstate` local + B2 restore | 2026-08-22 | passed (contract v2; local `731326fa`, B2 `fe10c1ff`) |
+| `appstate` local + B2 restore | 2026-11-22 | passed (contract v3; local `f7ce2c9a` in 46s with 4,197 k3s `kine` rows, B2 `b02e22ea` in 54s with 4,634 k3s `kine` rows; 7 required app SQLite exports, 43 RomM tables, readable HA archive, and no server-token artifact; prior contract v2 passed 2026-08-22) |
 | `vault` local restore | 2026-09-06 | passed — snapshot `878998b8eb89be21176e6b85fdb89b0c6ed78c458e63604da901289a0a3972fe` restored into an isolated tree; SHA-256 matched all 15,206 imported photos. |
 | `vault` v2 → v3 transition | 2026-09-20 | complete: v3 active, baseline generation 2; NAS/B2 recovery, full-tree B2 comparison, fresh Ryze/M5c promotion, 24-hour observation, guarded manual NAS/B2 prune, and first scheduled NAS/B2 prune passed. Scheduled Job `restic-vault-prune-29831310` completed at 2026-09-20 04:30 UTC. See `runbooks/backups/evidence/vault-v3-promotion-20260916.json` and the scheduled Job logs. |
-| `vault` B2 restore (attended on `minis`) | 2026-09-07 | passed — snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349`; full `check --read-data` read 8 snapshots / 1,135 packs with no errors, then the restored KDBX, document, and photo were manually verified. Artifacts were retained on encrypted vault scratch when this evidence was recorded. |
+| `vault` B2 restore (attended on `minis`) | 2026-11-27 | passed (`2026-Q4`, contract v3) — snapshot `3bb8019d26716777d5b97b990954c8485c4b98f9e87f61b41727c62108cd0d3d` (lineage `ffd559cd...`); full `check --read-data` read 81 snapshots / 1,661 packs with 0 errors (364s Job / 14m35s attended wall time); KDBX opened in Strongbox and restored documents/photo verified; `homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="b2"}` refreshed to `1795820913`. See `runbooks/backups/evidence/quarterly-restore-2026q4-20261127.json` (prior v2 drill passed 2026-09-07). |
 | `vault` B2 restore, break-glass only | 2026-09-07 | passed — restored from `ryze` using only the sealed break-glass card; no access to `minis`, its mounted vault, credential files, or decrypted repository secrets. Snapshot `7dbc9510fd4b5b0646d86d1d881afac157d755a5b0d33fa7fe696275c7220349` was readable and representative restored content was successfully validated. |
 | `vault` B2 authorization separation | 2026-09-07 | passed — the existing appstate B2 application key was denied access to the dedicated vault bucket. No credential material was recorded. |
 | Strongbox `ccs.kdbx` ingestion + four-source open | component evidence recorded | Vault ingestion/promotion and NAS/B2 recovery are recorded; Ryze NAS/B2 KDBX opens passed September 12 and m5c NAS/B2 opens passed September 15. The combined end-to-end drill remains unrecorded; these component results do not close every assertion in the verification procedure. |
@@ -2346,7 +2348,7 @@ Backups are only worth what a restore proves, so every phase ends with one.
 | Offline drive B independent recovery, break-glass only | 2026-10-10 | passed — restored on `ryze` from the SSD and break-glass card alone, without `minis`, the NAS, or control records. All three snapshot IDs matched enrollment; full vault, appstate and legacy restores passed `--verify`; KDBX, sample vault files and legacy files opened; appstate hot-dump contract v3 artifacts were readable. RomM import and DR steps were not run. See `runbooks/backups/evidence/offline-ssd-B-recovery-20261010.json`. |
 | Offline drive A independent recovery, break-glass only | 2026-10-03 | passed — restored on `ryze` from the SSD and break-glass card alone, without `minis`, the NAS, or control records. All three snapshot IDs matched enrollment; full vault, appstate and legacy restores passed `--verify`; KDBX, documents, photos and legacy files opened; appstate hot-dump contract v3 artifacts were readable. RomM import and DR steps were not run. See `runbooks/backups/evidence/offline-ssd-A-recovery-20261003.json`. |
 | Recurring online repository checks (all NAS + B2 repos) | 2026-09-07 | passed — structural checks plus September's rotating `9/12` read-data subset completed without errors for appstate NAS/B2 and vault NAS/B2. Vault B2 checked 8 snapshots and read 93 of 1,135 packs. |
-| Quarterly online restore program | *not yet* | — |
+| Quarterly online restore program | 2026-11-27 (`2026-Q4`) | passed — `vault/b2` semantic drill (`3bb8019d...`, 81 snapshots / 1,661 packs, 0 errors, 14m35s) + reconciled `2026-11-22` `appstate` contract-v3 NAS/B2 drills (`f7ce2c9a...` / `b02e22ea...`); both `ResticQuarterlyRestoreDrillOverdue` (100d) and `ResticRestoreDrillOverdue` (400d) verified healthy/inactive in Prometheus. Rotation schedule: `2027-Q1` `workstations/ryze/{nas,b2}`, `2027-Q2` `vault/nas` + `workstations/m5c/{nas,b2}`, `2027-Q3` `appstate/{nas,b2}` + `vault/b2` break-glass refresh. See `runbooks/backups/evidence/quarterly-restore-2026q4-20261127.json`. |
 | Locked-vault degraded boot (§ 1b) | 2026-11-27 | passed (real power-outage boot at 12:18:46 America/Chicago) — `vault-mountpoint-guard.service` hardened `/mnt/vault` at boot; vault stayed locked for 2h51m until 15:10:28 unlock while the host and cluster ran degraded. `VaultLocked` fired at `18:50:02Z` (~31m after boot) and cleared at `21:10:32Z` on unlock with no `BulkStorageMountSetIncomplete` or `VaultFilesystemDeviceError` alerts; both `ryze` and `m5c` document uploads failed closed (SFTP exit 255) while locked. Post-unlock `restic-nas-backup-manual-202611271526` (74s), `restic-vault-backup-manual-202611271526` (30s, validated snapshot `ffd559cd28ea125748f4488ea518a94f137bd9dad38ec26c9db265e5f551bf25`), and `restic-vault-copy-manual-202611271529` (3m25s, replicated 7 snapshots to B2) all succeeded. The boot also surfaced a `sockets.target` ordering cycle in `vault-ingest-sshd.socket` that skipped `network.target`/`nut-server`/`nfs-server`; fixed in `ecf7607` (`FreeBind=yes`), installed live, and verified over SFTP from `ryze` (cycle-free boot to be re-confirmed on next reboot). |
 
 ## Deferred (documented, not built)

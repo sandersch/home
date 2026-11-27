@@ -1,0 +1,97 @@
+{
+  "recorded_date": "2026-11-27",
+  "quarter": "2026-Q4",
+  "repository_revision": "a7061af7bcb0dc14593adf9d1072720bb48978b7",
+  "scope": "First quarterly online restore drill (2026-Q4): live attended vault/b2 semantic restore drill plus reconciled 2026-11-22 appstate contract-v3 NAS and B2 restore validations.",
+  "drills": {
+    "vault_b2": {
+      "date": "2026-11-27",
+      "dataset": "vault",
+      "destination": "b2",
+      "contract": "vault-v3",
+      "job_name": "restic-vault-b2-restore-3bb8019d2671",
+      "snapshot_id": "3bb8019d26716777d5b97b990954c8485c4b98f9e87f61b41727c62108cd0d3d",
+      "source_lineage": "ffd559cd28ea125748f4488ea518a94f137bd9dad38ec26c9db265e5f551bf25",
+      "job_started_at": "2026-11-27T22:53:58Z",
+      "job_completed_at": "2026-11-27T23:00:02Z",
+      "job_elapsed_seconds": 364,
+      "attended_elapsed_seconds": 875.4,
+      "rto_target_hours": {
+        "priority_documents_and_kdbx": 24,
+        "full_vault": 72
+      },
+      "full_data_check": {
+        "status": "passed",
+        "snapshots_checked": 81,
+        "packs_checked": 1661,
+        "errors": 0
+      },
+      "semantic_verification": {
+        "kdbx_opened_in_strongbox": "passed",
+        "documents_inspected": "passed",
+        "photo_decoded": "passed",
+        "operator_confirmed_full_id": true
+      },
+      "metric_updated": {
+        "metric": "homelab_restic_restore_drill_timestamp_seconds",
+        "labels": {
+          "dataset": "vault",
+          "destination": "b2"
+        },
+        "value": 1795820913,
+        "timestamp_utc": "2026-11-27T23:08:33+00:00"
+      }
+    },
+    "appstate_nas": {
+      "date": "2026-11-22",
+      "dataset": "appstate",
+      "destination": "nas",
+      "contract_version": 3,
+      "job_name": "restic-nas-restore-validate",
+      "snapshot_id": "f7ce2c9a6e89ab5bf050335259717760a4ebe9b0ed67ca15ac5570ec9dbe356d",
+      "job_elapsed_seconds": 46,
+      "required_app_sqlite_exports": 7,
+      "k3s_kine_rows": 4197,
+      "romm_tables_checked": 43,
+      "server_token_absent": true,
+      "status": "passed"
+    },
+    "appstate_b2": {
+      "date": "2026-11-22",
+      "dataset": "appstate",
+      "destination": "b2",
+      "contract_version": 3,
+      "job_name": "restic-b2-restore-validate",
+      "snapshot_id": "b02e22eaffc5e9692e05044cf68af18e1489a8691d46a6250577b9dd1dbedfc7",
+      "job_elapsed_seconds": 54,
+      "required_app_sqlite_exports": 7,
+      "k3s_kine_rows": 4634,
+      "romm_tables_checked": 43,
+      "server_token_absent": true,
+      "status": "passed"
+    }
+  },
+  "prometheus_verification": {
+    "node_textfile_scrape_error": 0,
+    "vault_nas_drill_timestamp": 1788731283,
+    "vault_b2_drill_timestamp": 1795820913,
+    "rules": {
+      "ResticQuarterlyRestoreDrillOverdue": {
+        "health": "ok",
+        "state": "inactive",
+        "duration_seconds": 1800
+      },
+      "ResticRestoreDrillOverdue": {
+        "health": "ok",
+        "state": "inactive",
+        "duration_seconds": 1800
+      }
+    }
+  },
+  "rotation_calendar": {
+    "2026-Q4": "vault/b2 (semantic) + appstate/{nas,b2} (contract v3) — completed 2026-11-27",
+    "2027-Q1": "workstations/ryze/{nas,b2} (native workstation-restore.py)",
+    "2027-Q2": "vault/nas (routine semantic) + workstations/m5c/{nas,b2} (native workstation-restore.py)",
+    "2027-Q3": "appstate/{nas,b2} (contract v3) + vault/b2 (break-glass card refresh)"
+  }
+}

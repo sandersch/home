@@ -30,14 +30,15 @@ available as `/dev/mapper/hoardvg-backuplv` at `/mnt/backups`.
 
 Both repositories have passed initialization, manual backup, and representative restore
 validation. The nightly local and first naturally scheduled weekly B2 backups both
-completed successfully on 2026-07-19. Backup-contract version 3 passed fresh attended
-local and B2 backup/restore drills on 2026-08-22. The local restore validated snapshot
-`731326fa530f2c54686210a360ee4dc30833a418d145e95b39de591ead8cdca0`
-with 2,445 k3s `kine` rows; the local-volume-independent B2 restore validated snapshot
-`fe10c1ffa810ab7d5af75a52fd1f5b69315a3411e96e5deab93363406baea166`
-with 2,815. Each drill checked k3s SQLite integrity and schema, all eight then-mandatory
-application SQLite exports, a readable Home Assistant archive, a RomM dump imported
-as 32 healthy tables, and the absence of any server-token artifact.
+completed successfully on 2026-07-19. Backup-contract version 3 passed live local and B2
+restore drills on 2026-11-22: local snapshot
+`f7ce2c9a6e89ab5bf050335259717760a4ebe9b0ed67ca15ac5570ec9dbe356d` validated 4,197 k3s
+`kine` rows (46s), and local-volume-independent B2 snapshot
+`b02e22eaffc5e9692e05044cf68af18e1489a8691d46a6250577b9dd1dbedfc7` validated 4,634 (54s).
+Each drill checked k3s SQLite integrity and schema, all seven mandatory application
+SQLite exports, a readable Home Assistant archive, a RomM dump imported as 43 healthy
+tables, and the absence of any server-token artifact (prior contract-v2 drills passed
+on 2026-08-22).
 
 The shared backup workflow excludes `/data/opt/.snapshots` from both SQLite discovery
 and Restic input. Local btrfs snapshots remain available for same-device rollback but
