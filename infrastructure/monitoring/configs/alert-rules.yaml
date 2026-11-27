@@ -337,17 +337,33 @@ spec:
           annotations:
             description: "{{ $labels.dataset }}/{{ $labels.destination }} has no successful structural and rotating data check in 40 days."
             summary: Restic repository check is overdue
+        - alert: ResticQuarterlyRestoreDrillOverdue
+          expr: |
+            (
+              (time() - max(homelab_restic_restore_drill_timestamp_seconds) > 100 * 24 * 60 * 60)
+              or absent(homelab_restic_restore_drill_timestamp_seconds)
+            )
+            and on() (max(homelab_backup_repository_enrolled{dataset="vault",destination=~"nas|b2"}) == 1)
+            and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            description: No recorded online semantic restore drill has completed in the last 100 days (or restore-drill metrics are missing).
+            summary: Quarterly online restore drill is overdue
         - alert: ResticRestoreDrillOverdue
           expr: |
             (
-              (time() - homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="nas"} > 100 * 24 * 60 * 60)
-              or absent(homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="nas"})
+              (
+                (time() - homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="nas"} > 400 * 24 * 60 * 60)
+                or absent(homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="nas"})
+              )
+              and on() (homelab_backup_repository_enrolled{dataset="vault",destination="nas"} == 1)
+              and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)
             )
-            and on() (homelab_backup_repository_enrolled{dataset="vault",destination="nas"} == 1)
-            and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)
             or (
               (
-                (time() - homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="b2"} > 100 * 24 * 60 * 60)
+                (time() - homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="b2"} > 400 * 24 * 60 * 60)
                 or absent(homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination="b2"})
               )
               and on() (homelab_backup_repository_enrolled{dataset="vault",destination="b2"} == 1)
@@ -357,8 +373,8 @@ spec:
           labels:
             severity: warning
           annotations:
-            description: "{{ $labels.dataset }}/{{ $labels.destination }} has no recorded semantic restore drill in 100 days."
-            summary: Vault restore drill is overdue
+            description: "{{ $labels.dataset }}/{{ $labels.destination }} has no recorded annual semantic restore drill in 400 days."
+            summary: Annual repository restore drill is overdue
         - alert: StrongboxVaultIngestionStale
           expr: |
             (

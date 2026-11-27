@@ -145,7 +145,9 @@ assert 'A vault snapshot failed validation and is held outside the {{ $labels.de
 assert '        - alert: ResticRepoNearCeiling' in alerts
 assert 'homelab_restic_repository_size_bytes\n            / homelab_restic_repository_ceiling_bytes > 0.80' in alerts
 assert 'The {{ $labels.dataset }} repository on {{ $labels.destination }} is above 80 percent of its policy ceiling.' in alerts
-assert '{{ $labels.dataset }}/{{ $labels.destination }} has no recorded semantic restore drill in 100 days.' in alerts
+assert '        - alert: ResticQuarterlyRestoreDrillOverdue' in alerts
+assert 'No recorded online semantic restore drill has completed in the last 100 days' in alerts
+assert '{{ $labels.dataset }}/{{ $labels.destination }} has no recorded annual semantic restore drill in 400 days.' in alerts
 assert 'destination="b2"' in alerts
 assert not (root / 'infrastructure/monitoring/restic-vault.sops.yaml').exists()
 assert 'repository_ceiling_bytes{dataset="vault",destination="b2"} 100000000000' in copy_script
