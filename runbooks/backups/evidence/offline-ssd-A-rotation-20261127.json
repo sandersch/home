@@ -1,0 +1,38 @@
+{
+  "drive": "A",
+  "quarter": "2026-Q4",
+  "kind": "rotate",
+  "stage": "complete",
+  "started_at": 1795818457.4508312,
+  "success_at": 1795818653.5223336,
+  "elapsed_seconds": 196.07150268554688,
+  "clean_unmount": true,
+  "copies": {
+    "vault": {
+      "source_id": "5f7a87cb1986644764ac039b8e169729f1c71bf9046825227a16b56c8fd31be9",
+      "destination_id": "4928e6dc1d6a5fde9f3feb7f0d7c1b311990110166dc2d3063b8a971754bcb01",
+      "lineage": "ffd559cd28ea125748f4488ea518a94f137bd9dad38ec26c9db265e5f551bf25",
+      "tag": "offline-checkpoint-2026-Q4",
+      "snapshot_time": "2026-11-27T21:28:17.012589012Z"
+    },
+    "appstate": {
+      "source_id": "735db116b1740fbfbb11d9cc3edaa576d9563d224b9b02385fad5be0a6e4c970",
+      "destination_id": "198bcff9cf5a108192d220d9a2eb8531ae7d8638b1526d0616595991209079b3",
+      "lineage": "39b0c264e35db223377f6f26e21a856026d607a02c7c891ef16a7a1a02095823",
+      "tag": "offline-checkpoint-2026-Q4",
+      "snapshot_time": "2026-11-27T21:27:45.258107311Z"
+    }
+  },
+  "capacity": {
+    "free_bytes": 1799433838592,
+    "filesystem_bytes": 1967845998592,
+    "selected_logical_bytes": 51161376448,
+    "reserve_bytes": 196784599859,
+    "free_after_bytes": 1798773567488
+  },
+  "usage": {
+    "vault": 28219289600,
+    "appstate": 13303902208,
+    "legacy-rsnapshot": 27512545280
+  }
+}
