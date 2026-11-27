@@ -225,7 +225,7 @@ repository. If the push is rejected because Renovate pushed meanwhile, that push
 starts a new run.
 
 Host-installed Restic is separate: workstation clients, offline SSD, and legacy
-rsnapshot tooling pin `0.19.1` in their own scripts and require an attended reinstall
+rsnapshot tooling pin `0.20.0` in their own scripts and require an attended reinstall
 via `workstation-install-restic.py`, so a cluster image update does not change them.
 
 ### Human changes (attended)

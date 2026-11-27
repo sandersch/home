@@ -33,7 +33,7 @@ commands; do not remove the option. A dump from a newer MariaDB than the recorde
 image is refused before import: reinstall from a reviewed checkout matching
 production, then retry. An import failure reports MariaDB's own diagnostic.
 
-The installer reuses the upstream-checksum-verified Restic 0.19.1 installer and
+The installer reuses the upstream-checksum-verified Restic 0.20.0 installer and
 copies released vault contracts plus the appstate required-export inventory.
 Reinstall after a reviewed contract or RomM MariaDB image update. It installs immutable, empty mountpoints
 under `/mnt/offline/{A,B}` and creates no backup schedule. `inspect` reports hardware,
@@ -125,7 +125,7 @@ Appstate uses its contract version, required export inventory and export timesta
 there is no appstate JSON backup manifest. Tagging adds
 `offline-checkpoint-YYYY-Qn`, preserving all existing tags, then resolves the new IDs.
 Copies are independently listed and validated at the destination. Restic's
-[tag implementation](https://raw.githubusercontent.com/restic/restic/v0.19.1/cmd/restic/cmd_tag.go)
+[tag implementation](https://raw.githubusercontent.com/restic/restic/v0.20.0/cmd/restic/cmd_tag.go)
 retains `original` across tag changes; matching also checks tree, time, host and paths.
 The operation record keeps `copies[dataset].source_id` as the exact NAS ID used for the
 copy. When retention later removes the generic pin, it records the resulting current ID in
@@ -215,7 +215,7 @@ alert pending or firing.
 ## Independent recovery on Linux
 
 Recovery needs a retrieved SSD, its break-glass passwords and a Linux machine with
-Restic 0.19.1. It does **not** require minis, Kubernetes, the NAS, or its control
+Restic 0.20.0. It does **not** require minis, Kubernetes, the NAS, or its control
 records. The SSD filesystem contains only the three self-contained encrypted repos.
 Use a private trusted recovery machine and identify the USB disk by its physical
 label, serial, partition UUID and filesystem UUID from the cards/enrollment notes.

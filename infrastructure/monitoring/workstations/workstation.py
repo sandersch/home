@@ -491,8 +491,8 @@ def backup(config, state):
     home = Path(contract['source_roots'][0])
     if home != Path.home() or contract['hostname'] != config['host']:
         raise ValueError('client identity differs from released contract')
-    if not restic('version').decode().startswith('restic 0.19.1 '):
-        raise ValueError('Restic 0.19.1 is required')
+    if not restic('version').decode().startswith('restic 0.20.0 '):
+        raise ValueError('Restic 0.20.0 is required')
     since = time.time()
     env = os.environ.copy()
     credentials = Path(config['credentials'])

@@ -39,7 +39,7 @@ closes every remaining workstation acceptance gate for both hosts. See
 | ryze | 150 GiB | 100 GB | hourly systemd user due-check | daily restricted SFTP |
 | m5c | 100 GiB | 50 GB | hourly launchd agent while logged in | daily restricted SFTP |
 
-Python 3.11+ and checksum-verified Restic 0.19.1 are required on clients. The Mac
+Python 3.11+ and checksum-verified Restic 0.20.0 are required on clients. The Mac
 uses `/opt/homebrew/bin/python3`; verify that exact executable's Full Disk Access
 through launchd. It runs on battery and does not schedule wakes. Missed work is
 checked on login/wake and retried while awake. Backup and upload success are separate;
@@ -344,6 +344,14 @@ running Python process. The cluster mirror is delivered by the `monitoring` Flux
 Kustomization; check the mounted ConfigMap script before starting new maintenance
 work. Existing jobs must finish before deploying a shared-script update.
 
+A Restic version update changes both the binary and the wrapper's exact-version guard,
+so replace them together. While holding the client lock, retain both installed files as
+rollback copies, run `workstation-install-restic.py` into a temporary directory, confirm
+`restic version` there, then atomically move the binary to `/usr/local/bin/restic` and
+replace `workstation.py` as above. Swapping only one makes the next run refuse to start.
+Roll back by restoring both saved files under the lock. Repositories need no change:
+Restic 0.19.1 and 0.20.0 share a repository format.
+
 The SFTP promoter accepts only regular files/directories in a frozen archive,
 enforces a 50 GiB bound, serializes per host, atomically records completion, and
 never propagates client deletions. Identical successful deliveries refresh the
@@ -484,7 +492,7 @@ that passes all other checks and starts a new baseline generation. It cannot byp
 required-content floors or clock validation.
 
 Retention is `--group-by host --keep-within 30d --keep-within-daily 30d
---keep-within-weekly 84d --keep-within-monthly 12m`. Restic 0.19.1 rejects `12w`;
+--keep-within-weekly 84d --keep-within-monthly 12m`. Restic (0.19.1 and 0.20.0) rejects `12w`;
 84d expresses the intended twelve weeks. `--keep-within` is relative to the newest
 snapshot, not wall clock. Each NAS candidate requires a physically present,
 content-validated B2 counterpart before explicit-ID forget. Snapshot-set changes
@@ -671,7 +679,7 @@ are activated by recording it. The staged cluster ConfigMap references the relea
 contract; the package remains outside the active monitoring Kustomization.
 
 Run `test-workstations.py` with `WORKSTATION_RESTIC` pointing at verified Restic
-0.19.1 (its empty repositories are checked in with deliberately weak scrypt keys;
+0.20.0 (its empty repositories are checked in with deliberately weak scrypt keys;
 regenerate them with `fixtures/make-workstation-repositories.py`),
 `test-workstation-alerts.py` with `PROMTOOL`, existing backup regressions,
 `test-config-scripts.sh`, image-policy validation and both monitoring renders.

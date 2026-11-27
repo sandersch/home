@@ -4,7 +4,7 @@
 Restic calibrates scrypt to roughly half a second and repeats it on every
 repository open. These disposable fixtures protect nothing, so their keys are
 rewrapped with minimal scrypt parameters to make each test command cheap.
-Requires the `cryptography` package and checksum-verified Restic 0.19.1.
+Requires the `cryptography` package and checksum-verified Restic 0.20.0.
 """
 import argparse
 import base64

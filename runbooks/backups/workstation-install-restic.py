@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Download Restic 0.19.1, verify upstream SHA256, then install atomically."""
+"""Download Restic 0.20.0, verify upstream SHA256, then install atomically."""
 import argparse
 import bz2
 import hashlib
@@ -9,6 +9,8 @@ import platform
 import tempfile
 import urllib.request
 
+VERSION = '0.20.0'
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -16,8 +18,8 @@ def main():
     args = parser.parse_args()
     system = {'Linux': 'linux', 'Darwin': 'darwin'}[platform.system()]
     architecture = {'x86_64': 'amd64', 'arm64': 'arm64', 'aarch64': 'arm64'}[platform.machine()]
-    name = f'restic_0.19.1_{system}_{architecture}.bz2'
-    base = 'https://github.com/restic/restic/releases/download/v0.19.1/'
+    name = f'restic_{VERSION}_{system}_{architecture}.bz2'
+    base = f'https://github.com/restic/restic/releases/download/v{VERSION}/'
     with urllib.request.urlopen(base + 'SHA256SUMS', timeout=60) as response:
         checksums = dict((fields[1].lstrip('*'), fields[0]) for line in response.read().decode().splitlines()
                          if len(fields := line.split()) == 2)

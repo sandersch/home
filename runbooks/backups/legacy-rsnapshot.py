@@ -28,6 +28,7 @@ MOUNT = Path('/mnt/backups')
 UUID = 'cc1cedb8-ef22-44b5-b1d0-5ca020d72669'
 DEVICE = Path('/dev/mapper/hoardvg-backuplv')
 BINARY = Path('/usr/local/lib/legacy-rsnapshot/restic')
+RESTIC_VERSION = '0.20.0'
 
 
 def discard_inventory(db, path):
@@ -342,7 +343,7 @@ def compare_listing(records, listing):
 
 
 def compare_symlinks(restic, sid, records):
-    # The JSON listing omits link targets in Restic 0.19.1. Its long text listing
+    # The JSON listing omits link targets (checked on Restic 0.19.1 and 0.20.0). Its long text listing
     # exposes them without restoring millions of links or using millions of globs.
     expected = 0
     for path, record in records.items():
@@ -488,7 +489,7 @@ def accept_verification(records, actual, sid, run, scratch, candidate, enrollmen
     selected, hashes = restored_sample_checks(records, actual, scratch)
     if SOURCE.exists():
         require(inventory(SOURCE) == records, 'source changed since archive')
-    report = dict(snapshot_id=sid, repository_id=candidate['repository_id'], restic_version='0.19.1',
+    report = dict(snapshot_id=sid, repository_id=candidate['repository_id'], restic_version=RESTIC_VERSION,
                   source=totals(records), omitted_unix_sockets=sum(r['type'] == 'socket' for r in records.values()),
                   repository_allocated_bytes=int(command('du', '-s', '-B1', REPO).split()[0]),
                   selected_entries=len(selected), automated_verification='passed', scratch=str(scratch),
@@ -555,7 +556,7 @@ def accept_saved_verification(sid, report_path):
             'verification report must be root-owned 0600')
     report = json.loads(report_path.read_text())
     require(report.get('snapshot_id') == sid and report.get('repository_id') == candidate['repository_id']
-            and report.get('restic_version') == '0.19.1'
+            and report.get('restic_version') == RESTIC_VERSION
             and report.get('automated_verification') == 'passed'
             and report.get('manual_inspection') is None,
             'saved report is not a pending successful verification for this candidate')
@@ -770,7 +771,7 @@ def verify(restic, sid, run, records=None, source_totals=None):
     selected, hashes = restored_sample_checks(records, actual, restored, selected=selected)
     if SOURCE.exists():
         require(inventory(SOURCE) == records, 'source changed since archive')
-    report = dict(snapshot_id=sid, repository_id=candidate['repository_id'], restic_version='0.19.1',
+    report = dict(snapshot_id=sid, repository_id=candidate['repository_id'], restic_version=RESTIC_VERSION,
                   source=source_totals or totals(records), omitted_unix_sockets=sum(r['type'] == 'socket' for r in records.values()),
                   repository_allocated_bytes=int(command('du', '-s', '-B1', REPO).split()[0]),
                   selected_entries=len(selected), automated_verification='passed', scratch=str(scratch),
@@ -867,7 +868,7 @@ def main():
             finalize_existing_restore(args.snapshot, records, candidate, args.prior_run,
                                       args.prior_log, args.scratch, args.restored_inventory, run)
             return
-        require(command(BINARY, 'version').startswith('restic 0.19.1 '), 'Restic 0.19.1 required')
+        require(command(BINARY, 'version').startswith(f'restic {RESTIC_VERSION} '), f'Restic {RESTIC_VERSION} required')
         if args.operation == 'archive':
             require(input('Confirm retired source, no writers/schedules (including other hosts), and low-I/O window: type RETIRED: ') == 'RETIRED', 'retirement not confirmed')
         require(input('Confirm independent password-manager copy saved: type SAVED: ') == 'SAVED', 'credential not enrolled')
