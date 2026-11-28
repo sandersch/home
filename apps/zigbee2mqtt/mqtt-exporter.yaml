@@ -9,6 +9,10 @@ metadata:
 spec:
   replicas: 1
   revisionHistoryLimit: 2
+  # MQTT_CLIENT_ID is fixed; Recreate avoids old/new pods kicking each other
+  # off Mosquitto during rollouts.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: zigbee2mqtt-mqtt-exporter
@@ -56,8 +60,12 @@ spec:
                   key: ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD
             - name: KEEP_FULL_TOPIC
               value: "True"
+            # Enforced in mqtt-exporter before Prometheus metricRelabelings
+            # drops per-device bridge/health counters (~4 metrics per device).
+            # 1024 leaves headroom for mesh growth without silently dropping
+            # mqtt_zigbee_availability or mqtt_response_time on restart.
             - name: MAX_METRICS
-              value: "128"
+              value: "1024"
             - name: PROMETHEUS_PORT
               value: "9000"
           ports:

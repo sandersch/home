@@ -99,8 +99,15 @@ kubectl -n zigbee2mqtt rollout status deploy/zigbee2mqtt --timeout=300s
 kubectl -n zigbee2mqtt rollout status deploy/zigbee2mqtt-mqtt-exporter --timeout=300s
 [ "$(kubectl -n zigbee2mqtt get deploy zigbee2mqtt -o jsonpath='{.spec.template.spec.priorityClassName}')" = "homelab-critical" ] \
   || die "Zigbee2MQTT is not using priorityClassName=homelab-critical"
-[ "$(kubectl -n zigbee2mqtt get deploy zigbee2mqtt-mqtt-exporter -o jsonpath='{.spec.template.spec.priorityClassName}')" = "homelab-critical" ] \
-  || die "Zigbee2MQTT MQTT exporter is not using priorityClassName=homelab-critical"
+kubectl -n zigbee2mqtt get deploy zigbee2mqtt-mqtt-exporter -o json \
+  | jq -e '
+      .spec.strategy.type == "Recreate" and
+      .spec.strategy.rollingUpdate == null and
+      .spec.template.spec.priorityClassName == "homelab-critical" and
+      any(.spec.template.spec.containers[0].env[];
+        .name == "MAX_METRICS" and .value == "1024")
+    ' >/dev/null \
+  || die "Zigbee2MQTT MQTT exporter live Deployment is missing Recreate strategy, homelab-critical priority, or MAX_METRICS=1024"
 kubectl -n zigbee2mqtt get service zigbee2mqtt-mqtt-exporter >/dev/null
 kubectl -n monitoring get servicemonitor zigbee2mqtt-mqtt-health >/dev/null
 kubectl -n monitoring get probe critical-ingress >/dev/null
