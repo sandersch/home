@@ -200,7 +200,8 @@ assert_phase5_observability_invariants() {
   # shellcheck disable=SC2016 # $pod/$container are jq variables, not shell variables.
   yq -e '
     select(.kind == "Deployment" and .metadata.name == "zigbee2mqtt-mqtt-exporter") |
-    .spec.template.spec as $pod |
+    .spec.strategy.type == "Recreate" and
+    (.spec.template.spec as $pod |
     $pod.priorityClassName == "homelab-critical" and
     $pod.automountServiceAccountToken == false and
     $pod.securityContext.runAsNonRoot == true and
@@ -225,13 +226,15 @@ assert_phase5_observability_invariants() {
       any($container.env[];
         .name == "ZIGBEE2MQTT_AVAILABILITY" and .value == "True") and
       any($container.env[];
+        .name == "MAX_METRICS" and .value == "1024") and
+      any($container.env[];
         .name == "MQTT_USERNAME" and
         .valueFrom.secretKeyRef.name == "zigbee2mqtt-auth" and
         .valueFrom.secretKeyRef.key == "ZIGBEE2MQTT_CONFIG_MQTT_USER") and
       any($container.env[];
         .name == "MQTT_PASSWORD" and
         .valueFrom.secretKeyRef.name == "zigbee2mqtt-auth" and
-        .valueFrom.secretKeyRef.key == "ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD"))
+        .valueFrom.secretKeyRef.key == "ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD")))
   ' "$REPO_ROOT/apps/zigbee2mqtt/mqtt-exporter.yaml" >/dev/null \
     || die "Zigbee2MQTT MQTT exporter image, topics, credentials, resources, probes, or security settings changed unexpectedly"
   yq -e '
