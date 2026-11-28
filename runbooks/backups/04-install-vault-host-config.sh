@@ -112,7 +112,9 @@ step "Initialize the vault filesystem contract"
 sudo chown root:root "$vault_mount"
 sudo chmod 0711 "$vault_mount"
 sentinel_tmp="$(mktemp)"
-printf 'vault-contract-version=2\nfilesystem-uuid=%s\n' "$VAULT_FS_UUID" >"$sentinel_tmp"
+vault_contract_version="$(sudo awk -F= '/^(export[[:space:]]+)?VAULT_CONTRACT_VERSION=/{print $2}' /etc/homelab/vault.conf | tail -n 1)"
+vault_contract_version="${vault_contract_version:-3}"
+printf 'vault-contract-version=%s\nfilesystem-uuid=%s\n' "$vault_contract_version" "$VAULT_FS_UUID" >"$sentinel_tmp"
 sudo install -o root -g root -m 0444 "$sentinel_tmp" "$vault_mount/.vault-sentinel"
 sudo install -d -o root -g root -m 0700 \
   "$vault_mount/.backup-credentials" \
@@ -120,6 +122,7 @@ sudo install -d -o root -g root -m 0700 \
   "$vault_mount/credentials/strongbox" \
   "$vault_mount/documents" \
   "$vault_mount/documents/ryze" \
+  "$vault_mount/documents/m5c" \
   "$vault_mount/photos" \
   "$vault_mount/mail" \
   "$vault_mount/firmware" \

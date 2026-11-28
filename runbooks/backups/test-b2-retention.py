@@ -59,7 +59,7 @@ set -Eeuo pipefail
 printf 'validate %s\n' "$1" >>"$FIXTURE/operations"
 [ "$MODE" != validation-failure ] || exit 1
 if [ "$MODE" = malformed ]; then echo '{}'; else
-  printf '{"contract":"vault-v2","total_files":%s,"total_bytes":%s}\n' "$FILES" "$BYTES"
+  printf '{"contract":"vault-v3","total_files":%s,"total_bytes":%s}\n' "$FILES" "$BYTES"
 fi
 ''')
         validator.chmod(0o755)
