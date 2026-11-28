@@ -49,6 +49,33 @@ spec:
           ports:
             - name: http
               containerPort: 8123
+          startupProbe:
+            httpGet:
+              host: 127.0.0.1
+              path: /manifest.json
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              host: 127.0.0.1
+              path: /manifest.json
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Generous ~5m liveness window covers UI-triggered restarts: s6-overlay
+          # restarts Home Assistant in-place (exit code 100) without exiting the
+          # container, so startupProbe does not re-run during reboot/migrations.
+          livenessProbe:
+            httpGet:
+              host: 127.0.0.1
+              path: /manifest.json
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 10
           resources:
             requests:
               cpu: 500m
