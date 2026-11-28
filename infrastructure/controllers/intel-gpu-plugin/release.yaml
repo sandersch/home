@@ -9,9 +9,8 @@ spec:
   patches:
     - patch: |
         - op: add
-          path: /spec/template/spec/containers/0/args
-          value:
-            - -shared-dev-num=2
+          path: /spec/template/spec/containers/0/args/-
+          value: -shared-dev-num=2
       target:
         group: apps
         version: v1
