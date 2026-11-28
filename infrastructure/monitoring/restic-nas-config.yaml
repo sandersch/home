@@ -386,7 +386,7 @@ data:
     }
 
     release_completed_appstate_pins() {
-      offline_pin_reconcile_and_release appstate /repo/nas/.control/offline /work --host "$RESTIC_HOST"
+      offline_pin_reconcile_and_release appstate /repo/nas/.control/offline /work
     }
 
     dump_sqlite

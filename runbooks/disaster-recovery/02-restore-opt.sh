@@ -91,7 +91,7 @@ spec:
             - -ec
             - |
               mkdir -p "\$RESTIC_CACHE_DIR"
-              metadata="\$(restic --no-lock snapshots '$RECOVERY_SNAPSHOT' --host minis --json)"
+              metadata="\$(restic --no-lock snapshots '$RECOVERY_SNAPSHOT' --json)"
               printf '%s' "\$metadata" | jq -e \
                 --arg id '$RECOVERY_SNAPSHOT' \
                 --arg tag '$RECOVERY_SOURCE' '
