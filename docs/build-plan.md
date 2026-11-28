@@ -1055,10 +1055,15 @@ spec:
   template:
     spec:
       priorityClassName: homelab-standard
-      containers:
+      # Native sidecar: kubelet waits for Gluetun's startupProbe (kill switch
+      # + active tunnel) before starting any download/*arr container.
+      initContainers:
         - name: gluetun
           image: ghcr.io/qdm12/gluetun
+          restartPolicy: Always
           securityContext: { capabilities: { add: [NET_ADMIN] } }
+          startupProbe:
+            exec: { command: [/gluetun-entrypoint, healthcheck] }
           envFrom: [{ secretRef: { name: gluetun-mullvad } }]   # WireGuard values, SOPS-encrypted
           env:                                                  # non-secret config from gluetun-config
             - { name: VPN_SERVICE_PROVIDER, valueFrom: { configMapKeyRef: { name: gluetun-config, key: VPN_SERVICE_PROVIDER } } }
@@ -1073,6 +1078,7 @@ spec:
           # FIREWALL_INPUT_PORTS=8080,8090,9696,7878,8989 # inbound: UIs, Seerr
           # FIREWALL_OUTBOUND_SUBNETS=10.42.0.0/16,10.43.0.0/16,10.137.20.0/24
           #   (k3s pod + Service CIDRs, LAN — keeps cluster DNS/Plex reachable)
+      containers:
         - name: sabnzbd                          # localhost:8080
           image: lscr.io/linuxserver/sabnzbd
           # no special networking — inherits gluetun's namespace (as do the *arrs)

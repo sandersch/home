@@ -745,7 +745,10 @@ spec:
             runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodediskiosaturation
             summary: Disk IO queue is high.
         - alert: GluetunRestarted
-          expr: increase(kube_pod_container_status_restarts_total{namespace="media",container="gluetun"}[15m]) > 0
+          expr: |
+            increase(kube_pod_init_container_status_restarts_total{namespace="media",container="gluetun"}[15m]) > 0
+            or
+            increase(kube_pod_container_status_restarts_total{namespace="media",container="gluetun"}[15m]) > 0
           labels:
             severity: warning
           annotations:
