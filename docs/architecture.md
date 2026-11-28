@@ -157,10 +157,13 @@ cameras go live: from the camera segment, ping `8.8.8.8` and a LAN host
 listening) must fail — ICMP echo-request to the host still succeeds.
 
 **Frigate host-listener isolation (nftables, host-level).** Frigate's host networking
-also exposes its listeners on the host's non-camera interfaces. The separate
-`frigate_access` input chain permits the unauthenticated TCP/5000 UI/API only over
-loopback and drops it from LAN, Tailnet, camera, and pod-network interfaces.
-Authenticated TCP/8971 remains reachable through the Kubernetes Service and Ingress.
+also exposes its unauthenticated TCP/5000 UI/API and embedded `go2rtc` listeners
+(TCP `1984`, `8554`, `8555` and UDP `8555`) on the host's network namespace.
+`apps/frigate/config.yml` binds `go2rtc` to `127.0.0.1`, and the separate
+`frigate_access` input chain enforces defense in depth by permitting all of those
+ports only over loopback and dropping them from LAN, Tailnet, camera, and
+pod-network interfaces. Authenticated TCP/8971 remains reachable through the
+Kubernetes Service and Ingress.
 
 **Intra-segment isolation (switch).** The host rules only see traffic that reaches the node; camera-to-camera traffic stays on the L2 switch. The Catalyst 3850 carrying the segment is configured with **protected ports** so a compromised camera cannot pivot to its peers. This is a prerequisite for going live, not a later hardening step — no camera is connected until both the host rules and switch isolation are in place.
 
