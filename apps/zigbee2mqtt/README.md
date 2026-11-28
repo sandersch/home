@@ -41,7 +41,11 @@ Run `./runbooks/phase5/15-validate-zigbee2mqtt-monitoring.sh` after monitoring c
 and during periodic monitoring drills. The non-disruptive helper validates the live
 critical ingress and Zigbee/Z-Wave coordinator TCP probes, MQTT exporter target,
 bridge-health and device-availability metrics, and inactive Zigbee2MQTT/endpoint
-alerts without publishing synthetic retained state.
+alerts without publishing synthetic retained state. When upgrading an existing
+cluster from the default `RollingUpdate` strategy on `zigbee2mqtt-mqtt-exporter`,
+run `./runbooks/phase5/migrate-mqtt-exporter-recreate.sh` with `homelab-admin`
+before Flux reconciles `apps` so the API-defaulted `rollingUpdate` block is cleared
+in the same merge patch as switching to `Recreate`.
 
 The workload, coordinator connection, broker connection, frontend, exporter, and
 monitoring paths passed live validation on 2026-08-16. Device pairing and Home

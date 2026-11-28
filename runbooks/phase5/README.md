@@ -91,6 +91,22 @@ were healthy with no active Zigbee2MQTT alert.
 
 ## Zigbee2MQTT monitoring validation
 
+When upgrading an existing cluster whose `zigbee2mqtt-mqtt-exporter` Deployment
+still carries the API-defaulted `RollingUpdate` strategy, clear
+`spec.strategy.rollingUpdate` and set `type: Recreate` in one merge patch before
+Flux reconciles `apps` (Flux's Server-Side Apply preserves the unowned
+`rollingUpdate` block when the manifest omits it, and Kubernetes rejects
+`type: Recreate` while `rollingUpdate` is present). Switch explicitly to
+`homelab-admin`, run the idempotent migration helper, and then reconcile:
+
+```bash
+./runbooks/phase5/migrate-mqtt-exporter-recreate.sh
+flux reconcile kustomization apps --with-source
+```
+
+Fresh installs and already-migrated clusters do not need the patch; rerunning
+the helper is a safe no-op.
+
 Use a kubeconfig context allowed to port-forward in both `zigbee2mqtt` and
 `monitoring`, then run:
 
