@@ -43,12 +43,19 @@ tests = [case('first prune failure', failed, 'ResticPruneFailed', failed_labels)
 verify_cron = '{namespace="monitoring",cronjob="restic-verify"}'
 verify_failed = {
     'kube_job_created{namespace="monitoring",job_name="restic-verify-1"}': 20,
-    'kube_job_status_failed{namespace="monitoring",job_name="restic-verify-1"}': 1,
+    'kube_job_failed{namespace="monitoring",job_name="restic-verify-1",condition="true"}': 1,
+    'kube_job_owner{namespace="monitoring",job_name="restic-verify-1",owner_kind="CronJob",owner_is_controller="true",owner_name="restic-verify"}': 1,
+    'kube_cronjob_created' + verify_cron: 1,
+}
+verify_not_failed = {
+    'kube_job_created{namespace="monitoring",job_name="restic-verify-1"}': 20,
+    'kube_job_failed{namespace="monitoring",job_name="restic-verify-1",condition="false"}': 1,
     'kube_job_owner{namespace="monitoring",job_name="restic-verify-1",owner_kind="CronJob",owner_is_controller="true",owner_name="restic-verify"}': 1,
     'kube_cronjob_created' + verify_cron: 1,
 }
 verify_labels = {'namespace': 'monitoring', 'owner_name': 'restic-verify'}
-tests += [case('first verify failure', verify_failed, 'ResticVerifyFailed', verify_labels),
+tests += [case('first verify failure (including pod-less Job failure)', verify_failed, 'ResticVerifyFailed', verify_labels),
+          case('verify condition=false does not fire', verify_not_failed, 'ResticVerifyFailed'),
           case('verify failure waits 15 minutes', verify_failed, 'ResticVerifyFailed', evaluations=('14m',)),
           case('verify failure after prior success', dict(verify_failed, **{'kube_cronjob_status_last_successful_time' + verify_cron: 10}), 'ResticVerifyFailed', verify_labels),
           case('later verify success clears failure', dict(verify_failed, **{'kube_cronjob_status_last_successful_time' + verify_cron: 30}), 'ResticVerifyFailed')]

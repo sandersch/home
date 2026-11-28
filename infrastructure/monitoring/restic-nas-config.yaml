@@ -351,6 +351,7 @@ data:
         exec 9>>"$offline_lock"
         if ! flock -n 9; then
           log "offline SSD selection/pinning is active; skipping appstate retention"
+          write_repository_size_metrics "$target_tag"
           local tmp_metric previous_success
           previous_success=0
           [ -f "$retention_metric" ] && previous_success="$(awk '/appstate_retention_last_success_timestamp_seconds/ {print $NF}' "$retention_metric" | tail -n1)"

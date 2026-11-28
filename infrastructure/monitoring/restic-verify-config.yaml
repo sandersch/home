@@ -97,11 +97,28 @@ data:
           export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
           check_repository vault b2
           unset RESTIC_REPOSITORY RESTIC_PASSWORD_FILE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-        elif [ -e /etc/homelab/vault-b2.enrolled ]; then
-          log "ERROR: vault B2 is enrolled (/etc/homelab/vault-b2.enrolled) but repository config or credentials are missing"
-          failures=$((failures + 1))
         else
-          log "vault B2 enrollment is absent; leaving its check timestamp unchanged"
+          b2_evidence=""
+          for evidence in \
+            /etc/homelab/vault-b2.enrolled \
+            /etc/homelab/vault-b2.conf \
+            /data/vault/.backup-credentials/b2-password \
+            /data/vault/.backup-credentials/b2-key-id \
+            /data/vault/.backup-credentials/b2-application-key; do
+            if [ -e "$evidence" ]; then
+              b2_evidence="$evidence"
+              break
+            fi
+          done
+          if [ -z "$b2_evidence" ] && [ "$backups_available" -eq 1 ] && [ -e /repo/nas/.control/vault-b2 ]; then
+            b2_evidence="/repo/nas/.control/vault-b2"
+          fi
+          if [ -n "$b2_evidence" ]; then
+            log "ERROR: vault B2 enrollment evidence ($b2_evidence) is present but repository config or credentials are missing"
+            failures=$((failures + 1))
+          else
+            log "vault B2 enrollment is absent; leaving its check timestamp unchanged"
+          fi
         fi
       else
         log "ERROR: vault sentinel validation failed"

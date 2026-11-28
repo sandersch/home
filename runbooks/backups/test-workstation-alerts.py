@@ -38,9 +38,9 @@ def emitted(host, since=OLD, nas=1000, b2=1000, prune=1000, check=1000):
     return rows
 
 
-def expected(alert, host, **labels):
+def expected(alert, host, annotations=None, **labels):
     return {'exp_labels': {'dataset': 'workstations', 'host': host, 'severity': 'warning', **labels},
-            'exp_annotations': rules[alert, host]['annotations']}
+            'exp_annotations': rules[alert, host]['annotations'] if annotations is None else annotations}
 
 
 def quiet(name, input_series, eval_time='2h', names=alertnames):
@@ -96,14 +96,22 @@ for host, other in [('ryze', 'm5c'), ('m5c', 'ryze')]:
     job = f'{cronjob}-1'
     failed_job_series = [
         {'series': f'kube_job_created{{namespace="monitoring",job_name="{job}"}}', 'values': '20x200'},
-        {'series': f'kube_job_status_failed{{namespace="monitoring",job_name="{job}"}}', 'values': '1x200'},
+        {'series': f'kube_job_failed{{namespace="monitoring",job_name="{job}",condition="true"}}', 'values': '1x200'},
         {'series': f'kube_job_owner{{namespace="monitoring",job_name="{job}",owner_kind="CronJob",owner_is_controller="true",owner_name="{cronjob}"}}', 'values': '1x200'},
         {'series': f'kube_cronjob_created{{namespace="monitoring",cronjob="{cronjob}"}}', 'values': '1x200'},
     ]
+    failed_annotations = {
+        'summary': f'{host}: ResticWorkstationJobFailed',
+        'description': f'{cronjob} has a failed run newer than its last successful run. See runbooks/backups/workstations.md.',
+    }
+    suspended_annotations = {
+        'summary': f'{host}: ResticWorkstationJobSuspended',
+        'description': f'{cronjob} is suspended while the host is enrolled. See runbooks/backups/workstations.md.',
+    }
     tests.append({'name': f'{host} failed maintenance CronJob alerts while enrolled', 'interval': '1m',
         'input_series': [VAULT] + emitted(host) + failed_job_series,
         'alert_rule_test': [{'eval_time': '20m', 'alertname': 'ResticWorkstationJobFailed',
-                             'exp_alerts': [expected('ResticWorkstationJobFailed', host, namespace='monitoring', owner_name=cronjob)]}]})
+                             'exp_alerts': [expected('ResticWorkstationJobFailed', host, annotations=failed_annotations, namespace='monitoring', owner_name=cronjob)]}]})
     tests.append({'name': f'{host} later CronJob success clears failed job alert', 'interval': '1m',
         'input_series': [VAULT] + emitted(host) + failed_job_series + [
             {'series': f'kube_cronjob_status_last_successful_time{{namespace="monitoring",cronjob="{cronjob}"}}', 'values': '30x200'}],
@@ -112,7 +120,7 @@ for host, other in [('ryze', 'm5c'), ('m5c', 'ryze')]:
         'input_series': [VAULT] + emitted(host) + [
             {'series': f'kube_cronjob_spec_suspend{{namespace="monitoring",cronjob="{cronjob}"}}', 'values': '1x200'}],
         'alert_rule_test': [{'eval_time': '20m', 'alertname': 'ResticWorkstationJobSuspended',
-                             'exp_alerts': [expected('ResticWorkstationJobSuspended', host, namespace='monitoring', cronjob=cronjob)]}]})
+                             'exp_alerts': [expected('ResticWorkstationJobSuspended', host, annotations=suspended_annotations, namespace='monitoring', cronjob=cronjob)]}]})
     tests.append({'name': f'{host} unenrolled suppresses failed and suspended CronJob alerts', 'interval': '1m',
         'input_series': [VAULT] + failed_job_series + [
             {'series': f'kube_cronjob_spec_suspend{{namespace="monitoring",cronjob="{cronjob}"}}', 'values': '1x200'}],

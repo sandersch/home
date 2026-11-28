@@ -165,7 +165,7 @@ spec:
                 kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name=~"restic-ryze-(validate|copy|prune|check)"}
             )
             and on (namespace, job_name)
-              (kube_job_status_failed{namespace="monitoring",job_name=~"restic-ryze-(validate|copy|prune|check)-.*"} > 0)
+              (kube_job_failed{namespace="monitoring",job_name=~"restic-ryze-(validate|copy|prune|check)-.*",condition="true"} == 1)
           )
           > on (namespace, owner_name)
           label_replace(
@@ -185,7 +185,7 @@ spec:
         dataset: workstations
       annotations:
         summary: "ryze: ResticWorkstationJobFailed"
-        description: "A ryze workstation maintenance CronJob has a failed run newer than its last successful run. See runbooks/backups/workstations.md."
+        description: "{{ $labels.owner_name }} has a failed run newer than its last successful run. See runbooks/backups/workstations.md."
     - alert: ResticWorkstationJobSuspended
       expr: |
         kube_cronjob_spec_suspend{namespace="monitoring",cronjob=~"restic-ryze-(validate|copy|prune|check)"} == 1
@@ -197,7 +197,7 @@ spec:
         dataset: workstations
       annotations:
         summary: "ryze: ResticWorkstationJobSuspended"
-        description: "A ryze workstation maintenance CronJob is suspended while the host is enrolled. See runbooks/backups/workstations.md."
+        description: "{{ $labels.cronjob }} is suspended while the host is enrolled. See runbooks/backups/workstations.md."
     - alert: ResticWorkstationBackupStale
       expr: |
         (
@@ -351,7 +351,7 @@ spec:
                 kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name=~"restic-m5c-(validate|copy|prune|check)"}
             )
             and on (namespace, job_name)
-              (kube_job_status_failed{namespace="monitoring",job_name=~"restic-m5c-(validate|copy|prune|check)-.*"} > 0)
+              (kube_job_failed{namespace="monitoring",job_name=~"restic-m5c-(validate|copy|prune|check)-.*",condition="true"} == 1)
           )
           > on (namespace, owner_name)
           label_replace(
@@ -371,7 +371,7 @@ spec:
         dataset: workstations
       annotations:
         summary: "m5c: ResticWorkstationJobFailed"
-        description: "An m5c workstation maintenance CronJob has a failed run newer than its last successful run. See runbooks/backups/workstations.md."
+        description: "{{ $labels.owner_name }} has a failed run newer than its last successful run. See runbooks/backups/workstations.md."
     - alert: ResticWorkstationJobSuspended
       expr: |
         kube_cronjob_spec_suspend{namespace="monitoring",cronjob=~"restic-m5c-(validate|copy|prune|check)"} == 1
@@ -383,4 +383,4 @@ spec:
         dataset: workstations
       annotations:
         summary: "m5c: ResticWorkstationJobSuspended"
-        description: "An m5c workstation maintenance CronJob is suspended while the host is enrolled. See runbooks/backups/workstations.md."
+        description: "{{ $labels.cronjob }} is suspended while the host is enrolled. See runbooks/backups/workstations.md."

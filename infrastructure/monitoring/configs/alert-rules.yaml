@@ -185,7 +185,7 @@ spec:
                   kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name="restic-verify"}
               )
               and on (namespace, job_name)
-                (kube_job_status_failed{namespace="monitoring",job_name=~"restic-verify-.*"} > 0)
+                (kube_job_failed{namespace="monitoring",job_name=~"restic-verify-.*",condition="true"} == 1)
             )
             > on (namespace, owner_name)
             label_replace(
