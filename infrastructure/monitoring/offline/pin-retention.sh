@@ -2,10 +2,20 @@
 
 # Shared NAS pin reconciliation for appstate and vault Restic repositories.
 # Caller holds offline-retention.lock and sets credentials/repository context.
+# Optional trailing arguments are global Restic options (such as -r <repo>);
+# snapshot filter flags are rejected because `restic tag` takes explicit IDs.
 offline_pin_reconcile_and_release() {
-  local dataset="$1" records="$2" work="$3" record lineage matches_count pinned snapshot_id can_release needs_pin tmp current_id
+  local dataset="$1" records="$2" work="$3" record lineage matches_count pinned snapshot_id can_release needs_pin tmp current_id arg
   shift 3
   local -a restic_args=("$@") operations=()
+  for arg in "${restic_args[@]}"; do
+    case "$arg" in
+      -H|-H*|--host|--host=*|--tag|--tag=*|--path|--path=*)
+        echo "offline_pin_reconcile_and_release does not accept snapshot filter flag: $arg" >&2
+        return 1
+        ;;
+    esac
+  done
   local releasable="$work/offline-releasable" pending="$work/offline-pending" references="$work/offline-references"
   local listing="$work/offline-source.json"
   shopt -s nullglob
@@ -49,7 +59,9 @@ offline_pin_reconcile_and_release() {
     pinned="$(jq --arg lineage "$lineage" 'any(.[]; (.original // .id) == $lineage and ((.tags // []) | index("offline-checkpoint") != null))' "$listing")" || return 1
     if [ "$pinned" != true ]; then
       snapshot_id="$(jq -er --arg lineage "$lineage" '[.[] | select((.original // .id) == $lineage)][0].id' "$listing")" || return 1
-      restic "${restic_args[@]}" tag --add offline-checkpoint "$snapshot_id" || return 1
+      # Restic 0.20+ rejects filter flags (including inherited $RESTIC_HOST)
+      # when explicit snapshot IDs are given to `restic tag`.
+      ( unset RESTIC_HOST; restic "${restic_args[@]}" tag --add offline-checkpoint "$snapshot_id" ) || return 1
     fi
   done <"$pending"
 
@@ -57,7 +69,7 @@ offline_pin_reconcile_and_release() {
   while IFS=$'\t' read -r snapshot_id lineage; do
     [ -n "$snapshot_id" ] || continue
     if grep -qxF "$lineage" "$releasable"; then
-      restic "${restic_args[@]}" tag --remove offline-checkpoint "$snapshot_id" || return 1
+      ( unset RESTIC_HOST; restic "${restic_args[@]}" tag --remove offline-checkpoint "$snapshot_id" ) || return 1
     fi
   done < <(jq -r '.[] | select((.tags // []) | index("offline-checkpoint"))
                  | [.id, (.original // .id)] | @tsv' "$listing")

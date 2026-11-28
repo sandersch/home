@@ -502,9 +502,11 @@ data:
     mkdir -p /work/restic-cache "$restore_root"
     export RESTIC_CACHE_DIR=/work/restic-cache
 
-    metadata="$(restic snapshots "$RESTORE_SNAPSHOT" --host minis-vault --json)"
+    metadata="$(restic snapshots "$RESTORE_SNAPSHOT" --json)"
     [ "$(jq 'length' <<<"$metadata")" -eq 1 ] \
       || die "snapshot selection was not exact"
+    [ "$(jq -er '.[0].hostname' <<<"$metadata")" = minis-vault ] \
+      || die "snapshot host is not minis-vault"
     lineage="$(jq -er '.[0] | .original // .id' <<<"$metadata")"
 
     restic check --read-data
@@ -594,8 +596,10 @@ data:
     [ ! -e "$restore_root" ] || die "$restore_root already exists"
     mkdir -p /work/restic-cache "$restore_root"
     export RESTIC_CACHE_DIR=/work/restic-cache
-    metadata="$(restic snapshots "$PHOTO_SNAPSHOT" --host minis-vault --json)"
+    metadata="$(restic snapshots "$PHOTO_SNAPSHOT" --json)"
     [ "$(jq 'length' <<<"$metadata")" -eq 1 ] || die "snapshot selection was not exact"
+    [ "$(jq -er '.[0].hostname' <<<"$metadata")" = minis-vault ] \
+      || die "photo snapshot host is not minis-vault"
     /scripts/validate-vault-snapshot.sh "$PHOTO_SNAPSHOT" >/work/photo-validated-manifest.json
     restic check --read-data
     restic restore "$PHOTO_SNAPSHOT" --target "$restore_root"

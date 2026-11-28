@@ -352,9 +352,11 @@ data:
     mkdir -p /work/restic-cache
     export RESTIC_CACHE_DIR=/work/restic-cache
 
-    metadata="$(restic snapshots "$B2_HOLD_SNAPSHOT" --host minis-vault --json)"
+    metadata="$(restic snapshots "$B2_HOLD_SNAPSHOT" --json)"
     [ "$(jq 'length' <<<"$metadata")" -eq 1 ] \
       || die "the held B2 snapshot is not present exactly once"
+    [ "$(jq -er '.[0].hostname' <<<"$metadata")" = minis-vault ] \
+      || die "held B2 snapshot host is not minis-vault"
     actual_lineage="$(jq -er '.[0] | .original // .id' <<<"$metadata")"
     [ "$actual_lineage" = "$hold_lineage" ] \
       || die "held B2 snapshot lineage differs from its hold"

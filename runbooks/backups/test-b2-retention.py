@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 
@@ -264,3 +265,143 @@ restic() {
     completed.write_text(json.dumps({**operation, 'stage': 'selected'}))
     pending.write_text(json.dumps({**operation, 'stage': 'selected'}))
     assert release(snapshots=[]).returncode == 0, 'missing pending source blocked retention'
+
+# Exercise appstate pin reconciliation without trailing restic_args and with
+# RESTIC_HOST exported (matching restic-nas-config.yaml), and verify filter
+# flags are rejected before invoking restic.
+nas_script = yaml.safe_load((root / 'infrastructure/monitoring/restic-nas-config.yaml').read_text())['data']['backup.sh']
+release_fn = nas_script[nas_script.index('release_completed_appstate_pins() {'):]
+release_fn = release_fn[:release_fn.index('\n}\n') + 3]
+assert '--host' not in release_fn, 'release_completed_appstate_pins must not pass --host'
+
+with tempfile.TemporaryDirectory(prefix='offline-pin-host-guard-') as directory:
+    work = Path(directory)
+    records = work / 'records'
+    records.mkdir()
+    appstate_op = {
+        'selected': {'appstate': {'lineage': latest}},
+        'stage': 'complete',
+        'success_at': 1,
+        'clean_unmount': True,
+        'copies': {'appstate': {'lineage': latest, 'source_id': old, 'destination_id': copied_old}},
+    }
+    record = records / 'A-rotate-2026-Q4.json'
+    record.write_text(json.dumps(appstate_op))
+    listing = work / 'listing.json'
+    listing.write_text(json.dumps([{
+        'id': old, 'original': latest,
+        'tags': ['opt', 'nas', 'offline-checkpoint', 'offline-checkpoint-2026-Q4'],
+    }]))
+
+    # Snapshot filter flags must be rejected before invoking restic.
+    for bad_args in ('--host minis', '--host=minis', '-H minis', '-Hminis',
+                     '--tag opt', '--tag=opt', '--path /data/opt', '--path=/data/opt'):
+        check_reject = subprocess.run(
+            ['bash', '-c', f'''set -Eeuo pipefail
+restic() {{ echo "unexpected restic invocation: $*" >&2; return 99; }}
+source {root}/infrastructure/monitoring/offline/pin-retention.sh
+offline_pin_reconcile_and_release appstate {records} {directory} {bad_args}
+'''],
+            text=True, capture_output=True,
+        )
+        assert check_reject.returncode != 0, bad_args
+        assert 'does not accept snapshot filter flag' in check_reject.stderr, (bad_args, check_reject.stderr)
+        assert 'unexpected restic invocation' not in check_reject.stderr, (bad_args, check_reject.stderr)
+
+    # Inherited RESTIC_HOST must be unset for both tag --add and tag --remove,
+    # while remaining set in the caller after release_completed_appstate_pins.
+    adapted_release = release_fn.replace('/repo/nas/.control/offline', str(records)).replace('/work', str(work))
+    stub_env = r'''set -Eeuo pipefail
+restic() {
+  case "$1" in
+    snapshots) cat "$FIXTURE/listing.json" ;;
+    tag)
+      [ -z "${RESTIC_HOST:-}" ] || { echo "RESTIC_HOST leaked into restic tag: $RESTIC_HOST" >&2; return 97; }
+      if [ "$2" = --add ]; then
+        jq --arg id "$4" --arg tag "$3" 'map(if .id == $id then .original = (.original // .id) | .tags += [$tag] | .id = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd" else . end)' "$FIXTURE/listing.json" >"$FIXTURE/new.json"
+      else
+        jq 'map(.tags -= ["offline-checkpoint"] | .id = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")' "$FIXTURE/listing.json" >"$FIXTURE/new.json"
+      fi
+      mv "$FIXTURE/new.json" "$FIXTURE/listing.json" ;;
+    *) return 99 ;;
+  esac
+}
+'''
+    check_release = subprocess.run(
+        ['bash', '-c', stub_env + f'source {root}/infrastructure/monitoring/offline/pin-retention.sh\n'
+         + adapted_release + '\nrelease_completed_appstate_pins\n[ "$RESTIC_HOST" = minis ]\n'],
+        env=dict(os.environ, FIXTURE=directory, RESTIC_HOST='minis'),
+        text=True, capture_output=True,
+    )
+    assert check_release.returncode == 0, check_release.stderr
+    assert json.loads(listing.read_text())[0]['tags'] == ['opt', 'nas', 'offline-checkpoint-2026-Q4']
+
+    record.write_text(json.dumps({**appstate_op, 'stage': 'selected'}))
+    listing.write_text(json.dumps([{'id': old, 'original': latest, 'tags': ['opt', 'nas', 'offline-checkpoint-2026-Q4']}]))
+    check_add = subprocess.run(
+        ['bash', '-c', stub_env + f'source {root}/infrastructure/monitoring/offline/pin-retention.sh\n'
+         + adapted_release + '\nrelease_completed_appstate_pins\n[ "$RESTIC_HOST" = minis ]\n'],
+        env=dict(os.environ, FIXTURE=directory, RESTIC_HOST='minis'),
+        text=True, capture_output=True,
+    )
+    assert check_add.returncode == 0, check_add.stderr
+    assert 'offline-checkpoint' in json.loads(listing.read_text())[0]['tags']
+    print('PASS: appstate pin reconciliation blocks filter flags and unsets RESTIC_HOST for restic tag')
+
+# End-to-end check against real restic when installed: verify RESTIC_HOST in the
+# environment neither fails nor emits filter-ignored warnings during tag add/remove.
+if shutil.which('restic'):
+    with tempfile.TemporaryDirectory(prefix='offline-pin-real-restic-') as directory:
+        work = Path(directory)
+        repo = work / 'repo'
+        src = work / 'src'
+        cache = work / 'cache'
+        records = work / 'records'
+        for folder in (src, cache, records):
+            folder.mkdir()
+        (src / 'state.txt').write_text('ok\n')
+        real_env = dict(
+            os.environ,
+            RESTIC_REPOSITORY=str(repo),
+            RESTIC_PASSWORD='test-password',
+            RESTIC_CACHE_DIR=str(cache),
+            RESTIC_HOST='minis',
+            HOME=str(work),
+        )
+        subprocess.run(['restic', 'init'], env=real_env, check=True, capture_output=True)
+        subprocess.run(['restic', 'backup', '--host', 'minis', '--tag', 'opt', '--tag', 'nas', str(src)],
+                       env=real_env, check=True, capture_output=True)
+        snap = json.loads(subprocess.check_output(['restic', 'snapshots', '--json'], env=real_env, text=True))[0]
+        lineage = snap['id']
+        record = records / 'A-rotate-2026-Q4.json'
+        record.write_text(json.dumps({
+            'selected': {'appstate': {'lineage': lineage}},
+            'stage': 'selected',
+        }))
+        add_run = subprocess.run(
+            ['bash', '-c', f'set -Eeuo pipefail\nsource {root}/infrastructure/monitoring/offline/pin-retention.sh\n'
+             f'offline_pin_reconcile_and_release appstate {records} {directory}\n[ "$RESTIC_HOST" = minis ]\n'],
+            env=real_env, text=True, capture_output=True,
+        )
+        assert add_run.returncode == 0, add_run.stderr
+        assert add_run.stderr.strip() == '', f'unexpected restic tag stderr: {add_run.stderr!r}'
+        pinned = json.loads(subprocess.check_output(['restic', 'snapshots', '--json'], env=real_env, text=True))[0]
+        assert 'offline-checkpoint' in pinned['tags'], pinned
+        record.write_text(json.dumps({
+            'selected': {'appstate': {'lineage': lineage}},
+            'stage': 'complete',
+            'success_at': 1,
+            'clean_unmount': True,
+            'copies': {'appstate': {'lineage': lineage, 'source_id': pinned['id'], 'destination_id': copied_old}},
+        }))
+        remove_run = subprocess.run(
+            ['bash', '-c', f'set -Eeuo pipefail\nsource {root}/infrastructure/monitoring/offline/pin-retention.sh\n'
+             f'offline_pin_reconcile_and_release appstate {records} {directory}\n[ "$RESTIC_HOST" = minis ]\n'],
+            env=real_env, text=True, capture_output=True,
+        )
+        assert remove_run.returncode == 0, remove_run.stderr
+        assert remove_run.stderr.strip() == '', f'unexpected restic tag stderr: {remove_run.stderr!r}'
+        released = json.loads(subprocess.check_output(['restic', 'snapshots', '--json'], env=real_env, text=True))[0]
+        assert 'offline-checkpoint' not in (released.get('tags') or []), released
+        assert json.loads(record.read_text())['copies']['appstate']['released_source_id'] == released['id']
+        print('PASS: real restic pin add and release succeed cleanly with RESTIC_HOST exported')

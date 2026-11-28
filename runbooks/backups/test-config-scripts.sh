@@ -181,4 +181,19 @@ done
 [[ "$repository_check_expr" == *'node_filesystem_size_bytes{device="/dev/mapper/vault"'* ]] \
   || { echo "vault repository-check alert lost its mounted-vault gate" >&2; exit 1; }
 
+# Restic 0.20+ rejects snapshot filter flags (--host/-H/--tag/--path) when
+# explicit snapshot IDs are given to `restic snapshots`.
+for checked_file in \
+  infrastructure/monitoring/restic-nas-config.yaml \
+  infrastructure/monitoring/restic-vault-config.yaml \
+  infrastructure/monitoring/restic-vault-copy-config.yaml \
+  infrastructure/monitoring/restic-vault-prune-config.yaml \
+  runbooks/disaster-recovery/02-restore-opt.sh; do
+  if grep -En 'restic[[:space:]][^|;&]*snapshots[[:space:]]+[^-[:space:]][^|;&]*(--host|-H|--tag|--path)\b' \
+    "$repo_root/$checked_file" >&2; then
+    echo "$checked_file combines explicit snapshot IDs with filter flags in restic snapshots" >&2
+    exit 1
+  fi
+done
+
 echo "embedded backup scripts passed syntax and ShellCheck validation"
