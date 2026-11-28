@@ -153,11 +153,5 @@ spec:
       podSelector:
         matchLabels:
           worm.run/workstation-maintenance: m5c
-    - namespaceSelector:
-        matchLabels:
-          kubernetes.io/metadata.name: ingress-nginx
-      podSelector:
-        matchLabels:
-          app.kubernetes.io/component: controller
     ports:
     - {protocol: TCP, port: 8000}

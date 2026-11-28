@@ -1,5 +1,5 @@
-# Active via ../kustomization.yaml; its CronJobs stay suspended until the recovery gates pass.
-# Each contract release adds its .json and .excludes to restic-workstation-contracts.
+# Active via ../kustomization.yaml; each contract release adds its .json and
+# .excludes to restic-workstation-contracts.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
@@ -8,7 +8,6 @@ resources:
 - m5c.sops.yaml
 - ryze-server.yaml
 - m5c-server.yaml
-- m5c-lan-ingress.yaml
 - ryze-jobs.yaml
 - m5c-jobs.yaml
 - alerts.yaml
