@@ -31,12 +31,19 @@ def case(name, series, alert, labels=None, evaluations=('31m',), annotations=Non
 
 failed = {
     'kube_job_created{namespace="monitoring",job_name="restic-vault-prune-1"}': 20,
-    'kube_job_status_failed{namespace="monitoring",job_name="restic-vault-prune-1"}': 1,
+    'kube_job_failed{namespace="monitoring",job_name="restic-vault-prune-1",condition="true"}': 1,
+    'kube_job_owner{namespace="monitoring",job_name="restic-vault-prune-1",owner_kind="CronJob",owner_is_controller="true",owner_name="restic-vault-prune"}': 1,
+    'kube_cronjob_created' + cron: 1,
+}
+prune_not_failed = {
+    'kube_job_created{namespace="monitoring",job_name="restic-vault-prune-1"}': 20,
+    'kube_job_failed{namespace="monitoring",job_name="restic-vault-prune-1",condition="false"}': 1,
     'kube_job_owner{namespace="monitoring",job_name="restic-vault-prune-1",owner_kind="CronJob",owner_is_controller="true",owner_name="restic-vault-prune"}': 1,
     'kube_cronjob_created' + cron: 1,
 }
 failed_labels = {'namespace': 'monitoring', 'owner_name': 'restic-vault-prune'}
-tests = [case('first prune failure', failed, 'ResticPruneFailed', failed_labels),
+tests = [case('first prune failure (including pod-less Job failure)', failed, 'ResticPruneFailed', failed_labels),
+         case('prune condition=false does not fire', prune_not_failed, 'ResticPruneFailed'),
          case('prune failure waits 15 minutes', failed, 'ResticPruneFailed', evaluations=('14m',)),
          case('prune failure after prior success', dict(failed, **{'kube_cronjob_status_last_successful_time' + cron: 10}), 'ResticPruneFailed', failed_labels),
          case('later prune success clears failure', dict(failed, **{'kube_cronjob_status_last_successful_time' + cron: 30}), 'ResticPruneFailed')]
@@ -62,7 +69,13 @@ tests += [case('first verify failure (including pod-less Job failure)', verify_f
 backup_cron = '{namespace="monitoring",cronjob="restic-vault-copy"}'
 backup_job = {
     'kube_job_created{namespace="monitoring",job_name="restic-vault-copy-1"}': 20,
-    'kube_job_status_failed{namespace="monitoring",job_name="restic-vault-copy-1"}': 1,
+    'kube_job_failed{namespace="monitoring",job_name="restic-vault-copy-1",condition="true"}': 1,
+    'kube_job_owner{namespace="monitoring",job_name="restic-vault-copy-1",owner_kind="CronJob",owner_is_controller="true",owner_name="restic-vault-copy"}': 1,
+    'kube_cronjob_created' + backup_cron: 1,
+}
+backup_not_failed = {
+    'kube_job_created{namespace="monitoring",job_name="restic-vault-copy-1"}': 20,
+    'kube_job_failed{namespace="monitoring",job_name="restic-vault-copy-1",condition="false"}': 1,
     'kube_job_owner{namespace="monitoring",job_name="restic-vault-copy-1",owner_kind="CronJob",owner_is_controller="true",owner_name="restic-vault-copy"}': 1,
     'kube_cronjob_created' + backup_cron: 1,
 }
@@ -71,7 +84,8 @@ backup_annotations = {
     'description': 'restic-vault-copy has a failed run newer than its last successful run.',
     'summary': 'Restic backup job failed',
 }
-tests += [case('first backup failure', backup_job, 'ResticBackupFailed', backup_labels, annotations=backup_annotations),
+tests += [case('first backup failure (including pod-less Job failure)', backup_job, 'ResticBackupFailed', backup_labels, annotations=backup_annotations),
+          case('backup condition=false does not fire', backup_not_failed, 'ResticBackupFailed'),
           case('backup failure after prior success', dict(backup_job, **{'kube_cronjob_status_last_successful_time' + backup_cron: 10}), 'ResticBackupFailed', backup_labels, annotations=backup_annotations),
           case('later backup success clears failure', dict(backup_job, **{'kube_cronjob_status_last_successful_time' + backup_cron: 30}), 'ResticBackupFailed')]
 base = {'kube_cronjob_spec_suspend' + cron: 0,

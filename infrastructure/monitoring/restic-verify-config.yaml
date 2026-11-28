@@ -101,7 +101,6 @@ data:
           b2_evidence=""
           for evidence in \
             /etc/homelab/vault-b2.enrolled \
-            /etc/homelab/vault-b2.conf \
             /data/vault/.backup-credentials/b2-password \
             /data/vault/.backup-credentials/b2-key-id \
             /data/vault/.backup-credentials/b2-application-key; do
@@ -112,6 +111,11 @@ data:
           done
           if [ -z "$b2_evidence" ] && [ "$backups_available" -eq 1 ] && [ -e /repo/nas/.control/vault-b2 ]; then
             b2_evidence="/repo/nas/.control/vault-b2"
+          fi
+          if [ -z "$b2_evidence" ] \
+            && grep -qx 'homelab_backup_repository_enrolled{dataset="vault",destination="b2"} 1' \
+              /metrics/restic-vault-copy.prom 2>/dev/null; then
+            b2_evidence="/metrics/restic-vault-copy.prom"
           fi
           if [ -n "$b2_evidence" ]; then
             log "ERROR: vault B2 enrollment evidence ($b2_evidence) is present but repository config or credentials are missing"

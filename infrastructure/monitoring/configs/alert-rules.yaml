@@ -133,7 +133,7 @@ spec:
                   kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)"}
               )
               and on (namespace, job_name)
-                (kube_job_status_failed{namespace="monitoring",job_name=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)-.*"} > 0)
+                (kube_job_failed{namespace="monitoring",job_name=~"restic-(nas-backup|b2-backup|vault-backup|vault-copy)-.*",condition="true"} == 1)
             )
             > on (namespace, owner_name)
             label_replace(
@@ -159,7 +159,7 @@ spec:
                   kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name="restic-vault-prune"}
               )
               and on (namespace, job_name)
-                (kube_job_status_failed{namespace="monitoring",job_name=~"restic-vault-prune-.*"} > 0)
+                (kube_job_failed{namespace="monitoring",job_name=~"restic-vault-prune-.*",condition="true"} == 1)
             )
             > on (namespace, owner_name)
             label_replace(
@@ -366,8 +366,8 @@ spec:
         - alert: ResticQuarterlyRestoreDrillOverdue
           expr: |
             (
-              (time() - max(homelab_restic_restore_drill_timestamp_seconds) > 100 * 24 * 60 * 60)
-              or absent(homelab_restic_restore_drill_timestamp_seconds)
+              (time() - max(homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination=~"nas|b2"}) > 100 * 24 * 60 * 60)
+              or max without(dataset) (absent(homelab_restic_restore_drill_timestamp_seconds{dataset="vault",destination=~"nas|b2"}))
             )
             and on() (max(homelab_backup_repository_enrolled{dataset="vault",destination=~"nas|b2"}) == 1)
             and on() (node_filesystem_size_bytes{device="/dev/mapper/vault",fstype="ext4",mountpoint="/mnt/vault"} > 0)

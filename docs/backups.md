@@ -1626,7 +1626,10 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticVaultCopyOverdue` | newest validated B2 lineage older than 36h while vault mounted (critical) |
 | `ResticVaultPruneOverdue` | vault retention has no successful completion in 10d while enrolled, enabled, and mounted; before the first success, age starts when copy first records B2 enrollment (warning) |
 | `ResticPruneFailed` | a vault retention run failed with no later successful run, including the first run (warning) |
+| `ResticVerifyFailed` | a monthly repository verification run failed with no later successful run, including the first run (warning) |
 | `ResticWorkstationCopyOverdue` | no workstation→B2 copy in 8d (warning) — per host |
+| `ResticWorkstationJobFailed` | an enrolled workstation maintenance CronJob (`validate`, `copy`, `prune`, or `check`) failed with no later successful run (warning) — per host/job |
+| `ResticWorkstationJobSuspended` | an enrolled workstation maintenance CronJob is suspended (warning) — per host/job |
 | `ResticWorkstationSnapshotTimeInvalid` | a held workstation snapshot has an implausible clock (warning) — § 4 |
 | `ResticSnapshotValidationHeld` | unresolved validation hold for 15m — critical for `vault`, warning per workstation repo |
 | `MailArchiveFailed` | mail archive Job failed with no later success (warning) |
@@ -1639,10 +1642,10 @@ except for the deliberately mount-gated filesystem rule described below:
 | `ResticOfflineDriveStale` | newest successful offline rotation across either drive older than 210d (warning) |
 | `ResticOfflineDriveRotationOverdue` | last successful rotation of an individual drive older than 300d (warning) — per drive |
 | `ResticReplicationLag` | prune reports unreplicated or unvalidated NAS candidates awaiting B2 (warning) |
-| `ResticRepoNearCeiling` | repo size above 80% of its ceiling (warning) |
+| `ResticRepoNearCeiling` | repo size above 80% of its ceiling for `vault` or `appstate` on NAS/B2 (warning) |
 | `ResticRepositoryCheckOverdue` | no successful monthly structural + rotating data check in 40d (warning) — per NAS/B2 repo; vault destinations arm only while mounted |
-| `ResticQuarterlyRestoreDrillOverdue` | newest recorded online semantic restore drill older than 100d, or drill metrics absent while vault is enrolled and mounted (warning) |
-| `ResticRestoreDrillOverdue` | individual vault destination (`nas` or `b2`) without a recorded annual semantic drill in 400d, or metric absent while enrolled and mounted (warning) |
+| `ResticQuarterlyRestoreDrillOverdue` | newest recorded `vault` (`nas` or `b2`) online semantic restore drill older than 100d, or vault drill metrics absent while vault is enrolled and mounted (warning) |
+| `ResticRestoreDrillOverdue` | individual `appstate` (`nas` or `b2`) or enrolled/mounted `vault` (`nas` or `b2`) destination without a recorded annual semantic drill in 400d, or metric absent (warning) |
 | `VaultLocked` | `/mnt/vault` not mounted for 30m (warning) — see below |
 | `VaultFilesystemDeviceError` | `node_filesystem_device_error` on a **mounted** `/mnt/vault` for 5m (critical) — see below |
 

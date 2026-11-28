@@ -351,7 +351,6 @@ data:
         exec 9>>"$offline_lock"
         if ! flock -n 9; then
           log "offline SSD selection/pinning is active; skipping appstate retention"
-          write_repository_size_metrics "$target_tag"
           local tmp_metric previous_success
           previous_success=0
           [ -f "$retention_metric" ] && previous_success="$(awk '/appstate_retention_last_success_timestamp_seconds/ {print $NF}' "$retention_metric" | tail -n1)"
@@ -361,6 +360,7 @@ data:
             "$previous_success" "$(date +%s)" >"$tmp_metric"
           chmod 0644 "$tmp_metric"
           mv -f "$tmp_metric" "$retention_metric"
+          write_repository_size_metrics "$target_tag"
           return 0
         fi
         release_completed_appstate_pins
@@ -376,7 +376,6 @@ data:
         flock -u 9
       fi
       restic prune
-      write_repository_size_metrics "$target_tag"
       if [ "$target_tag" = nas ]; then
         local tmp_metric
         tmp_metric="$(mktemp "$retention_metric.tmp.XXXXXX")"
@@ -385,30 +384,49 @@ data:
         chmod 0644 "$tmp_metric"
         mv -f "$tmp_metric" "$retention_metric"
       fi
+      write_repository_size_metrics "$target_tag"
     }
 
     write_repository_size_metrics() {
       local target_tag="$1"
       local size_metric="/metrics/restic-appstate-${target_tag}-size.prom"
       local ceiling_bytes repo_bytes repo_kib tmp_metric
-      [ -d /metrics ] || return 0
+      if [ ! -d /metrics ]; then
+        log "WARN: /metrics directory is missing; skipping appstate/$target_tag repository size metrics"
+        return 0
+      fi
       if [ "$target_tag" = nas ]; then
         # Policy ceiling: 250 GiB on local /mnt/backups (docs/backups.md).
         ceiling_bytes=268435456000
-        repo_kib="$(du -sk "$RESTIC_REPOSITORY" | awk '{print $1}')"
+        if ! repo_kib="$(du -sk "$RESTIC_REPOSITORY" | awk '{print $1}')"; then
+          log "WARN: failed to measure appstate/nas repository size; leaving previous metric unchanged"
+          return 0
+        fi
         repo_bytes=$((repo_kib * 1024))
       else
         # Policy ceiling: 50 GB on Backblaze B2 (docs/backups.md).
         ceiling_bytes=50000000000
-        repo_bytes="$(restic stats --json --mode raw-data | jq -er '.total_size')"
+        if ! repo_bytes="$(restic stats --json --mode raw-data | jq -er '.total_size')"; then
+          log "WARN: failed to measure appstate/b2 repository size; leaving previous metric unchanged"
+          return 0
+        fi
       fi
-      [[ "$repo_bytes" =~ ^[0-9]+$ ]] \
-        || die "invalid appstate repository size for $target_tag"
-      tmp_metric="$(mktemp "$size_metric.tmp.XXXXXX")"
-      printf 'homelab_restic_repository_size_bytes{dataset="appstate",destination="%s"} %s\nhomelab_restic_repository_ceiling_bytes{dataset="appstate",destination="%s"} %s\n' \
-        "$target_tag" "$repo_bytes" "$target_tag" "$ceiling_bytes" >"$tmp_metric"
-      chmod 0644 "$tmp_metric"
-      mv -f "$tmp_metric" "$size_metric"
+      if ! [[ "$repo_bytes" =~ ^[0-9]+$ ]]; then
+        log "WARN: invalid appstate repository size for $target_tag: $repo_bytes"
+        return 0
+      fi
+      if ! tmp_metric="$(mktemp "$size_metric.tmp.XXXXXX")"; then
+        log "WARN: failed to create temporary size metric file for appstate/$target_tag"
+        return 0
+      fi
+      if ! printf 'homelab_restic_repository_size_bytes{dataset="appstate",destination="%s"} %s\nhomelab_restic_repository_ceiling_bytes{dataset="appstate",destination="%s"} %s\n' \
+        "$target_tag" "$repo_bytes" "$target_tag" "$ceiling_bytes" >"$tmp_metric" \
+        || ! chmod 0644 "$tmp_metric" \
+        || ! mv -f "$tmp_metric" "$size_metric"; then
+        rm -f "$tmp_metric"
+        log "WARN: failed to publish appstate/$target_tag repository size metrics"
+        return 0
+      fi
     }
 
     release_completed_appstate_pins() {

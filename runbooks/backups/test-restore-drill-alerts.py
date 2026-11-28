@@ -148,6 +148,43 @@ tests = [
         ],
     ),
     make_test(
+        'fresh appstate drills do not reset quarterly vault restore-drill alert',
+        {
+            'homelab_backup_repository_enrolled' + nas: 1,
+            'homelab_backup_repository_enrolled' + b2: 1,
+            'homelab_restic_restore_drill_timestamp_seconds' + nas: AGE_150D,
+            'homelab_restic_restore_drill_timestamp_seconds' + b2: AGE_101D,
+            'homelab_restic_restore_drill_timestamp_seconds' + appstate_nas: AGE_5D,
+            'homelab_restic_restore_drill_timestamp_seconds' + appstate_b2: AGE_5D,
+            mounted: 1,
+        },
+        [
+            ('31m', 'ResticQuarterlyRestoreDrillOverdue', [
+                exp('ResticQuarterlyRestoreDrillOverdue', {}, quarterly_ann),
+            ]),
+            ('31m', 'ResticRestoreDrillOverdue', []),
+        ],
+    ),
+    make_test(
+        'missing vault drill metrics fire quarterly alert even when appstate drills are fresh',
+        {
+            'homelab_backup_repository_enrolled' + nas: 1,
+            'homelab_backup_repository_enrolled' + b2: 1,
+            'homelab_restic_restore_drill_timestamp_seconds' + appstate_nas: AGE_5D,
+            'homelab_restic_restore_drill_timestamp_seconds' + appstate_b2: AGE_5D,
+            mounted: 1,
+        },
+        [
+            ('31m', 'ResticQuarterlyRestoreDrillOverdue', [
+                exp('ResticQuarterlyRestoreDrillOverdue', {}, quarterly_ann),
+            ]),
+            ('31m', 'ResticRestoreDrillOverdue', [
+                exp('ResticRestoreDrillOverdue', {'dataset': 'vault', 'destination': 'nas'}, annual_ann('vault', 'nas')),
+                exp('ResticRestoreDrillOverdue', {'dataset': 'vault', 'destination': 'b2'}, annual_ann('vault', 'b2')),
+            ]),
+        ],
+    ),
+    make_test(
         'all restore-drill metrics missing while enrolled and mounted fires both alerts',
         {
             'homelab_backup_repository_enrolled' + nas: 1,

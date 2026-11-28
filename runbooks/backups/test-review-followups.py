@@ -82,9 +82,9 @@ with tempfile.TemporaryDirectory(prefix='backup-review-') as directory:
         assert result.returncode == (0 if nas_status == '0' and valid else 1), result
         assert (work / 'metrics/restic-check-vault-b2.prom').exists() == (not locked and valid)
 
-    # Vault B2 missing config/credentials: skip cleanly only when no enrollment
-    # evidence exists; fail closed if the marker, any B2 credential, vault-b2.conf,
-    # or NAS control state survives (e.g., after a host rebuild).
+    # Vault B2 missing config/credentials: skip cleanly when unenrolled (including
+    # staged vault-b2.conf before enrollment); fail closed if the marker, any B2
+    # credential, NAS control state, or a positive enrollment metric survives.
     env['NAS_STATUS'] = '0'
     sentinel.write_text('vault-contract-version=3\nfilesystem-uuid=fixture\n')
     (work / 'mountinfo').write_text('1 0 0:1 / /data/vault rw - ext4 /dev/mapper/vault rw\n')
@@ -95,13 +95,19 @@ with tempfile.TemporaryDirectory(prefix='backup-review-') as directory:
         work / 'data/vault/.backup-credentials/b2-key-id',
         work / 'data/vault/.backup-credentials/b2-application-key',
         work / 'repo/nas/.control/vault-b2',
+        work / 'metrics/restic-vault-copy.prom',
     ]
-    for scenario, surviving in [
-        ('unenrolled', None),
-        ('marker', work / 'etc/homelab/vault-b2.enrolled'),
-        ('surviving-credential', work / 'data/vault/.backup-credentials/b2-key-id'),
-        ('nas-control', work / 'repo/nas/.control/vault-b2'),
+    for scenario, surviving, expect_fail in [
+        ('unenrolled', None, False),
+        ('staged-conf-only', work / 'etc/homelab/vault-b2.conf', False),
+        ('marker', work / 'etc/homelab/vault-b2.enrolled', True),
+        ('surviving-credential', work / 'data/vault/.backup-credentials/b2-key-id', True),
+        ('nas-control', work / 'repo/nas/.control/vault-b2', True),
+        ('copy-metric', work / 'metrics/restic-vault-copy.prom', True),
     ]:
+        (work / 'calls').write_text('')
+        for old in (work / 'metrics').glob('*.prom'):
+            old.unlink()
         for path in evidence_paths:
             if path.is_dir():
                 for child in path.iterdir():
@@ -112,18 +118,20 @@ with tempfile.TemporaryDirectory(prefix='backup-review-') as directory:
         if surviving is not None:
             if surviving.name == 'vault-b2':
                 surviving.mkdir(parents=True, exist_ok=True)
+            elif surviving.name == 'restic-vault-copy.prom':
+                surviving.write_text('homelab_backup_repository_enrolled{dataset="vault",destination="b2"} 1\n')
+            elif surviving.name == 'vault-b2.conf':
+                surviving.write_text('VAULT_B2_REPOSITORY=vault-b2\n')
             else:
                 surviving.write_text('fixture')
-        (work / 'calls').write_text('')
-        for old in (work / 'metrics').glob('*.prom'):
-            old.unlink()
         result = subprocess.run(['bash', '-c', fixture], env=env, capture_output=True, text=True)
         calls = (work / 'calls').read_text().splitlines()
         assert calls.count('vault-b2') == 0, (scenario, result)
-        assert result.returncode == (1 if surviving is not None else 0), (scenario, result)
+        assert result.returncode == (1 if expect_fail else 0), (scenario, result)
 
     # Appstate NAS size metric must still refresh when offline-retention.lock skips
-    # retention, without advancing the retention-success timestamp.
+    # retention, without advancing the retention-success timestamp, and a failed B2
+    # stats call must stay best-effort without failing a completed backup.
     nas_script = yaml.safe_load((root / 'infrastructure/monitoring/restic-nas-config.yaml').read_text())['data']['backup.sh']
     nas_fixture = nas_script
     for path in ['/repo/nas/', '/metrics', '/work/', '/data/opt', '/data/k3s-db']:
@@ -166,4 +174,26 @@ with tempfile.TemporaryDirectory(prefix='backup-review-') as directory:
     assert 'homelab_restic_repository_ceiling_bytes{dataset="appstate",destination="nas"} 268435456000\n' in size_text, size_text
     retention_text = retention_prom.read_text()
     assert 'homelab_restic_appstate_retention_last_success_timestamp_seconds{destination="nas"} 12345\n' in retention_text, retention_text
-print('PASS: missing metric fields, empty source, independent B2 verification, fail-closed B2 enrollment, and retention-skip size refresh')
+
+    # Transient B2 restic stats failure must not fail a completed backup.
+    restic.write_text('#!/bin/sh\nif [ "$1" = stats ]; then exit 1; fi\nexit 0\n')
+    restic.chmod(0o755)
+    b2_size_prom = work / 'metrics/restic-appstate-b2-size.prom'
+    if b2_size_prom.exists():
+        b2_size_prom.unlink()
+    b2_snippet = (
+        'set -Eeuo pipefail\n'
+        'log() { :; }\n'
+        'die() { echo "$*" >&2; exit 1; }\n'
+        'RESTIC_HOST=minis\n'
+        'RESTIC_KEEP_WEEKLY=4\n'
+        'RESTIC_REPOSITORY=s3:https://example.invalid/bucket/appstate\n'
+        f'HOT_DUMPS={work / "work/hot"}\n'
+        'RESTIC_TARGET_TAG=b2\n'
+        + nas_fixture[run_restic_start:release_start]
+        + 'run_restic\n'
+    )
+    b2_result = subprocess.run(['bash', '-c', b2_snippet], env=env, capture_output=True, text=True)
+    assert b2_result.returncode == 0, b2_result
+    assert not b2_size_prom.exists(), 'failed stats must leave missing metric unwritten rather than corrupt'
+print('PASS: missing metric fields, empty source, independent B2 verification, fail-closed B2 enrollment, and best-effort size metrics')
