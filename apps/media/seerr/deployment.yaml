@@ -37,6 +37,29 @@ spec:
           ports:
             - name: http
               containerPort: 5055
+          # checkUpdateAvailable=false keeps probes strictly local and avoids
+          # stalling on GitHub release lookups or burning GitHub API limits.
+          startupProbe:
+            httpGet:
+              path: /api/v1/status?checkUpdateAvailable=false
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /api/v1/status?checkUpdateAvailable=false
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/v1/status?checkUpdateAvailable=false
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               cpu: 50m

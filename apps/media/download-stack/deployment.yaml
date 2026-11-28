@@ -81,6 +81,24 @@ spec:
           ports:
             - name: sabnzbd
               containerPort: 8080
+          # Deliberately omit per-app readinessProbe across the five shared-pod
+          # containers: pod readiness is pod-wide, so one slow app would remove
+          # the sole endpoint from the multi-port gluetun Service and 503 every
+          # download UI plus Seerr -> Radarr/Sonarr.
+          startupProbe:
+            httpGet:
+              path: /api?mode=version
+              port: sabnzbd
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 120
+          livenessProbe:
+            httpGet:
+              path: /api?mode=version
+              port: sabnzbd
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               cpu: 125m
@@ -111,6 +129,20 @@ spec:
           ports:
             - name: qbittorrent
               containerPort: 8090
+          startupProbe:
+            httpGet:
+              path: /
+              port: qbittorrent
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 120
+          livenessProbe:
+            httpGet:
+              path: /
+              port: qbittorrent
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               cpu: 25m
@@ -137,6 +169,20 @@ spec:
           ports:
             - name: prowlarr
               containerPort: 9696
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: prowlarr
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 120
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: prowlarr
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               cpu: 50m
@@ -159,6 +205,20 @@ spec:
           ports:
             - name: radarr
               containerPort: 7878
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: radarr
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 120
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: radarr
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               cpu: 150m
@@ -183,6 +243,20 @@ spec:
           ports:
             - name: sonarr
               containerPort: 8989
+          startupProbe:
+            httpGet:
+              path: /ping
+              port: sonarr
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 120
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: sonarr
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               cpu: 100m
