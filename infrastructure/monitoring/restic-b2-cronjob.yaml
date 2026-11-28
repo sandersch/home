@@ -85,6 +85,8 @@ spec:
                 - name: k3s-db
                   mountPath: /data/k3s-db
                   readOnly: true
+                - name: metrics
+                  mountPath: /metrics
                 - name: work
                   mountPath: /work
                 - name: tmp
@@ -104,6 +106,10 @@ spec:
             - name: k3s-db
               hostPath:
                 path: /var/lib/rancher/k3s/server/db
+                type: Directory
+            - name: metrics
+              hostPath:
+                path: /var/lib/node-exporter/textfile
                 type: Directory
             - name: work
               emptyDir: {}

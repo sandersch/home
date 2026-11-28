@@ -25,6 +25,8 @@ spec:
       restartPolicy: Never
       priorityClassName: homelab-low
       automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/hostname: minis
       containers:
         - name: restic
           # renovate: datasource=docker depName=ghcr.io/sandersch/restic-backup
@@ -146,6 +148,13 @@ spec:
 
               stop_mariadb
               trap - EXIT
+              if [ -d /metrics ]; then
+                metric_tmp="$(mktemp /metrics/restic-appstate-b2-restore.prom.tmp.XXXXXX)"
+                printf 'homelab_restic_restore_drill_timestamp_seconds{dataset="appstate",destination="b2"} %s\n' \
+                  "$(date +%s)" >"$metric_tmp"
+                chmod 0644 "$metric_tmp"
+                mv -f "$metric_tmp" /metrics/restic-appstate-b2-restore.prom
+              fi
               echo "B2 snapshot $snapshot_id satisfies backup contract $BACKUP_CONTRACT_VERSION with $validated_count required app SQLite exports, $kine_rows k3s kine rows, $table_count RomM tables, and no server-token artifact"
           env:
             - name: RESTIC_REPOSITORY
@@ -193,6 +202,8 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
           volumeMounts:
+            - name: metrics
+              mountPath: /metrics
             - name: work
               mountPath: /work
             - name: restore
@@ -226,6 +237,10 @@ spec:
             - name: mariadb-tmp
               mountPath: /tmp
       volumes:
+        - name: metrics
+          hostPath:
+            path: /var/lib/node-exporter/textfile
+            type: Directory
         - name: work
           emptyDir: {}
         - name: restore

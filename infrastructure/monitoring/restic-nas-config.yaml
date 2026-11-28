@@ -360,6 +360,7 @@ data:
             "$previous_success" "$(date +%s)" >"$tmp_metric"
           chmod 0644 "$tmp_metric"
           mv -f "$tmp_metric" "$retention_metric"
+          write_repository_size_metrics "$target_tag"
           return 0
         fi
         release_completed_appstate_pins
@@ -382,6 +383,49 @@ data:
           "$(date +%s)" >"$tmp_metric"
         chmod 0644 "$tmp_metric"
         mv -f "$tmp_metric" "$retention_metric"
+      fi
+      write_repository_size_metrics "$target_tag"
+    }
+
+    write_repository_size_metrics() {
+      local target_tag="$1"
+      local size_metric="/metrics/restic-appstate-${target_tag}-size.prom"
+      local ceiling_bytes repo_bytes repo_kib tmp_metric
+      if [ ! -d /metrics ]; then
+        log "WARN: /metrics directory is missing; skipping appstate/$target_tag repository size metrics"
+        return 0
+      fi
+      if [ "$target_tag" = nas ]; then
+        # Policy ceiling: 250 GiB on local /mnt/backups (docs/backups.md).
+        ceiling_bytes=268435456000
+        if ! repo_kib="$(du -sk "$RESTIC_REPOSITORY" | awk '{print $1}')"; then
+          log "WARN: failed to measure appstate/nas repository size; leaving previous metric unchanged"
+          return 0
+        fi
+        repo_bytes=$((repo_kib * 1024))
+      else
+        # Policy ceiling: 50 GB on Backblaze B2 (docs/backups.md).
+        ceiling_bytes=50000000000
+        if ! repo_bytes="$(restic stats --json --mode raw-data | jq -er '.total_size')"; then
+          log "WARN: failed to measure appstate/b2 repository size; leaving previous metric unchanged"
+          return 0
+        fi
+      fi
+      if ! [[ "$repo_bytes" =~ ^[0-9]+$ ]]; then
+        log "WARN: invalid appstate repository size for $target_tag: $repo_bytes"
+        return 0
+      fi
+      if ! tmp_metric="$(mktemp "$size_metric.tmp.XXXXXX")"; then
+        log "WARN: failed to create temporary size metric file for appstate/$target_tag"
+        return 0
+      fi
+      if ! printf 'homelab_restic_repository_size_bytes{dataset="appstate",destination="%s"} %s\nhomelab_restic_repository_ceiling_bytes{dataset="appstate",destination="%s"} %s\n' \
+        "$target_tag" "$repo_bytes" "$target_tag" "$ceiling_bytes" >"$tmp_metric" \
+        || ! chmod 0644 "$tmp_metric" \
+        || ! mv -f "$tmp_metric" "$size_metric"; then
+        rm -f "$tmp_metric"
+        log "WARN: failed to publish appstate/$target_tag repository size metrics"
+        return 0
       fi
     }
 

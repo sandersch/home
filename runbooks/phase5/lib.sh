@@ -539,11 +539,13 @@ assert_phase5_backup_invariants() {
     any(.spec.jobTemplate.spec.template.spec.volumes[];
       .name == "backups" and .hostPath.path == "/mnt/backups")' "$rendered" >/dev/null \
     || die "local Restic CronJob no longer mounts /mnt/backups"
-  yq -e 'select(.kind == "CronJob" and .metadata.name == "restic-nas-backup") |
-    .spec.jobTemplate.spec.template.spec as $pod |
-    any($pod.volumes[]; .name == "metrics" and .hostPath.path == "/var/lib/node-exporter/textfile") and
-    any($pod.containers[0].volumeMounts[]; .name == "metrics" and .mountPath == "/metrics")' "$rendered" >/dev/null \
-    || die "local Restic CronJob cannot publish appstate retention metrics"
+  for cronjob in restic-nas-backup restic-b2-backup; do
+    yq -e "select(.kind == \"CronJob\" and .metadata.name == \"$cronjob\") |
+      .spec.jobTemplate.spec.template.spec as \$pod |
+      any(\$pod.volumes[]; .name == \"metrics\" and .hostPath.path == \"/var/lib/node-exporter/textfile\") and
+      any(\$pod.containers[0].volumeMounts[]; .name == \"metrics\" and .mountPath == \"/metrics\")" "$rendered" >/dev/null \
+      || die "$cronjob cannot publish appstate backup metrics"
+  done
   yq -e '
     select(.kind == "CronJob" and
       (.metadata.name == "restic-nas-backup" or .metadata.name == "restic-b2-backup")) |
