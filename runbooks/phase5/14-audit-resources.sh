@@ -78,25 +78,61 @@ wait_for_http "http://127.0.0.1:$prometheus_port/-/ready" \
   "$tmpdir/prometheus-port-forward.log" "$prometheus_forward_pid"
 ok "Prometheus is ready on local port $prometheus_port" >&2
 
+sidecar_init="max by (namespace, pod, container) (
+  kube_pod_init_container_info{namespace=~\"$namespace_matcher\",restart_policy=\"Always\"}
+)"
+
 step "Query current reservations and $window of resource history" >&2
 prom_query tracked "sum by (namespace, container) (
-  kube_pod_container_info{namespace=~\"$namespace_matcher\"}
+  (
+    kube_pod_container_info{namespace=~\"$namespace_matcher\"}
+    or
+    kube_pod_init_container_info{namespace=~\"$namespace_matcher\",restart_policy=\"Always\"}
+  )
   * on (namespace, pod) group_left() ($active_phase)
 )"
 prom_query cpu_requests "sum by (namespace, container) (
-  kube_pod_container_resource_requests{namespace=~\"$namespace_matcher\",resource=\"cpu\",unit=\"core\"}
+  (
+    kube_pod_container_resource_requests{namespace=~\"$namespace_matcher\",resource=\"cpu\",unit=\"core\"}
+    or
+    (
+      kube_pod_init_container_resource_requests{namespace=~\"$namespace_matcher\",resource=\"cpu\",unit=\"core\"}
+      * on (namespace, pod, container) group_left() ($sidecar_init)
+    )
+  )
   * on (namespace, pod) group_left() ($active_phase)
 )"
 prom_query cpu_limits "sum by (namespace, container) (
-  kube_pod_container_resource_limits{namespace=~\"$namespace_matcher\",resource=\"cpu\",unit=\"core\"}
+  (
+    kube_pod_container_resource_limits{namespace=~\"$namespace_matcher\",resource=\"cpu\",unit=\"core\"}
+    or
+    (
+      kube_pod_init_container_resource_limits{namespace=~\"$namespace_matcher\",resource=\"cpu\",unit=\"core\"}
+      * on (namespace, pod, container) group_left() ($sidecar_init)
+    )
+  )
   * on (namespace, pod) group_left() ($active_phase)
 )"
 prom_query memory_requests "sum by (namespace, container) (
-  kube_pod_container_resource_requests{namespace=~\"$namespace_matcher\",resource=\"memory\",unit=\"byte\"}
+  (
+    kube_pod_container_resource_requests{namespace=~\"$namespace_matcher\",resource=\"memory\",unit=\"byte\"}
+    or
+    (
+      kube_pod_init_container_resource_requests{namespace=~\"$namespace_matcher\",resource=\"memory\",unit=\"byte\"}
+      * on (namespace, pod, container) group_left() ($sidecar_init)
+    )
+  )
   * on (namespace, pod) group_left() ($active_phase)
 )"
 prom_query memory_limits "sum by (namespace, container) (
-  kube_pod_container_resource_limits{namespace=~\"$namespace_matcher\",resource=\"memory\",unit=\"byte\"}
+  (
+    kube_pod_container_resource_limits{namespace=~\"$namespace_matcher\",resource=\"memory\",unit=\"byte\"}
+    or
+    (
+      kube_pod_init_container_resource_limits{namespace=~\"$namespace_matcher\",resource=\"memory\",unit=\"byte\"}
+      * on (namespace, pod, container) group_left() ($sidecar_init)
+    )
+  )
   * on (namespace, pod) group_left() ($active_phase)
 )"
 prom_query cpu_p95 "quantile_over_time(0.95,

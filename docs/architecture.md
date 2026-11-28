@@ -324,11 +324,14 @@ is just a few env-var changes and a pod restart. Gigabit internet is not a const
 WireGuard retains ~80%+ of line rate, and download traffic is capped by indexer/server
 speed well below that anyway.
 
-**Topology.** One **Gluetun gateway pod** in the `media` namespace. **SABnzbd,
-qBittorrent, Prowlarr, Radarr, and Sonarr all run as containers in that same pod**,
-sharing Gluetun's network namespace — so *every* WAN egress (SABnzbd/qBittorrent
-downloads, Prowlarr's indexer queries, the *arrs' metadata fetches and trigger
-traffic) leaves through the tunnel, not the node's WAN. Because they share one netns
+**Topology.** One **Gluetun gateway pod** in the `media` namespace. Gluetun runs as a
+Kubernetes **native sidecar** (`initContainers` with `restartPolicy: Always` and a
+`startupProbe` on `/gluetun-entrypoint healthcheck`), so kubelet waits for the kill switch
+and WireGuard tunnel to come up before starting **SABnzbd, qBittorrent, Prowlarr, Radarr,
+and Sonarr** as containers in that same pod. Sharing Gluetun's network namespace means
+*every* WAN egress (SABnzbd/qBittorrent downloads, Prowlarr's indexer queries, the *arrs'
+metadata fetches and trigger traffic) leaves through the tunnel, not the node's WAN, with
+no startup leak race. Because they share one netns
 they reach each other over `localhost:<port>` (SABnzbd 8080, qBittorrent 8090,
 Prowlarr 9696, Radarr 7878, Sonarr 8989 — no conflicts), and the pod's Service
 publishes those same UI/API ports to the LAN and Tailnet so the web UIs and Seerr/Plex
