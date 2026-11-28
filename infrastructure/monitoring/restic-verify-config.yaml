@@ -97,6 +97,9 @@ data:
           export RESTIC_PASSWORD_FILE=/data/vault/.backup-credentials/b2-password
           check_repository vault b2
           unset RESTIC_REPOSITORY RESTIC_PASSWORD_FILE AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
+        elif [ -e /etc/homelab/vault-b2.enrolled ]; then
+          log "ERROR: vault B2 is enrolled (/etc/homelab/vault-b2.enrolled) but repository config or credentials are missing"
+          failures=$((failures + 1))
         else
           log "vault B2 enrollment is absent; leaving its check timestamp unchanged"
         fi

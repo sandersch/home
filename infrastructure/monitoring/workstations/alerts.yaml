@@ -155,6 +155,49 @@ spec:
       annotations:
         summary: "ryze: VaultWorkstationDocumentsStale"
         description: "Document promotion is older than seven days or missing while the vault is mounted and the host is enrolled. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationJobFailed
+      expr: |
+        (
+          max by (namespace, owner_name) (
+            (
+              kube_job_created{namespace="monitoring",job_name=~"restic-ryze-(validate|copy|prune|check)-.*"}
+              * on (namespace, job_name) group_left(owner_name)
+                kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name=~"restic-ryze-(validate|copy|prune|check)"}
+            )
+            and on (namespace, job_name)
+              (kube_job_status_failed{namespace="monitoring",job_name=~"restic-ryze-(validate|copy|prune|check)-.*"} > 0)
+          )
+          > on (namespace, owner_name)
+          label_replace(
+            (
+              kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob=~"restic-ryze-(validate|copy|prune|check)"}
+              or on (namespace, cronjob)
+                (0 * kube_cronjob_created{namespace="monitoring",cronjob=~"restic-ryze-(validate|copy|prune|check)"})
+            ),
+            "owner_name", "$1", "cronjob", "(.*)"
+          )
+        )
+        and on() (homelab_workstation_enrolled{dataset="workstations",host="ryze"} == 1)
+      for: 15m
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: ResticWorkstationJobFailed"
+        description: "A ryze workstation maintenance CronJob has a failed run newer than its last successful run. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationJobSuspended
+      expr: |
+        kube_cronjob_spec_suspend{namespace="monitoring",cronjob=~"restic-ryze-(validate|copy|prune|check)"} == 1
+        and on() (homelab_workstation_enrolled{dataset="workstations",host="ryze"} == 1)
+      for: 15m
+      labels:
+        severity: warning
+        host: ryze
+        dataset: workstations
+      annotations:
+        summary: "ryze: ResticWorkstationJobSuspended"
+        description: "A ryze workstation maintenance CronJob is suspended while the host is enrolled. See runbooks/backups/workstations.md."
     - alert: ResticWorkstationBackupStale
       expr: |
         (
@@ -298,3 +341,46 @@ spec:
       annotations:
         summary: "m5c: VaultWorkstationDocumentsStale"
         description: "Document promotion is older than seven days or missing while the vault is mounted and the host is enrolled. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationJobFailed
+      expr: |
+        (
+          max by (namespace, owner_name) (
+            (
+              kube_job_created{namespace="monitoring",job_name=~"restic-m5c-(validate|copy|prune|check)-.*"}
+              * on (namespace, job_name) group_left(owner_name)
+                kube_job_owner{namespace="monitoring",owner_kind="CronJob",owner_is_controller="true",owner_name=~"restic-m5c-(validate|copy|prune|check)"}
+            )
+            and on (namespace, job_name)
+              (kube_job_status_failed{namespace="monitoring",job_name=~"restic-m5c-(validate|copy|prune|check)-.*"} > 0)
+          )
+          > on (namespace, owner_name)
+          label_replace(
+            (
+              kube_cronjob_status_last_successful_time{namespace="monitoring",cronjob=~"restic-m5c-(validate|copy|prune|check)"}
+              or on (namespace, cronjob)
+                (0 * kube_cronjob_created{namespace="monitoring",cronjob=~"restic-m5c-(validate|copy|prune|check)"})
+            ),
+            "owner_name", "$1", "cronjob", "(.*)"
+          )
+        )
+        and on() (homelab_workstation_enrolled{dataset="workstations",host="m5c"} == 1)
+      for: 15m
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: ResticWorkstationJobFailed"
+        description: "An m5c workstation maintenance CronJob has a failed run newer than its last successful run. See runbooks/backups/workstations.md."
+    - alert: ResticWorkstationJobSuspended
+      expr: |
+        kube_cronjob_spec_suspend{namespace="monitoring",cronjob=~"restic-m5c-(validate|copy|prune|check)"} == 1
+        and on() (homelab_workstation_enrolled{dataset="workstations",host="m5c"} == 1)
+      for: 15m
+      labels:
+        severity: warning
+        host: m5c
+        dataset: workstations
+      annotations:
+        summary: "m5c: ResticWorkstationJobSuspended"
+        description: "An m5c workstation maintenance CronJob is suspended while the host is enrolled. See runbooks/backups/workstations.md."

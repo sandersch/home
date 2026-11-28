@@ -25,6 +25,8 @@ spec:
       restartPolicy: Never
       priorityClassName: homelab-low
       automountServiceAccountToken: false
+      nodeSelector:
+        kubernetes.io/hostname: minis
       containers:
         - name: restic
           # renovate: datasource=docker depName=ghcr.io/sandersch/restic-backup
@@ -130,6 +132,13 @@ spec:
 
               stop_mariadb
               trap - EXIT
+              if [ -d /metrics ]; then
+                metric_tmp="$(mktemp /metrics/restic-appstate-nas-restore.prom.tmp.XXXXXX)"
+                printf 'homelab_restic_restore_drill_timestamp_seconds{dataset="appstate",destination="nas"} %s\n' \
+                  "$(date +%s)" >"$metric_tmp"
+                chmod 0644 "$metric_tmp"
+                mv -f "$metric_tmp" /metrics/restic-appstate-nas-restore.prom
+              fi
               echo "NAS snapshot $snapshot_id satisfies backup contract $contract_version with $required_count required app SQLite exports, $kine_rows k3s kine rows, $table_count RomM tables, and no server-token artifact"
           envFrom:
             - configMapRef:
@@ -152,6 +161,8 @@ spec:
           volumeMounts:
             - name: backups
               mountPath: /repo/nas
+            - name: metrics
+              mountPath: /metrics
             - name: work
               mountPath: /work
             - name: tmp
@@ -186,6 +197,10 @@ spec:
         - name: backups
           hostPath:
             path: /mnt/backups
+            type: Directory
+        - name: metrics
+          hostPath:
+            path: /var/lib/node-exporter/textfile
             type: Directory
         - name: work
           emptyDir: {}

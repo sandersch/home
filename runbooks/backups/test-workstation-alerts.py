@@ -92,6 +92,33 @@ for host, other in [('ryze', 'm5c'), ('m5c', 'ryze')]:
             {'series': f'homelab_workstation_enrolled{{dataset="workstations",host="{host}"}}', 'values': values}],
             'alert_rule_test': [{'eval_time': '2h', 'alertname': 'ResticWorkstationEnrollmentLost',
                                  'exp_alerts': [expected('ResticWorkstationEnrollmentLost', host)]}]})
+    cronjob = f'restic-{host}-copy'
+    job = f'{cronjob}-1'
+    failed_job_series = [
+        {'series': f'kube_job_created{{namespace="monitoring",job_name="{job}"}}', 'values': '20x200'},
+        {'series': f'kube_job_status_failed{{namespace="monitoring",job_name="{job}"}}', 'values': '1x200'},
+        {'series': f'kube_job_owner{{namespace="monitoring",job_name="{job}",owner_kind="CronJob",owner_is_controller="true",owner_name="{cronjob}"}}', 'values': '1x200'},
+        {'series': f'kube_cronjob_created{{namespace="monitoring",cronjob="{cronjob}"}}', 'values': '1x200'},
+    ]
+    tests.append({'name': f'{host} failed maintenance CronJob alerts while enrolled', 'interval': '1m',
+        'input_series': [VAULT] + emitted(host) + failed_job_series,
+        'alert_rule_test': [{'eval_time': '20m', 'alertname': 'ResticWorkstationJobFailed',
+                             'exp_alerts': [expected('ResticWorkstationJobFailed', host, namespace='monitoring', owner_name=cronjob)]}]})
+    tests.append({'name': f'{host} later CronJob success clears failed job alert', 'interval': '1m',
+        'input_series': [VAULT] + emitted(host) + failed_job_series + [
+            {'series': f'kube_cronjob_status_last_successful_time{{namespace="monitoring",cronjob="{cronjob}"}}', 'values': '30x200'}],
+        'alert_rule_test': [{'eval_time': '20m', 'alertname': 'ResticWorkstationJobFailed', 'exp_alerts': []}]})
+    tests.append({'name': f'{host} suspended maintenance CronJob alerts while enrolled', 'interval': '1m',
+        'input_series': [VAULT] + emitted(host) + [
+            {'series': f'kube_cronjob_spec_suspend{{namespace="monitoring",cronjob="{cronjob}"}}', 'values': '1x200'}],
+        'alert_rule_test': [{'eval_time': '20m', 'alertname': 'ResticWorkstationJobSuspended',
+                             'exp_alerts': [expected('ResticWorkstationJobSuspended', host, namespace='monitoring', cronjob=cronjob)]}]})
+    tests.append({'name': f'{host} unenrolled suppresses failed and suspended CronJob alerts', 'interval': '1m',
+        'input_series': [VAULT] + failed_job_series + [
+            {'series': f'kube_cronjob_spec_suspend{{namespace="monitoring",cronjob="{cronjob}"}}', 'values': '1x200'}],
+        'alert_rule_test': [
+            {'eval_time': '20m', 'alertname': 'ResticWorkstationJobFailed', 'exp_alerts': []},
+            {'eval_time': '20m', 'alertname': 'ResticWorkstationJobSuspended', 'exp_alerts': []}]})
 tests.append({'name': 'locked vault defers both document alerts', 'interval': '1m',
               'input_series': enrolled('ryze') + enrolled('m5c'),
               'alert_rule_test': [{'eval_time': '2h', 'alertname': 'VaultWorkstationDocumentsStale', 'exp_alerts': []}]})

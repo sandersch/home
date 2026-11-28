@@ -80,4 +80,24 @@ with tempfile.TemporaryDirectory(prefix='backup-review-') as directory:
         assert calls.count('/repo/nas/vault') == (2 if nas_status == '0' and valid else 0), result
         assert result.returncode == (0 if nas_status == '0' and valid else 1), result
         assert (work / 'metrics/restic-check-vault-b2.prom').exists() == (not locked and valid)
-print('PASS: missing metric fields, empty source, and independent B2 verification')
+
+    # Vault B2 missing credentials: skip cleanly only when unenrolled; fail
+    # closed when /etc/homelab/vault-b2.enrolled records durable B2 enrollment.
+    env['NAS_STATUS'] = '0'
+    sentinel.write_text('vault-contract-version=3\nfilesystem-uuid=fixture\n')
+    (work / 'mountinfo').write_text('1 0 0:1 / /data/vault rw - ext4 /dev/mapper/vault rw\n')
+    (work / 'data/vault/.backup-credentials/b2-password').unlink()
+    enrolled_marker = work / 'etc/homelab/vault-b2.enrolled'
+    for enrolled in (False, True):
+        if enrolled:
+            enrolled_marker.touch()
+        elif enrolled_marker.exists():
+            enrolled_marker.unlink()
+        (work / 'calls').write_text('')
+        for old in (work / 'metrics').glob('*.prom'):
+            old.unlink()
+        result = subprocess.run(['bash', '-c', fixture], env=env, capture_output=True, text=True)
+        calls = (work / 'calls').read_text().splitlines()
+        assert calls.count('vault-b2') == 0, (enrolled, result)
+        assert result.returncode == (1 if enrolled else 0), (enrolled, result)
+print('PASS: missing metric fields, empty source, independent B2 verification, and fail-closed B2 enrollment')
