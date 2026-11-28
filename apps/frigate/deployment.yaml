@@ -42,6 +42,32 @@ spec:
               containerPort: 8971
             - name: http-local
               containerPort: 5000
+          startupProbe:
+            httpGet:
+              host: 127.0.0.1
+              path: /api/version
+              port: http-local
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              host: 127.0.0.1
+              path: /api/version
+              port: http-local
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Generous ~5m liveness window exceeds the 122-245s md3 consistency
+          # check I/O stalls documented in the storage migration worklog.
+          livenessProbe:
+            httpGet:
+              host: 127.0.0.1
+              path: /api/version
+              port: http-local
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 10
           resources:
             requests:
               cpu: "2"
