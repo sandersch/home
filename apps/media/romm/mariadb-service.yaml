@@ -5,6 +5,9 @@ metadata:
   namespace: media
 spec:
   type: ClusterIP
+  # Keep MariaDB reachable for the mandatory appstate backup dump even if the
+  # colocated romm or valkey container fails its readinessProbe.
+  publishNotReadyAddresses: true
   selector:
     app.kubernetes.io/name: romm
   ports:
